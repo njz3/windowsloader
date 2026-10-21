@@ -32,7 +32,13 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 21 | 21/10 | Comme linuxloader : rapport d'aspect, mode d'affichage, résolution interne | ⚠️ `[Display]` de `windowsloader.ini` (mêmes clés et valeurs que linuxloader), page Affichage de F10, F11 / Alt+Entrée. Vérifié : les rectangles des 16 combinaisons (journal), la résolution interne (Sega Rally 3 lancé en 1280×720), la page F10. Pas vérifié : le rendu à l'écran, qu'une capture GDI ne voit pas sur ce PC (noire même sans windowsloader) |
 | 22 | 21/10 | En parallèle, copier les deux Daytona Championship USA | ✅ `games/daytonausa` (7,6 Go, 3048 fichiers) et `games/daytonausa-nse` (5,9 Go, 2763), sans échec. `Sega\Daytona\Daytona.exe` est x86 (D3D11 et D3D9, DINPUT8, XINPUT9_1_0, WS2_32) ; le Shell de la borne est là (`Sega\shell\Shell.exe`, x86, HID + SETUPAPI) |
 | 23 | 21/10 | Retirer FFBPlugin des copies locales de Daytona | ✅ dans les deux, `Sega\Daytona\` → `Sega\Daytona\_teknoparrot_off\` (rien supprimé) : `dinput8.dll` (FFB Arcade Plugin, chargé sinon par l'import DINPUT8 du jeu), `FFBPlugin*`, `MetroFramework.dll`, `SDL2.dll` (non importé par `Daytona.exe`), `OutputBlaster*`, `teknoparrot.ini` |
-| 24 | 21/10 | Ajouter le support des deux versions de Daytona Championship USA | ⚠️ `games/daytona.cpp`, `vdinput.cpp`, `d3d11hook.cpp`, menu F10 en Direct3D 11. Vérifié en mode agent sur les deux éditions, de la démo à la course : défis de sécurité tenus (le jeu quittait à 54 s), SKU (la NSE l'attend), pièce → crédit, Start, choix au volant (à droite → Championnat) et à l'accélérateur, circuit, voiture, course : accélérateur, frein (57 → 18 mph en 2 s), rapports, retour de force (menus : volant à droite → +0,71 vers la gauche ; course : volant à gauche → −0,45 à −0,49 en moyenne), F10 (pages Contrôles et Retour de force), réseau local refusé. Corrigé en route : la carte graphique du portable (le jeu manquait d'espace d'adressage sur l'Intel). Reste à essayer à la main : volant réel et sens du retour de force en course, levier en H, F11, bandes noires en plein écran |
+| 24 | 21/10 | Ajouter le support des deux versions de Daytona Championship USA | ⚠️ `games/daytona.cpp`, `vdinput.cpp`, `d3d11hook.cpp`, menu F10 en Direct3D 11. Vérifié en mode agent sur les deux éditions, de la démo à la course : défis de sécurité tenus (le jeu quittait à 54 s), SKU (la NSE l'attend), pièce → crédit, Start, choix au volant (à droite → Championnat) et à l'accélérateur, circuit, voiture, course : accélérateur, frein (57 → 18 mph en 2 s), rapports, retour de force (menus : volant à droite → +0,71 vers la gauche ; course : volant à gauche → −0,45 à −0,49 en moyenne), F10 (pages Contrôles et Retour de force), réseau local refusé. Corrigé en route : la carte graphique du portable (le jeu manquait d'espace d'adressage sur l'Intel). Reste à essayer à la main : volant réel et sens du retour de force en course, levier en H, F11 (bandes noires en plein écran : réglées, demande 27) |
+| 25 | 21/10 | Commit et push | ✅ 4 commits poussés (`2f00351..b673ee7`) : backend DX11 de Dear ImGui, correctif du `.gitignore` (`games/` cachait `src/hook/games/` : `segarally3.cpp` n'avait jamais été commité, le dépôt ne compilait pas), le code, NOTES.md |
+| 26 | 21/10 | Essayer Daytona au volant ; « envoie-toi les commandes » | ✅ sessions vJoy prévenues avant (Compilation, Driveboard, Multi-Board, Linuxloader FFB edition : vJoy libre) et après. SDL ne voit qu'une manette sur ce PC : vJoy (aucun volant physique). Nouvelle option du lanceur `--controllers` (avec `--agent`) : le script conduit, les manettes sont ouvertes et reçoivent le retour de force. Course complète (`day_race.py wheel`) : effet de force constante créé et lancé sur vJoy sans erreur, 72 à 268 changements par phase, volant à gauche → −0,39 en moyenne, rapports, F10. Ce que reçoit le programme derrière vJoy n'est pas vérifiable d'ici |
+| 27 | 21/10 | Vérifier le mode stretch en fenêtre réduite et les rapports d'aspect ; aussi le 4:3 avec bandes | ✅ `display_check.py` (16 couples aspect × mode, puis WINDOW_STRETCH réduit à 960×600, 800×800 et 1400×450), capture vue de l'écran en pixels physiques. Daytona (Direct3D 11) : 7 cas sur 16 faux au départ (FULLSCREEN sans bandes, 4:3_LETTERBOX étiré) → corrigé par une fenêtre enfant placée sur l'image. Après : Daytona et Sega Rally 3 justes partout, par exemple plein écran 16:10 ORIGINAL bandes 96/96 px, 4:3 bandes latérales 255/256, 4:3_LETTERBOX image 16:9 entière dans le cadre 4:3 (bandes 240 et 255), fenêtres réduites remplies, LETTERBOX réduit bandes symétriques (67/65, 91/91, 48/47) |
+| 28 | 21/10 | Ajouter les jeux dans NOTES.md | ✅ section « Jeux des bornes » : la liste mesurée par la session Image borne (21 jeux Windows non protégés qui démarrent, les écartés et pourquoi), avec l'état dans windowsloader |
+| 29 | 21/10 | La fenêtre « Lindbergh Loader Error » (« Unresolved symbol called: XIfEvent ») vient-elle de windowsloader ? Si oui, la renommer « Windows loader » | ✅ non : le texte n'existe pas dans windowsloader, il est dans linuxloader (`src/loader/elfLoader/symbolResolver.cpp`) : un jeu Lindbergh a appelé une fonction X11 que le chargeur ne fournit pas (sans doute un essai de la session Linuxloader FFB edition). Rien renommé |
+| 30 | 22/10 | Mettre à jour les notes avec les derniers développements | ✅ demandes 26 à 30, points ouverts, journal (essai au volant, `--controllers`, écran éteint) |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -51,15 +57,16 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
   « déconnectée » (`qwinsta`) : plus d'affichage, Direct3D perd son device (Present échoue, les captures
   aussi) ou ne peut pas en créer (`CreateDevice` 0x8876086C, « Failed to create a d3d device »). Les
   essais du jeu demandent une session connectée. Le jeu ne fait jamais `Reset` après une perte.
-- **Mes essais et vJoy.** Les essais en mode agent ne lisent pas les manettes et n'envoient rien à vJoy.
-  Un lancement normal ouvre vJoy (joueur 1) avec le retour de force. `SDL_JOYSTICK_IGNORE_DEVICES=0x1234/0xBEAD`
-  ne l'empêche pas (essayé le 21/10 : vJoy ouvert 15 s, en démo, forces nulles, vJoy annoncé libre par la
-  session Flycast). À faire : une option du lanceur pour couper manettes et retour de force.
-- **Direct3D 11 et l'affichage.** Le `Present` de DXGI remplit toute la fenêtre : en Direct3D 11 (Daytona),
-  le rapport d'aspect ne tient que dans les modes fenêtre (la fenêtre prend la forme de l'image) ; en plein
-  écran, une image d'une autre forme que l'écran est étirée. À faire : une fenêtre enfant à la place de
-  l'image, comme sortie de la chaîne d'échange. Pendant mes essais, `Present` rend `DXGI_STATUS_OCCLUDED`
-  (fenêtre jugée invisible, Bureau à distance réduit ?) : le jeu tourne sans synchro, à 50–190 i/s.
+- **Mes essais et vJoy.** Les essais en mode agent ne lisent pas les manettes et n'envoient rien à vJoy,
+  sauf avec `--controllers` (agent + manettes + retour de force). Un lancement normal ouvre vJoy (joueur 1)
+  avec le retour de force. `SDL_JOYSTICK_IGNORE_DEVICES=0x1234/0xBEAD` ne l'empêche pas (essayé le 21/10 :
+  vJoy ouvert 15 s, en démo, forces nulles, vJoy annoncé libre par la session Flycast). Avant un essai qui
+  l'ouvre : prévenir les sessions Compilation, Driveboard, Multi-Board et Linuxloader FFB edition.
+- **Direct3D 11 et l'affichage.** Réglé le 21/10 (demande 27) : la chaîne d'échange affiche dans une fenêtre
+  enfant placée sur l'image. Pendant mes essais sur ce portable, `Present` rendait parfois `DXGI_STATUS_OCCLUDED`
+  (écran éteint, session montrée nulle part : affichage « WinDisc ») : le jeu tourne alors sans synchro et
+  Daytona ne démarre pas (aucune sortie écran). La capture `screen` de l'agent lit le mauvais endroit quand la
+  fenêtre du jeu ignore l'échelle de l'écran (150 % ici) : `display_check.py` capture de l'extérieur.
 - **`GameData\debug.txt` de Daytona** : 3 Go (2,3 Go avant mes essais, 0,7 Go ajoutés par eux avant le
   plafond), et 27 vidages `*.dmp` anciens plus un des miens (21/10 22:07, 231 Ko). Rien supprimé : à
   l'utilisateur de voir s'il les garde.
@@ -67,6 +74,66 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
   0x1020. Vérifié le 21/10 : aucun pilote de ports n'est installé ici et le jeu tourne sans droits
   administrateur, donc les écritures des premiers essais n'ont rien atteint. Désormais la vraie DLL n'est
   jamais chargée (ports émulés).
+
+## Jeux des bornes
+
+Liste transmise le 21/10 par la session « Image borne (Berstett) », à la demande de l'utilisateur. Tout y
+est mesuré sur les bornes : profils TeknoParrot pour la plateforme et le chemin de l'exécutable, en-têtes
+PE pour l'architecture, noms de sections pour une enveloppe de protection, bibliothèques de dongle à côté
+de l'exe ; « démarre » et « FFB » viennent de campagnes où chaque jeu a été lancé sous son loader actuel,
+piloté par vJoy, et ses paquets de retour de force comptés. La session peut donner le chemin exact d'un
+exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les deux bornes à distance).
+
+### Les 21 jeux propres, qui démarrent tous
+
+| Jeu | Profil | Loader actuel | Matériel d'origine | PE | FFB (paquets) | windowsloader |
+|---|---|---|---|---|---|---|
+| Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ⏳ |
+| Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ⏳ |
+| Battle Gear 4 Tuned | BattleGear4Tuned | OpenParrot | Taito Type X+ | 32 | oui (16 607) | ⏳ |
+| Chase HQ 2 | ChaseHQ2 | OpenParrot | Taito Type X2 | 32 | oui (6 816) | ⏳ |
+| Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ⏳ |
+| D1GP | D1GP | TeknoParrot | Taito Type X2 | 32 | non (0) | ⏳ |
+| Daytona 3 | Daytona3 | TeknoParrot | Sega | 32 | oui (9 164) | ⚠️ joue en mode agent (demande 24) |
+| Daytona 3 New Season | Daytona3NSE | TeknoParrot | Sega | 32 | oui (12 684) | ⚠️ joue en mode agent (demande 24) |
+| Ford Racing | FR | TeknoParrot | Sega Arcade PC | 32 | oui (4 426) | ⏳ |
+| GRID | GRID | OpenParrot | — (`C:\Sega\Grid`) | 32 | oui (26 437) | ⏳ |
+| GTI Club 3 | GtiClub3 | OpenParrot | Konami PC | 32 | oui (9 573) | ⏳ |
+| Initial D 6 AA | ID6 | TeknoParrot | Sega Ringedge | 32 | oui (13 400) | ⏳ |
+| K.O. Drive | KODrive | TeknoParrot | Sega Ringwide | 32 | oui (20 854) | ⏳ |
+| Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
+| Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ⏳ |
+| Showdown | Showdown | TeknoParrot | Sega Arcade PC | 32 | oui (25 955) | ⏳ |
+| Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ⏳ |
+| Sega Rally 3 | SR3 | TeknoParrot | Sega Europa R | 32 | non (63) | ✅ (retour de force par le port 0x1020) |
+| Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | ⏳ |
+| Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ⏳ |
+| Wasteland Racers 2071 | WastelandRacers | TeknoParrot | Trio Tech PC | 32 | oui (23 484) | ⏳ |
+
+13 des 21 émettent du retour de force sous leur loader actuel. Sega Rally 3 a huit entrées (Standard,
+Alpine, Artic, Canyon, Master, Safari, Tropical, Tropical478) : huit dossiers qui partagent le même
+`Rally.exe`, donc un seul module. Deux jeux seulement sont en 64 bits, Crazy Ride et SWDC (Unreal Engine) ;
+les dix-neuf autres sont en PE32.
+
+### Écartés, avec la raison
+
+- **Enveloppe Sentinel HASP** : toute la gamme Raw Thrills, huit titres qui marchent pourtant (Batman, Cars,
+  Dirty Drivin, H2 Overdrive, Fast & Furious, FnF SuperCars, FnF Tokyo Drift, Nicktoons Nitro). Binaire
+  renommé `sdaemon.exe` partout, section `.protect` jusqu'à 2 Mo ; quatre ont la chaîne `HASP` en clair,
+  deux embarquent la bibliothèque d'exécution. Réserve : chaînes cherchées dans les 4 premiers Mo
+  seulement, deux binaires font 51 et 139 Mo.
+- **Bibliothèque de dongle HASP à côté de l'exe**, sections propres : les trois Wangan Midnight, WMMT5
+  (`hasp_windows_x64_109906.dll`), WMMT5DX+ (`…_106482.dll`), WMMT6 (`…_28756.dll`). Ils démarrent et
+  donnent beaucoup de retour de force (68 769, 68 622, 67 819 paquets) : le dongle ne les bloque pas en
+  l'état. À juger.
+- **Section `.mackt`** : Initial D 7 AAX et Initial D 8 Infinity, la même section que sur les binaires Raw
+  Thrills, mis de côté par prudence. Initial D 6 est propre (liste ci-dessus) ; les noms des fichiers
+  racontent leur histoire : `id6_dump_.exe`, `InitialD7_…_dumped_.exe`, `InitialD8_…_redumped_.exe`.
+- **Ne fonctionnent pas**, quelle que soit la protection : Let's Go Safari, Sega Racing Classic, Storm
+  Racer G, Wacky Races.
+- **Linux, pour linuxloader** : Cruis'n Blast, Dead Heat, Hummer Extreme, Initial D 4 et 5, OutRun 2 SP SDX,
+  R-Tuned, Sega Race TV, Tokyo Cop, Gaelco Championship Tuning Race, WMMT3 et 3DX+ (transmis à la session
+  linuxloader, qui en a repris six).
 
 ## Journal de développement
 
@@ -285,3 +352,44 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   l'originale), démo, poignée de main du moteur, pièce, Start, choix du mode. Elle n'a pas de
   `shell\Game.ini` : port parallèle par défaut 0x378. `[Network] Enabled = 0` (borne seule pour elle)
   essayé, sans effet sur ce blocage, retiré.
+
+### 21/10 — Affichage vérifié à l'écran, Direct3D 11 (demande 27)
+
+- `scripts/agent/display_check.py [day | day-nse | sr3]` : chaque couple aspect × mode, puis WINDOW_STRETCH
+  avec la fenêtre réduite par le script (`SetWindowPos`). Capture de la zone client vue à l'écran par Python
+  déclaré « per-monitor DPI aware » (la fenêtre du jeu ne l'est pas : Windows l'agrandit ×1,5 sur cet écran
+  2048×1280 logiques, 3072×1920 physiques), image et bandes mesurées (lignes et colonnes à plus de 20 % non
+  noires, sans la ligne de bord d'une fenêtre redimensionnable), placement calculé lu dans le journal.
+- Daytona, avant : l'image remplissait toujours la fenêtre (le `Present` de DXGI étire sur toute la fenêtre
+  de sortie). Après : `display.cpp` donne à la chaîne d'échange une fenêtre enfant (`wl_display_child`,
+  transparente à la souris, jamais effacée) placée à chaque `Present` sur le rectangle de l'image ; la
+  fenêtre du jeu (WS_CLIPCHILDREN) peint les bandes. Une seule mise à l'échelle, sans shader.
+  `WINDOWSLOADER_SWAP=discard` la retire (secours). Direct3D 9 garde le rectangle de destination de `Present`.
+- Résultat, identique pour les deux jeux (écran 16:10, jeu 16:9) : WINDOW à la forme de l'aspect ;
+  WINDOW_STRETCH et FULLSCREEN_STRETCH remplis ; FULLSCREEN ORIGINAL/16:9 bandes 96/96 px, 4:3 bandes 255/256
+  sur les côtés, 4:3_LETTERBOX image 16:9 entière dans le cadre 4:3 ; fenêtres réduites remplies (forme de la
+  fenêtre), LETTERBOX réduit avec bandes symétriques.
+
+### 21/10 — Essai au volant, option `--controllers` (demande 26)
+
+- Préavis vJoy envoyé avant l'essai aux sessions Compilation, Driveboard, Multi-Board et Linuxloader FFB
+  edition (Multi-Board et Linuxloader : vJoy libre, et inutile de les prévenir à l'avenir ; gardé tant que
+  l'utilisateur ne change pas la règle), puis « vJoy libre » à la fin aux deux autres.
+- Premier lancement normal : SDL ne voit qu'une manette, `vJoy - Virtual Joystick` (joueur 1, retour de
+  force 100 %), aucun volant physique sur ce PC. Avec les liaisons par défaut, seul l'axe X de vJoy est
+  branché (le volant) ; les pédales ne le sont que sur les gâchettes d'une manette.
+- « Envoie-toi les commandes » : le mode agent ne démarrait pas SDL, donc aucune force ne partait vers vJoy.
+  Nouvelle option du lanceur `--controllers` (avec `--agent`, variable `WINDOWSLOADER_CONTROLLERS=1`) : la
+  DLL démarre les manettes et leur retour de force ; les entrées que l'agent tient (`set`) gardent la main,
+  les manettes ont les autres. `python scripts/agent/day_race.py wheel` : course complète, effet de force
+  constante créé et lancé sur vJoy sans erreur et mis à jour à chaque force du jeu (72 à 268 changements par
+  phase ; volant à gauche → −0,39 en moyenne), neuf changements de rapport, F10. Les mises à jour de l'effet
+  ne sont pas vérifiées une à une, et ce que reçoit le programme derrière vJoy n'est pas visible d'ici.
+
+### 21/10 — Écran éteint
+
+- Pendant la vérification de l'affichage, Daytona plantait à son démarrage (lecture de NULL à
+  +0x2b4465) : l'écran du portable était éteint, Windows ne montrait plus que « WinDisc » et aucun
+  adaptateur n'avait de sortie (ni l'Intel, ni la NVIDIA). Le jeu prend la première sortie de son adaptateur
+  sans vérifier : sans écran il ne peut pas démarrer, sur une borne non plus. `d3d11hook.cpp` l'écrit
+  désormais au journal (« no screen on any adapter… »). Écran rallumé : 2048×1280 sur l'Intel, tout repart.
