@@ -1,0 +1,443 @@
+// windowsloader - runs Windows arcade games with emulated cabinet hardware
+// Copyright (C) 2026 Benjamin Maurin - njz3
+// License: GNU General Public License version 3 (GPL v3)
+//
+// This program is free software: you can redistribute it and/or modify it under the terms of
+// the GNU General Public License version 3 as published by the Free Software Foundation.
+// It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+// the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the LICENSE
+// file for the full text. The author reserves the right to change the license of this code.
+//
+// Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
+// its own project; such code is marked with its origin.
+
+// Observer for files: what the game opens, looks for, creates and reads from .ini files.
+// Device handles (COM, HID) are handed to devices.cpp, which logs their traffic.
+
+#include <windows.h>
+#include <stdio.h>
+
+#include "devices.h"
+#include "hooks.h"
+#include "log.h"
+#include "vhid.h"
+
+// Plain file events are many; past this count only devices are still logged
+#define FILE_EVENT_LIMIT 5000
+
+static volatile LONG g_fileEvents;
+
+static int file_event(void)
+{
+    LONG n = InterlockedIncrement(&g_fileEvents);
+    if (n == FILE_EVENT_LIMIT + 1)
+        wl_log("further file events not logged (limit %d)", FILE_EVENT_LIMIT);
+    return n <= FILE_EVENT_LIMIT;
+}
+
+static const char *disposition(DWORD d)
+{
+    switch (d)
+    {
+    case CREATE_NEW:
+        return "create-new";
+    case CREATE_ALWAYS:
+        return "create";
+    case OPEN_EXISTING:
+        return "open";
+    case OPEN_ALWAYS:
+        return "open-always";
+    case TRUNCATE_EXISTING:
+        return "truncate";
+    default:
+        return "?";
+    }
+}
+
+static const char *result(HANDLE h, DWORD err, char *buf, size_t size)
+{
+    if (h == INVALID_HANDLE_VALUE)
+        snprintf(buf, size, "failed (error %lu)", err);
+    else
+        snprintf(buf, size, "%p", h);
+    return buf;
+}
+
+// ------------------------------------------------------------------------------
+// CreateFile / ReadFile / WriteFile / CloseHandle
+// ------------------------------------------------------------------------------
+
+static void on_create(const char *path, DWORD access, DWORD disp, DWORD flags, HANDLE h, DWORD err, const void *caller)
+{
+    // Devices opened by Windows itself (DirectInput scanning the joysticks) are not the cabinet's
+    if (wl_is_system_caller(caller))
+        return;
+    int device = wl_dev_is_device_path(path);
+    if (!device && !file_event())
+        return;
+
+    char res[48], where[128];
+    const char *rw = (access & (GENERIC_READ | GENERIC_ALL | FILE_READ_DATA)) && (access & (GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA)) ? "rw"
+                     : access & (GENERIC_WRITE | FILE_WRITE_DATA | FILE_APPEND_DATA)                                                             ? "w"
+                     : access & (GENERIC_READ | FILE_READ_DATA)                                                                                  ? "r"
+                                                                                                                                                 : "-";
+    wl_log("CreateFile%s \"%s\" %s %s flags=0x%lx -> %s [%s]", device ? " (device)" : "", path, rw, disposition(disp), flags,
+           result(h, err, res, sizeof res), wl_where(caller, where, sizeof where));
+    if (device && h != INVALID_HANDLE_VALUE)
+        wl_dev_track(h, path);
+}
+
+static HANDLE open_vhid(const char *path, const void *caller)
+{
+    HANDLE h = wl_vhid_open();
+    char where[128];
+    wl_log("CreateFile \"%s\" -> %p (emulated board) [%s]", path, h, wl_where(caller, where, sizeof where));
+    return h;
+}
+
+static HANDLE(WINAPI *oCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
+{
+    int nested = wl_busy();
+    if (!nested && wl_vhid_is_path(name))
+        return open_vhid(name, WL_CALLER);
+    wl_busy_enter();
+    HANDLE h = oCreateFileA(name, access, share, sa, disp, flags, tmpl);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && name)
+        on_create(name, access, disp, flags, h, err, WL_CALLER);
+    SetLastError(err);
+    return h;
+}
+
+static HANDLE(WINAPI *oCreateFileW)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
+{
+    int nested = wl_busy();
+    if (!nested && name && wl_vhid_active())
+    {
+        char path[MAX_PATH * 2];
+        if (wl_vhid_is_path(wl_u8(name, path, sizeof path)))
+            return open_vhid(path, WL_CALLER);
+    }
+    wl_busy_enter();
+    HANDLE h = oCreateFileW(name, access, share, sa, disp, flags, tmpl);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && name)
+    {
+        char path[MAX_PATH * 2];
+        on_create(wl_u8(name, path, sizeof path), access, disp, flags, h, err, WL_CALLER);
+    }
+    SetLastError(err);
+    return h;
+}
+
+static BOOL(WINAPI *oReadFile)(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED);
+static BOOL WINAPI hReadFile(HANDLE h, LPVOID buf, DWORD size, LPDWORD read, LPOVERLAPPED ov)
+{
+    int nested = wl_busy();
+    if (!nested && wl_vhid_is_handle(h))
+        return wl_vhid_read(h, buf, size, read, ov);
+    wl_busy_enter();
+    BOOL ok = oReadFile(h, buf, size, read, ov);
+    wl_busy_leave();
+    if (nested)
+        return ok;
+
+    DWORD err = GetLastError();
+    DWORD got = ok ? (read ? *read : ov ? (DWORD)ov->InternalHigh : 0) : 0;
+    WlDevice d;
+    if (!ok && err == ERROR_IO_PENDING)
+    {
+        if (wl_dev_count(h, WL_DEV_IO, &d))
+            wl_log("ReadFile %s (%lu) -> pending", d.name, size);
+    }
+    else if (!ok || got)
+    {
+        if (wl_dev_count(h, WL_DEV_IO, &d))
+        {
+            char prefix[160];
+            snprintf(prefix, sizeof prefix, "ReadFile %s (%lu) -> %s %lu:", d.name, size, ok ? "got" : "failed", got);
+            wl_log_hex(prefix, buf, got);
+        }
+    }
+    else if (wl_dev_count(h, WL_DEV_EMPTY, &d))
+        wl_log("ReadFile %s (%lu) -> nothing", d.name, size);
+    SetLastError(err);
+    return ok;
+}
+
+static BOOL(WINAPI *oWriteFile)(HANDLE, LPCVOID, DWORD, LPDWORD, LPOVERLAPPED);
+static BOOL WINAPI hWriteFile(HANDLE h, LPCVOID buf, DWORD size, LPDWORD written, LPOVERLAPPED ov)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = oWriteFile(h, buf, size, written, ov);
+    wl_busy_leave();
+    if (nested)
+        return ok;
+
+    DWORD err = GetLastError();
+    WlDevice d;
+    if (wl_dev_count(h, WL_DEV_IO, &d))
+    {
+        char prefix[160];
+        snprintf(prefix, sizeof prefix, "WriteFile %s (%lu) -> %s:", d.name, size, ok ? "ok" : err == ERROR_IO_PENDING ? "pending" : "failed");
+        wl_log_hex(prefix, buf, size);
+    }
+    SetLastError(err);
+    return ok;
+}
+
+static BOOL(WINAPI *oCloseHandle)(HANDLE);
+static BOOL WINAPI hCloseHandle(HANDLE h)
+{
+    int nested = wl_busy();
+    WlDevice d;
+    // Forget the handle before it is closed: its value can be reused right after
+    int was = wl_dev_untrack(h, &d, nested);
+    if (was && !nested)
+        wl_log("CloseHandle %s", d.name);
+    if (!nested && wl_vhid_is_handle(h))
+    {
+        wl_vhid_forget(h);
+        wl_log("CloseHandle %p (emulated board)", h);
+    }
+    wl_busy_enter();
+    BOOL ok = oCloseHandle(h);
+    wl_busy_leave();
+    return ok;
+}
+
+// ------------------------------------------------------------------------------
+// Looking for files and folders
+// ------------------------------------------------------------------------------
+
+static void on_attributes(const char *path, DWORD attr, const void *caller)
+{
+    if (wl_is_system_caller(caller) || !file_event())
+        return;
+    char where[128];
+    if (attr == INVALID_FILE_ATTRIBUTES)
+        wl_log("GetFileAttributes \"%s\" -> missing [%s]", path, wl_where(caller, where, sizeof where));
+    else
+        wl_log("GetFileAttributes \"%s\" -> 0x%lx%s [%s]", path, attr, attr & FILE_ATTRIBUTE_DIRECTORY ? " (folder)" : "",
+               wl_where(caller, where, sizeof where));
+}
+
+static DWORD(WINAPI *oGetFileAttributesA)(LPCSTR);
+static DWORD WINAPI hGetFileAttributesA(LPCSTR name)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    DWORD attr = oGetFileAttributesA(name);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && name)
+        on_attributes(name, attr, WL_CALLER);
+    SetLastError(err);
+    return attr;
+}
+
+static DWORD(WINAPI *oGetFileAttributesW)(LPCWSTR);
+static DWORD WINAPI hGetFileAttributesW(LPCWSTR name)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    DWORD attr = oGetFileAttributesW(name);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && name)
+    {
+        char path[MAX_PATH * 2];
+        on_attributes(wl_u8(name, path, sizeof path), attr, WL_CALLER);
+    }
+    SetLastError(err);
+    return attr;
+}
+
+static HANDLE(WINAPI *oFindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA);
+static HANDLE WINAPI hFindFirstFileA(LPCSTR pattern, LPWIN32_FIND_DATAA data)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    HANDLE h = oFindFirstFileA(pattern, data);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && pattern && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char where[128];
+        wl_log("FindFirstFile \"%s\" -> %s [%s]", pattern, h == INVALID_HANDLE_VALUE ? "none" : data->cFileName, wl_where(WL_CALLER, where, sizeof where));
+    }
+    SetLastError(err);
+    return h;
+}
+
+static HANDLE(WINAPI *oFindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
+static HANDLE WINAPI hFindFirstFileW(LPCWSTR pattern, LPWIN32_FIND_DATAW data)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    HANDLE h = oFindFirstFileW(pattern, data);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && pattern && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char p[MAX_PATH * 2], first[MAX_PATH * 2], where[128];
+        wl_log("FindFirstFile \"%s\" -> %s [%s]", wl_u8(pattern, p, sizeof p), h == INVALID_HANDLE_VALUE ? "none" : wl_u8(data->cFileName, first, sizeof first),
+               wl_where(WL_CALLER, where, sizeof where));
+    }
+    SetLastError(err);
+    return h;
+}
+
+static BOOL(WINAPI *oCreateDirectoryA)(LPCSTR, LPSECURITY_ATTRIBUTES);
+static BOOL WINAPI hCreateDirectoryA(LPCSTR path, LPSECURITY_ATTRIBUTES sa)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = oCreateDirectoryA(path, sa);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
+        wl_log("CreateDirectory \"%s\" -> %s", path, ok ? "ok" : err == ERROR_ALREADY_EXISTS ? "exists" : "failed");
+    SetLastError(err);
+    return ok;
+}
+
+static BOOL(WINAPI *oCreateDirectoryW)(LPCWSTR, LPSECURITY_ATTRIBUTES);
+static BOOL WINAPI hCreateDirectoryW(LPCWSTR path, LPSECURITY_ATTRIBUTES sa)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = oCreateDirectoryW(path, sa);
+    wl_busy_leave();
+    DWORD err = GetLastError();
+    if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char p[MAX_PATH * 2];
+        wl_log("CreateDirectory \"%s\" -> %s", wl_u8(path, p, sizeof p), ok ? "ok" : err == ERROR_ALREADY_EXISTS ? "exists" : "failed");
+    }
+    SetLastError(err);
+    return ok;
+}
+
+// ------------------------------------------------------------------------------
+// .ini files (GetPrivateProfile*)
+// ------------------------------------------------------------------------------
+
+static DWORD(WINAPI *oGetPrivateProfileStringA)(LPCSTR, LPCSTR, LPCSTR, LPSTR, DWORD, LPCSTR);
+static DWORD WINAPI hGetPrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR def, LPSTR ret, DWORD size, LPCSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    DWORD n = oGetPrivateProfileStringA(app, key, def, ret, size, file);
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        if (!app || !key)
+            wl_log("ini %s: list of %s%s%s", file ? file : "(win.ini)", app ? "keys in [" : "sections", app ? app : "", app ? "]" : "");
+        else
+            wl_log("ini %s: [%s] %s = \"%s\" (default \"%s\")", file ? file : "(win.ini)", app, key, ret && size ? ret : "", def ? def : "");
+    }
+    return n;
+}
+
+static DWORD(WINAPI *oGetPrivateProfileStringW)(LPCWSTR, LPCWSTR, LPCWSTR, LPWSTR, DWORD, LPCWSTR);
+static DWORD WINAPI hGetPrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR def, LPWSTR ret, DWORD size, LPCWSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    DWORD n = oGetPrivateProfileStringW(app, key, def, ret, size, file);
+    wl_busy_leave();
+    if (!nested && app && key && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char f[MAX_PATH * 2], a[128], k[128], v[512], d[256];
+        wl_log("ini %s: [%s] %s = \"%s\" (default \"%s\")", file ? wl_u8(file, f, sizeof f) : "(win.ini)", wl_u8(app, a, sizeof a), wl_u8(key, k, sizeof k),
+               ret && size ? wl_u8(ret, v, sizeof v) : "", def ? wl_u8(def, d, sizeof d) : "");
+    }
+    return n;
+}
+
+static UINT(WINAPI *oGetPrivateProfileIntA)(LPCSTR, LPCSTR, INT, LPCSTR);
+static UINT WINAPI hGetPrivateProfileIntA(LPCSTR app, LPCSTR key, INT def, LPCSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    UINT v = oGetPrivateProfileIntA(app, key, def, file);
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
+        wl_log("ini %s: [%s] %s = %u (default %d)", file ? file : "(win.ini)", app ? app : "", key ? key : "", v, def);
+    return v;
+}
+
+static UINT(WINAPI *oGetPrivateProfileIntW)(LPCWSTR, LPCWSTR, INT, LPCWSTR);
+static UINT WINAPI hGetPrivateProfileIntW(LPCWSTR app, LPCWSTR key, INT def, LPCWSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    UINT v = oGetPrivateProfileIntW(app, key, def, file);
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char f[MAX_PATH * 2], a[128], k[128];
+        wl_log("ini %s: [%s] %s = %u (default %d)", file ? wl_u8(file, f, sizeof f) : "(win.ini)", wl_u8(app, a, sizeof a), wl_u8(key, k, sizeof k), v, def);
+    }
+    return v;
+}
+
+static BOOL(WINAPI *oWritePrivateProfileStringA)(LPCSTR, LPCSTR, LPCSTR, LPCSTR);
+static BOOL WINAPI hWritePrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR value, LPCSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = oWritePrivateProfileStringA(app, key, value, file);
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
+        wl_log("ini write %s: [%s] %s = \"%s\" -> %s", file ? file : "(win.ini)", app ? app : "", key ? key : "(whole section)", value ? value : "(deleted)",
+               ok ? "ok" : "failed");
+    return ok;
+}
+
+static BOOL(WINAPI *oWritePrivateProfileStringW)(LPCWSTR, LPCWSTR, LPCWSTR, LPCWSTR);
+static BOOL WINAPI hWritePrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR value, LPCWSTR file)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = oWritePrivateProfileStringW(app, key, value, file);
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char f[MAX_PATH * 2], a[128], k[128], v[512];
+        wl_log("ini write %s: [%s] %s = \"%s\" -> %s", file ? wl_u8(file, f, sizeof f) : "(win.ini)", wl_u8(app, a, sizeof a),
+               key ? wl_u8(key, k, sizeof k) : "(whole section)", value ? wl_u8(value, v, sizeof v) : "(deleted)", ok ? "ok" : "failed");
+    }
+    return ok;
+}
+
+static WlHook g_hooks[] = {
+    WL_HOOK(L"kernel32.dll", CreateFileA),
+    WL_HOOK(L"kernel32.dll", CreateFileW),
+    WL_HOOK(L"kernel32.dll", ReadFile),
+    WL_HOOK(L"kernel32.dll", WriteFile),
+    WL_HOOK(L"kernel32.dll", CloseHandle),
+    WL_HOOK(L"kernel32.dll", GetFileAttributesA),
+    WL_HOOK(L"kernel32.dll", GetFileAttributesW),
+    WL_HOOK(L"kernel32.dll", FindFirstFileA),
+    WL_HOOK(L"kernel32.dll", FindFirstFileW),
+    WL_HOOK(L"kernel32.dll", CreateDirectoryA),
+    WL_HOOK(L"kernel32.dll", CreateDirectoryW),
+    WL_HOOK(L"kernel32.dll", GetPrivateProfileStringA),
+    WL_HOOK(L"kernel32.dll", GetPrivateProfileStringW),
+    WL_HOOK(L"kernel32.dll", GetPrivateProfileIntA),
+    WL_HOOK(L"kernel32.dll", GetPrivateProfileIntW),
+    WL_HOOK(L"kernel32.dll", WritePrivateProfileStringA),
+    WL_HOOK(L"kernel32.dll", WritePrivateProfileStringW),
+};
+
+void wl_files_hooks(void)
+{
+    wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+}

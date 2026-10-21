@@ -1,0 +1,17 @@
+.cache/
+.vs/
+build-*/
+bin/
+vcpkg_installed/
+compile_commands.json
+CMakeUserPresets.json
+
+# Game data is copied locally, never committed
+games/
+
+# Logs written by test runs
+*.log
+
+# Test runs: agent pictures and logs
+logs/
+__pycache__/

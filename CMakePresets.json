@@ -1,0 +1,68 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "msvc-base",
+      "hidden": true,
+      "description": "Needs VCPKG_ROOT (set by the VS Developer Prompt, or point it to a vcpkg checkout such as the one bundled with Visual Studio).",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "msvc-x86",
+      "inherits": "msvc-base",
+      "displayName": "MSVC x86 (32-bit games, vcpkg static)",
+      "architecture": {
+        "value": "Win32",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-msvc-x86",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x86-windows-static"
+      }
+    },
+    {
+      "name": "msvc-x64",
+      "inherits": "msvc-base",
+      "displayName": "MSVC x64 (64-bit games, vcpkg static)",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-msvc-x64",
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "msvc-x86-release",
+      "displayName": "MSVC x86 Release",
+      "configurePreset": "msvc-x86",
+      "configuration": "Release"
+    },
+    {
+      "name": "msvc-x86-debug",
+      "displayName": "MSVC x86 Debug",
+      "configurePreset": "msvc-x86",
+      "configuration": "Debug"
+    },
+    {
+      "name": "msvc-x64-release",
+      "displayName": "MSVC x64 Release",
+      "configurePreset": "msvc-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "msvc-x64-debug",
+      "displayName": "MSVC x64 Debug",
+      "configurePreset": "msvc-x64",
+      "configuration": "Debug"
+    }
+  ]
+}
