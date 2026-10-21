@@ -479,6 +479,9 @@ int wmain(int argc, wchar_t **argv)
     wchar_t controlsPath[MAX_PATH];
     swprintf(controlsPath, MAX_PATH, L"%s\\controls.ini", selfDir);
     SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
+    wchar_t iniPath[MAX_PATH];
+    swprintf(iniPath, MAX_PATH, L"%s\\windowsloader.ini", selfDir);
+    SetEnvironmentVariableW(WL_ENV_INI, iniPath);
 
     static wchar_t cmd[CMDLINE_MAX];
     cmd[0] = 0;

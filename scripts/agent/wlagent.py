@@ -108,6 +108,14 @@ class WLAgent:
     def shot(self, path):
         self.command("shot %s" % os.path.abspath(path))
 
+    def display(self, *settings):
+        """Set the aspect ratio and/or the display mode (windowsloader.ini names); returns both."""
+        return tuple(self.command(" ".join(("display",) + settings)).split()[1:])
+
+    def screen(self, path):
+        """What the window shows, black bars included."""
+        self.command("screen %s" % os.path.abspath(path))
+
     def quit(self):
         try:
             self.command("quit")

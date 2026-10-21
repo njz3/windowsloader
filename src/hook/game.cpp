@@ -38,6 +38,8 @@ void wl_game_init(void)
         g_name = "segarally3";
         g_title = "Sega Rally 3";
     }
+    else if (wl_game_daytona(exe, &g_title))
+        g_name = "daytona";
     else
         wl_log("game not recognized: observing only");
 }

@@ -91,53 +91,6 @@ static HWND WINAPI hCreateWindowExW(DWORD ex, LPCWSTR cls, LPCWSTR title, DWORD 
 }
 
 // ------------------------------------------------------------------------------
-// The game's window in windowed mode. A game made for full screen leaves the sizing of its
-// window to Direct3D (Sega Rally 3 creates it 0x0, and Windows then gives it about 200x200):
-// in a window the picture would be squeezed into that. The window gets a frame and a client
-// area of the picture's aspect ratio, as large as the screen's work area allows, centred.
-// ------------------------------------------------------------------------------
-
-void wl_window_fit(HWND wnd, int width, int height)
-{
-    if (!g_wl.windowed || !wnd || width <= 0 || height <= 0)
-        return;
-
-    MONITORINFO mi = {sizeof mi};
-    GetMonitorInfoW(MonitorFromWindow(wnd, MONITOR_DEFAULTTOPRIMARY), &mi);
-    const RECT &work = mi.rcWork;
-    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE;
-    DWORD ex = (DWORD)GetWindowLongW(wnd, GWL_EXSTYLE) & ~WS_EX_TOPMOST;
-    RECT frame = {0, 0, 0, 0};
-    AdjustWindowRectEx(&frame, style, FALSE, ex);
-    int frameW = frame.right - frame.left, frameH = frame.bottom - frame.top;
-    int maxW = work.right - work.left - frameW, maxH = work.bottom - work.top - frameH;
-
-    int w = width, h = height;
-    if (w > maxW)
-    {
-        h = MulDiv(h, maxW, w);
-        w = maxW;
-    }
-    if (h > maxH)
-    {
-        w = MulDiv(w, maxH, h);
-        h = maxH;
-    }
-    int x = work.left + (work.right - work.left - (w + frameW)) / 2;
-    int y = work.top + (work.bottom - work.top - (h + frameH)) / 2;
-
-    wl_busy_enter();
-    SetWindowLongW(wnd, GWL_STYLE, (LONG)style);
-    SetWindowLongW(wnd, GWL_EXSTYLE, (LONG)ex);
-    BOOL ok = SetWindowPos(wnd, HWND_NOTOPMOST, x, y, w + frameW, h + frameH, SWP_FRAMECHANGED | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-    RECT client = {0, 0, 0, 0};
-    GetClientRect(wnd, &client);
-    wl_busy_leave();
-    wl_log("window %p: client area %ldx%ld (asked %dx%d) for a %dx%d picture, at %d,%d%s", wnd, client.right, client.bottom, w, h, width, height, x, y,
-           ok ? "" : " - SetWindowPos failed");
-}
-
-// ------------------------------------------------------------------------------
 // Display mode
 // ------------------------------------------------------------------------------
 

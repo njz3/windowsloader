@@ -17,8 +17,11 @@
 // change system settings. Those calls are logged and refused.
 
 #include <windows.h>
+#include <objbase.h>
 #include <shellapi.h>
 #include <stdio.h>
+
+struct sockaddr; // read as bytes: winsock's headers are not needed
 
 #include "hooks.h"
 #include "ioports.h"
@@ -256,8 +259,28 @@ static HANDLE WINAPI hOpenMutexW(DWORD access, BOOL inherit, LPCWSTR name)
 
 // ------------------------------------------------------------------------------
 // Programs started by the game: refused. The game may try a shutdown or its cabinet shell;
-// nothing it asks for reaches cmd.exe.
+// nothing it asks for reaches cmd.exe. A cabinet helper the game module emulates is handed to
+// it first (wl_system_set_process_handler).
 // ------------------------------------------------------------------------------
+
+static WlProcessHandler g_processHandler;
+
+void wl_system_set_process_handler(WlProcessHandler fn)
+{
+    g_processHandler = fn;
+}
+
+static void process_refused(const char *app, const char *cmd, const char *dir, const void *caller)
+{
+    char where[128];
+    if (g_processHandler && g_processHandler(app ? app : "", cmd ? cmd : ""))
+        wl_log("CreateProcess \"%s\" \"%s\": played by windowsloader, not started [%s]", app ? app : "", cmd ? cmd : "",
+               where_of(caller, where, sizeof where));
+    else
+        wl_log("CreateProcess refused: app=\"%s\" cmd=\"%s\" dir=\"%s\" [%s]", app ? app : "", cmd ? cmd : "", dir ? dir : "",
+               where_of(caller, where, sizeof where));
+    SetLastError(ERROR_ACCESS_DENIED);
+}
 
 static BOOL(WINAPI *oCreateProcessA)(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES, BOOL, DWORD, LPVOID, LPCSTR, LPSTARTUPINFOA,
                                      LPPROCESS_INFORMATION);
@@ -266,10 +289,7 @@ static BOOL WINAPI hCreateProcessA(LPCSTR app, LPSTR cmd, LPSECURITY_ATTRIBUTES 
 {
     if (wl_busy() || wl_is_system_caller(WL_CALLER))
         return oCreateProcessA(app, cmd, pa, ta, inherit, flags, env, dir, si, pi);
-    char where[128];
-    wl_log("CreateProcess refused: app=\"%s\" cmd=\"%s\" dir=\"%s\" [%s]", app ? app : "", cmd ? cmd : "", dir ? dir : "",
-           where_of(WL_CALLER, where, sizeof where));
-    SetLastError(ERROR_ACCESS_DENIED);
+    process_refused(app, cmd, dir, WL_CALLER);
     return FALSE;
 }
 
@@ -280,10 +300,8 @@ static BOOL WINAPI hCreateProcessW(LPCWSTR app, LPWSTR cmd, LPSECURITY_ATTRIBUTE
 {
     if (wl_busy() || wl_is_system_caller(WL_CALLER))
         return oCreateProcessW(app, cmd, pa, ta, inherit, flags, env, dir, si, pi);
-    char a[MAX_PATH * 2], c[1024], d[MAX_PATH * 2], where[128];
-    wl_log("CreateProcess refused: app=\"%s\" cmd=\"%s\" dir=\"%s\" [%s]", app ? wl_u8(app, a, sizeof a) : "", cmd ? wl_u8(cmd, c, sizeof c) : "",
-           dir ? wl_u8(dir, d, sizeof d) : "", where_of(WL_CALLER, where, sizeof where));
-    SetLastError(ERROR_ACCESS_DENIED);
+    char a[MAX_PATH * 2], c[1024], d[MAX_PATH * 2];
+    process_refused(app ? wl_u8(app, a, sizeof a) : NULL, cmd ? wl_u8(cmd, c, sizeof c) : NULL, dir ? wl_u8(dir, d, sizeof d) : NULL, WL_CALLER);
     return FALSE;
 }
 
@@ -587,6 +605,161 @@ static int WINAPI hGetSystemMetrics(int index)
     return r;
 }
 
+// ------------------------------------------------------------------------------
+// The PC's camera: some cabinets photograph their player (Daytona Championship USA's face
+// pictures through Video for Windows). A game running on someone's PC gets no camera.
+// ------------------------------------------------------------------------------
+
+static void camera_refused(const char *what, const void *caller)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 10)
+    {
+        char where[128];
+        wl_log("%s refused: no camera for the game [%s]", what, where_of(caller, where, sizeof where));
+    }
+}
+
+static HWND(WINAPI *ocapCreateCaptureWindowA)(LPCSTR, DWORD, int, int, int, int, HWND, int);
+static HWND WINAPI hcapCreateCaptureWindowA(LPCSTR name, DWORD style, int x, int y, int w, int h, HWND parent, int id)
+{
+    camera_refused("capCreateCaptureWindow", WL_CALLER);
+    return NULL;
+}
+
+static HWND(WINAPI *ocapCreateCaptureWindowW)(LPCWSTR, DWORD, int, int, int, int, HWND, int);
+static HWND WINAPI hcapCreateCaptureWindowW(LPCWSTR name, DWORD style, int x, int y, int w, int h, HWND parent, int id)
+{
+    camera_refused("capCreateCaptureWindow", WL_CALLER);
+    return NULL;
+}
+
+static BOOL(WINAPI *ocapGetDriverDescriptionA)(UINT, LPSTR, int, LPSTR, int);
+static BOOL WINAPI hcapGetDriverDescriptionA(UINT index, LPSTR name, int nameSize, LPSTR ver, int verSize)
+{
+    camera_refused("capGetDriverDescription", WL_CALLER);
+    return FALSE;
+}
+
+static BOOL(WINAPI *ocapGetDriverDescriptionW)(UINT, LPWSTR, int, LPWSTR, int);
+static BOOL WINAPI hcapGetDriverDescriptionW(UINT index, LPWSTR name, int nameSize, LPWSTR ver, int verSize)
+{
+    camera_refused("capGetDriverDescription", WL_CALLER);
+    return FALSE;
+}
+
+// COM objects the game creates: DirectShow's device enumerator would list the cameras too
+static const GUID g_systemDeviceEnum = {0x62BE5D10, 0x60EB, 0x11D0, {0xBD, 0x3B, 0x00, 0xA0, 0xC9, 0x11, 0xCE, 0x86}};
+
+static HRESULT(WINAPI *oCoCreateInstance)(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID *);
+static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx, REFIID iid, LPVOID *out)
+{
+    int nested = wl_busy();
+    if (!nested && !wl_is_system_caller(WL_CALLER) && IsEqualCLSID(cls, g_systemDeviceEnum))
+    {
+        camera_refused("CoCreateInstance(SystemDeviceEnum)", WL_CALLER);
+        if (out)
+            *out = NULL;
+        return REGDB_E_CLASSNOTREG;
+    }
+    wl_busy_enter();
+    HRESULT hr = oCoCreateInstance(cls, outer, ctx, iid, out);
+    wl_busy_leave();
+    static volatile LONG logged;
+    if (!nested && !wl_is_system_caller(WL_CALLER) && InterlockedIncrement(&logged) <= 100)
+    {
+        char where[128];
+        wl_log("CoCreateInstance {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X} -> 0x%08lx [%s]", cls.Data1, cls.Data2, cls.Data3, cls.Data4[0],
+               cls.Data4[1], cls.Data4[2], cls.Data4[3], cls.Data4[4], cls.Data4[5], cls.Data4[6], cls.Data4[7], hr, where_of(WL_CALLER, where, sizeof where));
+    }
+    return hr;
+}
+
+// ------------------------------------------------------------------------------
+// Sockets: where the game listens and talks (cabinet links)
+// ------------------------------------------------------------------------------
+
+static const char *sockaddr_text(const struct sockaddr *a, int len, char *buf, size_t size)
+{
+    if (!a || len < 8 || ((const unsigned short *)a)[0] != 2 /* AF_INET */)
+    {
+        snprintf(buf, size, "?");
+        return buf;
+    }
+    const unsigned char *b = (const unsigned char *)a;
+    snprintf(buf, size, "%u.%u.%u.%u:%u", b[4], b[5], b[6], b[7], (b[2] << 8) | b[3]);
+    return buf;
+}
+
+static int(WINAPI *obind)(UINT_PTR, const struct sockaddr *, int);
+static int WINAPI hbind(UINT_PTR s, const struct sockaddr *a, int len)
+{
+    int r = obind(s, a, len);
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER))
+    {
+        char t[32], where[128];
+        wl_log("bind %s -> %d [%s]", sockaddr_text(a, len, t, sizeof t), r, where_of(WL_CALLER, where, sizeof where));
+    }
+    return r;
+}
+
+// The game only talks to this PC (127.0.0.0/8): its links with the other cabinets would reach
+// the user's own network. Each address refused is logged once.
+static int lan_refused(const struct sockaddr *a, int len, const char *what, const void *caller)
+{
+    if (!a || len < 8 || ((const unsigned short *)a)[0] != 2 /* AF_INET */)
+        return 0;
+    const unsigned char *b = (const unsigned char *)a;
+    if (b[4] == 127 || (!b[4] && !b[5] && !b[6] && !b[7]))
+        return 0;
+    static unsigned g_seen[32];
+    static volatile LONG g_seenCount;
+    unsigned key = ((unsigned)b[4] << 24 | (unsigned)b[5] << 16 | (unsigned)b[6] << 8 | b[7]) ^ ((unsigned)b[2] << 8 | b[3]);
+    int known = 0;
+    for (int i = 0; i < g_seenCount && i < 32; i++)
+        known |= g_seen[i] == key;
+    if (!known)
+    {
+        LONG i = InterlockedIncrement(&g_seenCount) - 1;
+        if (i < 32)
+            g_seen[i] = key;
+        char t[32], where[128];
+        wl_log("%s %s refused: the game stays off the local network [%s]", what, sockaddr_text(a, len, t, sizeof t), where_of(caller, where, sizeof where));
+    }
+    SetLastError(WSAENETUNREACH);
+    return 1;
+}
+
+static int(WINAPI *oconnect)(UINT_PTR, const struct sockaddr *, int);
+static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
+{
+    int game = !wl_busy() && !wl_is_system_caller(WL_CALLER);
+    if (game && lan_refused(a, len, "connect", WL_CALLER))
+        return -1; // SOCKET_ERROR
+    int r = oconnect(s, a, len);
+    if (game)
+    {
+        char t[32], where[128];
+        wl_log("connect %s -> %d [%s]", sockaddr_text(a, len, t, sizeof t), r, where_of(WL_CALLER, where, sizeof where));
+    }
+    return r;
+}
+
+static int(WINAPI *osendto)(UINT_PTR, const char *, int, int, const struct sockaddr *, int);
+static int WINAPI hsendto(UINT_PTR s, const char *buf, int n, int flags, const struct sockaddr *a, int len)
+{
+    static volatile LONG logged;
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER) && lan_refused(a, len, "sendto", WL_CALLER))
+        return -1;
+    int r = osendto(s, buf, n, flags, a, len);
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER) && InterlockedIncrement(&logged) <= 30)
+    {
+        char t[32], where[128];
+        wl_log("sendto %s (%d bytes) -> %d [%s]", sockaddr_text(a, len, t, sizeof t), n, r, where_of(WL_CALLER, where, sizeof where));
+    }
+    return r;
+}
+
 // Network adapters: some games check a MAC address
 static ULONG(WINAPI *oGetAdaptersInfo)(void *, PULONG);
 static ULONG WINAPI hGetAdaptersInfo(void *info, PULONG size)
@@ -662,6 +835,14 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"advapi32.dll", InitiateSystemShutdownExW),
     WL_HOOK(L"powrprof.dll", SetSuspendState),
     WL_HOOK(L"iphlpapi.dll", GetAdaptersInfo),
+    WL_HOOK(L"avicap32.dll", capCreateCaptureWindowA),
+    WL_HOOK(L"avicap32.dll", capCreateCaptureWindowW),
+    WL_HOOK(L"avicap32.dll", capGetDriverDescriptionA),
+    WL_HOOK(L"avicap32.dll", capGetDriverDescriptionW),
+    WL_HOOK(L"ole32.dll", CoCreateInstance),
+    WL_HOOK(L"ws2_32.dll", bind),
+    WL_HOOK(L"ws2_32.dll", connect),
+    WL_HOOK(L"ws2_32.dll", sendto),
 };
 
 void wl_system_hooks(void)

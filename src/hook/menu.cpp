@@ -14,23 +14,28 @@
 // The F10 menu. It opens in the Present hook, on the game's render thread, and keeps that thread
 // until it is closed: the game's logic stands still, its clocks and its sound too (pause.cpp).
 // Each frame of the menu draws the game's last frame, then Dear ImGui over it, and presents.
+// Direct3D 9 (Sega Rally 3) and Direct3D 11 (Daytona Championship USA) each have their frame;
+// ImGui is set up for the first renderer the menu opens on.
 //
-// The window is often smaller than the picture (a 1920x1080 picture in a 1674x942 window):
-// ImGui works in the picture's size, and the mouse is scaled from the window to the picture.
-// The keyboard goes through the window procedure, subclassed while the game runs; the game
-// gets neither the mouse nor the keyboard while the menu is open.
+// The picture seldom has the window's size (a 1920x1080 picture in a 1674x942 window, or with
+// black bars around it): ImGui works in the picture's size, and the mouse is scaled from the part
+// of the window showing the picture. The keyboard comes through the game window's procedure
+// (display.cpp); the game gets neither the mouse nor the keyboard while the menu is open.
 
 #include <windows.h>
 #include <d3d9.h>
+#include <d3d11.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "imgui.h"
+#include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_dx9.h"
 #include "backends/imgui_impl_win32.h"
 
 #include "agent.h"
 #include "controls.h"
+#include "display.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -45,8 +50,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 static volatile LONG g_open;
 static volatile LONG g_request = -1; // the agent's: 1 open, 0 close
 static int g_ready;                  // 1 set up, -1 failed
+static int g_backend;                // 9 or 11: the renderer ImGui was set up for
 static HWND g_wnd;
-static WNDPROC g_gameProc;
 static int g_bbW, g_bbH;
 
 static volatile LONG g_tabRequest = -1;
@@ -88,40 +93,36 @@ static int f10_pressed(void)
 // Window procedure
 // ------------------------------------------------------------------------------
 
-static LRESULT CALLBACK menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
 {
+    *result = 0;
     // F10 is a system key: DefWindowProc would open the window menu with it and keep the keyboard
     if ((msg == WM_SYSKEYDOWN || msg == WM_SYSKEYUP) && wp == VK_F10)
+        return 1;
+    if (!g_open || g_ready <= 0)
         return 0;
-    if (g_open)
+    if (msg == WM_MOUSEWHEEL)
     {
-        if (msg == WM_MOUSEWHEEL)
-        {
-            ImGui::GetIO().AddMouseWheelEvent(0, (float)GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA);
-            return 0;
-        }
-        if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST)
-        {
-            ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
-            return 0;
-        }
-        if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)
-            ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
-        if (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST)
-            return 0; // read by feed_mouse, scaled to the picture
+        ImGui::GetIO().AddMouseWheelEvent(0, (float)GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA);
+        return 1;
     }
-    return CallWindowProcA(g_gameProc, h, msg, wp, lp);
+    if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST)
+    {
+        ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+        return 1;
+    }
+    if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)
+        ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+    return msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST; // read by feed_mouse, scaled to the picture
 }
 
 // ------------------------------------------------------------------------------
 // Set-up, once: ImGui, its fonts sized for the picture, the window procedure
 // ------------------------------------------------------------------------------
 
-static int setup(IDirect3DDevice9 *dev)
+static int setup_imgui(HWND wnd)
 {
-    D3DDEVICE_CREATION_PARAMETERS cp = {};
-    dev->GetCreationParameters(&cp);
-    g_wnd = cp.hFocusWindow ? cp.hFocusWindow : GetActiveWindow();
+    g_wnd = wnd ? wnd : GetActiveWindow();
     if (!g_wnd)
         return 0;
 
@@ -148,19 +149,38 @@ static int setup(IDirect3DDevice9 *dev)
         style.FontScaleMain = scale * 1.4f;
     }
 
-    if (!ImGui_ImplWin32_Init(g_wnd) || !ImGui_ImplDX9_Init(dev))
+    return ImGui_ImplWin32_Init(g_wnd);
+}
+
+static int setup(IDirect3DDevice9 *dev)
+{
+    D3DDEVICE_CREATION_PARAMETERS cp = {};
+    dev->GetCreationParameters(&cp);
+    if (!setup_imgui(cp.hFocusWindow) || !ImGui_ImplDX9_Init(dev))
     {
         wl_log("menu: ImGui could not start on this device");
         return 0;
     }
-    g_gameProc = (WNDPROC)SetWindowLongPtrA(g_wnd, GWLP_WNDPROC, (LONG_PTR)menu_wndproc);
-    wl_log("menu: ready (window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
+    g_backend = 9;
+    wl_log("menu: ready (Direct3D 9, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
+    return 1;
+}
+
+static int setup11(HWND wnd, ID3D11Device *dev, ID3D11DeviceContext *ctx)
+{
+    if (!setup_imgui(wnd) || !ImGui_ImplDX11_Init(dev, ctx))
+    {
+        wl_log("menu: ImGui could not start on this device");
+        return 0;
+    }
+    g_backend = 11;
+    wl_log("menu: ready (Direct3D 11, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
     return 1;
 }
 
 void wl_menu_device_reset(void)
 {
-    if (g_ready > 0)
+    if (g_ready > 0 && g_backend == 9)
         ImGui_ImplDX9_InvalidateDeviceObjects();
 }
 
@@ -169,9 +189,11 @@ static void feed_mouse(void)
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)g_bbW, (float)g_bbH);
     POINT pt;
-    RECT rc;
-    if (GetCursorPos(&pt) && ScreenToClient(g_wnd, &pt) && GetClientRect(g_wnd, &rc) && rc.right > 0 && rc.bottom > 0)
-        io.AddMousePosEvent(pt.x * (float)g_bbW / rc.right, pt.y * (float)g_bbH / rc.bottom);
+    RECT pic;
+    wl_display_picture(&pic);
+    int pw = pic.right - pic.left, ph = pic.bottom - pic.top;
+    if (GetCursorPos(&pt) && ScreenToClient(g_wnd, &pt) && pw > 0 && ph > 0)
+        io.AddMousePosEvent((pt.x - pic.left) * (float)g_bbW / pw, (pt.y - pic.top) * (float)g_bbH / ph);
     int fg = foreground_is_ours();
     int swap = GetSystemMetrics(SM_SWAPBUTTON);
     io.AddMouseButtonEvent(0, fg && (GetAsyncKeyState(swap ? VK_RBUTTON : VK_LBUTTON) & 0x8000));
@@ -190,6 +212,8 @@ static const struct
     {"P1_Steer", "Volant"},        {"P1_Gas", "Accélérateur"}, {"P1_Brake", "Frein"},       {"P1_Start", "Start"},
     {"ViewChange", "Vue"},         {"Handbrake", "Frein à main"}, {"GearUp", "Rapport +"},  {"GearDown", "Rapport −"},
     {"P1_Coin", "Pièce"},          {"Test", "Test"},           {"P1_Service", "Service"},
+    {"View1", "Vue 1 (rouge)"},    {"View2", "Vue 2 (bleu)"},  {"View3", "Vue 3 (jaune)"},  {"View4", "Vue 4 (vert)"},
+    {"Gear1", "1re"},              {"Gear2", "2e"},            {"Gear3", "3e"},             {"Gear4", "4e"},
 };
 
 static const char *label_of(const WlInput *in)
@@ -360,6 +384,66 @@ static void page_ffb(void)
     ImGui::TextDisabled("Réglages enregistrés dans [Config] de controls.ini (FFB_Strength, FFB_Invert).");
 }
 
+// Display: linuxloader's three settings, the first two applied at once
+static void page_display(void)
+{
+    static const char *aspects[WL_ASPECT_COUNT] = {"Original (forme de l'image du jeu)", "4:3", "16:9", "4:3 avec bandes noires"};
+    static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré"};
+    static const int sizes[][2] = {{0, 0},     {640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 1024}, {1360, 768},
+                                   {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
+    int aspect = wl_display_aspect(), mode = wl_display_mode();
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+    if (ImGui::Combo("Rapport d'aspect", &aspect, aspects, WL_ASPECT_COUNT))
+        wl_display_set(aspect, mode);
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+    if (ImGui::Combo("Mode d'affichage", &mode, modes, WL_MODE_COUNT))
+        wl_display_set(aspect, mode);
+    ImGui::TextDisabled("F11 ou Alt+Entrée : fenêtre / plein écran.");
+    ImGui::Spacing();
+
+    int w, h, current = -1;
+    wl_display_internal(&w, &h);
+    char saved[32] = "Native";
+    {
+        wchar_t ini[MAX_PATH], v1[16], v2[16];
+        if (GetEnvironmentVariableW(WL_ENV_INI, ini, MAX_PATH))
+        {
+            GetPrivateProfileStringW(L"Display", L"WIDTH", L"AUTO", v1, 16, ini);
+            GetPrivateProfileStringW(L"Display", L"HEIGHT", L"AUTO", v2, 16, ini);
+            int sw = _wtoi(v1), sh = _wtoi(v2);
+            if (sw > 0 && sh > 0)
+                snprintf(saved, sizeof saved, "%dx%d", sw, sh);
+            for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
+                if (sizes[i][0] == (sw > 0 ? sw : 0) && sizes[i][1] == (sh > 0 ? sh : 0))
+                    current = i;
+        }
+    }
+    ImGui::BeginDisabled(!wl_display_internal_supported());
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+    if (ImGui::BeginCombo("Résolution interne", saved))
+    {
+        for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
+        {
+            char name[32];
+            if (sizes[i][0])
+                snprintf(name, sizeof name, "%dx%d", sizes[i][0], sizes[i][1]);
+            else
+                snprintf(name, sizeof name, "Native");
+            if (ImGui::Selectable(name, i == current))
+                wl_display_set_internal(sizes[i][0], sizes[i][1]);
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Taille de calcul et de rendu du jeu, avant l'aspect et le mode.\nPrise en compte au prochain lancement.");
+    if (!wl_display_internal_supported())
+        ImGui::TextDisabled("Pas encore prise en charge pour ce jeu.");
+    else
+        ImGui::TextDisabled("Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement.", g_bbW, g_bbH, w ? "windowsloader.ini" : "réglage du jeu");
+    ImGui::TextDisabled("Enregistré dans [Display] de windowsloader.ini, à côté du lanceur.");
+}
+
 static void page_game(void)
 {
     ImGui::Text("%s est en pause.", wl_game_title());
@@ -423,12 +507,17 @@ static void draw_menu(void)
                 page_controls();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Retour de force", NULL, tab == 2 ? ImGuiTabItemFlags_SetSelected : 0))
+            if (ImGui::BeginTabItem("Affichage", NULL, tab == 2 ? ImGuiTabItemFlags_SetSelected : 0))
+            {
+                page_display();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Retour de force", NULL, tab == 3 ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 page_ffb();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("À propos", NULL, tab == 3 ? ImGuiTabItemFlags_SetSelected : 0))
+            if (ImGui::BeginTabItem("À propos", NULL, tab == 4 ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 page_about();
                 ImGui::EndTabItem();
@@ -444,8 +533,54 @@ static void draw_menu(void)
 // The menu's frames
 // ------------------------------------------------------------------------------
 
-static void render_frame(IDirect3DDevice9 *dev, IDirect3DSurface9 *frozen, WlPresentFn present)
+// While the menu is open: the window's messages, F10 or the agent to close it, a frame each time
+static void run_menu(void (*frame)(void *), void *arg)
 {
+    wl_log("menu: open");
+    InterlockedExchange(&g_open, 1);
+    wl_pause_begin();
+    while (g_open)
+    {
+        MSG msg;
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+            {
+                PostQuitMessage((int)msg.wParam); // for the game's own loop
+                InterlockedExchange(&g_open, 0);
+                break;
+            }
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
+        if (f10_pressed() || InterlockedExchange(&g_request, -1) == 0)
+            InterlockedExchange(&g_open, 0);
+        if (g_open)
+            frame(arg);
+    }
+    if (g_capInput >= 0)
+        wl_controls_capture_cancel();
+    g_capInput = -1;
+    wl_pause_end();
+    wl_log("menu: closed");
+}
+
+// ------------------------------------------------------------------------------
+// Direct3D 9
+// ------------------------------------------------------------------------------
+
+struct Frame9
+{
+    IDirect3DDevice9 *dev;
+    IDirect3DSurface9 *frozen;
+    WlPresentFn present;
+};
+
+static void render_frame(void *arg)
+{
+    Frame9 *f = (Frame9 *)arg;
+    IDirect3DDevice9 *dev = f->dev;
+    IDirect3DSurface9 *frozen = f->frozen;
     IDirect3DSurface9 *bb = NULL, *oldTarget = NULL;
     if (FAILED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &bb)))
     {
@@ -481,7 +616,7 @@ static void render_frame(IDirect3DDevice9 *dev, IDirect3DSurface9 *frozen, WlPre
     }
     dev->SetViewport(&vp);
     bb->Release();
-    if (FAILED(present(dev, NULL, NULL, NULL, NULL)))
+    if (FAILED(f->present(dev, NULL, wl_display_dest(), NULL, NULL)))
         Sleep(16);
 }
 
@@ -502,7 +637,7 @@ void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
     g_bbH = (int)d.Height;
     if (!g_ready)
         g_ready = setup(dev) ? 1 : -1;
-    if (g_ready < 0)
+    if (g_ready < 0 || g_backend != 9)
     {
         bb->Release();
         return;
@@ -514,28 +649,8 @@ void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
         dev->StretchRect(bb, NULL, frozen, NULL, D3DTEXF_NONE);
     bb->Release();
 
-    wl_log("menu: open");
-    InterlockedExchange(&g_open, 1);
-    wl_pause_begin();
-    while (g_open)
-    {
-        MSG msg;
-        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE))
-        {
-            if (msg.message == WM_QUIT)
-            {
-                PostQuitMessage((int)msg.wParam); // for the game's own loop
-                InterlockedExchange(&g_open, 0);
-                break;
-            }
-            TranslateMessage(&msg);
-            DispatchMessageA(&msg);
-        }
-        if (f10_pressed() || InterlockedExchange(&g_request, -1) == 0)
-            InterlockedExchange(&g_open, 0);
-        if (g_open)
-            render_frame(dev, frozen, present);
-    }
+    Frame9 f = {dev, frozen, present};
+    run_menu(render_frame, &f);
 
     if (frozen)
     {
@@ -546,9 +661,121 @@ void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
         }
         frozen->Release();
     }
-    if (g_capInput >= 0)
-        wl_controls_capture_cancel();
-    g_capInput = -1;
-    wl_pause_end();
-    wl_log("menu: closed");
+}
+
+// ------------------------------------------------------------------------------
+// Direct3D 11
+// ------------------------------------------------------------------------------
+
+struct Frame11
+{
+    IDXGISwapChain *sc;
+    ID3D11Device *dev;
+    ID3D11DeviceContext *ctx;
+    ID3D11Texture2D *frozen;
+    WlPresent11Fn present;
+};
+
+static void render_frame11(void *arg)
+{
+    Frame11 *f = (Frame11 *)arg;
+    ID3D11Texture2D *bb = NULL;
+    if (FAILED(f->sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+    {
+        Sleep(16);
+        return;
+    }
+    // The game's render target and viewport, put back after the menu's frame
+    ID3D11RenderTargetView *oldRtv = NULL, *rtv = NULL;
+    ID3D11DepthStencilView *oldDsv = NULL;
+    D3D11_VIEWPORT oldVp[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    UINT vpCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+    f->ctx->OMGetRenderTargets(1, &oldRtv, &oldDsv);
+    f->ctx->RSGetViewports(&vpCount, oldVp);
+
+    if (f->frozen)
+        f->ctx->CopyResource(bb, f->frozen);
+    if (SUCCEEDED(f->dev->CreateRenderTargetView(bb, NULL, &rtv)))
+    {
+        if (!f->frozen)
+        {
+            const float black[4] = {0, 0, 0, 1};
+            f->ctx->ClearRenderTargetView(rtv, black);
+        }
+        f->ctx->OMSetRenderTargets(1, &rtv, NULL);
+        D3D11_VIEWPORT vp = {0, 0, (float)g_bbW, (float)g_bbH, 0, 1};
+        f->ctx->RSSetViewports(1, &vp);
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        feed_mouse();
+        ImGui::NewFrame();
+        draw_menu();
+        ImGui::Render();
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        rtv->Release();
+    }
+    wl_d3d11_take_pending_shot(f->sc); // the agent's pictures show the menu too
+
+    f->ctx->OMSetRenderTargets(1, &oldRtv, oldDsv);
+    f->ctx->RSSetViewports(vpCount, oldVp);
+    if (oldRtv)
+        oldRtv->Release();
+    if (oldDsv)
+        oldDsv->Release();
+    bb->Release();
+    wl_display_dest(); // F11 and Alt+Enter work in the menu too
+    HRESULT hr = f->present(f->sc, 1, 0);
+    if (FAILED(hr) || hr == DXGI_STATUS_OCCLUDED)
+        Sleep(16); // nothing shown, no vertical sync to wait for
+}
+
+void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present)
+{
+    int want = f10_pressed();
+    if (InterlockedExchange(&g_request, -1) == 1)
+        want = 1;
+    if (!want)
+        return;
+
+    ID3D11Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+        return;
+    D3D11_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    g_bbW = (int)d.Width;
+    g_bbH = (int)d.Height;
+    Frame11 f = {sc, NULL, NULL, NULL, present};
+    bb->GetDevice(&f.dev);
+    f.dev->GetImmediateContext(&f.ctx);
+    if (!g_ready)
+    {
+        DXGI_SWAP_CHAIN_DESC sd;
+        g_ready = SUCCEEDED(sc->GetDesc(&sd)) && setup11(sd.OutputWindow, f.dev, f.ctx) ? 1 : -1;
+    }
+    if (g_ready > 0 && g_backend == 11)
+    {
+        // The game's frame, drawn under the menu and given back to the game's Present afterwards
+        D3D11_TEXTURE2D_DESC fd = d;
+        fd.Usage = D3D11_USAGE_DEFAULT;
+        fd.BindFlags = d.SampleDesc.Count > 1 ? D3D11_BIND_RENDER_TARGET : 0;
+        fd.CPUAccessFlags = 0;
+        fd.MiscFlags = 0;
+        if (SUCCEEDED(f.dev->CreateTexture2D(&fd, NULL, &f.frozen)))
+            f.ctx->CopyResource(f.frozen, bb);
+        bb->Release();
+        bb = NULL;
+
+        run_menu(render_frame11, &f);
+
+        if (f.frozen)
+        {
+            if (SUCCEEDED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+                f.ctx->CopyResource(bb, f.frozen);
+            f.frozen->Release();
+        }
+    }
+    if (bb)
+        bb->Release();
+    f.ctx->Release();
+    f.dev->Release();
 }

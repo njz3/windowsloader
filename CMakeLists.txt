@@ -67,6 +67,8 @@ add_library(wl_hook SHARED
     src/hook/window.cpp
     src/hook/d3d9hook.cpp
     src/hook/dinputhook.cpp
+    src/hook/vdinput.cpp
+    src/hook/d3d11hook.cpp
     src/hook/vhid.cpp
     src/hook/inputs.cpp
     src/hook/agent.cpp
@@ -76,11 +78,14 @@ add_library(wl_hook SHARED
     src/hook/ffb.cpp
     src/hook/pause.cpp
     src/hook/menu.cpp
+    src/hook/display.cpp
     src/hook/games/segarally3.cpp
+    src/hook/games/daytona.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
     src/imgui/imgui_widgets.cpp
+    src/imgui/backends/imgui_impl_dx11.cpp
     src/imgui/backends/imgui_impl_dx9.cpp
     src/imgui/backends/imgui_impl_win32.cpp)
 set_target_properties(wl_hook PROPERTIES
@@ -92,4 +97,4 @@ target_compile_definitions(wl_hook PRIVATE ${WL_C_DEFINES})
 target_compile_options(wl_hook PRIVATE ${WL_C_FLAGS})
 # SDL3 (vcpkg, static): the player's controllers, and later the force feedback
 find_package(SDL3 CONFIG REQUIRED)
-target_link_libraries(wl_hook PRIVATE minhook SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid)
+target_link_libraries(wl_hook PRIVATE minhook SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi)

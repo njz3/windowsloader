@@ -100,7 +100,7 @@ static const KeyName g_keys[] = {
     {"ESC", VK_ESCAPE}, {"TAB", VK_TAB}, {"BACKSPACE", VK_BACK}, {"LSHIFT", VK_LSHIFT}, {"LEFTSHIFT", VK_LSHIFT}, {"RSHIFT", VK_RSHIFT},
     {"RIGHTSHIFT", VK_RSHIFT}, {"LCTRL", VK_LCONTROL}, {"LEFTCTRL", VK_LCONTROL}, {"RCTRL", VK_RCONTROL}, {"RIGHTCTRL", VK_RCONTROL},
     {"LALT", VK_LMENU}, {"LEFTALT", VK_LMENU}, {"RALT", VK_RMENU}, {"RIGHTALT", VK_RMENU}, {"INSERT", VK_INSERT}, {"DELETE", VK_DELETE},
-    {"HOME", VK_HOME}, {"END", VK_END}, {"PAGEUP", VK_PRIOR}, {"PAGEDOWN", VK_NEXT},
+    {"HOME", VK_HOME}, {"END", VK_END}, {"PAGEUP", VK_PRIOR}, {"PAGEDOWN", VK_NEXT}, {"COMMA", VK_OEM_COMMA}, {"PERIOD", VK_OEM_PERIOD},
 };
 
 // "Left Shift", "left_shift" and "LEFTSHIFT" are the same name
@@ -609,6 +609,14 @@ static const char *g_defaults =
     "Handbrake = KEY_Space, GC0_BUTTON_X\r\n"
     "GearUp = KEY_A, GC0_BUTTON_RIGHTSHOULDER\r\n"
     "GearDown = KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
+    "View1 = KEY_B, GC0_BUTTON_A\r\n"
+    "View2 = KEY_N, GC0_BUTTON_B\r\n"
+    "View3 = KEY_M, GC0_BUTTON_X\r\n"
+    "View4 = KEY_Comma, GC0_BUTTON_Y\r\n"
+    "Gear1 = KEY_Q\r\n"
+    "Gear2 = KEY_W\r\n"
+    "Gear3 = KEY_E\r\n"
+    "Gear4 = KEY_R\r\n"
     "P1_Steer = GC0_AXIS_LEFTX, JOY0_AXIS_0\r\n"
     "P1_Gas = GC0_AXIS_RIGHTTRIGGER\r\n"
     "P1_Brake = GC0_AXIS_LEFTTRIGGER\r\n"
@@ -887,6 +895,7 @@ static const KeyName g_keyNamesOut[] = {
     {"Return", VK_RETURN},  {"Tab", VK_TAB},        {"Backspace", VK_BACK}, {"LShift", VK_LSHIFT}, {"RShift", VK_RSHIFT},
     {"LCtrl", VK_LCONTROL}, {"RCtrl", VK_RCONTROL}, {"LAlt", VK_LMENU},     {"RAlt", VK_RMENU},    {"Insert", VK_INSERT},
     {"Delete", VK_DELETE},  {"Home", VK_HOME},      {"End", VK_END},        {"PageUp", VK_PRIOR},  {"PageDown", VK_NEXT},
+    {"Comma", VK_OEM_COMMA}, {"Period", VK_OEM_PERIOD},
 };
 
 static int vk_name(int vk, char *out, size_t size)

@@ -25,10 +25,18 @@ typedef HRESULT(STDMETHODCALLTYPE *WlPresentFn)(IDirect3DDevice9 *, const RECT *
 // agent's request) and returns once it is closed
 void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present);
 
+// The same from a Direct3D 11 swap chain's Present hook
+struct IDXGISwapChain;
+typedef HRESULT(STDMETHODCALLTYPE *WlPresent11Fn)(IDXGISwapChain *, UINT, UINT);
+void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present);
+
 // Before IDirect3DDevice9::Reset: the menu's device objects are released
 void wl_menu_device_reset(void);
 
+// From the game window's procedure (display.cpp): 1 when the menu took the message
+int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result);
+
 // The agent's "menu on|off"
 void wl_menu_request(int open);
-void wl_menu_request_tab(int tab); // "menu tab N": 0 Jeu, 1 Contrôles, 2 Retour de force, 3 À propos
+void wl_menu_request_tab(int tab); // "menu tab N": 0 Jeu, 1 Contrôles, 2 Affichage, 3 Retour de force, 4 À propos
 int wl_menu_is_open(void);

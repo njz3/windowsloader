@@ -74,8 +74,21 @@ const char *wl_where(const void *addr, char *buf, size_t size);
 // windowsloader itself: hooks only report and change what the game and its own DLLs do.
 int wl_is_system_caller(const void *addr);
 
-// Windowed mode: gives the game's window a frame and a client area of the picture's aspect ratio
-void wl_window_fit(HWND wnd, int width, int height);
+// The game's own .ini reads changed by its module (Sega Rally 3's render resolution, Daytona's
+// camera and network): returns 1 with the value to give the game instead of its file's, as text
+// (GetPrivateProfileInt gives its number)
+typedef int (*WlIniOverride)(const char *file, const char *section, const char *key, char *value, size_t size);
+void wl_files_set_ini_override(WlIniOverride fn);
+
+// A log file of the game written up to maxBytes per opening, the rest dropped (the file whose
+// path ends with nameEnd)
+void wl_files_cap(const char *nameEnd, unsigned long long maxBytes);
+
+// A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
+// parallel port helper): returns 1 when the module took it over. The game is still told the
+// program did not start; nothing reaches Windows.
+typedef int (*WlProcessHandler)(const char *app, const char *cmd);
+void wl_system_set_process_handler(WlProcessHandler fn);
 
 // Per-module hook tables
 void wl_files_hooks(void);
@@ -84,4 +97,5 @@ void wl_system_hooks(void);
 void wl_window_hooks(void);
 void wl_d3d9_hooks(void);
 void wl_dinput_hooks(void);
+void wl_d3d11_hooks(void);
 void wl_crash_init(void);

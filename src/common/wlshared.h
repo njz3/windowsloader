@@ -21,6 +21,7 @@
 #define WL_ENV_IOLIMIT  L"WINDOWSLOADER_IOLIMIT"  // max logged reads/writes per device handle
 #define WL_ENV_AGENT    L"WINDOWSLOADER_AGENT"    // "1": serve the agent commands on \\.\pipe\windowsloader-<pid>
 #define WL_ENV_CONTROLS L"WINDOWSLOADER_CONTROLS" // controls.ini path (absolute), next to the launcher by default
+#define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 

@@ -15,6 +15,10 @@
 // and the force feedback effects it creates and plays. Arcade games built on PC code often drive
 // the wheel motor this way rather than through the I/O board. The COM methods are hooked through
 // the vtables, once per vtable (the ANSI and Unicode interfaces have their own).
+//
+// With an I/O board played as a DirectInput joystick (vdinput.h), the enumeration lists that
+// board first and hides the PC's game controllers, and CreateDevice on it gives windowsloader's
+// own device. Only the ANSI interface has it so far (the Unicode one just hides the controllers).
 
 #define DIRECTINPUT_VERSION 0x0800
 #include <windows.h>
@@ -24,6 +28,7 @@
 
 #include "hooks.h"
 #include "log.h"
+#include "vdinput.h"
 
 enum
 {
@@ -385,18 +390,38 @@ struct EnumWrapA
 {
     LPDIENUMDEVICESCALLBACKA cb;
     LPVOID ref;
+    int hide; // the PC's game controllers kept from the game
 };
 struct EnumWrapW
 {
     LPDIENUMDEVICESCALLBACKW cb;
     LPVOID ref;
+    int hide;
 };
+
+// Joysticks, gamepads, wheels, flight sticks, first-person controllers
+static int is_game_controller(DWORD devType)
+{
+    BYTE t = GET_DIDEVICE_TYPE(devType);
+    return t >= DI8DEVTYPE_JOYSTICK && t <= DI8DEVTYPE_1STPERSON;
+}
+
+// An enumeration that asks for game controllers (all devices, the class, or one of its types)
+static int wants_game_controllers(DWORD type)
+{
+    return type == DI8DEVCLASS_ALL || type == DI8DEVCLASS_GAMECTRL || is_game_controller(type);
+}
 
 static BOOL CALLBACK enum_cb_a(LPCDIDEVICEINSTANCEA di, LPVOID ref)
 {
     EnumWrapA *w = (EnumWrapA *)ref;
-    BOOL r = w->cb(di, w->ref);
     char g[48];
+    if (w->hide && is_game_controller(di->dwDevType))
+    {
+        wl_log("dinput: device \"%s\" hidden from the game", di->tszProductName);
+        return DIENUM_CONTINUE;
+    }
+    BOOL r = w->cb(di, w->ref);
     remember_instance(di->guidInstance, di->tszProductName);
     wl_log("dinput: device \"%s\" type 0x%lx product %s%s -> %s", di->tszProductName, di->dwDevType, guid_text(di->guidProduct, g, sizeof g),
            di->guidFFDriver.Data1 ? " (force feedback)" : "", r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped");
@@ -406,9 +431,14 @@ static BOOL CALLBACK enum_cb_a(LPCDIDEVICEINSTANCEA di, LPVOID ref)
 static BOOL CALLBACK enum_cb_w(LPCDIDEVICEINSTANCEW di, LPVOID ref)
 {
     EnumWrapW *w = (EnumWrapW *)ref;
-    BOOL r = w->cb(di, w->ref);
     char name[160], g[48];
     wl_u8(di->tszProductName, name, sizeof name);
+    if (w->hide && is_game_controller(di->dwDevType))
+    {
+        wl_log("dinput: device \"%s\" hidden from the game", name);
+        return DIENUM_CONTINUE;
+    }
+    BOOL r = w->cb(di, w->ref);
     remember_instance(di->guidInstance, name);
     wl_log("dinput: device \"%s\" type 0x%lx product %s%s -> %s", name, di->dwDevType, guid_text(di->guidProduct, g, sizeof g),
            di->guidFFDriver.Data1 ? " (force feedback)" : "", r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped");
@@ -425,19 +455,43 @@ static CreateDeviceFn oCreateDeviceA, oCreateDeviceW;
 static HRESULT STDMETHODCALLTYPE hEnumDevicesA(IDirectInput8A *di, DWORD type, LPDIENUMDEVICESCALLBACKA cb, LPVOID ref, DWORD flags)
 {
     wl_log("dinput: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
-    EnumWrapA w = {cb, ref};
+    int ours = wl_vdinput_active();
+    if (ours && cb && wants_game_controllers(type) && !(flags & DIEDFL_FORCEFEEDBACK))
+    {
+        DIDEVICEINSTANCEA d;
+        wl_vdinput_instance(&d);
+        BOOL r = cb(&d, ref);
+        wl_log("dinput: device \"%s\" (windowsloader) -> %s", d.tszProductName, r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped");
+        if (r != DIENUM_CONTINUE)
+            return DI_OK;
+    }
+    // Only game controllers asked for: the PC has none for the game
+    if (ours && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
+        return DI_OK;
+    EnumWrapA w = {cb, ref, ours};
     return oEnumDevicesA(di, type, cb ? enum_cb_a : NULL, cb ? &w : ref, flags);
 }
 
 static HRESULT STDMETHODCALLTYPE hEnumDevicesW(IDirectInput8W *di, DWORD type, LPDIENUMDEVICESCALLBACKW cb, LPVOID ref, DWORD flags)
 {
     wl_log("dinput: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
-    EnumWrapW w = {cb, ref};
+    int ours = wl_vdinput_active();
+    if (ours && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
+        return DI_OK;
+    EnumWrapW w = {cb, ref, ours};
     return oEnumDevicesW(di, type, cb ? enum_cb_w : NULL, cb ? &w : ref, flags);
 }
 
 static HRESULT create_device(CreateDeviceFn orig, void *di, REFGUID g, void **out, LPUNKNOWN outer, int unicode)
 {
+    if (!unicode && wl_vdinput_is_ours(g))
+    {
+        if (!out)
+            return DIERR_INVALIDPARAM;
+        *out = wl_vdinput_create();
+        wl_log("dinput: CreateDevice on the board played by windowsloader -> %p", *out);
+        return *out ? DI_OK : DIERR_OUTOFMEMORY;
+    }
     HRESULT hr = orig(di, g, out, outer);
     char n[80];
     if (IsEqualGUID(g, GUID_SysKeyboard))
@@ -494,8 +548,24 @@ static HRESULT WINAPI hDirectInput8Create(HINSTANCE inst, DWORD version, REFIID 
     return hr;
 }
 
+// XInput, the other way a game reads a pad: with a board played as a DirectInput joystick the
+// game sees no pad there either (Daytona Championship USA reads its second player through it)
+static DWORD(WINAPI *oXInputGetState)(DWORD, void *);
+static DWORD WINAPI hXInputGetState(DWORD user, void *state)
+{
+    if (wl_vdinput_active() && !wl_busy() && !wl_is_system_caller(WL_CALLER))
+    {
+        static volatile LONG logged;
+        if (!InterlockedExchange(&logged, 1))
+            wl_log("XInputGetState: no pad for the game (its controls come through windowsloader)");
+        return ERROR_DEVICE_NOT_CONNECTED;
+    }
+    return oXInputGetState(user, state);
+}
+
 static WlHook g_hooks[] = {
     WL_HOOK(L"dinput8.dll", DirectInput8Create),
+    WL_HOOK(L"xinput9_1_0.dll", XInputGetState),
 };
 
 void wl_dinput_hooks(void)

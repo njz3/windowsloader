@@ -16,6 +16,8 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "devices.h"
 #include "hooks.h"
@@ -64,6 +66,76 @@ static const char *result(HANDLE h, DWORD err, char *buf, size_t size)
 }
 
 // ------------------------------------------------------------------------------
+// A game's own log that can grow without end (Daytona's GameData\debug.txt and its memory dumps):
+// once a handle on it has had its share written, the game's further writes are dropped (and told
+// done), so it cannot fill the disk
+// ------------------------------------------------------------------------------
+
+static char g_capName[64];
+static unsigned long long g_capBytes;
+
+struct CappedFile
+{
+    HANDLE h;
+    unsigned long long written;
+    int told;
+};
+static CappedFile g_capped[8];
+static SRWLOCK g_capLock = SRWLOCK_INIT;
+
+void wl_files_cap(const char *nameEnd, unsigned long long maxBytes)
+{
+    snprintf(g_capName, sizeof g_capName, "%s", nameEnd);
+    g_capBytes = maxBytes;
+}
+
+static void cap_track(const char *path, HANDLE h)
+{
+    size_t n = strlen(path), m = strlen(g_capName);
+    if (!m || h == INVALID_HANDLE_VALUE || n < m || _stricmp(path + n - m, g_capName))
+        return;
+    AcquireSRWLockExclusive(&g_capLock);
+    for (int i = 0; i < (int)(sizeof g_capped / sizeof g_capped[0]); i++)
+        if (!g_capped[i].h)
+        {
+            g_capped[i].h = h;
+            g_capped[i].written = 0;
+            g_capped[i].told = 0;
+            break;
+        }
+    ReleaseSRWLockExclusive(&g_capLock);
+}
+
+// 1 when the write is dropped
+static int cap_write(HANDLE h, DWORD size)
+{
+    int drop = 0, tell = 0;
+    AcquireSRWLockExclusive(&g_capLock);
+    for (int i = 0; i < (int)(sizeof g_capped / sizeof g_capped[0]); i++)
+        if (g_capped[i].h == h)
+        {
+            drop = g_capped[i].written >= g_capBytes;
+            if (!drop)
+                g_capped[i].written += size;
+            else if (!g_capped[i].told)
+                tell = g_capped[i].told = 1;
+        }
+    ReleaseSRWLockExclusive(&g_capLock);
+    if (tell)
+        wl_log("WriteFile ...%s: %llu MB written, the game's further writes dropped", g_capName, g_capBytes >> 20);
+    return drop;
+}
+
+static void cap_forget(HANDLE h)
+{
+    AcquireSRWLockExclusive(&g_capLock);
+    for (int i = 0; i < (int)(sizeof g_capped / sizeof g_capped[0]); i++)
+        if (g_capped[i].h == h)
+            g_capped[i].h = NULL;
+    ReleaseSRWLockExclusive(&g_capLock);
+}
+
+// ------------------------------------------------------------------------------
 // CreateFile / ReadFile / WriteFile / CloseHandle
 // ------------------------------------------------------------------------------
 
@@ -72,6 +144,7 @@ static void on_create(const char *path, DWORD access, DWORD disp, DWORD flags, H
     // Devices opened by Windows itself (DirectInput scanning the joysticks) are not the cabinet's
     if (wl_is_system_caller(caller))
         return;
+    cap_track(path, h);
     int device = wl_dev_is_device_path(path);
     if (!device && !file_event())
         return;
@@ -173,6 +246,12 @@ static BOOL(WINAPI *oWriteFile)(HANDLE, LPCVOID, DWORD, LPDWORD, LPOVERLAPPED);
 static BOOL WINAPI hWriteFile(HANDLE h, LPCVOID buf, DWORD size, LPDWORD written, LPOVERLAPPED ov)
 {
     int nested = wl_busy();
+    if (!nested && !ov && g_capBytes && cap_write(h, size))
+    {
+        if (written)
+            *written = size;
+        return TRUE;
+    }
     wl_busy_enter();
     BOOL ok = oWriteFile(h, buf, size, written, ov);
     wl_busy_leave();
@@ -198,6 +277,8 @@ static BOOL WINAPI hCloseHandle(HANDLE h)
     WlDevice d;
     // Forget the handle before it is closed: its value can be reused right after
     int was = wl_dev_untrack(h, &d, nested);
+    if (!nested && g_capBytes)
+        cap_forget(h);
     if (was && !nested)
         wl_log("CloseHandle %s", d.name);
     if (!nested && wl_vhid_is_handle(h))
@@ -328,6 +409,19 @@ static BOOL WINAPI hCreateDirectoryW(LPCWSTR path, LPSECURITY_ATTRIBUTES sa)
 // .ini files (GetPrivateProfile*)
 // ------------------------------------------------------------------------------
 
+static WlIniOverride g_iniOverride;
+
+void wl_files_set_ini_override(WlIniOverride fn)
+{
+    g_iniOverride = fn;
+}
+
+// The module's value for this key, 0 when the game's file keeps its say
+static int ini_override(const char *file, const char *app, const char *key, char *value, size_t size)
+{
+    return g_iniOverride && file && app && key && g_iniOverride(file, app, key, value, size);
+}
+
 static DWORD(WINAPI *oGetPrivateProfileStringA)(LPCSTR, LPCSTR, LPCSTR, LPSTR, DWORD, LPCSTR);
 static DWORD WINAPI hGetPrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR def, LPSTR ret, DWORD size, LPCSTR file)
 {
@@ -335,6 +429,13 @@ static DWORD WINAPI hGetPrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR def
     wl_busy_enter();
     DWORD n = oGetPrivateProfileStringA(app, key, def, ret, size, file);
     wl_busy_leave();
+    char over[256];
+    if (!nested && ret && size && ini_override(file, app, key, over, sizeof over))
+    {
+        wl_log("ini %s: [%s] %s = \"%s\" from windowsloader (the file says \"%s\")", file, app, key, over, ret);
+        lstrcpynA(ret, over, (int)size);
+        return (DWORD)strlen(ret);
+    }
     if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
     {
         if (!app || !key)
@@ -368,6 +469,12 @@ static UINT WINAPI hGetPrivateProfileIntA(LPCSTR app, LPCSTR key, INT def, LPCST
     wl_busy_enter();
     UINT v = oGetPrivateProfileIntA(app, key, def, file);
     wl_busy_leave();
+    char over[64];
+    if (!nested && ini_override(file, app, key, over, sizeof over))
+    {
+        wl_log("ini %s: [%s] %s = %s from windowsloader (the file says %u)", file, app, key, over, v);
+        return (UINT)atoi(over);
+    }
     if (!nested && !wl_is_system_caller(WL_CALLER) && file_event())
         wl_log("ini %s: [%s] %s = %u (default %d)", file ? file : "(win.ini)", app ? app : "", key ? key : "", v, def);
     return v;

@@ -35,7 +35,7 @@ with WLAgent(LAUNCHER, GAME, log=os.path.join(OUT, "sr3menu.log")) as game:
     game.shot(os.path.join(OUT, "0-before.bmp"))
     before = game.frame()
     print("open:", game.menu(True), flush=True)
-    for tab in range(4):
+    for tab in range(5):
         game.menu(tab=tab)
         time.sleep(1.0)              # the game's frames stand still: wait in real time
         game.shot(os.path.join(OUT, "1-tab%d.bmp" % tab))

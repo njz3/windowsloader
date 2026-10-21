@@ -20,6 +20,7 @@
 
 #include "agent.h"
 #include "controls.h"
+#include "display.h"
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
@@ -59,6 +60,10 @@ static void wl_init(void)
     wl_log("folder: %s", wl_u8(dir, u2, sizeof u2));
     wl_log("windowed: %s, device I/O logged: %d per handle", g_wl.windowed ? "yes" : "no", g_wl.ioLimit);
 
+    wchar_t ini[MAX_PATH];
+    if (GetEnvironmentVariableW(WL_ENV_INI, ini, MAX_PATH))
+        wl_display_load(ini);
+
     wl_crash_init();
     wl_hooks_init();
     wl_files_hooks();
@@ -67,6 +72,7 @@ static void wl_init(void)
     wl_window_hooks();
     wl_d3d9_hooks();
     wl_dinput_hooks();
+    wl_d3d11_hooks();
     wl_game_init();
     wl_pause_init();
     wl_hooks_install_pending();

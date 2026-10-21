@@ -17,6 +17,7 @@
 // Returns 1 when the game is its own.
 
 int wl_game_segarally3(const wchar_t *exePath);
+int wl_game_daytona(const wchar_t *exePath, const char **title); // both editions
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);

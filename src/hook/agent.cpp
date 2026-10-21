@@ -18,6 +18,10 @@
 //   step [N]               wait for N frames (1 without N): "ok FRAME". The game is not held
 //                          between steps: it runs at its own pace.
 //   shot PATH              the next frame as a BMP: "ok" or "err ..."
+//   display [ASPECT] [MODE] set the aspect ratio and the display mode (windowsloader.ini names,
+//                          ORIGINAL, 4:3_LETTERBOX, FULLSCREEN_STRETCH...): "display ASPECT MODE"
+//   screen PATH            what the window shows (the picture placed by the aspect ratio and the
+//                          display mode, black bars), as a BMP: "ok" or "err ..."
 //   inputs                 "inputs N", then N lines "NAME TYPE" (axis, analog or switch)
 //   set INPUT VALUE        hold an input: axis -1..1 (+1 fully left), analog 0..1, switch 0/1
 //   setraw INPUT RAW       hold the raw value the game reads
@@ -26,7 +30,7 @@
 //   ffb                    the force feedback since the last ffb: "ffb N", then N lines
 //                          "FRAME Steering constant FORCE", FORCE -1..1, > 0 pushing left
 //   menu [on|off]          open or close the F10 menu; "menu open" or "menu closed"
-//   menu tab N             show its page N (0 game, 1 controls, 2 force feedback, 3 about)
+//   menu tab N             show its page N (0 game, 1 controls, 2 display, 3 force feedback, 4 about)
 //   quit                   "bye", and the game ends
 
 #include <windows.h>
@@ -36,6 +40,7 @@
 #include <string.h>
 
 #include "agent.h"
+#include "display.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -96,6 +101,46 @@ static void command(char *line)
             answer("ok");
         else
             answer("err no frame or unsupported back buffer");
+    }
+    else if (!strcmp(line, "display"))
+    {
+        int aspect = wl_display_aspect(), mode = wl_display_mode(), bad = 0;
+        const char *words[2] = {a1, a2};
+        for (int i = 0; i < 2; i++)
+        {
+            if (!words[i][0])
+                continue;
+            int a = wl_display_aspect_by_name(words[i]), m = wl_display_mode_by_name(words[i]);
+            if (a >= 0)
+                aspect = a;
+            else if (m >= 0)
+                mode = m;
+            else
+                bad = 1;
+        }
+        if (bad)
+            answer("err unknown aspect ratio or display mode");
+        else
+        {
+            if (a1[0])
+            {
+                wl_display_set(aspect, mode);
+                unsigned target = wl_d3d9_frames() + 3; // applied on the next frames
+                ULONGLONG start = GetTickCount64();
+                while (wl_d3d9_frames() < target && GetTickCount64() - start < 5000)
+                    Sleep(5);
+            }
+            answer("display %s %s", wl_display_aspect_name(wl_display_aspect()), wl_display_mode_name(wl_display_mode()));
+        }
+    }
+    else if (!strcmp(line, "screen"))
+    {
+        if (!a1[0])
+            answer("err screen needs a path");
+        else if (wl_display_screenshot(args))
+            answer("ok");
+        else
+            answer("err no window");
     }
     else if (!strcmp(line, "inputs"))
     {

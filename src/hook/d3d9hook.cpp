@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include "agent.h"
+#include "display.h"
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
@@ -73,8 +74,8 @@ static char g_shotPath[MAX_PATH];
 static int g_shotOk;
 static HANDLE g_shotDone;
 
-// 32-bit BGRX pixels to a 24-bit BMP (rows bottom-up, padded to 4 bytes)
-static int write_bmp(const char *path, const unsigned char *pixels, int pitch, int w, int h)
+// 32-bit BGRX (or RGBX) pixels to a 24-bit BMP (rows bottom-up, padded to 4 bytes)
+int wl_write_bmp(const char *path, const unsigned char *pixels, int pitch, int w, int h, int rgba)
 {
     FILE *f = fopen(path, "wb");
     if (!f)
@@ -95,7 +96,11 @@ static int write_bmp(const char *path, const unsigned char *pixels, int pitch, i
     {
         const unsigned char *src = pixels + (size_t)y * pitch;
         for (int x = 0; x < w; x++)
-            memcpy(line + x * 3, src + x * 4, 3);
+        {
+            line[x * 3] = src[x * 4 + (rgba ? 2 : 0)];
+            line[x * 3 + 1] = src[x * 4 + 1];
+            line[x * 3 + 2] = src[x * 4 + (rgba ? 0 : 2)];
+        }
         fwrite(line, 1, row, f);
     }
     free(line);
@@ -141,7 +146,7 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
         if (SUCCEEDED(hr))
         {
             step = "writing the file";
-            ok = write_bmp(path, (const unsigned char *)lr.pBits, lr.Pitch, (int)d.Width, (int)d.Height);
+            ok = wl_write_bmp(path, (const unsigned char *)lr.pBits, lr.Pitch, (int)d.Width, (int)d.Height, 0);
             sys->UnlockRect();
         }
     }
@@ -168,6 +173,17 @@ void wl_d3d9_size(int *w, int *h)
     *h = (int)g_height;
 }
 
+void wl_frame_presented(void)
+{
+    InterlockedIncrement(&g_frames);
+}
+
+void wl_frame_size(int w, int h)
+{
+    InterlockedExchange(&g_width, (LONG)w);
+    InterlockedExchange(&g_height, (LONG)h);
+}
+
 static void remember_size(const D3DPRESENT_PARAMETERS *pp)
 {
     if (!pp)
@@ -192,6 +208,18 @@ int wl_d3d9_shot(const char *path, DWORD timeoutMs)
     return g_shotOk;
 }
 
+const char *wl_shot_pending(void)
+{
+    return g_shotPending ? g_shotPath : NULL;
+}
+
+void wl_shot_done(int ok)
+{
+    g_shotOk = ok;
+    InterlockedExchange(&g_shotPending, 0);
+    SetEvent(g_shotDone);
+}
+
 // ------------------------------------------------------------------------------
 // Device methods
 // ------------------------------------------------------------------------------
@@ -201,9 +229,7 @@ void wl_d3d9_take_pending_shot(IDirect3DDevice9 *dev)
 {
     if (!g_shotPending)
         return;
-    g_shotOk = save_back_buffer(dev, g_shotPath);
-    InterlockedExchange(&g_shotPending, 0);
-    SetEvent(g_shotDone);
+    wl_shot_done(save_back_buffer(dev, g_shotPath));
 }
 
 static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
@@ -212,7 +238,8 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     static ULONGLONG lastTick;
     wl_menu_present(dev, oPresent); // F10: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
-    HRESULT hr = oPresent(dev, src, dst, wnd, dirty);
+    const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
+    HRESULT hr = oPresent(dev, src, dst ? dst : place, wnd, dirty);
     InterlockedIncrement(&g_frames);
 
     // A lost device (screen locked, remote desktop minimized) draws nothing until the game resets it
@@ -238,12 +265,12 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     return hr;
 }
 
-// A full-screen device kept in a window: the window takes the picture's size (window.cpp)
+// The window set for the display mode, the picture placed in it (display.cpp)
 static void after_device(const D3DPRESENT_PARAMETERS *pp, HWND focus, int forced)
 {
     remember_size(pp);
-    if (forced && pp)
-        wl_window_fit(pp->hDeviceWindow ? pp->hDeviceWindow : focus, (int)pp->BackBufferWidth, (int)pp->BackBufferHeight);
+    if (pp)
+        wl_display_device(pp->hDeviceWindow ? pp->hDeviceWindow : focus, pp);
 }
 
 static HRESULT(STDMETHODCALLTYPE *oReset)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *);
@@ -254,6 +281,7 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");
+    wl_display_prepare(pp);
     HRESULT hr = oReset(dev, pp);
     if (SUCCEEDED(hr))
     {
@@ -290,6 +318,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");
+    wl_display_prepare(pp);
     HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
     if (SUCCEEDED(hr))
         after_device(pp, focus, forced);
@@ -313,6 +342,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         mode = NULL; // a windowed device takes no display mode
         wl_log("  kept in a window");
     }
+    wl_display_prepare(pp);
     HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
     if (SUCCEEDED(hr))
         after_device(pp, focus, forced);
