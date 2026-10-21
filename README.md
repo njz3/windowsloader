@@ -50,6 +50,8 @@ windowsloader [options] <game.exe> [game arguments...]
   --timeout <s>    stop the game after <s> seconds (for tests)
   --iolimit <n>    max reads/writes logged per device handle (default: 500)
   --quiet          do not echo the log on the console
+  --agent          drive the game over stdin/stdout (linuxloader's agent protocol)
+  --controllers    with --agent: the controllers are read and get the force feedback too
 ```
 
 In windowed mode the game also leaves the desktop alone: no display mode change, no cursor

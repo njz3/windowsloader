@@ -16,7 +16,10 @@ the right-hand box), the menus taken with the accelerator, then a race: accelera
 held right then left (the centring force must push against it: > 0 to the left), brake, gears.
 The game runs at its own pace (not vsynced when its window is hidden): the waits are in seconds.
 
-    python scripts/agent/day_race.py [nse]
+    python scripts/agent/day_race.py [nse] [wheel]
+
+wheel: the controllers are opened too (launcher --controllers): the script still drives, the
+force feedback goes to the player 1 controller (vJoy on the test PC: warn its other users first).
 """
 import os
 import sys
@@ -29,7 +32,8 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LAUNCHER = os.path.join(ROOT, "bin", "Release", "windowsloader.exe")
 nse = "nse" in sys.argv[1:]
 GAME = os.path.join(ROOT, "games", "daytonausa-nse" if nse else "daytonausa", "Sega", "Daytona", "Daytona.exe")
-OUT = os.path.join(ROOT, "logs", "dayrace-nse" if nse else "dayrace")
+wheel = "wheel" in sys.argv[1:]
+OUT = os.path.join(ROOT, "logs", ("dayrace-nse" if nse else "dayrace") + ("-wheel" if wheel else ""))
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -60,7 +64,7 @@ def phase(game, name, seconds, **held):
     shot(game, name)
 
 
-with WLAgent(LAUNCHER, GAME, log=os.path.join(OUT, "dayrace.log"), extra_args=("--timeout", "300")) as game:
+with WLAgent(LAUNCHER, GAME, log=os.path.join(OUT, "dayrace.log"), extra_args=("--timeout", "300") + (("--controllers",) if wheel else ())) as game:
     time.sleep(60)  # loading (40 to 50 s), then the attract
     shot(game, "00-attract")
     tap(game, "Start")

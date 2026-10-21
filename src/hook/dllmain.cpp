@@ -78,11 +78,12 @@ static void wl_init(void)
     wl_hooks_install_pending();
     wl_agent_init();
 
-    // The controllers, unless the agent drives the game
+    // The controllers, unless the agent drives the game alone (with --controllers it holds the inputs
+    // it sets, the controllers the others, and the force feedback reaches the wheel)
     wchar_t controls[MAX_PATH];
     if (GetEnvironmentVariableW(WL_ENV_CONTROLS, controls, MAX_PATH))
     {
-        if (env_int(WL_ENV_AGENT, 0) == 1)
+        if (env_int(WL_ENV_AGENT, 0) == 1 && env_int(WL_ENV_CONTROLLERS, 0) != 1)
             wl_controls_load(controls);
         else
             wl_controls_start(controls);

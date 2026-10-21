@@ -20,6 +20,7 @@
 #define WL_ENV_WINDOWED L"WINDOWSLOADER_WINDOWED" // "1": keep the game in a window, leave the desktop alone
 #define WL_ENV_IOLIMIT  L"WINDOWSLOADER_IOLIMIT"  // max logged reads/writes per device handle
 #define WL_ENV_AGENT    L"WINDOWSLOADER_AGENT"    // "1": serve the agent commands on \\.\pipe\windowsloader-<pid>
+#define WL_ENV_CONTROLLERS L"WINDOWSLOADER_CONTROLLERS" // "1": in agent mode, the controllers and their force feedback too
 #define WL_ENV_CONTROLS L"WINDOWSLOADER_CONTROLS" // controls.ini path (absolute), next to the launcher by default
 #define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher
 

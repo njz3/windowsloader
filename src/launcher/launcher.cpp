@@ -100,6 +100,7 @@ static void usage(void)
         "  --iolimit <n>    max reads/writes logged per device handle (default: 500)\n"
         "  --quiet          do not echo the log on this console\n"
         "  --agent          drive the game over stdin/stdout (linuxloader's agent protocol); messages go to stderr\n"
+        "  --controllers    with --agent: the controllers are read and get the force feedback too (opens vJoy)\n"
         "  -h, --help       this help\n"
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
@@ -398,6 +399,7 @@ int wmain(int argc, wchar_t **argv)
     int timeoutSec = 0;
     int ioLimit = 500;
     int agent = 0;
+    int controllers = 0;
 
     int i = 1;
     for (; i < argc && argv[i][0] == L'-'; i++)
@@ -419,6 +421,8 @@ int wmain(int argc, wchar_t **argv)
             ioLimit = _wtoi(argv[++i]);
         else if (!wcscmp(a, L"--quiet"))
             g_quiet = 1;
+        else if (!wcscmp(a, L"--controllers"))
+            controllers = 1;
         else if (!wcscmp(a, L"--agent"))
         {
             agent = 1;
@@ -476,6 +480,7 @@ int wmain(int argc, wchar_t **argv)
     swprintf(num, 16, L"%d", ioLimit);
     SetEnvironmentVariableW(WL_ENV_IOLIMIT, num);
     SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
+    SetEnvironmentVariableW(WL_ENV_CONTROLLERS, controllers ? L"1" : NULL);
     wchar_t controlsPath[MAX_PATH];
     swprintf(controlsPath, MAX_PATH, L"%s\\controls.ini", selfDir);
     SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
