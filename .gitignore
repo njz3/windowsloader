@@ -7,7 +7,7 @@ compile_commands.json
 CMakeUserPresets.json
 
 # Game data is copied locally, never committed
-games/
+/games/
 
 # Logs written by test runs
 *.log
