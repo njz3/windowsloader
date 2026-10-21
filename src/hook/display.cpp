@@ -42,6 +42,8 @@ static WNDPROC g_proc;
 static int g_unicode;
 static int g_bbW, g_bbH;           // the game's picture
 static int g_copy;                 // the swap chain takes a destination rectangle
+static HWND g_child;               // or it shows the picture in this child window (Direct3D 11)
+static RECT g_childRect;
 static int g_appliedMode = -1;
 static RECT g_dest, g_client;      // the picture in the client area, and that area
 static int g_full = 1;             // the picture is the whole client area
@@ -199,6 +201,12 @@ void wl_display_set_internal(int width, int height)
 // ------------------------------------------------------------------------------
 
 // Shape of the frame the picture is shown in
+// The picture is placed by windowsloader (else it fills the window whatever the layout)
+static int placed(void)
+{
+    return g_copy || g_child;
+}
+
 static double frame_aspect(void)
 {
     if (g_aspect == WL_ASPECT_4_3 || g_aspect == WL_ASPECT_4_3_LETTERBOX)
@@ -255,6 +263,12 @@ static void layout(void)
         InterlockedExchange(&g_repaint, 1);
     g_dest = pic;
     g_full = EqualRect(&pic, &g_client);
+    if (g_child && !EqualRect(&pic, &g_childRect))
+    {
+        g_childRect = pic;
+        wl_log("display: client %dx%d, picture %ldx%ld at %ld,%ld", w, h, pic.right - pic.left, pic.bottom - pic.top, pic.left, pic.top);
+        SetWindowPos(g_child, NULL, pic.left, pic.top, pic.right - pic.left, pic.bottom - pic.top, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
 }
 
 static void apply_mode(void)
@@ -270,7 +284,7 @@ static void apply_mode(void)
 
     if (mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH)
     {
-        style = WS_POPUP | WS_VISIBLE;
+        style = WS_POPUP | WS_VISIBLE | (g_child ? WS_CLIPCHILDREN : 0);
         x = mi.rcMonitor.left;
         y = mi.rcMonitor.top;
         w = mi.rcMonitor.right - mi.rcMonitor.left;
@@ -279,6 +293,7 @@ static void apply_mode(void)
     else
     {
         style = mode == WL_MODE_WINDOW_STRETCH ? WS_OVERLAPPEDWINDOW | WS_VISIBLE : WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE;
+        style |= g_child ? WS_CLIPCHILDREN : 0;
         RECT frame = {0, 0, 0, 0};
         AdjustWindowRectEx(&frame, style, FALSE, ex);
         int frameW = frame.right - frame.left, frameH = frame.bottom - frame.top;
@@ -331,7 +346,7 @@ static void apply_mode(void)
     InterlockedExchange(&g_repaint, 1);
     wl_log("display: %s %s, window %dx%d at %d,%d, picture %ldx%ld at %ld,%ld%s", g_modeNames[mode], g_aspectNames[g_aspect], w, h, x, y,
            g_dest.right - g_dest.left, g_dest.bottom - g_dest.top, g_dest.left, g_dest.top,
-           g_copy || g_full ? "" : " (multisampled back buffer: the picture fills the window)");
+           placed() || g_full ? "" : " (multisampled back buffer: the picture fills the window)");
 }
 
 static void paint_bars(void)
@@ -397,6 +412,55 @@ void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp)
         wl_display_window(wnd, (int)pp->BackBufferWidth, (int)pp->BackBufferHeight);
 }
 
+// The child window the picture is shown in: the mouse goes through it to the game's window, and
+// it is never erased (the swap chain draws all of it)
+static LRESULT CALLBACK child_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    if (msg == WM_NCHITTEST)
+        return HTTRANSPARENT;
+    if (msg == WM_ERASEBKGND)
+        return 1;
+    return DefWindowProcW(h, msg, wp, lp);
+}
+
+HWND wl_display_child(HWND parent)
+{
+    if (!g_wl.windowed || !parent)
+        return parent;
+    wchar_t swap[16] = L"";
+    GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
+    if (!_wcsicmp(swap, L"discard"))
+        return parent; // the game's own swap chain, as for Direct3D 9
+    if (g_child)
+        return GetParent(g_child) == parent ? g_child : parent;
+    static ATOM cls;
+    if (!cls)
+    {
+        WNDCLASSW wc;
+        memset(&wc, 0, sizeof wc);
+        wc.lpfnWndProc = child_proc;
+        wc.hInstance = g_wlModule;
+        wc.lpszClassName = L"windowsloader picture";
+        cls = RegisterClassW(&wc);
+    }
+    RECT r;
+    GetClientRect(parent, &r);
+    wl_busy_enter();
+    g_child = CreateWindowExW(0, L"windowsloader picture", L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, r.right, r.bottom, parent, NULL,
+                              g_wlModule, NULL);
+    if (g_child)
+        SetWindowLongW(parent, GWL_STYLE, GetWindowLongW(parent, GWL_STYLE) | WS_CLIPCHILDREN);
+    wl_busy_leave();
+    if (!g_child)
+    {
+        wl_log("display: no child window (error %lu): the picture fills the window", GetLastError());
+        return parent;
+    }
+    g_childRect = r;
+    wl_log("display: the swap chain shows the picture in window %p, a child of the game's %p placed where the picture goes", g_child, parent);
+    return g_child;
+}
+
 void wl_display_window(HWND wnd, int width, int height)
 {
     if (!g_wl.windowed || !wnd)
@@ -445,15 +509,15 @@ const RECT *wl_display_dest(void)
         apply_mode();
     layout();
 
-    // Bars only around a picture placed by Present: one that fills the window has none to paint
-    if (g_copy && !g_full && (InterlockedExchange(&g_repaint, 0) || ++frames % 30 == 0))
+    // Bars only around a picture windowsloader places: one that fills the window has none to paint
+    if (placed() && !g_full && (InterlockedExchange(&g_repaint, 0) || ++frames % 30 == 0))
         paint_bars();
     return g_copy && !g_full ? &g_dest : NULL;
 }
 
 void wl_display_picture(RECT *r)
 {
-    if (g_copy && !g_full)
+    if (placed() && !g_full)
         *r = g_dest;
     else
         GetClientRect(g_wnd, r);

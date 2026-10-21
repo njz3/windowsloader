@@ -314,9 +314,16 @@ static HRESULT STDMETHODCALLTYPE hCreateSwapChain(IDXGIFactory *f, IUnknown *dev
     char where[128];
     wl_log("IDXGIFactory::CreateSwapChain [%s]", wl_where(WL_CALLER, where, sizeof where));
     log_desc("  asked", d);
-    DXGI_SWAP_CHAIN_DESC copy;
+    DXGI_SWAP_CHAIN_DESC copy, placed;
+    const DXGI_SWAP_CHAIN_DESC *use = windowed_desc(d, &copy);
+    if (use && g_wl.windowed)
+    {
+        placed = *use;
+        placed.OutputWindow = wl_display_child(use->OutputWindow);
+        use = &placed;
+    }
     wl_busy_enter();
-    HRESULT hr = oCreateSwapChain(f, dev, (DXGI_SWAP_CHAIN_DESC *)windowed_desc(d, &copy), out);
+    HRESULT hr = oCreateSwapChain(f, dev, (DXGI_SWAP_CHAIN_DESC *)use, out);
     wl_busy_leave();
     wl_log("CreateSwapChain -> 0x%08lx", hr);
     if (SUCCEEDED(hr) && out)
@@ -351,8 +358,9 @@ static HRESULT STDMETHODCALLTYPE hCreateSwapChainForHwnd(IDXGIFactory2 *f, IUnkn
         fs = &copy;
         wl_log("  kept in a window");
     }
+    HWND target = g_wl.windowed ? wl_display_child(wnd) : wnd;
     wl_busy_enter();
-    HRESULT hr = oCreateSwapChainForHwnd(f, dev, wnd, d, fs, out, sc);
+    HRESULT hr = oCreateSwapChainForHwnd(f, dev, target, d, fs, out, sc);
     wl_busy_leave();
     wl_log("CreateSwapChainForHwnd -> 0x%08lx", hr);
     if (SUCCEEDED(hr) && sc)
@@ -462,8 +470,11 @@ static HRESULT STDMETHODCALLTYPE hEnumOutputs(IDXGIAdapter *ad, UINT index, IDXG
     }
     hr = oEnumOutputs(g_displayAdapter, index, out);
     static int logged;
-    if (SUCCEEDED(hr) && !logged++)
-        wl_log("IDXGIAdapter::EnumOutputs: the adapter has no screen, the game gets the screens of the one showing them");
+    if (!logged++)
+        wl_log(SUCCEEDED(hr) ? "IDXGIAdapter::EnumOutputs: the adapter has no screen, the game gets the screens of the one showing them"
+               : index ? "IDXGIAdapter::EnumOutputs: no more screens"
+                       : "IDXGIAdapter::EnumOutputs: no screen on any adapter (screen off, or the session shown nowhere): the game "
+                         "takes the first one without checking and stops");
     return hr;
 }
 
@@ -530,11 +541,18 @@ static HRESULT WINAPI hD3D11CreateDeviceAndSwapChain(IDXGIAdapter *ad, D3D_DRIVE
     char where[128];
     wl_log("D3D11CreateDeviceAndSwapChain type=%d flags=0x%x [%s]", type, flags, wl_where(WL_CALLER, where, sizeof where));
     log_desc("  asked", d);
-    DXGI_SWAP_CHAIN_DESC copy;
+    DXGI_SWAP_CHAIN_DESC copy, placed;
+    const DXGI_SWAP_CHAIN_DESC *use = windowed_desc(d, &copy);
+    if (use && sc && g_wl.windowed)
+    {
+        placed = *use;
+        placed.OutputWindow = wl_display_child(use->OutputWindow);
+        use = &placed;
+    }
     IDXGIAdapter *best = !ad && type == D3D_DRIVER_TYPE_HARDWARE && !wl_is_system_caller(WL_CALLER) ? best_adapter() : NULL;
     wl_busy_enter();
     HRESULT hr = oD3D11CreateDeviceAndSwapChain(best ? best : ad, best ? D3D_DRIVER_TYPE_UNKNOWN : type, sw, flags, levels, nlevels, sdk,
-                                                windowed_desc(d, &copy), sc, dev, level, ctx);
+                                                use, sc, dev, level, ctx);
     wl_busy_leave();
     if (best)
         best->Release();

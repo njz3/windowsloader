@@ -69,9 +69,11 @@ void wl_display_prepare(D3DPRESENT_PARAMETERS *pp);          // before CreateDev
 void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp); // after: the window set for the mode
 const RECT *wl_display_dest(void);                           // each Present: where the picture goes, NULL for the whole window
 
-// From the other renderers (Direct3D 11): the window set for the mode once the swap chain exists.
-// Their Present fills the whole window, so the aspect ratio holds in the window modes only, the
-// window's shape being the picture's. wl_display_dest is still called each Present (F11, Alt+Enter).
+// From the other renderers (Direct3D 11), whose Present fills its whole window: the swap chain is
+// given wl_display_child's window instead of the game's, a child placed where the picture goes,
+// with the black bars painted around it; then the game's window set for the mode once the swap
+// chain exists. wl_display_dest is still called each Present (placing, F11, Alt+Enter).
+HWND wl_display_child(HWND parent);
 void wl_display_window(HWND wnd, int width, int height);
 
 // The part of the window's client area showing the picture (for the menu's mouse)
