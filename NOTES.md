@@ -49,6 +49,10 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 38 | 22/10 | Le nom du jeu entre crochets dans le titre, pour l'autodétection de BFF ; passer la demande à linuxloader | ✅ « <titre> [fordracing] - 61 fps » (le nom du module : `segarally3`, `daytona`, `fordracing`) ; linuxloader l'a fait aussi (« [id4-exp-rev-d] - FPS: 60.01 ») |
 | 39 | 22/10 | (après une connexion Bureau à distance) Reprendre et ne plus s'arrêter avant d'avoir lancé tous les jeux et fait tous les essais | 🔄 |
 | 40 | 22/10 | Corriger d'abord les jeux qui ne s'affichent pas | ✅ sur ce PC un Present Direct3D (9 ou 11) en mode blt ne montre rien : l'image est recopiée par GDI (`[Display] PRESENT = GDI`, défaut ; `DIRECT` pour l'ancien comportement). Vus à l'écran : DiRT Showdown 60 i/s (fenêtre blanche avant), Sonic 61 (47 avant), Battle Gear 4 55 et Chase H.Q. 2 60 (noirs avant, pour d'autres raisons : son, JVS, chemins ; voir BILAN.md) |
+| 41 | 22/10 | Commit et pousse | ✅ 3 commits poussés (`8bb9660..0a3d507`) : le code (huit jeux, plateformes RingEdge/RingWide et Taito, recopie GDI, `scripts/agent/race_check.py`), BILAN.md, NOTES.md |
+| 42 | 22/10 | « As tu déjà fait GTI Club ? », puis « Image borne me dit avoir fini » | ✅ GTI Club 3 copié (3,15 Go), module `konami.cpp` : démarre, joue jusqu'en course, vJoy, F10, menu de service (voir BILAN.md) |
+| 43 | 22/10 | (transmise par la session Linuxloader FFB edition) Les réglages de linuxloader, mêmes noms et même sens : `ASPECT_RATIO` étiré et recadré, `CROP_POSITION`, la courbure (`CROP_BARREL`, `BARREL_CENTER`, `BARREL_RADIUS`), le fichier `<nom court>.ini` par jeu avec « Sauvegarder pour ce jeu », `-c`, `--set SECTION.CLE=VALEUR` | ✅ tout, vérifié sur GTI Club 3 (D3D9, 16:9), Battle Gear 4 (D3D9, 4:3) et DiRT Showdown (D3D11, 16:9). Écarts : la courbure seulement avec `PRESENT = GDI` (le défaut) ; en `DIRECT`, D3D9 recadre sans courber et D3D11 montre l'image entière entre bandes noires |
+| 44 | 22/10 | Commit et pousse | ✅ 3 commits poussés : le code (`ce52978`, GTI Club 3 et les réglages de linuxloader), BILAN.md et README.md (`b4d2724`), NOTES.md |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -117,7 +121,7 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | Daytona 3 New Season | Daytona3NSE | TeknoParrot | Sega | 32 | oui (12 684) | ⚠️ joue en mode agent (demande 24) |
 | Ford Racing | FR | TeknoParrot | Sega Arcade PC | 32 | oui (4 426) | ✅ (menu de service ⚠️ : clé iButton) |
 | GRID | GRID | OpenParrot | — (`C:\Sega\Grid`) | 32 | oui (26 437) | ✅ jusqu'en course (agent), vJoy, F10 ; service ❌ (clé Dinkey de la coquille) |
-| GTI Club 3 | GtiClub3 | OpenParrot | Konami PC | 32 | oui (9 573) | ⏳ |
+| GTI Club 3 | GtiClub3 | OpenParrot | Konami PC | 32 | oui (9 573) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB ⚠️ (agent) |
 | Initial D 6 AA | ID6 | TeknoParrot | Sega Ringedge | 32 | oui (13 400) | ✅ jusqu'en course (agent) ; FFB, affichage ⚠️ |
 | K.O. Drive | KODrive | TeknoParrot | Sega Ringwide | 32 | oui (20 854) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB, affichage ⚠️ |
 | Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
@@ -633,3 +637,46 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   0e3c) remplacés par une fonction qui « active les entrées » (+0x67e75b = 1) ; chemins `.\EU` et `.\FU` (dossiers
   EUP, FUP) ; réseau EA3/AVS (`libavs-win32-ea3.dll`) gardé, un échec de bind toléré. Rien sur le retour de force :
   à trouver dans le jeu (le plugin FFB de TeknoParrot lit sans doute la mémoire).
+
+### 22/10 — GTI Club 3
+
+- Image borne confirme la fin de sa campagne et rend son feu vert permanent. Copie en 3 min 29 (16 Mo/s).
+- Premier lancement sans module : « ERROR CODE : 5 1500-0000 » (libacio cherche sa carte sur COM2). Le plan
+  d'OpenParrot appliqué (quatre vérifications passées, entrées écrites à chaque échange) : démo, menus.
+- Le menu de service ne bougeait pas : les entrées étaient écrites avant l'échange, et la remise à zéro des E/S
+  du menu éteint le drapeau « entrées actives ». Après l'échange et le drapeau remis : il répond. Piège : un appui
+  tenu 1 s fait défiler plusieurs lignes (répétition) ; navigation à 0,15 s.
+- Une connexion Bureau à distance de l'utilisateur (pour la boîte du pare-feu) pendant un démarrage a fait
+  échouer la création du device Direct3D (« Could not find any compatible Direct3D devices ») : relancé.
+- Le retour de force d'après FFBArcadePlugin (adresses lues, sens vérifié par corrélation avec le volant).
+- `race_check.py` : une image manquante (écran de chargement) n'arrête plus l'essai.
+
+### 22/10 — Réglages de linuxloader : recadrage, courbure, fichier par jeu, `--set` (demande 43)
+
+- Repris de linuxloader (`blitStretching.c`, `config.c`, `guiCommon.cpp`), mêmes noms et même sens pour que le
+  front-end passe les réglages de la même façon :
+  - `ASPECT_RATIO` prend aussi `4:3_STRETCH`, `16:9_STRETCH`, `4:3_CROP`, `16:9_CROP` (« 4:3 crop » avec une
+    espace est lu aussi) ; `CROP_POSITION` −100..100 ; `CROP_BARREL`, `BARREL_CENTER` (60), `BARREL_RADIUS` (50).
+  - La courbure : les calculs de linuxloader (`barrelSetup`, `barrelArc`, `barrelSource`, marqués) ; au lieu des
+    bandes de quads texturés, chaque colonne (ou ligne) du cadre prend la colonne de l'image que donne la formule,
+    puis `StretchDIBits` met l'autre axe à l'échelle. Seulement dans la recopie GDI.
+  - Fichier : `settings.cpp`. `<nom court>.ini` à côté de `windowsloader.ini` est lu à sa place s'il existe et
+    si le fichier s'appelle `windowsloader.ini` (comme linuxloader : un `-c` d'un autre nom est lu tel quel).
+    Le lanceur prend `-c`/`--config` et `--set` (répétable, aussi `--set=`), passés à la DLL par
+    `WINDOWSLOADER_INI` et `WINDOWSLOADER_SET`. Les réglages sont lus après la reconnaissance du jeu.
+  - Menu F10 : la liste des sept choix, le curseur de position, la case de courbure et ses deux curseurs,
+    appliqués à l'image suivante ; boutons « Sauvegarder », « Sauvegarder pour ce jeu », « Fermer » en bas du
+    menu. Les changements ne sont plus écrits tout de suite (comme linuxloader) ; F11 ne change pas le
+    `DISPLAY_MODE` enregistré.
+- Le menu au-dessus d'une image recadrée ou courbée : sa partie de l'image est redessinée sans recadrage ni
+  courbure, à l'échelle du recadrage et centrée sur le cadre, là où la souris est lue ; le menu reste entier.
+- Agent : `display` prend aussi `CROP_POSITION=…`, `CROP_BARREL=…`, `BARREL_CENTER=…`, `BARREL_RADIUS=…` et
+  n'enregistre plus rien ; `menu save [game]` appuie sur les boutons du menu.
+- Trouvé en essayant : Battle Gear 4 refait son device à la taille de sa fenêtre (à la façon de DXUT :
+  `GetClientRect` après chaque `WM_SIZE`). Avec un rapport d'aspect différent du sien, la fenêtre grandissait à
+  chaque tour (800x600 puis 1067x600, 1067x800… jusqu'à l'écran). Défaut antérieur, montré par l'essai : le
+  `GetClientRect` du jeu (ses imports) et le `WM_SIZE` qu'il reçoit donnent maintenant la taille de son image.
+- Essais (captures de l'extérieur, la fenêtre du jeu remontée sans prendre le clavier) : les 16 cas et le menu
+  sur GTI Club 3, Battle Gear 4 et DiRT Showdown ; `--set` en minuscules, « Sauvegarder pour ce jeu » qui
+  copie `windowsloader.ini` en `gticlub3.ini` puis y écrit, ce fichier relu au lancement suivant, `-c autre.ini`
+  lu tel quel. Le `gticlub3.ini` d'essai mis à la Corbeille.
