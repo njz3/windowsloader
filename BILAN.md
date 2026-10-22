@@ -25,6 +25,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Sonic & Sega All-Stars Racing (RingWide) | ✅ | ❌ | ⏳ | ⚠️ | ✅ | ⏳ | ✅ | ⚠️ |
 | Battle Gear 4 Tuned (Taito Type X+) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Chase H.Q. 2 (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| GTI Club: Supermini Festa! (GTI Club 3, Konami PC) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 
 Fonctions :
 
@@ -38,7 +39,9 @@ Fonctions :
 - **Affichage** : `[Display]` de `windowsloader.ini` (aspect, mode, résolution interne), vérifié à l'écran
   par `scripts/agent/display_check.py`. Par défaut l'image est recopiée dans la fenêtre par GDI
   (`PRESENT = GDI`, voir « Affichage sur ce PC » plus bas) ; `PRESENT = DIRECT` garde le Present du jeu.
-- **Menu F10** : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos.
+  Les réglages de linuxloader en plus (voir « Rapport d'aspect, recadrage et courbure » plus bas).
+- **Menu F10** : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
+  et « Sauvegarder pour ce jeu ».
 - **Menu de service** : le menu de test de la borne (bouton Test).
 - **Crédits / Shell** : pièces, crédits et ce que le Shell de la borne fournit au jeu.
 
@@ -288,7 +291,9 @@ de côté. « Professional Edition » est une option de TeknoParrot (correctifs 
     (12 18, 13 01, 0b 1f, 08 0f, 07 7f, 01 80…), journalisés pour le retour de force ;
   - le drapeau de pause d'OpenParrot (BG4General) tenu une fois l'écran 8 atteint ;
   - Notice, TXSURROUND, NOW LOADING, démo en 3D en boucle.
-- Affichage ✅ : 800×600, vu à l'écran (recopie GDI) à 55 images/s.
+- Affichage ✅ : 800×600, vu à l'écran (recopie GDI) à 55 images/s. Le jeu refait son device à la taille de
+  sa fenêtre (`GetClientRect` après `WM_SIZE`) : il voit sa fenêtre à la taille de son image, sinon un rapport
+  d'aspect autre que le sien faisait grandir la fenêtre à chaque tour.
 - Commandes ✅ (mode agent, `scripts/agent/race_check.py bg4`) : pièce (jeu gratuit affiché), Start, constructeur, voiture, boîte
   AT, mode course, circuit, grille, départ, course (0 → 97 km/h, passage en 2e) ; le volant tourne la voiture du
   bon côté avec le protocole d'OpenParrot (1024 à gauche, 2044 à droite). Trouvé par le test d'E/S du menu de
@@ -362,8 +367,69 @@ fenêtre cachée (D3D9) ou vers la fenêtre enfant, cachée (D3D11), et la caden
 intervalle demandé. `PRESENT = DIRECT` revient au Present du jeu. Vérifié à l'écran : DiRT Showdown (60 i/s),
 Sonic (61), Battle Gear 4 (55), Chase H.Q. 2 (60).
 
+## Rapport d'aspect, recadrage et courbure ; fichier de réglages par jeu
+
+Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe pareil aux deux) :
+
+| Réglage | Recopie GDI (défaut) | `PRESENT = DIRECT`, D3D9 | `PRESENT = DIRECT`, D3D11 |
+|---|---|---|---|
+| `ASPECT_RATIO` ORIGINAL, 4:3, 16:9, 4:3_LETTERBOX | ✅ | ✅ | ✅ |
+| `4:3_STRETCH`, `16:9_STRETCH` | ✅ | ✅ | ✅ |
+| `4:3_CROP`, `16:9_CROP`, `CROP_POSITION` | ✅ | ✅ (partie du back buffer donnée au Present) | ⚠️ image entière entre bandes noires |
+| `CROP_BARREL`, `BARREL_CENTER`, `BARREL_RADIUS` | ✅ | ⚠️ recadré sans courbure | ⚠️ comme ci-dessus |
+| `<nom court>.ini` lu à la place de `windowsloader.ini` | ✅ | ✅ | ✅ |
+| `-c fichier.ini`, `--set SECTION.CLE=VALEUR` (répétable) | ✅ | ✅ | ✅ |
+
+- Menu F10, page Affichage : les sept choix de linuxloader, « Position du recadrage », « Courber les parties
+  coupées sur les bords », « Milieu non déformé », « Rayon de courbure », appliqués à l'image suivante ; en bas
+  du menu « Sauvegarder » (le fichier lu), « Sauvegarder pour ce jeu » (la première fois une copie du fichier lu
+  en `<nom court>.ini`, puis ce fichier), « Fermer ». Le menu reste entier au-dessus d'une image recadrée ou
+  courbée.
+- Vérifié (captures de la fenêtre) sur GTI Club 3 (D3D9, 16:9), Battle Gear 4 (D3D9, 4:3) et DiRT Showdown
+  (D3D11, 16:9) : les 16 cas de `crop_check.py` (bloc-notes) et le menu ; `--set`, `-c`, le fichier du jeu
+  créé, relu au lancement suivant.
+- Non fait : OpenGL (Initial D 6) garde sa fenêtre telle quelle, sans aucun de ces réglages.
+
 ## Menu F10 sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
 
 `f10_check.py` (bloc-notes) : menu ouvert par l'agent, pages Jeu, Contrôles, Affichage, Retour de force, À propos
 vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouvert (882 → 882, 903 → 903,
 1119 → 1119) et repart à la fermeture.
+
+## GTI Club: Supermini Festa! (GTI Club 3, Konami PC, 2008)
+
+`gti3.exe` (celui de `boot.bat` ; `gti3japkey.exe` n'en diffère que par 6 octets de texte), x86, Direct3D 9
+(1360×768), son XACT 2.10, base fixe 0x400000. Nouveau module `src/hook/games/konami.cpp`. Copie locale le 22/10
+(121 fichiers, 3,15 Go, 3 min 29, 16 Mo/s) ; plugin FFB (`dinput8.dll`), OutputBlaster, SDL2, dgVoodoo et
+`teknoparrot.ini` mis de côté.
+
+- Lancement ✅ :
+  - la carte d'E/S Konami (« HBHI », protocole ACIO sur COM2) passe par `libacio.dll`, l'original : elle n'est
+    pas émulée ; comme OpenParrot (`TypeX2/GTIClub3.cpp`, GPL v3), les quatre vérifications de la carte au
+    démarrage sont déclarées réussies et les entrées écrites là où le jeu les garde, à chaque échange avec la
+    carte (+0x409c0, une fois par image) ; sans cela : « ERROR CODE : 5 1500-0000, FATAL ERROR » ;
+  - les écritures se font après l'échange, et le drapeau « entrées actives » (+0xa7e75b) est remis à chaque
+    fois : la remise à zéro des E/S du menu de service (+0x440660) l'éteint ;
+  - les lecteurs de mise à jour E:\UP et F:\UP sont les dossiers EUP et FUP de la copie (OpenParrot réécrit les
+    chaînes ; ici une redirection de dossiers) ;
+  - le moteur de son XACT est déjà enregistré sur ce PC (runtime DirectX) : `boot.bat` le fait par
+    `regsvr32` sur la borne ; windowsloader ne touche pas au registre (à prévoir : activation COM sans
+    registre si une borne ne l'a pas) ;
+  - le jeu écoute sur le réseau (ports 50002 et 50006) : une boîte du pare-feu s'ouvre, laissée à l'utilisateur.
+- Affichage ✅ : fenêtre 1360×768 (recopie GDI), 30 images/s.
+- Commandes ✅ (mode agent, `scripts/agent/race_check.py gticlub3`) : jeu gratuit, « Vous jouez ? YES », choix du
+  mode (Race battle), départ rapide, course « Traffic jam escape race » (jusqu'à 131 km/h, la voiture suit la
+  route). Bits du mot des boutons trouvés par l'INPUT CHECK du menu de service : SERVICE 0x1, TEST 0x2, COIN MECH
+  SWITCH 0x4, START 0x10, levier SHIFT DOWN 0x80 et SHIFT UP 0x100, ACTION 0x800, SELECT UP / DOWN / LEFT / RIGHT
+  0x1000 à 0x8000 ; volant et pédales en flottants (et en boutons pour les menus : 0x200, 0x400, 0x20, 0x40).
+  Nouvelles actions `Action`, `SelectUp`, `SelectDown`, `SelectLeft`, `SelectRight` dans `controls.ini`.
+- Retour de force ⚠️ : l'octet que le jeu prépare pour le moteur (+0x518cbc, lu par FFBArcadePlugin) : 0 ou 0x80
+  rien, 0x81 (le plus fort) à 0xFF d'un côté, 0x7F à 0x01 de l'autre ; rien en menu (+0x518e8e). Volant à gauche
+  −0,65 en moyenne, à droite +0,67 (un ressort de centrage). vJoy ✅ : `--controllers`, course, forces envoyées au
+  joueur 1. Sens à confirmer au volant.
+- Menu F10 ✅ : les cinq pages, jeu en pause.
+- Menu de service ✅ : bouton Test ; MAIN MENU, I/O CHECK (INPUT CHECK, CALIBRATION…), navigation SELECT UP /
+  DOWN, START pour choisir. L'étalonnage du volant et des pédales y est marqué à faire (pas fait : le jeu tourne
+  sans).
+- Crédits ✅ : jeu gratuit (réglage de la copie) ; les pièces passent par `ac_io_hbhi_current_coinstock` de la
+  carte, pas émulé.

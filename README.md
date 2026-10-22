@@ -52,18 +52,29 @@ windowsloader [options] <game.exe> [game arguments...]
   --quiet          do not echo the log on the console
   --agent          drive the game over stdin/stdout (linuxloader's agent protocol)
   --controllers    with --agent: the controllers are read and get the force feedback too
+  -c, --config <file>      settings file (default: windowsloader.ini next to the launcher, or the
+                           game's <short name>.ini beside it when there is one)
+  --set SECTION.KEY=VALUE  overrides one setting of the file (repeatable), e.g.
+                           --set Display.ASPECT_RATIO=4:3_CROP
 ```
 
 In windowed mode the game also leaves the desktop alone: no display mode change, no cursor
 clipping, no global keyboard hook, no shutdown or program started on its behalf.
 
 Display settings are in `windowsloader.ini` next to the launcher, with linuxloader's `[Display]`
-keys: `ASPECT_RATIO` (`ORIGINAL`, `4:3`, `16:9`, `4:3_LETTERBOX`), `DISPLAY_MODE` (`WINDOW`,
+keys and meanings: `ASPECT_RATIO` (`ORIGINAL`; `4:3`, `16:9`, `4:3_LETTERBOX`: the picture whole in
+that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deformed; `4:3_CROP`,
+`16:9_CROP`: the frame filled, the picture cut), `CROP_POSITION` (-100 left or top to 100),
+`CROP_BARREL` (the cut parts bent onto the edges, as on a cylinder; with `PRESENT = GDI`, the
+default), `BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`, `FULLSCREEN`, `FULLSCREEN_STRETCH`) and `WIDTH` / `HEIGHT` (the game's render
-resolution, `AUTO` by default). F11 or Alt+Enter switches between window and full screen.
+resolution, `AUTO` by default). F11 or Alt+Enter switches between window and full screen. A game's
+own `<short name>.ini` next to `windowsloader.ini` (`gticlub3.ini`) is read instead when it exists.
 
 **F10** pauses the game and opens the settings menu: controls (bindings captured from the keyboard,
 a gamepad or a wheel, saved to `controls.ini`), display, force feedback strength and direction.
+"Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
+own file (made from a copy of the file read the first time).
 
 ## License
 
