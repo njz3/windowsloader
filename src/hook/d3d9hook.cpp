@@ -377,7 +377,7 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     wl_menu_present(dev, present_out); // F10: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
-    HRESULT hr = present_out(dev, src, dst ? dst : place, wnd, dirty);
+    HRESULT hr = present_out(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty);
     InterlockedIncrement(&g_frames);
 
     // A lost device (screen locked, remote desktop minimized) draws nothing until the game resets it

@@ -43,6 +43,7 @@
 #include "log.h"
 #include "menu.h"
 #include "pause.h"
+#include "settings.h"
 #include "wlshared.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -69,6 +70,16 @@ void wl_menu_request(int open)
 int wl_menu_is_open(void)
 {
     return g_open;
+}
+
+static RECT g_menuRect; // the menu's window, in the picture
+
+int wl_menu_rect(RECT *r)
+{
+    if (!g_open || IsRectEmpty(&g_menuRect))
+        return 0;
+    *r = g_menuRect;
+    return 1;
 }
 
 static int foreground_is_ours(void)
@@ -239,7 +250,7 @@ static void draw_value(const WlInput *in)
 }
 
 // The capture of a binding in progress
-static int g_capInput = -1, g_capWhich, g_capAppend;
+static int g_capInput = -1, g_capWhich, g_capAppend, g_capOpen;
 static char g_capPrompt[128];
 
 static void start_capture(int input, int which, int append, const WlInput *in)
@@ -254,11 +265,16 @@ static void start_capture(int input, int which, int append, const WlInput *in)
     else
         snprintf(g_capPrompt, sizeof g_capPrompt, "Appuyez sur la touche ou le bouton « %s »", label_of(in));
     wl_controls_capture(input, which);
-    ImGui::OpenPopup("Assigner");
+    g_capOpen = 1;
 }
 
 static void capture_popup(void)
 {
+    // Opened here, at the menu window's level where it is drawn (a popup's name is taken in the
+    // ID stack it is opened in: the table's row would be another one)
+    if (g_capOpen)
+        ImGui::OpenPopup("Assigner");
+    g_capOpen = 0;
     if (!ImGui::BeginPopupModal("Assigner", NULL, ImGuiWindowFlags_AlwaysAutoResize))
         return;
     ImGui::TextUnformatted(g_capPrompt);
@@ -384,41 +400,70 @@ static void page_ffb(void)
     ImGui::TextDisabled("Réglages enregistrés dans [Config] de controls.ini (FFB_Strength, FFB_Invert).");
 }
 
-// Display: linuxloader's three settings, the first two applied at once
+// Display: linuxloader's settings, applied at the next frame (the resolution at the next start)
 static void page_display(void)
 {
-    static const char *aspects[WL_ASPECT_COUNT] = {"Original (forme de l'image du jeu)", "4:3 (bandes noires si l'image n'est pas en 4:3)",
-                                                   "16:9 (bandes noires si l'image n'est pas en 16:9)", "4:3 avec bandes noires (comme 4:3)"};
+    // linuxloader's seven choices (4:3_LETTERBOX shown as 4:3)
+    static const int choices[] = {WL_ASPECT_ORIGINAL,     WL_ASPECT_4_3,      WL_ASPECT_16_9,     WL_ASPECT_4_3_STRETCH,
+                                  WL_ASPECT_16_9_STRETCH, WL_ASPECT_4_3_CROP, WL_ASPECT_16_9_CROP};
+    static const char *aspects[] = {"Original", "4:3 bandes noires", "16:9 bandes noires", "4:3 étiré", "16:9 étiré", "4:3 recadré", "16:9 recadré"};
     static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré"};
     static const int sizes[][2] = {{0, 0},     {640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 1024}, {1360, 768},
                                    {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
-    int aspect = wl_display_aspect(), mode = wl_display_mode();
+    int aspect = wl_display_aspect(), mode = wl_display_mode(), choice = 0;
+    for (int i = 0; i < (int)(sizeof choices / sizeof choices[0]); i++)
+        if (choices[i] == (aspect == WL_ASPECT_4_3_LETTERBOX ? WL_ASPECT_4_3 : aspect))
+            choice = i;
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-    if (ImGui::Combo("Rapport d'aspect", &aspect, aspects, WL_ASPECT_COUNT))
-        wl_display_set(aspect, mode);
+    if (ImGui::Combo("Rapport d'aspect", &choice, aspects, (int)(sizeof aspects / sizeof aspects[0])))
+        wl_display_set(choices[choice], mode);
+    aspect = wl_display_aspect();
+    if (aspect == WL_ASPECT_4_3_CROP || aspect == WL_ASPECT_16_9_CROP)
+    {
+        // Read at each frame: the picture follows the sliders
+        int position, barrel, center, radius;
+        wl_display_crop(&position, &barrel, &center, &radius);
+        bool bend = barrel != 0;
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+        ImGui::SliderInt("Position du recadrage", &position, -100, 100);
+        ImGui::TextDisabled("-100 : à gauche ou en haut, 0 : au milieu, 100 : à droite ou en bas.");
+        ImGui::Checkbox("Courber les parties coupées sur les bords", &bend);
+        if (bend)
+        {
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+            ImGui::SliderInt("Milieu non déformé", &center, 0, 100, "%d %%");
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+            ImGui::SliderInt("Rayon de courbure", &radius, 10, 300, "%d %%");
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextDisabled("Toute l'image reste visible : le milieu (en %% du cadre) tel que recadré, les parties que le recadrage couperait "
+                                "resserrées sur les bords comme sur un cylindre vu de face. Un petit rayon courbe fort au bord, un grand "
+                                "resserre uniformément.");
+            if (!wl_display_gdi())
+                ImGui::TextDisabled("Courbure seulement quand windowsloader recopie l'image (PRESENT = GDI) : ici l'image est seulement recadrée.");
+            ImGui::PopTextWrapPos();
+        }
+        wl_display_set_crop(position, bend, center, radius);
+    }
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("Original : la forme de la résolution de rendu du jeu. Bandes noires : la forme du cadre, l'image entière dedans à sa "
+                        "forme. Étiré : l'image remplit le cadre, déformée. Recadré : l'image remplit le cadre à sa forme, coupée sur les "
+                        "côtés (ou en haut et en bas).");
+    ImGui::PopTextWrapPos();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
     if (ImGui::Combo("Mode d'affichage", &mode, modes, WL_MODE_COUNT))
         wl_display_set(aspect, mode);
     ImGui::TextDisabled("F11 ou Alt+Entrée : fenêtre / plein écran.");
     ImGui::Spacing();
 
-    int w, h, current = -1;
+    int w, h, sw, sh, current = -1;
     wl_display_internal(&w, &h);
+    wl_display_internal_next(&sw, &sh);
     char saved[32] = "Native";
-    {
-        wchar_t ini[MAX_PATH], v1[16], v2[16];
-        if (GetEnvironmentVariableW(WL_ENV_INI, ini, MAX_PATH))
-        {
-            GetPrivateProfileStringW(L"Display", L"WIDTH", L"AUTO", v1, 16, ini);
-            GetPrivateProfileStringW(L"Display", L"HEIGHT", L"AUTO", v2, 16, ini);
-            int sw = _wtoi(v1), sh = _wtoi(v2);
-            if (sw > 0 && sh > 0)
-                snprintf(saved, sizeof saved, "%dx%d", sw, sh);
-            for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
-                if (sizes[i][0] == (sw > 0 ? sw : 0) && sizes[i][1] == (sh > 0 ? sh : 0))
-                    current = i;
-        }
-    }
+    if (sw > 0 && sh > 0)
+        snprintf(saved, sizeof saved, "%dx%d", sw, sh);
+    for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
+        if (sizes[i][0] == sw && sizes[i][1] == sh)
+            current = i;
     ImGui::BeginDisabled(!wl_display_internal_supported());
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
     if (ImGui::BeginCombo("Résolution interne", saved))
@@ -441,8 +486,58 @@ static void page_display(void)
     if (!wl_display_internal_supported())
         ImGui::TextDisabled("Pas encore prise en charge pour ce jeu.");
     else
-        ImGui::TextDisabled("Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement.", g_bbW, g_bbH, w ? "windowsloader.ini" : "réglage du jeu");
-    ImGui::TextDisabled("Enregistré dans [Display] de windowsloader.ini, à côté du lanceur.");
+        ImGui::TextDisabled("Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement.", g_bbW, g_bbH, w ? "réglages" : "réglage du jeu");
+    ImGui::TextDisabled("Gardé par « Sauvegarder » dans [Display] du fichier de réglages.");
+}
+
+// The settings file: "Sauvegarder" to the file read, "Sauvegarder pour ce jeu" to the game's own
+// <short name>.ini (a copy of the file read the first time, then read in its place at each start
+// and the file the next saves go to), as linuxloader's buttons
+int wl_menu_save(int forGame, char *status, size_t size)
+{
+    char u[MAX_PATH * 2];
+    const wchar_t *file = forGame ? wl_settings_game_file(1) : wl_settings_file();
+    if (forGame && !file)
+    {
+        const wchar_t *own = wl_settings_game_file(0);
+        snprintf(status, size, own ? "Impossible d'écrire %s" : "Pas de jeu reconnu", own ? wl_u8(own, u, sizeof u) : "");
+        return 0;
+    }
+    if (!file[0])
+    {
+        snprintf(status, size, "Pas de fichier de réglages (lancé sans windowsloader.exe)");
+        return 0;
+    }
+    int ok = wl_display_save(file);
+    snprintf(status, size, ok ? (forGame ? "Enregistré dans %s (ce jeu seulement)" : "Enregistré dans %s") : "Impossible d'écrire %s", wl_u8(file, u, sizeof u));
+    return ok;
+}
+
+static void save_buttons(void)
+{
+    static char status[MAX_PATH * 2 + 64];
+    char u[MAX_PATH * 2];
+    if (ImGui::Button("Sauvegarder"))
+        wl_menu_save(0, status, sizeof status);
+    if (wl_settings_game_file(0))
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("Sauvegarder pour ce jeu"))
+            wl_menu_save(1, status, sizeof status);
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Fermer"))
+        InterlockedExchange(&g_open, 0);
+    if (status[0])
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", status);
+    }
+    else
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("Réglages : %s", wl_u8(wl_settings_file(), u, sizeof u));
+    }
 }
 
 static void page_game(void)
@@ -495,7 +590,11 @@ static void draw_menu(void)
     snprintf(title, sizeof title, "windowsloader — %s###menu", wl_game_title());
     if (ImGui::Begin(title, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
+        ImVec2 at = ImGui::GetWindowPos(), size = ImGui::GetWindowSize();
+        SetRect(&g_menuRect, (int)at.x - 2, (int)at.y - 2, (int)(at.x + size.x) + 2, (int)(at.y + size.y) + 2);
         int tab = InterlockedExchange(&g_tabRequest, -1);
+        // The pages above, the settings file's buttons below
+        ImGui::BeginChild("pages", ImVec2(0, -ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().ItemSpacing.y));
         if (ImGui::BeginTabBar("pages"))
         {
             if (ImGui::BeginTabItem("Jeu", NULL, tab == 0 ? ImGuiTabItemFlags_SetSelected : 0))
@@ -525,6 +624,9 @@ static void draw_menu(void)
             }
             ImGui::EndTabBar();
         }
+        ImGui::EndChild();
+        ImGui::Separator();
+        save_buttons();
         capture_popup();
     }
     ImGui::End();
@@ -617,7 +719,8 @@ static void render_frame(void *arg)
     }
     dev->SetViewport(&vp);
     bb->Release();
-    if (FAILED(f->present(dev, NULL, wl_display_dest(), NULL, NULL)))
+    const RECT *place = wl_display_dest();
+    if (FAILED(f->present(dev, wl_display_source(), place, NULL, NULL)))
         Sleep(16);
 }
 

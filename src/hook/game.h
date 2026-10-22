@@ -22,6 +22,7 @@ int wl_game_fordracing(const wchar_t *exePath, const char **title); // the game 
 int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **title); // GRID, DiRT Showdown
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title); // Sega RingEdge and RingWide games
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title);    // Taito Type X+ (Battle Gear 4)
+int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);

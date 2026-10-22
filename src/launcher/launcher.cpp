@@ -101,6 +101,10 @@ static void usage(void)
         "  --quiet          do not echo the log on this console\n"
         "  --agent          drive the game over stdin/stdout (linuxloader's agent protocol); messages go to stderr\n"
         "  --controllers    with --agent: the controllers are read and get the force feedback too (opens vJoy)\n"
+        "  -c, --config <file>  settings file (default: windowsloader.ini next to this launcher, or the game's\n"
+        "                   <short name>.ini beside it when there is one)\n"
+        "  --set SECTION.KEY=VALUE  overrides one setting of the file, e.g. --set Display.ASPECT_RATIO=4:3_CROP\n"
+        "                   (repeatable)\n"
         "  -h, --help       this help\n"
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
@@ -483,6 +487,9 @@ int wmain(int argc, wchar_t **argv)
     int ioLimit = 500;
     int agent = 0;
     int controllers = 0;
+    const wchar_t *configArg = NULL;
+    static wchar_t sets[8192]; // --set's, one per line
+    size_t setsLen = 0;
 
     int i = 1;
     for (; i < argc && argv[i][0] == L'-'; i++)
@@ -506,6 +513,20 @@ int wmain(int argc, wchar_t **argv)
             g_quiet = 1;
         else if (!wcscmp(a, L"--controllers"))
             controllers = 1;
+        else if ((!wcscmp(a, L"-c") || !wcscmp(a, L"--config")) && hasValue)
+            configArg = argv[++i];
+        else if (!wcsncmp(a, L"--set=", 6) || (!wcscmp(a, L"--set") && hasValue))
+        {
+            const wchar_t *value = a[5] == L'=' ? a + 6 : argv[++i];
+            size_t n = wcslen(value);
+            if (!wcschr(value, L'=') || !wcschr(value, L'.') || wcschr(value, L'\n') || setsLen + n + 2 > sizeof sets / sizeof sets[0])
+            {
+                say("windowsloader: --set %s: expected SECTION.KEY=VALUE\n", u8(value));
+                return 1;
+            }
+            swprintf(sets + setsLen, sizeof sets / sizeof sets[0] - setsLen, L"%s%s", setsLen ? L"\n" : L"", value);
+            setsLen = wcslen(sets);
+        }
         else if (!wcscmp(a, L"--agent"))
         {
             agent = 1;
@@ -569,7 +590,13 @@ int wmain(int argc, wchar_t **argv)
     SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
     wchar_t iniPath[MAX_PATH];
     swprintf(iniPath, MAX_PATH, L"%s\\windowsloader.ini", selfDir);
+    if (configArg && !GetFullPathNameW(configArg, MAX_PATH, iniPath, NULL))
+    {
+        say_error("GetFullPathName");
+        return 1;
+    }
     SetEnvironmentVariableW(WL_ENV_INI, iniPath);
+    SetEnvironmentVariableW(WL_ENV_SET, setsLen ? sets : NULL);
     // On a laptop with two graphics cards, an OpenGL game gets the dedicated NVIDIA one through the
     // Optimus shim's per-process switch (Direct3D games are given it by the DLL);
     // WINDOWSLOADER_GPU=default keeps Windows' choice

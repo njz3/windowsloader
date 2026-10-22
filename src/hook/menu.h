@@ -40,3 +40,11 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result);
 void wl_menu_request(int open);
 void wl_menu_request_tab(int tab); // "menu tab N": 0 Jeu, 1 Contrôles, 2 Affichage, 3 Retour de force, 4 À propos
 int wl_menu_is_open(void);
+
+// While it is open: 1 and its window's place in the picture (back buffer pixels), for display.cpp
+// to show it whole over a cut or bent picture
+int wl_menu_rect(RECT *r);
+
+// Its buttons "Sauvegarder" (0) and "Sauvegarder pour ce jeu" (1), also the agent's "menu save
+// [game]": 1 when written, status the message shown
+int wl_menu_save(int forGame, char *status, size_t size);

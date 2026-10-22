@@ -29,11 +29,17 @@
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
+#include "settings.h"
 
-static wchar_t g_ini[MAX_PATH];
 static volatile LONG g_aspect = WL_ASPECT_ORIGINAL;
 static volatile LONG g_mode = WL_MODE_WINDOW;
+static volatile LONG g_modeChosen = WL_MODE_WINDOW; // the one saved (F11 does not change it)
+static volatile LONG g_cropPosition;                // -100..100
+static volatile LONG g_cropBarrel;
+static volatile LONG g_barrelCenter = 60;           // % of the frame
+static volatile LONG g_barrelRadius = 50;           // % of the frame
 static int g_width, g_height;      // internal resolution, 0 = AUTO
+static int g_nextW, g_nextH;       // the one to save
 static volatile LONG g_apply;      // the window must take the mode again
 static volatile LONG g_toggle;     // Alt+Enter: window <-> full screen
 static volatile LONG g_repaint;    // the black bars must be painted again
@@ -48,10 +54,12 @@ static int g_gdiSetting = 1;       // [Display] PRESENT: GDI (1) or DIRECT (0)
 static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
 static int g_appliedMode = -1;
-static RECT g_dest, g_client;      // the picture in the client area, and that area
+static RECT g_dest, g_client;      // what shows the picture in the client area, and that area
+static RECT g_pic;                 // the whole picture's place (beyond g_dest when it is cropped)
+static RECT g_src;                 // the back buffer's part shown (Direct3D 9's Present, cropped)
 static int g_full = 1;             // the picture is the whole client area
 
-static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX"};
+static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
 static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH"};
 
 // ------------------------------------------------------------------------------
@@ -67,10 +75,22 @@ static const char *g_defaults =
     "WIDTH = AUTO\r\n"
     "HEIGHT = AUTO\r\n"
     "\r\n"
-    "# ORIGINAL: the picture keeps the shape of the game's render resolution. 4:3 or 16:9: the shape of\r\n"
-    "# the frame the picture is shown in; the picture keeps its own shape inside, with black bars where\r\n"
-    "# the shapes differ (a 4:3 game in 16:9: bars left and right). 4:3_LETTERBOX: the same as 4:3.\r\n"
+    "# Shape of the picture: ORIGINAL (the game's render resolution); 4:3 or 16:9 (that frame, the picture\r\n"
+    "# whole inside at its own shape, black bars where the shapes differ; 4:3_LETTERBOX is 4:3); 4:3_STRETCH\r\n"
+    "# or 16:9_STRETCH (the picture fills the frame, deformed); 4:3_CROP or 16:9_CROP (the picture fills the\r\n"
+    "# frame, cut on the sides or above and below)\r\n"
     "ASPECT_RATIO = ORIGINAL\r\n"
+    "\r\n"
+    "# The part a cropped aspect ratio keeps: -100 (left or top) to 100 (right or bottom), 0 the middle\r\n"
+    "CROP_POSITION = 0\r\n"
+    "\r\n"
+    "# Cropped aspect ratios: true bends the parts they would cut onto the frame's edges, as on a cylinder\r\n"
+    "# seen from the front, so the whole picture stays visible (PRESENT = GDI only). BARREL_CENTER: the\r\n"
+    "# middle shown undistorted, in % of the frame. BARREL_RADIUS: the cylinder's radius in % of the frame\r\n"
+    "# (small bends hard at the edge, large compresses evenly)\r\n"
+    "CROP_BARREL = false\r\n"
+    "BARREL_CENTER = 60\r\n"
+    "BARREL_RADIUS = 50\r\n"
     "\r\n"
     "# WINDOW: a window at the aspect ratio, square pixels. WINDOW_STRETCH: the picture fills the window,\r\n"
     "# which can be resized. FULLSCREEN: the whole screen, the picture at the aspect ratio between black\r\n"
@@ -81,27 +101,50 @@ static const char *g_defaults =
     "# DIRECT: the game's own Present, faster, but some PCs show nothing of it (Windows 11 on a laptop).\r\n"
     "PRESENT = GDI\r\n";
 
+// The names without case, a space for the underscore ("4:3 crop", as linuxloader reads them)
 static int name_index(const char *const *names, int count, const char *value, int def)
 {
+    char v[64];
+    snprintf(v, sizeof v, "%s", value);
+    for (char *c = v; *c; c++)
+        if (*c == ' ')
+            *c = '_';
     for (int i = 0; i < count; i++)
-        if (!_stricmp(value, names[i]))
+        if (!_stricmp(v, names[i]))
             return i;
     return def;
 }
 
-static void read_key(const wchar_t *key, char *out, size_t size, const wchar_t *def)
+static int clamp(int v, int lo, int hi)
 {
-    wchar_t v[64];
-    GetPrivateProfileStringW(L"Display", key, def, v, 64, g_ini);
-    WideCharToMultiByte(CP_UTF8, 0, v, -1, out, (int)size, NULL, NULL);
+    return v < lo ? lo : v > hi ? hi : v;
 }
 
-void wl_display_load(const wchar_t *iniPath)
+static int placed(void);
+
+// The game's own GetClientRect (its imports): its window at its picture's size once windowsloader
+// places the picture. A game that follows its window's size (Battle Gear 4, DXUT's way: a Reset at
+// the client area's size after each WM_SIZE) would else take each size windowsloader gives the
+// window, and the window then the picture's new shape, growing at each turn
+static BOOL(WINAPI *oGetClientRect)(HWND, LPRECT);
+static BOOL WINAPI game_GetClientRect(HWND wnd, LPRECT r)
 {
-    wcsncpy_s(g_ini, MAX_PATH, iniPath, _TRUNCATE);
-    if (GetFileAttributesW(g_ini) == INVALID_FILE_ATTRIBUTES)
+    if (wnd && wnd == g_wnd && r && g_bbW > 0 && g_bbH > 0 && placed())
     {
-        FILE *f = _wfopen(g_ini, L"wb");
+        SetRect(r, 0, 0, g_bbW, g_bbH);
+        return TRUE;
+    }
+    return oGetClientRect(wnd, r);
+}
+
+void wl_display_load(void)
+{
+    if (g_wl.windowed && wl_patch_iat(GetModuleHandleW(NULL), "user32.dll", "GetClientRect", (void *)game_GetClientRect, (void **)&oGetClientRect))
+        wl_log("display: the game's GetClientRect gives its window at its picture's size");
+    const wchar_t *ini = wl_settings_file();
+    if (wl_settings_common() && GetFileAttributesW(ini) == INVALID_FILE_ATTRIBUTES)
+    {
+        FILE *f = _wfopen(ini, L"wb");
         if (f)
         {
             fputs(g_defaults, f);
@@ -109,32 +152,50 @@ void wl_display_load(const wchar_t *iniPath)
         }
     }
     char v[64];
-    read_key(L"ASPECT_RATIO", v, sizeof v, L"ORIGINAL");
+    wl_settings_get("Display", "ASPECT_RATIO", "ORIGINAL", v, sizeof v);
     g_aspect = name_index(g_aspectNames, WL_ASPECT_COUNT, v, WL_ASPECT_ORIGINAL);
-    read_key(L"DISPLAY_MODE", v, sizeof v, L"WINDOW");
-    g_mode = name_index(g_modeNames, WL_MODE_COUNT, v, WL_MODE_WINDOW);
-    read_key(L"PRESENT", v, sizeof v, L"GDI");
+    wl_settings_get("Display", "DISPLAY_MODE", "WINDOW", v, sizeof v);
+    g_mode = g_modeChosen = name_index(g_modeNames, WL_MODE_COUNT, v, WL_MODE_WINDOW);
+    g_cropPosition = clamp(wl_settings_get_int("Display", "CROP_POSITION", 0), -100, 100);
+    g_cropBarrel = wl_settings_get_bool("Display", "CROP_BARREL", 0);
+    g_barrelCenter = clamp(wl_settings_get_int("Display", "BARREL_CENTER", 60), 0, 100);
+    g_barrelRadius = clamp(wl_settings_get_int("Display", "BARREL_RADIUS", 50), 1, 1000);
+    wl_settings_get("Display", "PRESENT", "GDI", v, sizeof v);
     g_gdiSetting = _stricmp(v, "DIRECT") != 0;
-    read_key(L"WIDTH", v, sizeof v, L"AUTO");
-    g_width = atoi(v);
-    read_key(L"HEIGHT", v, sizeof v, L"AUTO");
-    g_height = atoi(v);
+    g_width = wl_settings_get_int("Display", "WIDTH", 0);
+    g_height = wl_settings_get_int("Display", "HEIGHT", 0);
     if (g_width <= 0 || g_height <= 0)
         g_width = g_height = 0;
+    g_nextW = g_width;
+    g_nextH = g_height;
     char res[32] = "AUTO";
     if (g_width)
         snprintf(res, sizeof res, "%dx%d", g_width, g_height);
-    wl_log("display: ASPECT_RATIO %s, DISPLAY_MODE %s, resolution %s, picture %s", g_aspectNames[g_aspect], g_modeNames[g_mode], res,
+    wl_log("display: ASPECT_RATIO %s (CROP_POSITION %ld, CROP_BARREL %s, BARREL_CENTER %ld, BARREL_RADIUS %ld), DISPLAY_MODE %s, resolution %s, "
+           "picture %s",
+           g_aspectNames[g_aspect], g_cropPosition, g_cropBarrel ? "true" : "false", g_barrelCenter, g_barrelRadius, g_modeNames[g_mode], res,
            g_gdiSetting ? "copied by GDI (PRESENT = GDI)" : "presented by the game (PRESENT = DIRECT)");
 }
 
-static void write_key(const wchar_t *key, const char *value)
+int wl_display_save(const wchar_t *file)
 {
-    if (!g_ini[0])
-        return;
-    wchar_t v[64];
-    MultiByteToWideChar(CP_UTF8, 0, value, -1, v, 64);
-    WritePrivateProfileStringW(L"Display", key, v, g_ini);
+    char n[16];
+    int ok = wl_settings_write(file, "Display", "ASPECT_RATIO", g_aspectNames[g_aspect]);
+    snprintf(n, sizeof n, "%ld", g_cropPosition);
+    ok &= wl_settings_write(file, "Display", "CROP_POSITION", n);
+    ok &= wl_settings_write(file, "Display", "CROP_BARREL", g_cropBarrel ? "true" : "false");
+    snprintf(n, sizeof n, "%ld", g_barrelCenter);
+    ok &= wl_settings_write(file, "Display", "BARREL_CENTER", n);
+    snprintf(n, sizeof n, "%ld", g_barrelRadius);
+    ok &= wl_settings_write(file, "Display", "BARREL_RADIUS", n);
+    ok &= wl_settings_write(file, "Display", "DISPLAY_MODE", g_modeNames[g_modeChosen]);
+    snprintf(n, sizeof n, "%d", g_nextW);
+    ok &= wl_settings_write(file, "Display", "WIDTH", g_nextW > 0 ? n : "AUTO");
+    snprintf(n, sizeof n, "%d", g_nextH);
+    ok &= wl_settings_write(file, "Display", "HEIGHT", g_nextH > 0 ? n : "AUTO");
+    char u[MAX_PATH * 2];
+    wl_log("display: settings saved to %s%s", wl_u8(file, u, sizeof u), ok ? "" : " (failed)");
+    return ok;
 }
 
 int wl_display_aspect_by_name(const char *name)
@@ -173,9 +234,25 @@ void wl_display_set(int aspect, int mode)
         return;
     InterlockedExchange(&g_aspect, aspect);
     InterlockedExchange(&g_mode, mode);
-    write_key(L"ASPECT_RATIO", g_aspectNames[aspect]);
-    write_key(L"DISPLAY_MODE", g_modeNames[mode]);
+    InterlockedExchange(&g_modeChosen, mode);
     InterlockedExchange(&g_apply, 1);
+}
+
+void wl_display_crop(int *position, int *barrel, int *center, int *radius)
+{
+    *position = g_cropPosition;
+    *barrel = g_cropBarrel;
+    *center = g_barrelCenter;
+    *radius = g_barrelRadius;
+}
+
+void wl_display_set_crop(int position, int barrel, int center, int radius)
+{
+    InterlockedExchange(&g_cropPosition, clamp(position, -100, 100));
+    InterlockedExchange(&g_cropBarrel, barrel != 0);
+    InterlockedExchange(&g_barrelCenter, clamp(center, 0, 100));
+    InterlockedExchange(&g_barrelRadius, clamp(radius, 1, 1000));
+    InterlockedExchange(&g_repaint, 1);
 }
 
 static int g_internalSupported;
@@ -196,14 +273,17 @@ void wl_display_internal(int *width, int *height)
     *height = g_height;
 }
 
+void wl_display_internal_next(int *width, int *height)
+{
+    *width = g_nextW;
+    *height = g_nextH;
+}
+
 void wl_display_set_internal(int width, int height)
 {
-    char v[16];
-    snprintf(v, sizeof v, "%d", width);
-    write_key(L"WIDTH", width > 0 ? v : "AUTO");
-    snprintf(v, sizeof v, "%d", height);
-    write_key(L"HEIGHT", height > 0 ? v : "AUTO");
     // The game reads its resolution once, when it starts: g_width / g_height stay as they are
+    g_nextW = width > 0 && height > 0 ? width : 0;
+    g_nextH = width > 0 && height > 0 ? height : 0;
 }
 
 // ------------------------------------------------------------------------------
@@ -219,11 +299,57 @@ static int placed(void)
 
 static double frame_aspect(void)
 {
-    if (g_aspect == WL_ASPECT_4_3 || g_aspect == WL_ASPECT_4_3_LETTERBOX)
+    int a = g_aspect;
+    if (a == WL_ASPECT_4_3 || a == WL_ASPECT_4_3_LETTERBOX || a == WL_ASPECT_4_3_STRETCH || a == WL_ASPECT_4_3_CROP)
         return 4.0 / 3.0;
-    if (g_aspect == WL_ASPECT_16_9)
+    if (a == WL_ASPECT_16_9 || a == WL_ASPECT_16_9_STRETCH || a == WL_ASPECT_16_9_CROP)
         return 16.0 / 9.0;
     return g_bbH > 0 ? (double)g_bbW / g_bbH : 16.0 / 9.0;
+}
+
+// How the picture takes the frame: whole inside at its shape (bars), filling it (deformed, or the
+// game's own shape), cut, or cut with the cut parts bent onto the edges
+enum
+{
+    VIEW_FIT,
+    VIEW_FILL,
+    VIEW_CROP,
+    VIEW_BARREL
+};
+
+static int view_kind(void)
+{
+    int a = g_aspect;
+    if (a == WL_ASPECT_4_3 || a == WL_ASPECT_16_9 || a == WL_ASPECT_4_3_LETTERBOX)
+        return VIEW_FIT;
+    if (a != WL_ASPECT_4_3_CROP && a != WL_ASPECT_16_9_CROP)
+        return VIEW_FILL;
+    if (g_gdi)
+        return g_cropBarrel ? VIEW_BARREL : VIEW_CROP;
+    // The game's own Present: Direct3D 9 shows a part of its back buffer (no bend); Direct3D 11's
+    // fills the child window: the whole picture between bars
+    return g_copy ? VIEW_CROP : VIEW_FIT;
+}
+
+// The part of a w x h picture a crop keeps, CROP_POSITION's (the middle's when centred)
+static RECT crop_source(int w, int h, int centred)
+{
+    RECT r = {0, 0, w, h};
+    double own = h > 0 ? (double)w / h : 1, frameShape = frame_aspect();
+    double kept = centred ? 0.5 : (g_cropPosition + 100) / 200.0; // 0 left or top, 1 right or bottom
+    if (own > frameShape + 1e-6) // too wide: the sides go
+    {
+        int cw = (int)floor(h * frameShape + 0.5);
+        r.left = (int)floor((w - cw) * kept + 0.5);
+        r.right = r.left + cw;
+    }
+    else if (own < frameShape - 1e-6) // too tall: above and below go
+    {
+        int ch = (int)floor(w / frameShape + 0.5);
+        r.top = (int)floor((h - ch) * kept + 0.5);
+        r.bottom = r.top + ch;
+    }
+    return r;
 }
 
 // The largest rectangle of the given shape centred in w x h
@@ -249,15 +375,16 @@ static void layout(void)
     int w = g_client.right, h = g_client.bottom;
     int stretch = g_mode == WL_MODE_WINDOW_STRETCH || g_mode == WL_MODE_FULLSCREEN_STRETCH;
     RECT frame = stretch ? g_client : fit(w, h, frame_aspect());
-    RECT pic = frame;
-    if (g_aspect != WL_ASPECT_ORIGINAL && g_bbH > 0)
+    RECT pic = frame, shown = frame;
+    int kind = view_kind();
+    double own = g_bbH > 0 ? (double)g_bbW / g_bbH : 1, frameShape = frame_aspect();
+    int fw = frame.right - frame.left, fh = frame.bottom - frame.top;
+    if (kind == VIEW_FIT && g_bbH > 0)
     {
         // The picture whole inside the frame at the game's own shape (its render resolution's), its
         // bars as parts of the frame: a 4:3 game in a 16:9 frame gets bars left and right, a 16:9 one
         // in a 4:3 frame above and below. The bars follow the frame when it is stretched (a 4:3
         // screen getting a 16:9 signal).
-        double own = (double)g_bbW / g_bbH, frameShape = frame_aspect();
-        int fw = frame.right - frame.left, fh = frame.bottom - frame.top;
         if (own > frameShape)
         {
             int ph = (int)floor(fh * frameShape / own + 0.5);
@@ -270,16 +397,35 @@ static void layout(void)
             pic.left = frame.left + (fw - pw) / 2;
             pic.right = pic.left + pw;
         }
+        shown = pic;
     }
-    if (!EqualRect(&pic, &g_dest))
-        InterlockedExchange(&g_repaint, 1);
-    g_dest = pic;
-    g_full = EqualRect(&pic, &g_client);
-    if (g_child && !EqualRect(&pic, &g_childRect))
+    else if ((kind == VIEW_CROP || kind == VIEW_BARREL) && g_bbH > 0)
     {
-        g_childRect = pic;
-        wl_log("display: client %dx%d, picture %ldx%ld at %ld,%ld", w, h, pic.right - pic.left, pic.bottom - pic.top, pic.left, pic.top);
-        SetWindowPos(g_child, NULL, pic.left, pic.top, pic.right - pic.left, pic.bottom - pic.top, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        // The frame filled; the whole picture at the crop's scale, centred on it, beyond it
+        if (own > frameShape)
+        {
+            int pw = (int)floor(fw * own / frameShape + 0.5);
+            pic.left = frame.left - (pw - fw) / 2;
+            pic.right = pic.left + pw;
+        }
+        else
+        {
+            int ph = (int)floor(fh * frameShape / own + 0.5);
+            pic.top = frame.top - (ph - fh) / 2;
+            pic.bottom = pic.top + ph;
+        }
+    }
+    g_src = crop_source(g_bbW, g_bbH, wl_menu_is_open()); // the menu whole: the middle while it is open
+    if (!EqualRect(&shown, &g_dest))
+        InterlockedExchange(&g_repaint, 1);
+    g_dest = shown;
+    g_pic = pic;
+    g_full = EqualRect(&shown, &g_client);
+    if (g_child && !EqualRect(&shown, &g_childRect))
+    {
+        g_childRect = shown;
+        wl_log("display: client %dx%d, picture %ldx%ld at %ld,%ld", w, h, shown.right - shown.left, shown.bottom - shown.top, shown.left, shown.top);
+        SetWindowPos(g_child, NULL, shown.left, shown.top, shown.right - shown.left, shown.bottom - shown.top, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
     }
 }
 
@@ -397,6 +543,9 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         return 0; // no beep for Alt+Enter
     if (msg == WM_PAINT || msg == WM_SIZE || msg == WM_ERASEBKGND)
         InterlockedExchange(&g_repaint, 1);
+    // The game sees its window at its picture's size (as by GetClientRect above)
+    if (msg == WM_SIZE && wp != SIZE_MINIMIZED && g_bbW > 0 && g_bbH > 0)
+        lp = MAKELPARAM(g_bbW, g_bbH);
     return g_unicode ? CallWindowProcW(g_proc, h, msg, wp, lp) : CallWindowProcA(g_proc, h, msg, wp, lp);
 }
 
@@ -572,18 +721,155 @@ const RECT *wl_display_dest(void)
     return g_copy && !g_full ? &g_dest : NULL;
 }
 
+const RECT *wl_display_source(void)
+{
+    return g_copy && view_kind() == VIEW_CROP ? &g_src : NULL;
+}
+
 int wl_display_gdi(void)
 {
     return g_gdi && g_wnd;
 }
 
+// ------------------------------------------------------------------------------
+// The picture drawn by GDI: whole, cut, or with the cut parts bent onto the edges
+// ------------------------------------------------------------------------------
+
+struct Dib
+{
+    BITMAPINFOHEADER h;
+    DWORD masks[3];
+};
+
+// The rows top to bottom of src (picture pixels) into dst: from the first row shown, the DIB
+// exactly those rows high (StretchDIBits' source origin is never in doubt)
+static void draw_part(HDC dc, Dib *bi, const void *pixels, int pitch, const RECT &src, const RECT &dst)
+{
+    bi->h.biHeight = -(src.bottom - src.top);
+    StretchDIBits(dc, dst.left, dst.top, dst.right - dst.left, dst.bottom - dst.top, src.left, 0, src.right - src.left, src.bottom - src.top,
+                  (const unsigned char *)pixels + (size_t)src.top * pitch, (BITMAPINFO *)bi, DIB_RGB_COLORS, SRCCOPY);
+}
+
+// CROP_BARREL, taken from linuxloader (src/loader/graphics/blitStretching.c: barrelSetup, barrelArc,
+// barrelSource; linuxloader's license):
+// the cropped aspect ratios keep the frame's middle (BARREL_CENTER of it) as the crop shows it, and
+// bend the parts the crop would cut onto the frame's edges, as on a cylinder seen from the front: a
+// point at the arc s from the middle's edge shows at sin(s / R), R the cylinder's radius
+// (BARREL_RADIUS), scaled so that the picture's edge lands on the frame's; a quarter turn at most.
+// Along the cropped axis, in frames: the crop keeps a share k of the picture, which is 1 / k frames
+// long; d, a point of the frame from 0 to 1, shows the picture at barrel_source(d)
+struct Barrel
+{
+    double k;          // the share of the picture the crop keeps
+    double edge;       // each edge's width, in frames
+    double startLeft;  // where the middle starts in the picture, from 0 to 1 (left or top)
+    double startRight; // where it ends
+    double arcLeft;    // the picture beyond the middle on each side, in frames
+    double arcRight;
+    double angleLeft;  // the turn of the cylinder each side's picture takes, in radians
+    double angleRight;
+};
+
+static Barrel barrel_setup(double k, double kept)
+{
+    Barrel b;
+    double center = g_barrelCenter / 100.0, radius = g_barrelRadius / 100.0;
+    double start = (1.0 - k) * kept; // the crop's window in the picture
+    b.k = k;
+    b.edge = (1.0 - center) / 2.0;
+    b.startLeft = start + k * (1.0 - center) / 2.0;
+    b.startRight = start + k * (1.0 + center) / 2.0;
+    b.arcLeft = b.startLeft / k;
+    b.arcRight = (1.0 - b.startRight) / k;
+    // An edge with more picture than room bends; with less it only stretches
+    b.angleLeft = b.arcLeft > b.edge ? fmin(b.arcLeft / radius, 3.14159265358979 / 2.0) : 0.0;
+    b.angleRight = b.arcRight > b.edge ? fmin(b.arcRight / radius, 3.14159265358979 / 2.0) : 0.0;
+    return b;
+}
+
+// x from the middle's edge outward, 0 to the edge's width: the arc of picture shown there
+static double barrel_arc(double x, double edge, double arc, double angle)
+{
+    if (edge <= 0.0)
+        return 0.0;
+    if (angle < 1e-4)
+        return arc * x / edge;
+    return arc * asin(sin(angle) * x / edge) / angle;
+}
+
+static double barrel_source(const Barrel *b, double d)
+{
+    if (d < b->edge)
+        return b->startLeft - b->k * barrel_arc(b->edge - d, b->edge, b->arcLeft, b->angleLeft);
+    if (d > 1.0 - b->edge)
+        return b->startRight + b->k * barrel_arc(d - (1.0 - b->edge), b->edge, b->arcRight, b->angleRight);
+    return b->startLeft + b->k * (d - b->edge);
+}
+
+// The bent picture: along the cropped axis each of the frame's columns (or rows) takes the
+// picture's column (row) barrel_source gives, into a picture the frame's size on that axis, which
+// StretchDIBits then scales on the other one. 0 when there is nothing to bend.
+static int draw_barrel(HDC dc, Dib *bi, const void *pixels, int pitch, int width, int height)
+{
+    static unsigned char *bent;
+    static size_t bentSize;
+    static int *map;
+    static int mapSize;
+    double own = (double)width / height, frameShape = frame_aspect();
+    int dw = g_dest.right - g_dest.left, dh = g_dest.bottom - g_dest.top, bpp = bi->h.biBitCount / 8;
+    if (fabs(own - frameShape) < 1e-6 || dw <= 0 || dh <= 0)
+        return 0;
+    int horizontal = own > frameShape;
+    Barrel b = barrel_setup(horizontal ? frameShape / own : own / frameShape, (g_cropPosition + 100) / 200.0);
+    int count = horizontal ? dw : dh, along = horizontal ? width : height;
+    int outW = horizontal ? dw : width, outH = horizontal ? height : dh;
+    size_t row = ((size_t)outW * bpp + 3) & ~(size_t)3, size = row * outH;
+    if (count > mapSize)
+    {
+        free(map);
+        map = (int *)malloc(sizeof(int) * count);
+        mapSize = map ? count : 0;
+    }
+    if (size > bentSize)
+    {
+        free(bent);
+        bent = (unsigned char *)malloc(size);
+        bentSize = bent ? size : 0;
+    }
+    if (!map || !bent)
+        return 0;
+    for (int i = 0; i < count; i++)
+    {
+        int s = (int)floor(barrel_source(&b, (i + 0.5) / count) * along);
+        map[i] = s < 0 ? 0 : s >= along ? along - 1 : s;
+    }
+    const unsigned char *in = (const unsigned char *)pixels;
+    if (horizontal)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            const unsigned char *src = in + (size_t)y * pitch;
+            unsigned char *dst = bent + (size_t)y * row;
+            if (bpp == 4)
+                for (int x = 0; x < dw; x++)
+                    ((DWORD *)dst)[x] = ((const DWORD *)src)[map[x]];
+            else
+                for (int x = 0; x < dw; x++)
+                    ((WORD *)dst)[x] = ((const WORD *)src)[map[x]];
+        }
+    }
+    else
+        for (int y = 0; y < dh; y++)
+            memcpy(bent + (size_t)y * row, in + (size_t)map[y] * pitch, (size_t)width * bpp);
+    bi->h.biWidth = outW;
+    bi->h.biHeight = -outH;
+    StretchDIBits(dc, g_dest.left, g_dest.top, dw, dh, 0, 0, outW, outH, bent, (BITMAPINFO *)bi, DIB_RGB_COLORS, SRCCOPY);
+    return 1;
+}
+
 void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6)
 {
-    struct
-    {
-        BITMAPINFOHEADER h;
-        DWORD masks[3];
-    } bi;
+    Dib bi;
     memset(&bi, 0, sizeof bi);
     bi.h.biSize = sizeof bi.h;
     bi.h.biWidth = pitch / (bits / 8); // the rows' length; the picture's width taken below
@@ -601,7 +887,29 @@ void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, i
     if (!dc)
         return;
     SetStretchBltMode(dc, COLORONCOLOR);
-    StretchDIBits(dc, r.left, r.top, r.right - r.left, r.bottom - r.top, 0, 0, width, height, pixels, (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+    int kind = view_kind();
+    if (kind == VIEW_FIT || kind == VIEW_FILL || width <= 0 || height <= 0)
+    {
+        StretchDIBits(dc, r.left, r.top, r.right - r.left, r.bottom - r.top, 0, 0, width, height, pixels, (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+        ReleaseDC(g_wnd, dc);
+        return;
+    }
+    Dib whole = bi;
+    if (kind != VIEW_BARREL || !draw_barrel(dc, &bi, pixels, pitch, width, height))
+        draw_part(dc, &bi, pixels, pitch, crop_source(width, height, 0), g_dest);
+
+    // The menu over a cut or bent picture: its part of the back buffer at the whole picture's
+    // scale, centred on the frame (where the mouse is read), within the frame
+    RECT m, all = {0, 0, width, height};
+    if (wl_menu_rect(&m) && IntersectRect(&m, &m, &all))
+    {
+        int pw = r.right - r.left, ph = r.bottom - r.top;
+        RECT to = {r.left + MulDiv(m.left, pw, width), r.top + MulDiv(m.top, ph, height), r.left + MulDiv(m.right, pw, width),
+                   r.top + MulDiv(m.bottom, ph, height)};
+        IntersectClipRect(dc, g_dest.left, g_dest.top, g_dest.right, g_dest.bottom);
+        draw_part(dc, &whole, pixels, pitch, m, to);
+        SelectClipRgn(dc, NULL);
+    }
     ReleaseDC(g_wnd, dc);
 }
 
@@ -612,8 +920,8 @@ HWND wl_display_hwnd(void)
 
 void wl_display_picture(RECT *r)
 {
-    if (placed() && !g_full)
-        *r = g_dest;
+    if (placed())
+        *r = g_pic;
     else
         GetClientRect(g_wnd, r);
 }

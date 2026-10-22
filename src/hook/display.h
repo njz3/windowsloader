@@ -16,20 +16,29 @@
 #include <windows.h>
 #include <d3d9.h>
 
-// How the game's picture is shown, with linuxloader's [Display] settings (windowsloader.ini):
-//   ASPECT_RATIO = ORIGINAL | 4:3 | 16:9 | 4:3_LETTERBOX
+// How the game's picture is shown, with linuxloader's [Display] settings (windowsloader.ini, or
+// the game's own file, settings.h):
+//   ASPECT_RATIO = ORIGINAL | 4:3 | 16:9 | 4:3_LETTERBOX | 4:3_STRETCH | 16:9_STRETCH | 4:3_CROP | 16:9_CROP
 //       the shape of the frame the picture is shown in: the game's own (that of its render
-//       resolution), or 4:3 or 16:9 with the picture whole inside at its own shape, black bars where
-//       the shapes differ (a 4:3 game in 16:9: bars left and right; a 16:9 one in 4:3: above and
-//       below). 4:3_LETTERBOX is 4:3 (linuxloader's name; linuxloader stretches the picture to
-//       4:3 and 16:9, windowsloader keeps its shape: only the _STRETCH modes stretch it)
+//       resolution), or 4:3 or 16:9. 4:3 and 16:9: the picture whole inside at its own shape, black
+//       bars where the shapes differ (a 4:3 game in 16:9: bars left and right; a 16:9 one in 4:3:
+//       above and below); 4:3_LETTERBOX is 4:3. _STRETCH: the picture fills the frame, deformed.
+//       _CROP: the picture fills the frame at its own shape, the part that overflows cut
+//   CROP_POSITION = -100..100: the part the crop keeps, -100 left or top, 0 the middle
+//   CROP_BARREL = true | false: the parts the crop would cut bent onto the frame's edges, as on a
+//       cylinder seen from the front (the whole picture visible); BARREL_CENTER = 0..100 the middle
+//       shown undistorted, in % of the frame (60); BARREL_RADIUS the cylinder's radius in % of the
+//       frame (50): small bends hard at the edge, large compresses evenly. Only when windowsloader
+//       copies the picture (PRESENT = GDI); with PRESENT = DIRECT, Direct3D 9 crops without the
+//       bend and Direct3D 11 shows the whole picture between bars
 //   DISPLAY_MODE = WINDOW | WINDOW_STRETCH | FULLSCREEN | FULLSCREEN_STRETCH
-//       a window at the aspect ratio (square pixels), a window the picture fills, the whole screen
-//       with the picture at the aspect ratio between black bars, or the whole screen filled
+//       a window at the aspect ratio (square pixels), a window the frame fills, the whole screen
+//       with the frame at the aspect ratio between black bars, or the whole screen filled
 //   WIDTH / HEIGHT = AUTO | pixels
 //       the game's render resolution, when its module can set it (taken at the next start)
 // The game is kept in a window whatever it asks (a borderless one covering the screen in the full
-// screen modes); its back buffer is presented into the right part of that window.
+// screen modes); its back buffer is presented into the right part of that window. The menu's
+// changes apply at the next frame; they are written by wl_display_save (the menu's buttons).
 
 enum WlAspect
 {
@@ -37,6 +46,10 @@ enum WlAspect
     WL_ASPECT_4_3,
     WL_ASPECT_16_9,
     WL_ASPECT_4_3_LETTERBOX,
+    WL_ASPECT_4_3_STRETCH,
+    WL_ASPECT_16_9_STRETCH,
+    WL_ASPECT_4_3_CROP,
+    WL_ASPECT_16_9_CROP,
     WL_ASPECT_COUNT
 };
 
@@ -49,7 +62,10 @@ enum WlDisplayMode
     WL_MODE_COUNT
 };
 
-void wl_display_load(const wchar_t *iniPath);
+// The settings read (wl_settings_init first); the defaults written when windowsloader.ini is missing
+void wl_display_load(void);
+// The settings written to that file (the menu's "Sauvegarder"): 1 when done
+int wl_display_save(const wchar_t *file);
 
 // ASPECT_RATIO / DISPLAY_MODE names of windowsloader.ini, -1 when unknown
 int wl_display_aspect_by_name(const char *name);
@@ -59,10 +75,16 @@ const char *wl_display_mode_name(int mode);
 
 int wl_display_aspect(void);
 int wl_display_mode(void);
-void wl_display_set(int aspect, int mode); // applied now and saved
+void wl_display_set(int aspect, int mode); // applied at the next frame, not saved
 
-// WIDTH x HEIGHT, 0 x 0 for AUTO; saved, used at the next start
+// CROP_POSITION, CROP_BARREL, BARREL_CENTER, BARREL_RADIUS: read at each frame
+void wl_display_crop(int *position, int *barrel, int *center, int *radius);
+void wl_display_set_crop(int position, int barrel, int center, int radius);
+
+// WIDTH x HEIGHT, 0 x 0 for AUTO: the one the game started with, and the one to save (used at the
+// next start)
 void wl_display_internal(int *width, int *height);
+void wl_display_internal_next(int *width, int *height);
 void wl_display_set_internal(int width, int height);
 void wl_display_set_internal_supported(int supported); // by the game's module
 int wl_display_internal_supported(void);
@@ -71,6 +93,7 @@ int wl_display_internal_supported(void);
 void wl_display_prepare(D3DPRESENT_PARAMETERS *pp);          // before CreateDevice / Reset
 void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp); // after: the window set for the mode
 const RECT *wl_display_dest(void);                           // each Present: where the picture goes, NULL for the whole window
+const RECT *wl_display_source(void);                         // and the part of the back buffer shown (a crop), NULL for all
 
 // From the other renderers (Direct3D 11), whose Present fills its whole window: the swap chain is
 // given wl_display_child's window instead of the game's, a child placed where the picture goes,
@@ -83,7 +106,9 @@ void wl_display_window(HWND wnd, int width, int height);
 // window's title, at each SwapBuffers
 void wl_display_title(HWND wnd);
 
-// The part of the window's client area showing the picture (for the menu's mouse)
+// The part of the window's client area showing the picture (for the menu's mouse); a cropped
+// picture's goes beyond the frame (the whole picture at the crop's scale, centred on the frame: the
+// menu is shown that way over a cropped or bent picture)
 void wl_display_picture(RECT *r);
 
 // The picture shown by GDI ([Display] PRESENT = GDI, the default): windowsloader copies it into the

@@ -22,7 +22,8 @@
 #define WL_ENV_AGENT    L"WINDOWSLOADER_AGENT"    // "1": serve the agent commands on \\.\pipe\windowsloader-<pid>
 #define WL_ENV_CONTROLLERS L"WINDOWSLOADER_CONTROLLERS" // "1": in agent mode, the controllers and their force feedback too
 #define WL_ENV_CONTROLS L"WINDOWSLOADER_CONTROLS" // controls.ini path (absolute), next to the launcher by default
-#define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher
+#define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher, or -c's file
+#define WL_ENV_SET      L"WINDOWSLOADER_SET"      // --set's SECTION.KEY=VALUE, one per line, over the file's values
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 

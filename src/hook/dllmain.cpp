@@ -25,6 +25,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "pause.h"
+#include "settings.h"
 #include "vdev.h"
 #include "wlshared.h"
 
@@ -61,10 +62,6 @@ static void wl_init(void)
     wl_log("folder: %s", wl_u8(dir, u2, sizeof u2));
     wl_log("windowed: %s, device I/O logged: %d per handle", g_wl.windowed ? "yes" : "no", g_wl.ioLimit);
 
-    wchar_t ini[MAX_PATH];
-    if (GetEnvironmentVariableW(WL_ENV_INI, ini, MAX_PATH))
-        wl_display_load(ini);
-
     wl_crash_init();
     wl_hooks_init();
     wl_files_hooks();
@@ -77,6 +74,9 @@ static void wl_init(void)
     wl_d3d11_hooks();
     wl_gl_hooks();
     wl_game_init();
+    // The settings once the game is known: its own <short name>.ini is read instead when there is one
+    wl_settings_init();
+    wl_display_load();
     wl_pause_init();
     wl_hooks_install_pending();
     wl_agent_init();

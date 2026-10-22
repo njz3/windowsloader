@@ -82,11 +82,13 @@ add_library(wl_hook SHARED
     src/hook/pause.cpp
     src/hook/menu.cpp
     src/hook/display.cpp
+    src/hook/settings.cpp
     src/hook/games/segarally3.cpp
     src/hook/games/daytona.cpp
     src/hook/games/fordracing.cpp
     src/hook/games/ringedge.cpp
     src/hook/games/taito.cpp
+    src/hook/games/konami.cpp
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp
     src/hook/jvs.cpp

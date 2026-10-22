@@ -17,8 +17,8 @@ picture every few seconds, a contact sheet at the end and the force feedback cha
 
     python scripts/agent/race_check.py GAME [MENUS DRIVE] [wheel]
 
-GAME: bg4 (Battle Gear 4 Tuned), chq2 (Chase H.Q. 2) or showdown (DiRT Showdown), copied in
-games/ as BILAN.md says. MENUS and DRIVE: seconds of Start presses and of driving (40 and 30).
+GAME: bg4 (Battle Gear 4 Tuned), chq2 (Chase H.Q. 2), showdown (DiRT Showdown) or gticlub3
+(GTI Club: Supermini Festa!), copied in games/ as BILAN.md says. MENUS and DRIVE: seconds of Start presses and of driving (40 and 30).
 wheel: the controllers are opened too (launcher --controllers), the force feedback goes to the
 player 1 controller (vJoy on the test PC: warn its other users first).
 Environment: PATTERN, the wheel's positions one per STEP seconds, -1..1, +1 the wheel fully left
@@ -33,7 +33,7 @@ from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from wlagent import WLAgent  # noqa: E402
+from wlagent import AgentError, WLAgent  # noqa: E402
 
 LAUNCHER = os.path.join(ROOT, "bin", "Release", "windowsloader.exe")
 GAMES = {
@@ -41,6 +41,7 @@ GAMES = {
     "bg4": (("bg4tp", "game.exe"), ("_MTS_FULL_SCREEN_",), 30, True),
     "chq2": (("chasehq2", "game.exe"), (), 45, True),
     "showdown": (("showdown", "Showdown", "Showdown.exe"), (), 40, False),
+    "gticlub3": (("gticlub3", "gti3.exe"), (), 30, False),
 }
 
 name = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -65,7 +66,11 @@ shots = []
 
 def shot(game, label):
     p = os.path.join(OUT, "%03d-%s.bmp" % (len(shots), label))
-    game.shot(p)
+    try:
+        game.shot(p)
+    except AgentError as e:  # a frame between two (a loading screen): the next picture will do
+        print("no picture %s: %s" % (label, e), flush=True)
+        return
     shots.append((label, p))
 
 

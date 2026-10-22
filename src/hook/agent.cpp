@@ -18,8 +18,10 @@
 //   step [N]               wait for N frames (1 without N): "ok FRAME". The game is not held
 //                          between steps: it runs at its own pace.
 //   shot PATH              the next frame as a BMP: "ok" or "err ..."
-//   display [ASPECT] [MODE] set the aspect ratio and the display mode (windowsloader.ini names,
-//                          ORIGINAL, 4:3_LETTERBOX, FULLSCREEN_STRETCH...): "display ASPECT MODE"
+//   display [ASPECT] [MODE] [KEY=VALUE...] set the aspect ratio, the display mode (windowsloader.ini
+//                          names, ORIGINAL, 4:3_CROP, FULLSCREEN_STRETCH...) and the crop's
+//                          CROP_POSITION, CROP_BARREL, BARREL_CENTER, BARREL_RADIUS, not saved:
+//                          "display ASPECT MODE"
 //   screen PATH            what the window shows (the picture placed by the aspect ratio and the
 //                          display mode, black bars), as a BMP: "ok" or "err ..."
 //   inputs                 "inputs N", then N lines "NAME TYPE" (axis, analog or switch)
@@ -31,6 +33,8 @@
 //                          "FRAME Steering constant FORCE", FORCE -1..1, > 0 pushing left
 //   menu [on|off]          open or close the F10 menu; "menu open" or "menu closed"
 //   menu tab N             show its page N (0 game, 1 controls, 2 display, 3 force feedback, 4 about)
+//   menu save [game]       its button "Sauvegarder" (or "Sauvegarder pour ce jeu"): "ok MESSAGE" or
+//                          "err MESSAGE"
 //   quit                   "bye", and the game ends
 
 #include <windows.h>
@@ -105,26 +109,37 @@ static void command(char *line)
     else if (!strcmp(line, "display"))
     {
         int aspect = wl_display_aspect(), mode = wl_display_mode(), bad = 0;
-        const char *words[2] = {a1, a2};
-        for (int i = 0; i < 2; i++)
+        int position, barrel, center, radius;
+        wl_display_crop(&position, &barrel, &center, &radius);
+        char words[6][64] = {};
+        int count = sscanf(args, "%63s %63s %63s %63s %63s %63s", words[0], words[1], words[2], words[3], words[4], words[5]);
+        for (int i = 0; i < count; i++)
         {
-            if (!words[i][0])
-                continue;
             int a = wl_display_aspect_by_name(words[i]), m = wl_display_mode_by_name(words[i]);
+            char *equals = strchr(words[i], '=');
             if (a >= 0)
                 aspect = a;
             else if (m >= 0)
                 mode = m;
+            else if (equals && !_strnicmp(words[i], "CROP_POSITION=", 14))
+                position = atoi(equals + 1);
+            else if (equals && !_strnicmp(words[i], "CROP_BARREL=", 12))
+                barrel = !_stricmp(equals + 1, "true") || atoi(equals + 1);
+            else if (equals && !_strnicmp(words[i], "BARREL_CENTER=", 14))
+                center = atoi(equals + 1);
+            else if (equals && !_strnicmp(words[i], "BARREL_RADIUS=", 14))
+                radius = atoi(equals + 1);
             else
                 bad = 1;
         }
         if (bad)
-            answer("err unknown aspect ratio or display mode");
+            answer("err unknown aspect ratio, display mode or crop setting");
         else
         {
-            if (a1[0])
+            if (count > 0)
             {
                 wl_display_set(aspect, mode);
+                wl_display_set_crop(position, barrel, center, radius);
                 unsigned target = wl_d3d9_frames() + 3; // applied on the next frames
                 ULONGLONG start = GetTickCount64();
                 while (wl_d3d9_frames() < target && GetTickCount64() - start < 5000)
@@ -191,6 +206,13 @@ static void command(char *line)
     {
         if (!strcmp(a1, "tab"))
             wl_menu_request_tab(atoi(a2));
+        else if (!strcmp(a1, "save"))
+        {
+            char status[MAX_PATH * 2 + 64];
+            int ok = wl_menu_save(!strcmp(a2, "game"), status, sizeof status);
+            answer("%s %s", ok ? "ok" : "err", status);
+            return;
+        }
         else if (a1[0])
         {
             int open = !strcmp(a1, "on");
