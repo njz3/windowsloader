@@ -157,6 +157,10 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
     IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     if (!dir.VirtualAddress)
         return 0;
+    // Without the table of names (an executable rebuilt from a memory dump), the loader has already
+    // written the functions' addresses over the only table: the entry is the one holding the function
+    HMODULE dllMod = GetModuleHandleA(dll);
+    ULONG_PTR real = dllMod ? (ULONG_PTR)GetProcAddress(dllMod, func) : 0;
     for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dir.VirtualAddress); d->Name; d++)
     {
         if (_stricmp((const char *)(base + d->Name), dll))
@@ -165,9 +169,13 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
         IMAGE_THUNK_DATA *iat = (IMAGE_THUNK_DATA *)(base + d->FirstThunk);
         for (; names->u1.AddressOfData; names++, iat++)
         {
-            if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal))
-                continue;
-            if (strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + names->u1.AddressOfData))->Name, func))
+            if (!d->OriginalFirstThunk && names->u1.AddressOfData >= nt->OptionalHeader.SizeOfImage)
+            {
+                if (!real || iat->u1.Function != real)
+                    continue;
+            }
+            else if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal) ||
+                     strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + names->u1.AddressOfData))->Name, func))
                 continue;
             DWORD old;
             VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old);
@@ -179,6 +187,24 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
         }
     }
     return 0;
+}
+
+int wl_patch_code(void *address, const void *expected, const void *bytes, size_t length, const char *what)
+{
+    char where[128];
+    if (memcmp(address, expected, length))
+    {
+        wl_log("patch %s at %s: not the bytes expected (another version of the game?), left as it is", what, wl_where(address, where, sizeof where));
+        return 0;
+    }
+    DWORD old;
+    if (!VirtualProtect(address, length, PAGE_EXECUTE_READWRITE, &old))
+        return 0;
+    memcpy(address, bytes, length);
+    VirtualProtect(address, length, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), address, length);
+    wl_log("patch %s at %s", what, wl_where(address, where, sizeof where));
+    return 1;
 }
 
 // ------------------------------------------------------------------------------

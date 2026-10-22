@@ -31,13 +31,13 @@ class AgentError(RuntimeError):
 
 
 class WLAgent:
-    def __init__(self, launcher, game, log=None, extra_args=()):
+    def __init__(self, launcher, game, log=None, extra_args=(), game_args=()):
         """Start the game in agent mode. log: the DLL's log file (windowsloader.log in the current folder by default);
         the launcher's messages go to stderr, left to this process's."""
         args = [os.path.abspath(launcher), "--agent", "--quiet"]
         if log:
             args += ["--log", os.path.abspath(log)]
-        args += list(extra_args) + [os.path.abspath(game)]
+        args += list(extra_args) + [os.path.abspath(game)] + list(game_args)
         self.process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
         line = self._line()
         if not line.startswith("ready "):

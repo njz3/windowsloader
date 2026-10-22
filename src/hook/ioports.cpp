@@ -34,13 +34,15 @@ static void port_write(unsigned short port, unsigned short value)
         g_writer(port, value);
 }
 
-// inpout32's exports, with its calling convention (__stdcall)
-static void WINAPI wl_Out32(short port, short value)
+// inpout32's exports, with its calling convention (__stdcall). Exported by windowsloader's DLL too
+// (wlhook.def: Inp32 @1, Out32 @2, inpout32's ordinals), for a game that imports inpout32
+// statically: the launcher points that import at windowsloader's DLL.
+extern "C" void WINAPI wl_Out32(short port, short value)
 {
     port_write((unsigned short)port, (unsigned short)value);
 }
 
-static short WINAPI wl_Inp32(short port)
+extern "C" short WINAPI wl_Inp32(short port)
 {
     static volatile LONG logged;
     if (InterlockedIncrement(&logged) <= 20)
@@ -48,7 +50,7 @@ static short WINAPI wl_Inp32(short port)
     return 0;
 }
 
-static BOOL WINAPI wl_IsInpOutDriverOpen(void)
+extern "C" BOOL WINAPI wl_IsInpOutDriverOpen(void)
 {
     return TRUE;
 }

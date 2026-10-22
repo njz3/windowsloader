@@ -1,0 +1,11 @@
+; windowsloader - runs Windows arcade games with emulated cabinet hardware
+; Copyright (C) 2026 Benjamin Maurin - njz3
+; License: GNU General Public License version 3 (GPL v3)
+; The author reserves the right to change the license of this code.
+;
+; The DLL's exports: inpout32's functions at inpout32's ordinals, for a game that imports inpout32
+; statically (the launcher points that import at this DLL, ioports.cpp emulates the ports).
+EXPORTS
+    Inp32 = wl_Inp32 @1
+    Out32 = wl_Out32 @2
+    IsInpOutDriverOpen = wl_IsInpOutDriverOpen @3

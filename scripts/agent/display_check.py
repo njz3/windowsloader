@@ -19,7 +19,7 @@ ORIGINAL WINDOW at the end. Needs a session open on the screen: the window is ca
 screen by this script, in physical pixels (the game may not know the screen's scale, and the
 agent's own "screen" capture then reads the wrong place).
 
-    python scripts/agent/display_check.py [day | day-nse | sr3]
+    python scripts/agent/display_check.py [day | day-nse | sr3 | fr | kod]
 """
 import ctypes
 import ctypes.wintypes as wt
@@ -37,6 +37,8 @@ GAMES = {
     "day": (os.path.join(ROOT, "games", "daytonausa", "Sega", "Daytona", "Daytona.exe"), 50),
     "day-nse": (os.path.join(ROOT, "games", "daytonausa-nse", "Sega", "Daytona", "Daytona.exe"), 60),
     "sr3": (os.path.join(ROOT, "games", "segarally3", "Rally", "Rally.exe"), 15),
+    "fr": (os.path.join(ROOT, "games", "fordracing", "FordRacing", "fordracing.exe"), 15),
+    "kod": (os.path.join(ROOT, "games", "kodrive", "exe", "M-DriveR_RingWide.exe"), 85),
 }
 which = sys.argv[1] if len(sys.argv) > 1 else "day"
 GAME, START = GAMES[which]

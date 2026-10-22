@@ -39,7 +39,7 @@
 //   challenge sent every 10 s (GAME_MSG_SECURITY_CHALLENGE, 4 bytes): the game quits after five
 //   left unanswered (+0x182a00). The New Season Edition also waits for the cabinet's SKU
 //   (SHELL_MSG_SET_SKU) before leaving its "network discovery" screen (+0xdd18b; the first edition
-//   ignores that message). windowsloader is that shell: a server on 127.0.0.1:18888.
+//   ignores that message). windowsloader is that shell (segashell.cpp).
 //
 // The game's settings are left as they are; it only reads some of them differently: no
 // exclusive full screen ([FullHD] ENABLE_FULL_SCREEN of GameData\config.ini) and a single
@@ -47,7 +47,6 @@
 // on the local network, which system.cpp refuses anyway). The camera (the players' photos) is
 // refused by system.cpp too.
 
-#include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +58,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "segashell.h"
 #include "vdinput.h"
 
 // ------------------------------------------------------------------------------
@@ -251,9 +251,6 @@ static int process_handler(const char *app, const char *cmd)
 // Shell.exe: credits and the security challenge
 // ------------------------------------------------------------------------------
 
-#define SHELL_PORT 18888
-#define FRAME_HEADER 11
-
 enum
 {
     GAME_MSG_KEEPALIVE = 0x00,
@@ -280,248 +277,10 @@ static const char *const g_msgNames[MSG_COUNT] = {
     "SHELL_MSG_PARTY_MODE_END", "GAME_MSG_PARTY_MODE_ACKNOWLEDGE", "GAME_MSG_CONTINUE_OFFERED", "GAME_MSG_CONTINUE_CHOSEN",
 };
 
-static const char *msg_name(int cmd)
-{
-    return cmd >= 0 && cmd < MSG_COUNT ? g_msgNames[cmd] : "UNKNOWN COMMAND";
-}
-
-// The game's check of the shell's answer (+0x182500) turns the answer into the challenge. Its
-// steps, each undone below in the reverse order:
-//   1. every byte xor 0xB1
-//   2. 12 rounds, k = 13 down to 2: the 32 bits (byte 0 the highest) shift left by one; the bit
-//      coming in is the top bit xor one flip per byte having a bit in common with 40 08 10 04;
-//      the bit leaving each byte, going into the next one up, is flipped when a walking mask
-//      (bit k & 7 for byte 3, then one lower per byte, 0x80 after bit 0) meets 0xA5
-//   3. byte 0 bit-reversed, every byte xor 0xC0
-//   4. every byte xor 0x77
-static const unsigned char g_secMask[4] = {0x40, 0x08, 0x10, 0x04};
-
-static unsigned char bit_reverse(unsigned char b)
-{
-    unsigned char r = 0;
-    for (int i = 0; i < 8; i++)
-        if (b & 1 << i)
-            r |= (unsigned char)(0x80 >> i);
-    return r;
-}
-
-static int carry_in(const unsigned char o[4])
-{
-    int c = o[0] >> 7;
-    for (int j = 0; j < 4; j++)
-        if (g_secMask[j] & o[j])
-            c ^= 1;
-    return c;
-}
-
-// The flips of one round, for bytes 0 to 3
-static void round_flips(int k, int flip[4])
-{
-    unsigned bl = 1u << (k & 7);
-    for (int idx = 3; idx >= 0; idx--)
-    {
-        if (!bl)
-            bl = 0x80;
-        flip[idx] = (bl & 0xA5) != 0;
-        bl >>= 1;
-    }
-}
-
-// Undoes rounds k down to 2 (k counts down as the game's rounds do); returns 1 with the
-// state before them. A round has 0, 1 or 2 states before it: the top bit of byte 0 is unknown.
-static int undo_rounds(const unsigned char n[4], int round, unsigned char out[4])
-{
-    if (round > 13)
-    {
-        memcpy(out, n, 4);
-        return 1;
-    }
-    int flip[4];
-    round_flips(round, flip);
-    for (int top = 0; top < 2; top++)
-    {
-        unsigned char o[4];
-        o[0] = (unsigned char)(n[0] >> 1 | top << 7);
-        o[1] = (unsigned char)(n[1] >> 1 | ((n[0] & 1) ^ flip[1]) << 7);
-        o[2] = (unsigned char)(n[2] >> 1 | ((n[1] & 1) ^ flip[2]) << 7);
-        o[3] = (unsigned char)(n[3] >> 1 | ((n[2] & 1) ^ flip[3]) << 7);
-        if (carry_in(o) == (n[3] & 1) && undo_rounds(o, round + 1, out))
-            return 1;
-    }
-    return 0;
-}
-
-static int security_answer(const unsigned char challenge[4], unsigned char answer[4])
-{
-    unsigned char r[4];
-    for (int i = 0; i < 4; i++)
-        r[i] = challenge[i] ^ 0x77 ^ 0xC0;
-    r[0] = bit_reverse(r[0]);
-    // The last round the game makes is k = 2: undone first
-    if (!undo_rounds(r, 2, answer))
-        return 0;
-    for (int i = 0; i < 4; i++)
-        answer[i] ^= 0xB1;
-    return 1;
-}
-
-static volatile LONG g_credits;
-static int g_freeplay;
-
-static int shell_send(SOCKET s, int cmd, const unsigned char *data, int len)
-{
-    unsigned char f[FRAME_HEADER + 16];
-    if (len > 16)
-        return 0;
-    memset(f, 0, FRAME_HEADER);
-    f[0] = 'D';
-    f[1] = 'Y';
-    f[2] = 'T';
-    f[3] = (unsigned char)(cmd >> 8);
-    f[4] = (unsigned char)cmd;
-    f[5] = (unsigned char)(len >> 8);
-    f[6] = (unsigned char)len;
-    if (len)
-        memcpy(f + FRAME_HEADER, data, len);
-    return send(s, (const char *)f, FRAME_HEADER + len, 0) == FRAME_HEADER + len;
-}
-
-static void send_credits(SOCKET s)
-{
-    unsigned char c = (unsigned char)g_credits;
-    shell_send(s, SHELL_MSG_SETCREDIT, &c, 1);
-    wl_log("shell: %s %u", msg_name(SHELL_MSG_SETCREDIT), c);
-}
-
-static void on_message(SOCKET s, int cmd, const unsigned char *p, int len)
-{
-    static int counts[MSG_COUNT + 1];
-    int slot = cmd >= 0 && cmd < MSG_COUNT ? cmd : MSG_COUNT;
-    int n = ++counts[slot];
-    if (cmd == GAME_MSG_SECURITY_CHALLENGE && len >= 4)
-    {
-        unsigned char a[4];
-        if (!security_answer(p, a))
-        {
-            wl_log("shell: challenge %02x %02x %02x %02x has no answer", p[0], p[1], p[2], p[3]);
-            return;
-        }
-        shell_send(s, SHELL_MSG_SECURITY_AUTHENTICATE, a, 4);
-        if (n <= 3)
-            wl_log("shell: challenge %02x %02x %02x %02x answered %02x %02x %02x %02x", p[0], p[1], p[2], p[3], a[0], a[1], a[2], a[3]);
-        return;
-    }
-    if (cmd == GAME_MSG_START_PRESSED && !g_freeplay && g_credits > 0)
-    {
-        InterlockedDecrement(&g_credits); // the game took a credit
-        send_credits(s);
-    }
-    if (cmd == GAME_MSG_KEEPALIVE ? n == 1 : n <= 20 || n % 100 == 0)
-    {
-        char hex[3 * 16 + 1] = "";
-        for (int i = 0; i < len && i < 16; i++)
-            snprintf(hex + 3 * i, 4, " %02x", p[i]);
-        wl_log("shell: %s%s (#%d)", msg_name(cmd), hex, n);
-    }
-}
-
-// One connection of the game: its frames, and the coins dropped meanwhile
-static void shell_session(SOCKET s)
-{
-    unsigned char buf[4096];
-    int have = 0, coin = 0, service = 0;
-    // The cabinet's SKU: the New Season Edition only notes it came, and sets one feature when the
-    // second byte is 1 (+0x184ae1)
-    static const unsigned char sku[2] = {0, 0};
-    shell_send(s, SHELL_MSG_SET_SKU, sku, sizeof sku);
-    wl_log("shell: %s %02x %02x", msg_name(SHELL_MSG_SET_SKU), sku[0], sku[1]);
-    send_credits(s);
-    for (;;)
-    {
-        fd_set rd;
-        FD_ZERO(&rd);
-        FD_SET(s, &rd);
-        timeval tv = {0, 20000};
-        int r = select(0, &rd, NULL, NULL, &tv);
-        if (r < 0)
-            return;
-        if (r > 0)
-        {
-            int got = recv(s, (char *)buf + have, (int)sizeof buf - have, 0);
-            if (got <= 0)
-                return;
-            have += got;
-            int at = 0;
-            while (have - at >= FRAME_HEADER)
-            {
-                const unsigned char *f = buf + at;
-                if (f[0] != 'D' || f[1] != 'Y' || f[2] != 'T')
-                {
-                    wl_log("shell: the game's data is out of step, dropped");
-                    at = have;
-                    break;
-                }
-                int len = f[5] << 8 | f[6];
-                if (have - at < FRAME_HEADER + len)
-                    break;
-                on_message(s, f[3] << 8 | f[4], f + FRAME_HEADER, len);
-                at += FRAME_HEADER + len;
-            }
-            memmove(buf, buf + at, have - at);
-            have -= at;
-            if (have == (int)sizeof buf)
-                have = 0;
-        }
-        // A coin or a service credit, on the press
-        int c = wl_input_get(&g_inputs[IN_COIN]) != 0, sv = wl_input_get(&g_inputs[IN_SERVICE]) != 0;
-        if ((c && !coin) || (sv && !service))
-        {
-            if (g_credits < 99)
-                InterlockedIncrement(&g_credits);
-            send_credits(s);
-        }
-        coin = c;
-        service = sv;
-    }
-}
-
-static DWORD WINAPI shell_thread(LPVOID)
-{
-    WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa))
-    {
-        wl_log("shell: no Winsock, the game will quit after its security challenges");
-        return 0;
-    }
-    SOCKET l = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    BOOL exclusive = TRUE;
-    setsockopt(l, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *)&exclusive, sizeof exclusive);
-    sockaddr_in a;
-    memset(&a, 0, sizeof a);
-    a.sin_family = AF_INET;
-    a.sin_port = htons(SHELL_PORT);
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    if (l == INVALID_SOCKET || bind(l, (const sockaddr *)&a, sizeof a) || listen(l, 1))
-    {
-        wl_log("shell: cannot listen on 127.0.0.1:%d (error %d; another shell running?), the game will quit after its security challenges",
-               SHELL_PORT, WSAGetLastError());
-        return 0;
-    }
-    wl_log("shell: listening on 127.0.0.1:%d, %s", SHELL_PORT, g_freeplay ? "free play" : "credits from the coin input");
-    for (;;)
-    {
-        SOCKET s = accept(l, NULL, NULL);
-        if (s == INVALID_SOCKET)
-        {
-            Sleep(100);
-            continue;
-        }
-        wl_log("shell: the game is connected");
-        shell_session(s);
-        closesocket(s);
-        wl_log("shell: the game has disconnected");
-    }
-}
+static WlSegaShell g_shell = {
+    "DYT", g_msgNames, MSG_COUNT, GAME_MSG_SECURITY_CHALLENGE, SHELL_MSG_SECURITY_AUTHENTICATE, SHELL_MSG_SETCREDIT, SHELL_MSG_SET_SKU,
+    GAME_MSG_START_PRESSED, -1, -1, 0, &g_inputs[IN_COIN], &g_inputs[IN_SERVICE],
+};
 
 // ------------------------------------------------------------------------------
 
@@ -565,7 +324,7 @@ int wl_game_daytona(const wchar_t *exePath, const char **title)
     wl_log("game: %s (Install.ini version %d)", *title, version);
 
     swprintf(ini, MAX_PATH, L"%s..\\ShellData\\ShellData.ini", dir);
-    g_freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;
+    g_shell.freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;
     read_calibration(dir);
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_board);
@@ -575,6 +334,6 @@ int wl_game_daytona(const wchar_t *exePath, const char **title)
     // opens "../GameData/\debug.txt"), some 70 MB each time, again and again once it is short of
     // memory
     wl_files_cap("\\debug.txt", 32ull << 20);
-    CloseHandle(CreateThread(NULL, 0, shell_thread, NULL, 0, NULL));
+    wl_segashell_start(&g_shell);
     return 1;
 }

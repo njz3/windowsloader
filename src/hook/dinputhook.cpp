@@ -34,6 +34,7 @@ enum
 {
     SLOT_DI_CREATEDEVICE = 3,
     SLOT_DI_ENUMDEVICES = 4,
+    SLOT_DI_GETDEVICESTATUS = 5,
     SLOT_DEV_ACQUIRE = 7,
     SLOT_DEV_SETCOOPERATIVELEVEL = 13,
     SLOT_DEV_CREATEEFFECT = 18,
@@ -461,7 +462,9 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesA(IDirectInput8A *di, DWORD type, L
         DIDEVICEINSTANCEA d;
         wl_vdinput_instance(&d);
         BOOL r = cb(&d, ref);
-        wl_log("dinput: device \"%s\" (windowsloader) -> %s", d.tszProductName, r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped");
+        char where[128];
+        wl_log("dinput: device \"%s\" (windowsloader) -> %s [the game's callback %s]", d.tszProductName,
+               r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped", wl_where((const void *)cb, where, sizeof where));
         if (r != DIENUM_CONTINUE)
             return DI_OK;
     }
@@ -517,6 +520,29 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceW(void *di, REFGUID g, void **out,
     return create_device(oCreateDeviceW, di, g, out, outer, 1);
 }
 
+// GetDeviceStatus: the board played by windowsloader is attached (DirectInput itself does not know it)
+typedef HRESULT(STDMETHODCALLTYPE *GetDeviceStatusFn)(void *, REFGUID);
+static GetDeviceStatusFn oGetDeviceStatusA, oGetDeviceStatusW;
+static HRESULT device_status(GetDeviceStatusFn orig, void *di, REFGUID g)
+{
+    static int logged;
+    if (wl_vdinput_is_ours(g))
+    {
+        if (!logged++)
+            wl_log("dinput: GetDeviceStatus on the board played by windowsloader -> attached");
+        return DI_OK;
+    }
+    return orig(di, g);
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceStatusA(void *di, REFGUID g)
+{
+    return device_status(oGetDeviceStatusA, di, g);
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceStatusW(void *di, REFGUID g)
+{
+    return device_status(oGetDeviceStatusW, di, g);
+}
+
 static HRESULT(WINAPI *oDirectInput8Create)(HINSTANCE, DWORD, REFIID, LPVOID *, LPUNKNOWN);
 static HRESULT WINAPI hDirectInput8Create(HINSTANCE inst, DWORD version, REFIID riid, LPVOID *out, LPUNKNOWN outer)
 {
@@ -538,12 +564,14 @@ static HRESULT WINAPI hDirectInput8Create(HINSTANCE inst, DWORD version, REFIID 
         doneW = 1;
         wl_hook_code(vt[SLOT_DI_ENUMDEVICES], (void *)hEnumDevicesW, (void **)&oEnumDevicesW, "IDirectInput8W::EnumDevices");
         wl_hook_code(vt[SLOT_DI_CREATEDEVICE], (void *)hCreateDeviceW, (void **)&oCreateDeviceW, "IDirectInput8W::CreateDevice");
+        wl_hook_code(vt[SLOT_DI_GETDEVICESTATUS], (void *)hGetDeviceStatusW, (void **)&oGetDeviceStatusW, "IDirectInput8W::GetDeviceStatus");
     }
     else if (!unicode && !doneA)
     {
         doneA = 1;
         wl_hook_code(vt[SLOT_DI_ENUMDEVICES], (void *)hEnumDevicesA, (void **)&oEnumDevicesA, "IDirectInput8A::EnumDevices");
         wl_hook_code(vt[SLOT_DI_CREATEDEVICE], (void *)hCreateDeviceA, (void **)&oCreateDeviceA, "IDirectInput8A::CreateDevice");
+        wl_hook_code(vt[SLOT_DI_GETDEVICESTATUS], (void *)hGetDeviceStatusA, (void **)&oGetDeviceStatusA, "IDirectInput8A::GetDeviceStatus");
     }
     return hr;
 }

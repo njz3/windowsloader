@@ -18,8 +18,11 @@
 
 // How the game's picture is shown, with linuxloader's [Display] settings (windowsloader.ini):
 //   ASPECT_RATIO = ORIGINAL | 4:3 | 16:9 | 4:3_LETTERBOX
-//       the shape of the picture: the game's own, forced to 4:3 or 16:9, or a 4:3 frame holding the
-//       whole picture at its own shape (black bars above and below a 16:9 one)
+//       the shape of the frame the picture is shown in: the game's own (that of its render
+//       resolution), or 4:3 or 16:9 with the picture whole inside at its own shape, black bars where
+//       the shapes differ (a 4:3 game in 16:9: bars left and right; a 16:9 one in 4:3: above and
+//       below). 4:3_LETTERBOX is 4:3 (linuxloader's name; linuxloader stretches the picture to
+//       4:3 and 16:9, windowsloader keeps its shape: only the _STRETCH modes stretch it)
 //   DISPLAY_MODE = WINDOW | WINDOW_STRETCH | FULLSCREEN | FULLSCREEN_STRETCH
 //       a window at the aspect ratio (square pixels), a window the picture fills, the whole screen
 //       with the picture at the aspect ratio between black bars, or the whole screen filled
@@ -76,8 +79,21 @@ const RECT *wl_display_dest(void);                           // each Present: wh
 HWND wl_display_child(HWND parent);
 void wl_display_window(HWND wnd, int width, int height);
 
+// OpenGL games (their window as they made it): the frames per second and the game's name in the
+// window's title, at each SwapBuffers
+void wl_display_title(HWND wnd);
+
 // The part of the window's client area showing the picture (for the menu's mouse)
 void wl_display_picture(RECT *r);
+
+// The picture shown by GDI ([Display] PRESENT = GDI, the default): windowsloader copies it into the
+// window (at wl_display_picture); the game's Present goes to a hidden window (Direct3D 9) or a
+// hidden child (Direct3D 11). A Direct3D blt into a window shows nothing on some PCs (this
+// laptop's Windows 11).
+int wl_display_gdi(void);
+// The picture (top-down rows: 32-bit BGRX, or 16-bit 565 when green6, else 555) drawn where it goes
+void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6);
+HWND wl_display_hwnd(void);
 
 // What the window shows, as a 24-bit BMP (the agent's "screen")
 int wl_display_screenshot(const char *path);

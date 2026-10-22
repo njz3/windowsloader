@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "display.h"
+#include "game.h"
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
@@ -43,6 +44,8 @@ static int g_unicode;
 static int g_bbW, g_bbH;           // the game's picture
 static int g_copy;                 // the swap chain takes a destination rectangle
 static HWND g_child;               // or it shows the picture in this child window (Direct3D 11)
+static int g_gdiSetting = 1;       // [Display] PRESENT: GDI (1) or DIRECT (0)
+static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
 static int g_appliedMode = -1;
 static RECT g_dest, g_client;      // the picture in the client area, and that area
@@ -64,15 +67,19 @@ static const char *g_defaults =
     "WIDTH = AUTO\r\n"
     "HEIGHT = AUTO\r\n"
     "\r\n"
-    "# ORIGINAL: the picture keeps the shape of the game's render resolution; 4:3 or 16:9: it is given\r\n"
-    "# that shape; 4:3_LETTERBOX: a 4:3 frame showing the whole picture at its own shape, with black\r\n"
-    "# bars (above and below a 16:9 picture).\r\n"
+    "# ORIGINAL: the picture keeps the shape of the game's render resolution. 4:3 or 16:9: the shape of\r\n"
+    "# the frame the picture is shown in; the picture keeps its own shape inside, with black bars where\r\n"
+    "# the shapes differ (a 4:3 game in 16:9: bars left and right). 4:3_LETTERBOX: the same as 4:3.\r\n"
     "ASPECT_RATIO = ORIGINAL\r\n"
     "\r\n"
     "# WINDOW: a window at the aspect ratio, square pixels. WINDOW_STRETCH: the picture fills the window,\r\n"
     "# which can be resized. FULLSCREEN: the whole screen, the picture at the aspect ratio between black\r\n"
     "# bars. FULLSCREEN_STRETCH: the picture fills the screen. F11 or Alt+Enter: window / full screen.\r\n"
-    "DISPLAY_MODE = WINDOW\r\n";
+    "DISPLAY_MODE = WINDOW\r\n"
+    "\r\n"
+    "# Direct3D 9 and 11 games in a window. GDI: windowsloader copies the picture into the window itself;\r\n"
+    "# DIRECT: the game's own Present, faster, but some PCs show nothing of it (Windows 11 on a laptop).\r\n"
+    "PRESENT = GDI\r\n";
 
 static int name_index(const char *const *names, int count, const char *value, int def)
 {
@@ -106,6 +113,8 @@ void wl_display_load(const wchar_t *iniPath)
     g_aspect = name_index(g_aspectNames, WL_ASPECT_COUNT, v, WL_ASPECT_ORIGINAL);
     read_key(L"DISPLAY_MODE", v, sizeof v, L"WINDOW");
     g_mode = name_index(g_modeNames, WL_MODE_COUNT, v, WL_MODE_WINDOW);
+    read_key(L"PRESENT", v, sizeof v, L"GDI");
+    g_gdiSetting = _stricmp(v, "DIRECT") != 0;
     read_key(L"WIDTH", v, sizeof v, L"AUTO");
     g_width = atoi(v);
     read_key(L"HEIGHT", v, sizeof v, L"AUTO");
@@ -115,7 +124,8 @@ void wl_display_load(const wchar_t *iniPath)
     char res[32] = "AUTO";
     if (g_width)
         snprintf(res, sizeof res, "%dx%d", g_width, g_height);
-    wl_log("display: ASPECT_RATIO %s, DISPLAY_MODE %s, resolution %s", g_aspectNames[g_aspect], g_modeNames[g_mode], res);
+    wl_log("display: ASPECT_RATIO %s, DISPLAY_MODE %s, resolution %s, picture %s", g_aspectNames[g_aspect], g_modeNames[g_mode], res,
+           g_gdiSetting ? "copied by GDI (PRESENT = GDI)" : "presented by the game (PRESENT = DIRECT)");
 }
 
 static void write_key(const wchar_t *key, const char *value)
@@ -204,7 +214,7 @@ void wl_display_set_internal(int width, int height)
 // The picture is placed by windowsloader (else it fills the window whatever the layout)
 static int placed(void)
 {
-    return g_copy || g_child;
+    return g_copy || g_child || g_gdi;
 }
 
 static double frame_aspect(void)
@@ -240,11 +250,13 @@ static void layout(void)
     int stretch = g_mode == WL_MODE_WINDOW_STRETCH || g_mode == WL_MODE_FULLSCREEN_STRETCH;
     RECT frame = stretch ? g_client : fit(w, h, frame_aspect());
     RECT pic = frame;
-    if (g_aspect == WL_ASPECT_4_3_LETTERBOX && g_bbH > 0)
+    if (g_aspect != WL_ASPECT_ORIGINAL && g_bbH > 0)
     {
-        // The picture whole inside the 4:3 frame, its bars as parts of the frame: they follow it
-        // when the frame is stretched (a 4:3 screen getting a 16:9 signal)
-        double own = (double)g_bbW / g_bbH, frameShape = 4.0 / 3.0;
+        // The picture whole inside the frame at the game's own shape (its render resolution's), its
+        // bars as parts of the frame: a 4:3 game in a 16:9 frame gets bars left and right, a 16:9 one
+        // in a 4:3 frame above and below. The bars follow the frame when it is stretched (a 4:3
+        // screen getting a 16:9 signal).
+        double own = (double)g_bbW / g_bbH, frameShape = frame_aspect();
         int fw = frame.right - frame.left, fh = frame.bottom - frame.top;
         if (own > frameShape)
         {
@@ -398,7 +410,8 @@ void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
         return;
     wchar_t swap[16] = L"";
     GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
-    g_copy = pp->MultiSampleType == D3DMULTISAMPLE_NONE && _wcsicmp(swap, L"discard");
+    g_gdi = g_gdiSetting;
+    g_copy = !g_gdi && pp->MultiSampleType == D3DMULTISAMPLE_NONE && _wcsicmp(swap, L"discard");
     if (g_copy)
     {
         pp->SwapEffect = D3DSWAPEFFECT_COPY;
@@ -446,8 +459,11 @@ HWND wl_display_child(HWND parent)
     RECT r;
     GetClientRect(parent, &r);
     wl_busy_enter();
-    g_child = CreateWindowExW(0, L"windowsloader picture", L"", WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, r.right, r.bottom, parent, NULL,
-                              g_wlModule, NULL);
+    // Hidden when windowsloader copies the picture itself (GDI): the swap chain presents into it,
+    // the picture is drawn into the game's window
+    g_gdi = g_gdiSetting;
+    g_child = CreateWindowExW(0, L"windowsloader picture", L"", WS_CHILD | (g_gdi ? 0 : WS_VISIBLE) | WS_CLIPSIBLINGS, 0, 0, r.right, r.bottom,
+                              parent, NULL, g_wlModule, NULL);
     if (g_child)
         SetWindowLongW(parent, GWL_STYLE, GetWindowLongW(parent, GWL_STYLE) | WS_CLIPCHILDREN);
     wl_busy_leave();
@@ -468,6 +484,9 @@ void wl_display_window(HWND wnd, int width, int height)
     g_wnd = wnd;
     g_bbW = width;
     g_bbH = height;
+    if (width > 0 && height > 0)
+        wl_log("display: the game's picture is %dx%d, its own shape %.3f (%s)", width, height, (double)width / height,
+               fabs((double)width / height - 4.0 / 3.0) < 0.02 ? "4:3" : fabs((double)width / height - 16.0 / 9.0) < 0.02 ? "16:9" : "other");
     if (g_bbW <= 0 || g_bbH <= 0)
     {
         RECT r;
@@ -491,11 +510,49 @@ static int focus_is_ours(void)
     return pid == GetCurrentProcessId();
 }
 
+// The game's name between brackets and the frames per second in the window's title, once a second:
+// "<the game's title> [segarally3] - 60 fps" (the brackets let BackForceFeeder find the game)
+static void title_fps(HWND wnd)
+{
+    static wchar_t title[128];
+    static int got;
+    static unsigned frames;
+    static ULONGLONG since;
+    ULONGLONG now = GetTickCount64();
+    frames++;
+    if (!since)
+        since = now;
+    if (now - since < 1000)
+        return;
+    if (!got)
+    {
+        got = 1;
+        GetWindowTextW(wnd, title, 128);
+    }
+    wchar_t text[200];
+    int n = swprintf(text, 200, L"%s", title);
+    if (strcmp(wl_game_name(), "unknown"))
+        n += swprintf(text + n, 200 - n, L"%s[%S]", n ? L" " : L"", wl_game_name());
+    swprintf(text + n, 200 - n, L"%s%.0f fps", n ? L" - " : L"", frames * 1000.0 / (double)(now - since));
+    // The window's own thread may be another one: never wait long for it
+    DWORD_PTR result;
+    SendMessageTimeoutW(wnd, WM_SETTEXT, 0, (LPARAM)text, SMTO_ABORTIFHUNG, 50, &result);
+    frames = 0;
+    since = now;
+}
+
+void wl_display_title(HWND wnd)
+{
+    if (wnd)
+        title_fps(wnd);
+}
+
 const RECT *wl_display_dest(void)
 {
     static int f11Was, frames;
     if (!g_wnd)
         return NULL;
+    title_fps(g_wnd);
 
     int f11 = focus_is_ours() && (GetAsyncKeyState(VK_F11) & 0x8000);
     if ((f11 && !f11Was) || InterlockedExchange(&g_toggle, 0))
@@ -513,6 +570,44 @@ const RECT *wl_display_dest(void)
     if (placed() && !g_full && (InterlockedExchange(&g_repaint, 0) || ++frames % 30 == 0))
         paint_bars();
     return g_copy && !g_full ? &g_dest : NULL;
+}
+
+int wl_display_gdi(void)
+{
+    return g_gdi && g_wnd;
+}
+
+void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6)
+{
+    struct
+    {
+        BITMAPINFOHEADER h;
+        DWORD masks[3];
+    } bi;
+    memset(&bi, 0, sizeof bi);
+    bi.h.biSize = sizeof bi.h;
+    bi.h.biWidth = pitch / (bits / 8); // the rows' length; the picture's width taken below
+    bi.h.biHeight = -height;           // top-down
+    bi.h.biPlanes = 1;
+    bi.h.biBitCount = (WORD)bits;
+    bi.h.biCompression = bits == 16 ? BI_BITFIELDS : BI_RGB;
+    if (bits == 16 && green6)
+        bi.masks[0] = 0xF800, bi.masks[1] = 0x07E0, bi.masks[2] = 0x001F;
+    else if (bits == 16)
+        bi.masks[0] = 0x7C00, bi.masks[1] = 0x03E0, bi.masks[2] = 0x001F;
+    RECT r;
+    wl_display_picture(&r);
+    HDC dc = GetDC(g_wnd);
+    if (!dc)
+        return;
+    SetStretchBltMode(dc, COLORONCOLOR);
+    StretchDIBits(dc, r.left, r.top, r.right - r.left, r.bottom - r.top, 0, 0, width, height, pixels, (BITMAPINFO *)&bi, DIB_RGB_COLORS, SRCCOPY);
+    ReleaseDC(g_wnd, dc);
+}
+
+HWND wl_display_hwnd(void)
+{
+    return g_wnd;
 }
 
 void wl_display_picture(RECT *r)

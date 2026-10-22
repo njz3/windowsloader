@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "hooks.h"
 #include "log.h"
 #include "vdinput.h"
 
@@ -32,10 +33,115 @@ static const WlVirtualJoystick *g_joy;
 // {57A4C0DE-D17A-4E10-9C3B-77696E6C6472}: the instance GUID, made up for windowsloader
 static const GUID g_instance = {0x57A4C0DE, 0xD17A, 0x4E10, {0x9C, 0x3B, 0x77, 0x69, 0x6E, 0x6C, 0x64, 0x72}};
 
+// ------------------------------------------------------------------------------
+// The board also among raw input's HID devices (GetRawInputDeviceList, GetRawInputDeviceInfo; the
+// game's own calls, its import table): DiRT Showdown keeps a DirectInput joystick only when a HID
+// device with its VID/PID is there and that device's name has no "IG_" (not an XInput pad)
+// ------------------------------------------------------------------------------
+
+#define RAW_HANDLE ((HANDLE)(ULONG_PTR)0x57A4C0DE)
+
+static UINT(WINAPI *oGetRawInputDeviceList)(PRAWINPUTDEVICELIST, PUINT, UINT);
+static UINT WINAPI hGetRawInputDeviceList(PRAWINPUTDEVICELIST list, PUINT count, UINT size)
+{
+    if (!count || size != sizeof(RAWINPUTDEVICELIST))
+        return oGetRawInputDeviceList(list, count, size);
+    UINT real = 0;
+    if (oGetRawInputDeviceList(NULL, &real, size) == (UINT)-1)
+        return (UINT)-1;
+    if (!list)
+    {
+        *count = real + 1;
+        return 0;
+    }
+    if (*count < real + 1)
+    {
+        *count = real + 1;
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        return (UINT)-1;
+    }
+    UINT room = *count - 1;
+    UINT got = oGetRawInputDeviceList(list, &room, size);
+    if (got == (UINT)-1)
+        return got;
+    list[got].hDevice = RAW_HANDLE;
+    list[got].dwType = RIM_TYPEHID;
+    return got + 1;
+}
+
+static void raw_name(char *out, size_t size)
+{
+    snprintf(out, size, "\\\\?\\HID#VID_%04X&PID_%04X#7&57a4c0de&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}", g_joy->vid, g_joy->pid);
+}
+
+// RIDI_DEVICENAME in characters, RIDI_DEVICEINFO in bytes, as GetRawInputDeviceInfo counts them
+static UINT raw_info(UINT command, void *data, PUINT size, int wide)
+{
+    if (command == RIDI_DEVICENAME)
+    {
+        char name[160];
+        raw_name(name, sizeof name);
+        UINT need = (UINT)strlen(name) + 1;
+        if (!data || *size < need)
+        {
+            *size = need;
+            if (!data)
+                return 0;
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return (UINT)-1;
+        }
+        if (wide)
+            MultiByteToWideChar(CP_ACP, 0, name, -1, (wchar_t *)data, (int)*size);
+        else
+            memcpy(data, name, need);
+        return need;
+    }
+    if (command == RIDI_DEVICEINFO)
+    {
+        if (!data || *size < sizeof(RID_DEVICE_INFO))
+        {
+            *size = sizeof(RID_DEVICE_INFO);
+            if (!data)
+                return 0;
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return (UINT)-1;
+        }
+        RID_DEVICE_INFO *info = (RID_DEVICE_INFO *)data;
+        memset(info, 0, sizeof *info);
+        info->cbSize = sizeof *info;
+        info->dwType = RIM_TYPEHID;
+        info->hid.dwVendorId = g_joy->vid;
+        info->hid.dwProductId = g_joy->pid;
+        info->hid.dwVersionNumber = 0x0100;
+        info->hid.usUsagePage = 0x01; // generic desktop
+        info->hid.usUsage = 0x04;     // joystick
+        return sizeof *info;
+    }
+    SetLastError(ERROR_INVALID_PARAMETER); // no preparsed data
+    return (UINT)-1;
+}
+
+static UINT(WINAPI *oGetRawInputDeviceInfoA)(HANDLE, UINT, LPVOID, PUINT);
+static UINT WINAPI hGetRawInputDeviceInfoA(HANDLE device, UINT command, LPVOID data, PUINT size)
+{
+    return device == RAW_HANDLE && size ? raw_info(command, data, size, 0) : oGetRawInputDeviceInfoA(device, command, data, size);
+}
+
+static UINT(WINAPI *oGetRawInputDeviceInfoW)(HANDLE, UINT, LPVOID, PUINT);
+static UINT WINAPI hGetRawInputDeviceInfoW(HANDLE device, UINT command, LPVOID data, PUINT size)
+{
+    return device == RAW_HANDLE && size ? raw_info(command, data, size, 1) : oGetRawInputDeviceInfoW(device, command, data, size);
+}
+
 void wl_vdinput_register(const WlVirtualJoystick *joy)
 {
     g_joy = joy;
     wl_log("dinput: \"%s\" played by windowsloader (%d buttons), the PC's game controllers hidden from the game", joy->name, joy->buttons);
+    HMODULE game = GetModuleHandleW(NULL);
+    int listed = wl_patch_iat(game, "user32.dll", "GetRawInputDeviceList", (void *)hGetRawInputDeviceList, (void **)&oGetRawInputDeviceList);
+    if (wl_patch_iat(game, "user32.dll", "GetRawInputDeviceInfoA", (void *)hGetRawInputDeviceInfoA, (void **)&oGetRawInputDeviceInfoA) +
+            wl_patch_iat(game, "user32.dll", "GetRawInputDeviceInfoW", (void *)hGetRawInputDeviceInfoW, (void **)&oGetRawInputDeviceInfoW) && listed)
+        wl_log("dinput: \"%s\" also a raw input HID device (VID %04x PID %04x) for the game", joy->name, joy->vid, joy->pid);
 }
 
 int wl_vdinput_active(void)

@@ -57,6 +57,10 @@ int wl_hook_code(void *target, void *detour, void **original, const char *what);
 // Returns 1 when the import was found.
 int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replacement, void **original);
 
+// Bytes of the game's code replaced, only when they are the ones expected (the game's version the
+// change was made for); logged with what. Returns 1 when done.
+int wl_patch_code(void *address, const void *expected, const void *bytes, size_t length, const char *what);
+
 // Re-entrancy guard, per thread. A hook calls the original function inside wl_busy_enter/leave:
 // whatever that call does internally (CreateFileA -> CreateFileW, our logger's WriteFile...)
 // then goes through the other hooks untouched, so nothing is logged twice.
@@ -84,11 +88,21 @@ void wl_files_set_ini_override(WlIniOverride fn);
 // path ends with nameEnd)
 void wl_files_cap(const char *nameEnd, unsigned long long maxBytes);
 
+// A folder the game uses at a fixed place ("C:\Sega", GRID's) taken from another one (the copy
+// beside the game): the game's paths under from go to the same paths under to, so nothing is
+// written at the fixed place on this PC. Paths are compared without regard to case or / and \.
+void wl_files_redirect(const char *from, const char *to);
+
 // A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
 // parallel port helper): returns 1 when the module took it over. The game is still told the
 // program did not start; nothing reaches Windows.
 typedef int (*WlProcessHandler)(const char *app, const char *cmd);
 void wl_system_set_process_handler(WlProcessHandler fn);
+
+// A DLL the game loads that windowsloader refuses (by its file name, any folder): LoadLibrary
+// fails as for a missing file (DiRT Showdown's Rapture3D audio driver, which wants settings in the
+// PC's registry: the game's OpenAL then takes its generic DirectSound driver)
+void wl_system_refuse_dll(const char *name);
 
 // Per-module hook tables
 void wl_files_hooks(void);
@@ -98,4 +112,5 @@ void wl_window_hooks(void);
 void wl_d3d9_hooks(void);
 void wl_dinput_hooks(void);
 void wl_d3d11_hooks(void);
+void wl_gl_hooks(void);
 void wl_crash_init(void);

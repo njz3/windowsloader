@@ -17,6 +17,7 @@
 
 #include <windows.h>
 #include <d3d9.h>
+#include <dwmapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,8 +53,13 @@ static void log_pp(const char *what, const D3DPRESENT_PARAMETERS *pp)
 }
 
 // Full screen -> window, with the presentation settings a window accepts
+// The game's presentation interval: its frames' pace once presented to the hidden window (GDI)
+static UINT g_interval = D3DPRESENT_INTERVAL_ONE;
+
 static int make_windowed(D3DPRESENT_PARAMETERS *pp)
 {
+    if (pp)
+        g_interval = pp->PresentationInterval;
     if (!g_wl.windowed || !pp || pp->Windowed)
         return 0;
     pp->Windowed = TRUE;
@@ -128,7 +134,9 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
     if (d.MultiSampleType != D3DMULTISAMPLE_NONE && SUCCEEDED(dev->CreateRenderTarget(d.Width, d.Height, d.Format, D3DMULTISAMPLE_NONE, 0, FALSE, &resolved, NULL)) &&
         SUCCEEDED(dev->StretchRect(bb, NULL, resolved, NULL, D3DTEXF_NONE)))
         src = resolved;
-    if (d.Format == D3DFMT_A8R8G8B8 || d.Format == D3DFMT_X8R8G8B8)
+    // 8 bits per channel, or A2R10G10B10 (Chase H.Q. 2) brought back to 8
+    int tenBits = d.Format == D3DFMT_A2R10G10B10;
+    if (d.Format == D3DFMT_A8R8G8B8 || d.Format == D3DFMT_X8R8G8B8 || tenBits)
     {
         step = "CreateOffscreenPlainSurface";
         hr = dev->CreateOffscreenPlainSurface(d.Width, d.Height, d.Format, D3DPOOL_SYSTEMMEM, &sys, NULL);
@@ -146,7 +154,28 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
         if (SUCCEEDED(hr))
         {
             step = "writing the file";
-            ok = wl_write_bmp(path, (const unsigned char *)lr.pBits, lr.Pitch, (int)d.Width, (int)d.Height, 0);
+            unsigned char *pixels = (unsigned char *)lr.pBits;
+            int pitch = lr.Pitch;
+            unsigned char *converted = tenBits ? (unsigned char *)malloc((size_t)d.Width * d.Height * 4) : NULL;
+            if (converted)
+            {
+                for (UINT y = 0; y < d.Height; y++)
+                {
+                    const DWORD *row = (const DWORD *)(pixels + (size_t)y * lr.Pitch);
+                    unsigned char *out = converted + (size_t)y * d.Width * 4;
+                    for (UINT x = 0; x < d.Width; x++)
+                    {
+                        DWORD v = row[x];
+                        out[x * 4] = (unsigned char)(v >> 2), out[x * 4 + 1] = (unsigned char)(v >> 12), out[x * 4 + 2] = (unsigned char)(v >> 22);
+                        out[x * 4 + 3] = 0;
+                    }
+                }
+                pixels = converted;
+                pitch = (int)d.Width * 4;
+            }
+            if (!tenBits || converted)
+                ok = wl_write_bmp(path, pixels, pitch, (int)d.Width, (int)d.Height, 0);
+            free(converted);
             sys->UnlockRect();
         }
     }
@@ -232,14 +261,123 @@ void wl_d3d9_take_pending_shot(IDirect3DDevice9 *dev)
     wl_shot_done(save_back_buffer(dev, g_shotPath));
 }
 
+// ------------------------------------------------------------------------------
+// The picture copied into the window by GDI (display.h, PRESENT = GDI): the back buffer read
+// back, drawn with StretchDIBits where the picture goes; the game's Present then goes to a hidden
+// window, so the game's window never gets a Direct3D blt (which some PCs never show)
+// ------------------------------------------------------------------------------
+
+static IDirect3DDevice9 *g_gdiDev; // the device the surfaces below belong to
+static IDirect3DSurface9 *g_gdiSys, *g_gdiResolved;
+static D3DSURFACE_DESC g_gdiDesc;
+static unsigned char *g_gdiPixels;
+static HWND g_gdiHidden;
+
+static void gdi_release(void)
+{
+    if (g_gdiSys)
+        g_gdiSys->Release();
+    if (g_gdiResolved)
+        g_gdiResolved->Release();
+    g_gdiSys = g_gdiResolved = NULL;
+}
+
+static HWND gdi_hidden_window(void)
+{
+    if (!g_gdiHidden)
+    {
+        WNDCLASSW wc = {};
+        wc.lpfnWndProc = DefWindowProcW;
+        wc.hInstance = GetModuleHandleW(NULL);
+        wc.lpszClassName = L"windowsloader present";
+        RegisterClassW(&wc);
+        g_gdiHidden = CreateWindowExW(WS_EX_TOOLWINDOW, wc.lpszClassName, L"", WS_POPUP, 0, 0, 16, 16, NULL, NULL, wc.hInstance, NULL);
+    }
+    return g_gdiHidden;
+}
+
+// 1 when the picture was drawn into the window
+static int gdi_copy(IDirect3DDevice9 *dev)
+{
+    IDirect3DSurface9 *bb = NULL;
+    if (FAILED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &bb)))
+        return 0;
+    D3DSURFACE_DESC d;
+    bb->GetDesc(&d);
+    int bits = d.Format == D3DFMT_A8R8G8B8 || d.Format == D3DFMT_X8R8G8B8 || d.Format == D3DFMT_A2R10G10B10 ? 32
+               : d.Format == D3DFMT_R5G6B5 || d.Format == D3DFMT_X1R5G5B5                                   ? 16
+                                                                                                             : 0;
+    if (!bits)
+    {
+        bb->Release();
+        return 0;
+    }
+    if (!g_gdiSys || dev != g_gdiDev || g_gdiDesc.Width != d.Width || g_gdiDesc.Height != d.Height || g_gdiDesc.Format != d.Format ||
+        g_gdiDesc.MultiSampleType != d.MultiSampleType)
+    {
+        gdi_release();
+        g_gdiDev = dev;
+        g_gdiDesc = d;
+        if (d.MultiSampleType != D3DMULTISAMPLE_NONE)
+            dev->CreateRenderTarget(d.Width, d.Height, d.Format, D3DMULTISAMPLE_NONE, 0, FALSE, &g_gdiResolved, NULL);
+        dev->CreateOffscreenPlainSurface(d.Width, d.Height, d.Format, D3DPOOL_SYSTEMMEM, &g_gdiSys, NULL);
+        free(g_gdiPixels);
+        g_gdiPixels = d.Format == D3DFMT_A2R10G10B10 ? (unsigned char *)malloc((size_t)d.Width * d.Height * 4) : NULL;
+    }
+    IDirect3DSurface9 *src = bb;
+    if (g_gdiResolved && SUCCEEDED(dev->StretchRect(bb, NULL, g_gdiResolved, NULL, D3DTEXF_NONE)))
+        src = g_gdiResolved;
+    D3DLOCKED_RECT lr;
+    int ok = g_gdiSys && SUCCEEDED(dev->GetRenderTargetData(src, g_gdiSys)) && SUCCEEDED(g_gdiSys->LockRect(&lr, NULL, D3DLOCK_READONLY));
+    bb->Release();
+    if (!ok)
+        return 0;
+
+    const void *pixels = lr.pBits;
+    int pitch = lr.Pitch;
+    if (d.Format == D3DFMT_A2R10G10B10 && g_gdiPixels)
+    {
+        for (UINT y = 0; y < d.Height; y++)
+        {
+            const DWORD *row = (const DWORD *)((const unsigned char *)lr.pBits + (size_t)y * lr.Pitch);
+            DWORD *out = (DWORD *)(g_gdiPixels + (size_t)y * d.Width * 4);
+            for (UINT x = 0; x < d.Width; x++)
+                out[x] = (row[x] >> 2 & 0xFF) | (row[x] >> 12 & 0xFF) << 8 | (row[x] >> 22 & 0xFF) << 16;
+        }
+        pixels = g_gdiPixels;
+        pitch = (int)d.Width * 4;
+    }
+    wl_display_gdi_draw(pixels, pitch, (int)d.Width, (int)d.Height, bits, d.Format == D3DFMT_R5G6B5);
+    g_gdiSys->UnlockRect();
+    return 1;
+}
+
+// The frame out: by GDI into the window and the Present to the hidden window, or the game's
+// Present at the picture's place. The F10 menu presents through it too.
+static HRESULT STDMETHODCALLTYPE present_out(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
+{
+    if (wl_display_gdi())
+    {
+        gdi_copy(dev);
+        HRESULT hr = oPresent(dev, NULL, NULL, gdi_hidden_window(), NULL);
+        // The hidden window does not wait for the screen: one composition per interval asked
+        int waits = g_interval == D3DPRESENT_INTERVAL_IMMEDIATE ? 0 : g_interval == D3DPRESENT_INTERVAL_TWO ? 2
+                    : g_interval == D3DPRESENT_INTERVAL_THREE   ? 3 : g_interval == D3DPRESENT_INTERVAL_FOUR ? 4 : 1;
+        for (int i = 0; i < waits; i++)
+            DwmFlush();
+        return hr == S_PRESENT_OCCLUDED ? D3D_OK : hr; // the hidden window: the game keeps drawing
+    }
+    return oPresent(dev, src, dst, wnd, dirty);
+}
+
 static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
-    wl_menu_present(dev, oPresent); // F10: the menu runs here until it is closed
+    wl_menu_present(dev, present_out); // F10: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
-    HRESULT hr = oPresent(dev, src, dst ? dst : place, wnd, dirty);
+    HRESULT hr = present_out(dev, src, dst ? dst : place, wnd, dirty);
     InterlockedIncrement(&g_frames);
 
     // A lost device (screen locked, remote desktop minimized) draws nothing until the game resets it
@@ -254,7 +392,8 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     if (!frames++)
     {
         lastTick = now;
-        wl_log("Present: first frame (hr=0x%08lx)", hr);
+        wl_log("Present: first frame (hr=0x%08lx), source %s, destination %s, window %p", hr, src ? "given" : "all",
+               dst ? "given" : place ? "placed" : "all", wnd);
     }
     else if (now - lastTick >= 10000)
     {
@@ -278,6 +417,7 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
 {
     log_pp("Reset", pp);
     wl_menu_device_reset();
+    gdi_release(); // its render target, in the default pool, would make the Reset fail
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");

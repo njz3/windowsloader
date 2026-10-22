@@ -25,6 +25,7 @@
 #include "devices.h"
 #include "hooks.h"
 #include "log.h"
+#include "vdev.h"
 #include "vhid.h"
 
 // ------------------------------------------------------------------------------
@@ -149,8 +150,34 @@ int wl_dev_count(HANDLE h, WlDevCounter c, WlDevice *out)
 }
 
 // ------------------------------------------------------------------------------
-// Serial ports
+// Serial ports. On an emulated one (vdev.cpp) the settings are taken as they come.
 // ------------------------------------------------------------------------------
+
+static BOOL vdev_dcb(DCB *dcb)
+{
+    if (dcb)
+    {
+        DWORD length = dcb->DCBlength;
+        memset(dcb, 0, sizeof *dcb);
+        dcb->DCBlength = length;
+        dcb->BaudRate = 115200;
+        dcb->fBinary = TRUE;
+        dcb->ByteSize = 8;
+    }
+    return TRUE;
+}
+
+static BOOL vdev_comstat(const WlVirtualDevice *v, DWORD *errors, COMSTAT *stat)
+{
+    if (errors)
+        *errors = 0;
+    if (stat)
+    {
+        memset(stat, 0, sizeof *stat);
+        stat->cbInQue = v->waiting ? v->waiting() : 0;
+    }
+    return TRUE;
+}
 
 static void log_dcb(const char *what, const WlDevice *d, const DCB *dcb, BOOL ok)
 {
@@ -171,7 +198,8 @@ static BOOL WINAPI hGetCommState(HANDLE h, LPDCB dcb)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oGetCommState(h, dcb);
+    const WlVirtualDevice *v = nested ? NULL : wl_vdev_of(h);
+    BOOL ok = v ? vdev_dcb(dcb) : oGetCommState(h, dcb);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -184,7 +212,7 @@ static BOOL WINAPI hSetCommState(HANDLE h, LPDCB dcb)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oSetCommState(h, dcb);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oSetCommState(h, dcb);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -197,7 +225,7 @@ static BOOL WINAPI hSetCommTimeouts(HANDLE h, LPCOMMTIMEOUTS t)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oSetCommTimeouts(h, t);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oSetCommTimeouts(h, t);
     wl_busy_leave();
     WlDevice d;
     if (!nested && t && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -212,7 +240,7 @@ static BOOL WINAPI hSetupComm(HANDLE h, DWORD in, DWORD out)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oSetupComm(h, in, out);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oSetupComm(h, in, out);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -225,7 +253,7 @@ static BOOL WINAPI hPurgeComm(HANDLE h, DWORD flags)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oPurgeComm(h, flags);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oPurgeComm(h, flags);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -238,7 +266,7 @@ static BOOL WINAPI hSetCommMask(HANDLE h, DWORD mask)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oSetCommMask(h, mask);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oSetCommMask(h, mask);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
@@ -252,7 +280,7 @@ static BOOL WINAPI hEscapeCommFunction(HANDLE h, DWORD func)
     static const char *names[] = {"?", "SETXOFF", "SETXON", "SETRTS", "CLRRTS", "SETDTR", "CLRDTR", "RESETDEV", "SETBREAK", "CLRBREAK"};
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oEscapeCommFunction(h, func);
+    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oEscapeCommFunction(h, func);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_IO, &d))
@@ -265,7 +293,8 @@ static BOOL WINAPI hClearCommError(HANDLE h, LPDWORD errors, LPCOMSTAT stat)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oClearCommError(h, errors, stat);
+    const WlVirtualDevice *v = nested ? NULL : wl_vdev_of(h);
+    BOOL ok = v ? vdev_comstat(v, errors, stat) : oClearCommError(h, errors, stat);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_POLL, &d))
@@ -279,7 +308,10 @@ static BOOL WINAPI hGetCommModemStatus(HANDLE h, LPDWORD status)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oGetCommModemStatus(h, status);
+    const WlVirtualDevice *v = nested ? NULL : wl_vdev_of(h);
+    if (v && status)
+        *status = v->modemStatus ? v->modemStatus() : 0;
+    BOOL ok = v ? TRUE : oGetCommModemStatus(h, status);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_POLL, &d))
@@ -311,7 +343,8 @@ static BOOL WINAPI hDeviceIoControl(HANDLE h, DWORD code, LPVOID in, DWORD inSiz
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oDeviceIoControl(h, code, in, inSize, out, outSize, ret, ov);
+    BOOL ok = !nested && wl_vdev_of(h) ? wl_vdev_ioctl(h, code, in, inSize, out, outSize, ret, ov)
+                                         : oDeviceIoControl(h, code, in, inSize, out, outSize, ret, ov);
     wl_busy_leave();
     DWORD err = GetLastError();
     WlDevice d;
@@ -341,34 +374,76 @@ static const char *guid_str(const GUID *g, char *buf, size_t size)
     return buf;
 }
 
-// With an emulated HID board, the game's enumerations of the HID class list that board only
+// The device interfaces of the emulated hardware: the game's enumerations of their class list
+// them alone. The emulated HID board (when active), and those added by wl_vdev_interface.
 static const GUID g_hidGuid = {0x4D1E55B2, 0xF16F, 0x11CF, {0x88, 0xCB, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30}};
-#define VHID_MAGIC ((ULONG_PTR)0x574C4844) // SP_DEVICE_INTERFACE_DATA.Reserved of the emulated board
+#define VDEV_MAGIC ((ULONG_PTR)0x574C4844) // SP_DEVICE_INTERFACE_DATA.Reserved of an emulated interface
 
-static HDEVINFO g_hidSets[8];
-static int g_hidSetNext;
-
-static void add_hid_set(HDEVINFO set)
+static struct
 {
-    g_hidSets[g_hidSetNext++ % (sizeof g_hidSets / sizeof g_hidSets[0])] = set;
+    GUID cls;
+    const char *path;
+} g_interfaces[4];
+static int g_interfaceCount;
+
+void wl_vdev_interface(const GUID *cls, const char *path)
+{
+    if (g_interfaceCount < (int)(sizeof g_interfaces / sizeof g_interfaces[0]))
+    {
+        g_interfaces[g_interfaceCount].cls = *cls;
+        g_interfaces[g_interfaceCount++].path = path;
+    }
 }
 
-static int is_hid_set(HDEVINFO set)
+// The sets the game got for those classes: the interface each lists (-1 the HID board)
+static struct
 {
-    for (int i = 0; i < (int)(sizeof g_hidSets / sizeof g_hidSets[0]); i++)
-        if (g_hidSets[i] && g_hidSets[i] == set)
+    HDEVINFO set;
+    int interface;
+} g_sets[8];
+static int g_setNext;
+
+static int set_interface(HDEVINFO set, int *interface)
+{
+    for (int i = 0; i < (int)(sizeof g_sets / sizeof g_sets[0]); i++)
+        if (g_sets[i].set && g_sets[i].set == set)
+        {
+            *interface = g_sets[i].interface;
             return 1;
+        }
     return 0;
+}
+
+static const GUID *interface_class(int interface)
+{
+    return interface < 0 ? &g_hidGuid : &g_interfaces[interface].cls;
+}
+
+static const char *interface_path(int interface)
+{
+    return interface < 0 ? wl_vhid_device()->path : g_interfaces[interface].path;
 }
 
 static void on_class_devs(const GUID *cls, const char *enumerator, DWORD flags, HDEVINFO r, const void *caller)
 {
     char g[48], where[128];
-    int emulated = wl_vhid_active() && cls && IsEqualGUID(*cls, g_hidGuid) && r != INVALID_HANDLE_VALUE;
-    if (emulated)
-        add_hid_set(r);
-    wl_log("SetupDiGetClassDevs %s enumerator=%s flags=0x%lx%s [%s]", guid_str(cls, g, sizeof g), enumerator ? enumerator : "-", flags,
-           emulated ? " -> the emulated board only" : "", wl_where(caller, where, sizeof where));
+    int interface = -2;
+    if (cls && r != INVALID_HANDLE_VALUE)
+    {
+        if (wl_vhid_active() && IsEqualGUID(*cls, g_hidGuid))
+            interface = -1;
+        for (int i = 0; i < g_interfaceCount; i++)
+            if (IsEqualGUID(*cls, g_interfaces[i].cls))
+                interface = i;
+    }
+    if (interface > -2)
+    {
+        int k = g_setNext++ % (int)(sizeof g_sets / sizeof g_sets[0]);
+        g_sets[k].set = r;
+        g_sets[k].interface = interface;
+    }
+    wl_log("SetupDiGetClassDevs %s enumerator=%s flags=0x%lx%s%s [%s]", guid_str(cls, g, sizeof g), enumerator ? enumerator : "-", flags,
+           interface > -2 ? " -> emulated: " : "", interface > -2 ? interface_path(interface) : "", wl_where(caller, where, sizeof where));
 }
 
 static HDEVINFO(WINAPI *oSetupDiGetClassDevsA)(const GUID *, PCSTR, HWND, DWORD);
@@ -401,7 +476,8 @@ static HDEVINFO WINAPI hSetupDiGetClassDevsW(const GUID *cls, PCWSTR enumerator,
 static BOOL(WINAPI *oSetupDiEnumDeviceInterfaces)(HDEVINFO, PSP_DEVINFO_DATA, const GUID *, DWORD, PSP_DEVICE_INTERFACE_DATA);
 static BOOL WINAPI hSetupDiEnumDeviceInterfaces(HDEVINFO set, PSP_DEVINFO_DATA info, const GUID *cls, DWORD index, PSP_DEVICE_INTERFACE_DATA data)
 {
-    if (wl_busy() || !is_hid_set(set))
+    int interface;
+    if (wl_busy() || !set_interface(set, &interface))
         return oSetupDiEnumDeviceInterfaces(set, info, cls, index, data);
     if (index > 0)
     {
@@ -413,18 +489,18 @@ static BOOL WINAPI hSetupDiEnumDeviceInterfaces(HDEVINFO set, PSP_DEVINFO_DATA i
         SetLastError(ERROR_INVALID_USER_BUFFER);
         return FALSE;
     }
-    data->InterfaceClassGuid = g_hidGuid;
+    data->InterfaceClassGuid = *interface_class(interface);
     data->Flags = SPINT_ACTIVE;
-    data->Reserved = VHID_MAGIC;
+    data->Reserved = VDEV_MAGIC;
     return TRUE;
 }
 
-// Path of the emulated board for SetupDiGetDeviceInterfaceDetail; 0 with the error set when the
+// Path of an emulated interface for SetupDiGetDeviceInterfaceDetail; 0 with the error set when the
 // game's buffer cannot take it (the first call only asks for the size)
-static int vhid_detail(DWORD detailCbSize, DWORD expectedCbSize, DWORD pathOffset, DWORD charSize, DWORD size,
+static int vdev_detail(int interface, DWORD detailCbSize, DWORD expectedCbSize, DWORD pathOffset, DWORD charSize, DWORD size,
                        PDWORD required, PSP_DEVINFO_DATA info, int hasDetail)
 {
-    DWORD needed = pathOffset + (DWORD)(strlen(wl_vhid_device()->path) + 1) * charSize;
+    DWORD needed = pathOffset + (DWORD)(strlen(interface_path(interface)) + 1) * charSize;
     if (required)
         *required = needed;
     if (!hasDetail || size < needed)
@@ -439,9 +515,9 @@ static int vhid_detail(DWORD detailCbSize, DWORD expectedCbSize, DWORD pathOffse
     }
     if (info && info->cbSize == sizeof(SP_DEVINFO_DATA))
     {
-        info->ClassGuid = g_hidGuid;
+        info->ClassGuid = *interface_class(interface);
         info->DevInst = 0;
-        info->Reserved = VHID_MAGIC;
+        info->Reserved = VDEV_MAGIC;
     }
     return 1;
 }
@@ -451,13 +527,13 @@ static BOOL(WINAPI *oSetupDiGetDeviceInterfaceDetailA)(HDEVINFO, PSP_DEVICE_INTE
 static BOOL WINAPI hSetupDiGetDeviceInterfaceDetailA(HDEVINFO set, PSP_DEVICE_INTERFACE_DATA itf, PSP_DEVICE_INTERFACE_DETAIL_DATA_A detail,
                                                      DWORD size, PDWORD required, PSP_DEVINFO_DATA info)
 {
-    int nested = wl_busy();
-    if (!nested && itf && itf->Reserved == VHID_MAGIC && is_hid_set(set))
+    int nested = wl_busy(), interface;
+    if (!nested && itf && itf->Reserved == VDEV_MAGIC && set_interface(set, &interface))
     {
-        if (!vhid_detail(detail ? detail->cbSize : 0, sizeof *detail, offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA_A, DevicePath), 1, size, required,
-                         info, detail != NULL))
+        if (!vdev_detail(interface, detail ? detail->cbSize : 0, sizeof *detail, offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA_A, DevicePath), 1, size,
+                         required, info, detail != NULL))
             return FALSE;
-        strcpy(detail->DevicePath, wl_vhid_device()->path);
+        strcpy(detail->DevicePath, interface_path(interface));
         wl_log("SetupDi device: %s (emulated)", detail->DevicePath);
         return TRUE;
     }
@@ -474,14 +550,15 @@ static BOOL(WINAPI *oSetupDiGetDeviceInterfaceDetailW)(HDEVINFO, PSP_DEVICE_INTE
 static BOOL WINAPI hSetupDiGetDeviceInterfaceDetailW(HDEVINFO set, PSP_DEVICE_INTERFACE_DATA itf, PSP_DEVICE_INTERFACE_DETAIL_DATA_W detail,
                                                      DWORD size, PDWORD required, PSP_DEVINFO_DATA info)
 {
-    int nested = wl_busy();
-    if (!nested && itf && itf->Reserved == VHID_MAGIC && is_hid_set(set))
+    int nested = wl_busy(), interface;
+    if (!nested && itf && itf->Reserved == VDEV_MAGIC && set_interface(set, &interface))
     {
-        if (!vhid_detail(detail ? detail->cbSize : 0, sizeof *detail, offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath), sizeof(WCHAR), size,
-                         required, info, detail != NULL))
+        const char *path = interface_path(interface);
+        if (!vdev_detail(interface, detail ? detail->cbSize : 0, sizeof *detail, offsetof(SP_DEVICE_INTERFACE_DETAIL_DATA_W, DevicePath),
+                         sizeof(WCHAR), size, required, info, detail != NULL))
             return FALSE;
-        MultiByteToWideChar(CP_ACP, 0, wl_vhid_device()->path, -1, detail->DevicePath, (int)strlen(wl_vhid_device()->path) + 1);
-        wl_log("SetupDi device: %s (emulated)", wl_vhid_device()->path);
+        MultiByteToWideChar(CP_ACP, 0, path, -1, detail->DevicePath, (int)strlen(path) + 1);
+        wl_log("SetupDi device: %s (emulated)", path);
         return TRUE;
     }
     wl_busy_enter();

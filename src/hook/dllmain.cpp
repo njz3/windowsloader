@@ -25,6 +25,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "pause.h"
+#include "vdev.h"
 #include "wlshared.h"
 
 static int env_int(const wchar_t *name, int def)
@@ -68,11 +69,13 @@ static void wl_init(void)
     wl_hooks_init();
     wl_files_hooks();
     wl_devices_hooks();
+    wl_vdev_hooks();
     wl_system_hooks();
     wl_window_hooks();
     wl_d3d9_hooks();
     wl_dinput_hooks();
     wl_d3d11_hooks();
+    wl_gl_hooks();
     wl_game_init();
     wl_pause_init();
     wl_hooks_install_pending();

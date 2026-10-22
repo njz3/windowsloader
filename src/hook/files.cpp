@@ -15,6 +15,7 @@
 // Device handles (COM, HID) are handed to devices.cpp, which logs their traffic.
 
 #include <windows.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@
 #include "devices.h"
 #include "hooks.h"
 #include "log.h"
+#include "vdev.h"
 #include "vhid.h"
 
 // Plain file events are many; past this count only devices are still logged
@@ -136,6 +138,84 @@ static void cap_forget(HANDLE h)
 }
 
 // ------------------------------------------------------------------------------
+// Fixed folders redirected (wl_files_redirect): C:\Sega, a Taito Type X's D:\ and E:\...
+// ------------------------------------------------------------------------------
+
+static struct
+{
+    char from[MAX_PATH], to[MAX_PATH];
+    wchar_t toW[MAX_PATH];
+    size_t len;
+} g_redirs[4];
+static int g_redirCount;
+
+void wl_files_redirect(const char *from, const char *to)
+{
+    if (g_redirCount >= (int)(sizeof g_redirs / sizeof g_redirs[0]))
+        return;
+    snprintf(g_redirs[g_redirCount].from, MAX_PATH, "%s", from);
+    snprintf(g_redirs[g_redirCount].to, MAX_PATH, "%s", to);
+    size_t len = strlen(g_redirs[g_redirCount].from);
+    while (len && (g_redirs[g_redirCount].from[len - 1] == '\\' || g_redirs[g_redirCount].from[len - 1] == '/'))
+        g_redirs[g_redirCount].from[--len] = 0;
+    g_redirs[g_redirCount].len = len;
+    MultiByteToWideChar(CP_ACP, 0, g_redirs[g_redirCount].to, -1, g_redirs[g_redirCount].toW, MAX_PATH);
+    wl_log("files: %s redirected to %s", g_redirs[g_redirCount].from, g_redirs[g_redirCount].to);
+    g_redirCount++;
+}
+
+static int same_char(int a, int b)
+{
+    if (a == '/')
+        a = '\\';
+    if (b == '/')
+        b = '\\';
+    return tolower(a) == tolower(b);
+}
+
+// A drive ("E:"): "E:.\data" is relative to its current folder, its root here (Chase H.Q. 2's fonts;
+// the Taito module gives E:\ as the current folder)
+static int is_drive(int r)
+{
+    return g_redirs[r].len == 2 && g_redirs[r].from[1] == ':';
+}
+
+// The path itself, or the same one under the redirected folder (written in buf)
+static const char *redir(const char *path, char *buf, size_t size)
+{
+    for (int r = 0; path && r < g_redirCount; r++)
+    {
+        size_t i = 0;
+        while (i < g_redirs[r].len && same_char((unsigned char)path[i], (unsigned char)g_redirs[r].from[i]))
+            i++;
+        const char *rest = path + i;
+        int relative = *rest && *rest != '\\' && *rest != '/';
+        if (i < g_redirs[r].len || (relative && !is_drive(r)))
+            continue;
+        snprintf(buf, size, relative ? "%s\\%s" : "%s%s", g_redirs[r].to, rest);
+        return buf;
+    }
+    return path;
+}
+
+static const wchar_t *redirW(const wchar_t *path, wchar_t *buf, size_t size)
+{
+    for (int r = 0; path && r < g_redirCount; r++)
+    {
+        size_t i = 0;
+        while (i < g_redirs[r].len && path[i] <= 0x7F && same_char(path[i], (unsigned char)g_redirs[r].from[i]))
+            i++;
+        const wchar_t *rest = path + i;
+        int relative = *rest && *rest != L'\\' && *rest != L'/';
+        if (i < g_redirs[r].len || (relative && !is_drive(r)))
+            continue;
+        swprintf(buf, size, relative ? L"%s\\%s" : L"%s%s", g_redirs[r].toW, rest);
+        return buf;
+    }
+    return path;
+}
+
+// ------------------------------------------------------------------------------
 // CreateFile / ReadFile / WriteFile / CloseHandle
 // ------------------------------------------------------------------------------
 
@@ -160,6 +240,16 @@ static void on_create(const char *path, DWORD access, DWORD disp, DWORD flags, H
         wl_dev_track(h, path);
 }
 
+static HANDLE open_vdev(const WlVirtualDevice *device, const char *path, const void *caller)
+{
+    HANDLE h = wl_vdev_open(device);
+    char where[128];
+    wl_log("CreateFile \"%s\" -> %p (emulated) [%s]", path, h, wl_where(caller, where, sizeof where));
+    if (h != INVALID_HANDLE_VALUE)
+        wl_dev_track(h, path);
+    return h;
+}
+
 static HANDLE open_vhid(const char *path, const void *caller)
 {
     HANDLE h = wl_vhid_open();
@@ -174,6 +264,12 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
     int nested = wl_busy();
     if (!nested && wl_vhid_is_path(name))
         return open_vhid(name, WL_CALLER);
+    const WlVirtualDevice *vdev = nested ? NULL : wl_vdev_by_path(name);
+    if (vdev)
+        return open_vdev(vdev, name, WL_CALLER);
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        name = redir(name, rbuf, sizeof rbuf);
     wl_busy_enter();
     HANDLE h = oCreateFileA(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
@@ -194,6 +290,16 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
         if (wl_vhid_is_path(wl_u8(name, path, sizeof path)))
             return open_vhid(path, WL_CALLER);
     }
+    if (!nested && name)
+    {
+        char path[MAX_PATH * 2];
+        const WlVirtualDevice *vdev = wl_vdev_by_path(wl_u8(name, path, sizeof path));
+        if (vdev)
+            return open_vdev(vdev, path, WL_CALLER);
+    }
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        name = redirW(name, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     HANDLE h = oCreateFileW(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
@@ -213,8 +319,9 @@ static BOOL WINAPI hReadFile(HANDLE h, LPVOID buf, DWORD size, LPDWORD read, LPO
     int nested = wl_busy();
     if (!nested && wl_vhid_is_handle(h))
         return wl_vhid_read(h, buf, size, read, ov);
+    int emulated = !nested && wl_vdev_of(h);
     wl_busy_enter();
-    BOOL ok = oReadFile(h, buf, size, read, ov);
+    BOOL ok = emulated ? wl_vdev_read(h, buf, size, read, ov) : oReadFile(h, buf, size, read, ov);
     wl_busy_leave();
     if (nested)
         return ok;
@@ -252,8 +359,9 @@ static BOOL WINAPI hWriteFile(HANDLE h, LPCVOID buf, DWORD size, LPDWORD written
             *written = size;
         return TRUE;
     }
+    int emulated = !nested && wl_vdev_of(h);
     wl_busy_enter();
-    BOOL ok = oWriteFile(h, buf, size, written, ov);
+    BOOL ok = emulated ? wl_vdev_write(h, buf, size, written, ov) : oWriteFile(h, buf, size, written, ov);
     wl_busy_leave();
     if (nested)
         return ok;
@@ -286,6 +394,8 @@ static BOOL WINAPI hCloseHandle(HANDLE h)
         wl_vhid_forget(h);
         wl_log("CloseHandle %p (emulated board)", h);
     }
+    if (!nested && wl_vdev_of(h))
+        wl_vdev_forget(h);
     wl_busy_enter();
     BOOL ok = oCloseHandle(h);
     wl_busy_leave();
@@ -312,6 +422,9 @@ static DWORD(WINAPI *oGetFileAttributesA)(LPCSTR);
 static DWORD WINAPI hGetFileAttributesA(LPCSTR name)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        name = redir(name, rbuf, sizeof rbuf);
     wl_busy_enter();
     DWORD attr = oGetFileAttributesA(name);
     wl_busy_leave();
@@ -326,6 +439,9 @@ static DWORD(WINAPI *oGetFileAttributesW)(LPCWSTR);
 static DWORD WINAPI hGetFileAttributesW(LPCWSTR name)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        name = redirW(name, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     DWORD attr = oGetFileAttributesW(name);
     wl_busy_leave();
@@ -343,6 +459,9 @@ static HANDLE(WINAPI *oFindFirstFileA)(LPCSTR, LPWIN32_FIND_DATAA);
 static HANDLE WINAPI hFindFirstFileA(LPCSTR pattern, LPWIN32_FIND_DATAA data)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        pattern = redir(pattern, rbuf, sizeof rbuf);
     wl_busy_enter();
     HANDLE h = oFindFirstFileA(pattern, data);
     wl_busy_leave();
@@ -360,6 +479,9 @@ static HANDLE(WINAPI *oFindFirstFileW)(LPCWSTR, LPWIN32_FIND_DATAW);
 static HANDLE WINAPI hFindFirstFileW(LPCWSTR pattern, LPWIN32_FIND_DATAW data)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        pattern = redirW(pattern, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     HANDLE h = oFindFirstFileW(pattern, data);
     wl_busy_leave();
@@ -378,6 +500,9 @@ static BOOL(WINAPI *oCreateDirectoryA)(LPCSTR, LPSECURITY_ATTRIBUTES);
 static BOOL WINAPI hCreateDirectoryA(LPCSTR path, LPSECURITY_ATTRIBUTES sa)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        path = redir(path, rbuf, sizeof rbuf);
     wl_busy_enter();
     BOOL ok = oCreateDirectoryA(path, sa);
     wl_busy_leave();
@@ -392,6 +517,9 @@ static BOOL(WINAPI *oCreateDirectoryW)(LPCWSTR, LPSECURITY_ATTRIBUTES);
 static BOOL WINAPI hCreateDirectoryW(LPCWSTR path, LPSECURITY_ATTRIBUTES sa)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        path = redirW(path, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     BOOL ok = oCreateDirectoryW(path, sa);
     wl_busy_leave();
@@ -426,6 +554,9 @@ static DWORD(WINAPI *oGetPrivateProfileStringA)(LPCSTR, LPCSTR, LPCSTR, LPSTR, D
 static DWORD WINAPI hGetPrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR def, LPSTR ret, DWORD size, LPCSTR file)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redir(file, rbuf, sizeof rbuf);
     wl_busy_enter();
     DWORD n = oGetPrivateProfileStringA(app, key, def, ret, size, file);
     wl_busy_leave();
@@ -450,6 +581,9 @@ static DWORD(WINAPI *oGetPrivateProfileStringW)(LPCWSTR, LPCWSTR, LPCWSTR, LPWST
 static DWORD WINAPI hGetPrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR def, LPWSTR ret, DWORD size, LPCWSTR file)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redirW(file, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     DWORD n = oGetPrivateProfileStringW(app, key, def, ret, size, file);
     wl_busy_leave();
@@ -466,6 +600,9 @@ static UINT(WINAPI *oGetPrivateProfileIntA)(LPCSTR, LPCSTR, INT, LPCSTR);
 static UINT WINAPI hGetPrivateProfileIntA(LPCSTR app, LPCSTR key, INT def, LPCSTR file)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redir(file, rbuf, sizeof rbuf);
     wl_busy_enter();
     UINT v = oGetPrivateProfileIntA(app, key, def, file);
     wl_busy_leave();
@@ -484,6 +621,9 @@ static UINT(WINAPI *oGetPrivateProfileIntW)(LPCWSTR, LPCWSTR, INT, LPCWSTR);
 static UINT WINAPI hGetPrivateProfileIntW(LPCWSTR app, LPCWSTR key, INT def, LPCWSTR file)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redirW(file, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     UINT v = oGetPrivateProfileIntW(app, key, def, file);
     wl_busy_leave();
@@ -499,6 +639,9 @@ static BOOL(WINAPI *oWritePrivateProfileStringA)(LPCSTR, LPCSTR, LPCSTR, LPCSTR)
 static BOOL WINAPI hWritePrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR value, LPCSTR file)
 {
     int nested = wl_busy();
+    char rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redir(file, rbuf, sizeof rbuf);
     wl_busy_enter();
     BOOL ok = oWritePrivateProfileStringA(app, key, value, file);
     wl_busy_leave();
@@ -512,6 +655,9 @@ static BOOL(WINAPI *oWritePrivateProfileStringW)(LPCWSTR, LPCWSTR, LPCWSTR, LPCW
 static BOOL WINAPI hWritePrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR value, LPCWSTR file)
 {
     int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        file = redirW(file, rbuf, MAX_PATH * 2);
     wl_busy_enter();
     BOOL ok = oWritePrivateProfileStringW(app, key, value, file);
     wl_busy_leave();
@@ -524,7 +670,85 @@ static BOOL WINAPI hWritePrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR
     return ok;
 }
 
+// ------------------------------------------------------------------------------
+// The other calls taking a path: only redirected (wl_files_redirect)
+// ------------------------------------------------------------------------------
+
+static BOOL(WINAPI *oDeleteFileA)(LPCSTR);
+static BOOL WINAPI hDeleteFileA(LPCSTR path)
+{
+    char rbuf[MAX_PATH * 2];
+    return oDeleteFileA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf));
+}
+
+static BOOL(WINAPI *oDeleteFileW)(LPCWSTR);
+static BOOL WINAPI hDeleteFileW(LPCWSTR path)
+{
+    wchar_t rbuf[MAX_PATH * 2];
+    return oDeleteFileW(wl_busy() ? path : redirW(path, rbuf, MAX_PATH * 2));
+}
+
+static BOOL(WINAPI *oRemoveDirectoryA)(LPCSTR);
+static BOOL WINAPI hRemoveDirectoryA(LPCSTR path)
+{
+    char rbuf[MAX_PATH * 2];
+    return oRemoveDirectoryA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf));
+}
+
+static BOOL(WINAPI *oRemoveDirectoryW)(LPCWSTR);
+static BOOL WINAPI hRemoveDirectoryW(LPCWSTR path)
+{
+    wchar_t rbuf[MAX_PATH * 2];
+    return oRemoveDirectoryW(wl_busy() ? path : redirW(path, rbuf, MAX_PATH * 2));
+}
+
+static BOOL(WINAPI *oGetFileAttributesExA)(LPCSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
+static BOOL WINAPI hGetFileAttributesExA(LPCSTR path, GET_FILEEX_INFO_LEVELS level, LPVOID info)
+{
+    char rbuf[MAX_PATH * 2];
+    return oGetFileAttributesExA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf), level, info);
+}
+
+static BOOL(WINAPI *oGetFileAttributesExW)(LPCWSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
+static BOOL WINAPI hGetFileAttributesExW(LPCWSTR path, GET_FILEEX_INFO_LEVELS level, LPVOID info)
+{
+    wchar_t rbuf[MAX_PATH * 2];
+    return oGetFileAttributesExW(wl_busy() ? path : redirW(path, rbuf, MAX_PATH * 2), level, info);
+}
+
+static BOOL(WINAPI *oSetFileAttributesA)(LPCSTR, DWORD);
+static BOOL WINAPI hSetFileAttributesA(LPCSTR path, DWORD attr)
+{
+    char rbuf[MAX_PATH * 2];
+    return oSetFileAttributesA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf), attr);
+}
+
+static BOOL(WINAPI *oCopyFileA)(LPCSTR, LPCSTR, BOOL);
+static BOOL WINAPI hCopyFileA(LPCSTR from, LPCSTR to, BOOL failIfExists)
+{
+    char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
+    if (wl_busy())
+        return oCopyFileA(from, to, failIfExists);
+    return oCopyFileA(redir(from, rfrom, sizeof rfrom), redir(to, rto, sizeof rto), failIfExists);
+}
+
+static BOOL(WINAPI *oSetCurrentDirectoryA)(LPCSTR);
+static BOOL WINAPI hSetCurrentDirectoryA(LPCSTR path)
+{
+    char rbuf[MAX_PATH * 2];
+    return oSetCurrentDirectoryA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf));
+}
+
 static WlHook g_hooks[] = {
+    WL_HOOK(L"kernel32.dll", DeleteFileA),
+    WL_HOOK(L"kernel32.dll", DeleteFileW),
+    WL_HOOK(L"kernel32.dll", RemoveDirectoryA),
+    WL_HOOK(L"kernel32.dll", RemoveDirectoryW),
+    WL_HOOK(L"kernel32.dll", GetFileAttributesExA),
+    WL_HOOK(L"kernel32.dll", GetFileAttributesExW),
+    WL_HOOK(L"kernel32.dll", SetFileAttributesA),
+    WL_HOOK(L"kernel32.dll", CopyFileA),
+    WL_HOOK(L"kernel32.dll", SetCurrentDirectoryA),
     WL_HOOK(L"kernel32.dll", CreateFileA),
     WL_HOOK(L"kernel32.dll", CreateFileW),
     WL_HOOK(L"kernel32.dll", ReadFile),

@@ -58,6 +58,7 @@ target_compile_options(wl_launcher PRIVATE ${WL_C_FLAGS})
 # ------------------------------------------------------------------------------
 add_library(wl_hook SHARED
     src/hook/dllmain.cpp
+    src/hook/wlhook.def
     src/hook/log.cpp
     src/hook/hooks.cpp
     src/hook/crash.cpp
@@ -69,6 +70,8 @@ add_library(wl_hook SHARED
     src/hook/dinputhook.cpp
     src/hook/vdinput.cpp
     src/hook/d3d11hook.cpp
+    src/hook/glhook.cpp
+    src/hook/vdev.cpp
     src/hook/vhid.cpp
     src/hook/inputs.cpp
     src/hook/agent.cpp
@@ -81,6 +84,14 @@ add_library(wl_hook SHARED
     src/hook/display.cpp
     src/hook/games/segarally3.cpp
     src/hook/games/daytona.cpp
+    src/hook/games/fordracing.cpp
+    src/hook/games/ringedge.cpp
+    src/hook/games/taito.cpp
+    src/hook/games/codemasters.cpp
+    src/hook/pcp.cpp
+    src/hook/jvs.cpp
+    src/hook/driveboard.cpp
+    src/hook/segashell.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -97,4 +108,4 @@ target_compile_definitions(wl_hook PRIVATE ${WL_C_DEFINES})
 target_compile_options(wl_hook PRIVATE ${WL_C_FLAGS})
 # SDL3 (vcpkg, static): the player's controllers, and later the force feedback
 find_package(SDL3 CONFIG REQUIRED)
-target_link_libraries(wl_hook PRIVATE minhook SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi)
+target_link_libraries(wl_hook PRIVATE minhook SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi dwmapi)

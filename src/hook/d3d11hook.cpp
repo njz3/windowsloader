@@ -18,8 +18,10 @@
 // rather than from CreateDXGIFactory: that factory is hooked as soon as the device exists.
 
 #include <windows.h>
+#include <stdlib.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
+#include <dwmapi.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -146,6 +148,7 @@ void wl_d3d11_take_pending_shot(IDXGISwapChain *sc)
         dev->GetImmediateContext(&ctx);
         int rgba = d.Format == DXGI_FORMAT_R8G8B8A8_UNORM || d.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
         int bgra = d.Format == DXGI_FORMAT_B8G8R8A8_UNORM || d.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB || d.Format == DXGI_FORMAT_B8G8R8X8_UNORM;
+        int ten = d.Format == DXGI_FORMAT_R10G10B10A2_UNORM; // DiRT Showdown's: 10 bits a channel, made 8 for the file
         ID3D11Texture2D *src = bb;
         D3D11_TEXTURE2D_DESC s = d;
         s.MipLevels = 1;
@@ -155,7 +158,7 @@ void wl_d3d11_take_pending_shot(IDXGISwapChain *sc)
         s.MiscFlags = 0;
         step = "format";
         hr = E_FAIL;
-        if (rgba || bgra)
+        if (rgba || bgra || ten)
         {
             // A multisampled back buffer is resolved first
             if (d.SampleDesc.Count > 1)
@@ -184,7 +187,30 @@ void wl_d3d11_take_pending_shot(IDXGISwapChain *sc)
             if (SUCCEEDED(hr))
             {
                 step = "writing the file";
-                ok = wl_write_bmp(path, (const unsigned char *)m.pData, (int)m.RowPitch, (int)d.Width, (int)d.Height, rgba);
+                if (ten)
+                {
+                    unsigned char *pixels = (unsigned char *)malloc((size_t)d.Width * d.Height * 4);
+                    if (pixels)
+                    {
+                        for (UINT y = 0; y < d.Height; y++)
+                        {
+                            const UINT *row = (const UINT *)((const unsigned char *)m.pData + (size_t)y * m.RowPitch);
+                            unsigned char *out = pixels + (size_t)y * d.Width * 4;
+                            for (UINT x = 0; x < d.Width; x++)
+                            {
+                                UINT v = row[x];
+                                out[x * 4] = (unsigned char)((v & 0x3FF) >> 2);
+                                out[x * 4 + 1] = (unsigned char)(((v >> 10) & 0x3FF) >> 2);
+                                out[x * 4 + 2] = (unsigned char)(((v >> 20) & 0x3FF) >> 2);
+                                out[x * 4 + 3] = 255;
+                            }
+                        }
+                        ok = wl_write_bmp(path, pixels, (int)d.Width * 4, (int)d.Width, (int)d.Height, 1);
+                        free(pixels);
+                    }
+                }
+                else
+                    ok = wl_write_bmp(path, (const unsigned char *)m.pData, (int)m.RowPitch, (int)d.Width, (int)d.Height, rgba);
                 ctx->Unmap(staging, 0);
             }
         }
@@ -204,15 +230,130 @@ void wl_d3d11_take_pending_shot(IDXGISwapChain *sc)
     wl_shot_done(ok);
 }
 
+// ------------------------------------------------------------------------------
+// The picture copied into the window by GDI (display.h, PRESENT = GDI): the back buffer read back
+// through a staging texture, drawn into the game's window; the swap chain presents into its hidden
+// child window
+// ------------------------------------------------------------------------------
+
+static ID3D11Device *g_gdiDev;
+static ID3D11Texture2D *g_gdiStaging, *g_gdiResolved;
+static D3D11_TEXTURE2D_DESC g_gdiDesc;
+static unsigned char *g_gdiPixels;
+
+static void gdi_release(void)
+{
+    if (g_gdiStaging)
+        g_gdiStaging->Release();
+    if (g_gdiResolved)
+        g_gdiResolved->Release();
+    g_gdiStaging = g_gdiResolved = NULL;
+    free(g_gdiPixels);
+    g_gdiPixels = NULL;
+}
+
+static void gdi_copy(IDXGISwapChain *sc)
+{
+    ID3D11Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+        return;
+    D3D11_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    int rgba = d.Format == DXGI_FORMAT_R8G8B8A8_UNORM || d.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    int bgra = d.Format == DXGI_FORMAT_B8G8R8A8_UNORM || d.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB || d.Format == DXGI_FORMAT_B8G8R8X8_UNORM;
+    int ten = d.Format == DXGI_FORMAT_R10G10B10A2_UNORM;
+    ID3D11Device *dev = NULL;
+    ID3D11DeviceContext *ctx = NULL;
+    bb->GetDevice(&dev);
+    dev->GetImmediateContext(&ctx);
+    if ((rgba || bgra || ten) && (!g_gdiStaging || dev != g_gdiDev || d.Width != g_gdiDesc.Width || d.Height != g_gdiDesc.Height ||
+                                  d.Format != g_gdiDesc.Format || d.SampleDesc.Count != g_gdiDesc.SampleDesc.Count))
+    {
+        gdi_release();
+        g_gdiDev = dev;
+        g_gdiDesc = d;
+        D3D11_TEXTURE2D_DESC s = d;
+        s.MipLevels = 1;
+        s.ArraySize = 1;
+        s.SampleDesc.Count = 1;
+        s.SampleDesc.Quality = 0;
+        s.MiscFlags = 0;
+        s.BindFlags = 0;
+        if (d.SampleDesc.Count > 1)
+        {
+            s.Usage = D3D11_USAGE_DEFAULT;
+            s.CPUAccessFlags = 0;
+            dev->CreateTexture2D(&s, NULL, &g_gdiResolved);
+        }
+        s.Usage = D3D11_USAGE_STAGING;
+        s.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        dev->CreateTexture2D(&s, NULL, &g_gdiStaging);
+        if (!bgra)
+            g_gdiPixels = (unsigned char *)malloc((size_t)d.Width * d.Height * 4);
+    }
+    D3D11_MAPPED_SUBRESOURCE m;
+    if ((rgba || bgra || ten) && g_gdiStaging)
+    {
+        ID3D11Texture2D *src = bb;
+        if (g_gdiResolved)
+        {
+            ctx->ResolveSubresource(g_gdiResolved, 0, bb, 0, d.Format);
+            src = g_gdiResolved;
+        }
+        ctx->CopyResource(g_gdiStaging, src);
+        if (SUCCEEDED(ctx->Map(g_gdiStaging, 0, D3D11_MAP_READ, 0, &m)))
+        {
+            const void *pixels = m.pData;
+            int pitch = (int)m.RowPitch;
+            if (!bgra && g_gdiPixels)
+            {
+                // Made BGRX: R and B swapped, or 10 bits a channel brought to 8 (DiRT Showdown)
+                for (UINT y = 0; y < d.Height; y++)
+                {
+                    const UINT *row = (const UINT *)((const unsigned char *)m.pData + (size_t)y * m.RowPitch);
+                    UINT *out = (UINT *)(g_gdiPixels + (size_t)y * d.Width * 4);
+                    for (UINT x = 0; x < d.Width; x++)
+                    {
+                        UINT v = row[x];
+                        out[x] = ten ? ((v >> 22 & 0xFF) | (v >> 12 & 0xFF) << 8 | (v >> 2 & 0xFF) << 16)
+                                     : ((v >> 16 & 0xFF) | (v & 0xFF00) | (v & 0xFF) << 16);
+                    }
+                }
+                pixels = g_gdiPixels;
+                pitch = (int)d.Width * 4;
+            }
+            wl_display_gdi_draw(pixels, pitch, (int)d.Width, (int)d.Height, 32, 0);
+            ctx->Unmap(g_gdiStaging, 0);
+        }
+    }
+    ctx->Release();
+    dev->Release();
+    bb->Release();
+}
+
+// The frame out: by GDI into the window, the swap chain presenting into its hidden child at no
+// pace of its own (one composition of the screen per interval asked), or the game's Present.
+// The F10 menu presents through it too.
 static HRESULT(STDMETHODCALLTYPE *oPresent)(IDXGISwapChain *, UINT, UINT);
+static HRESULT STDMETHODCALLTYPE present_out(IDXGISwapChain *sc, UINT sync, UINT flags)
+{
+    if (!wl_display_gdi() || (flags & DXGI_PRESENT_TEST))
+        return oPresent(sc, sync, flags);
+    gdi_copy(sc);
+    HRESULT hr = oPresent(sc, 0, flags);
+    for (UINT i = 0; i < sync; i++)
+        DwmFlush();
+    return hr == DXGI_STATUS_OCCLUDED ? S_OK : hr; // its child is hidden: the game keeps drawing
+}
+
 static HRESULT STDMETHODCALLTYPE hPresent(IDXGISwapChain *sc, UINT sync, UINT flags)
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
-    wl_menu_present11(sc, oPresent); // F10: the menu runs here until it is closed
+    wl_menu_present11(sc, present_out); // F10: the menu runs here until it is closed
     wl_d3d11_take_pending_shot(sc);
     wl_display_dest(); // F11, Alt+Enter, the mode chosen in the menu
-    HRESULT hr = oPresent(sc, sync, flags);
+    HRESULT hr = present_out(sc, sync, flags);
     wl_frame_presented();
 
     // Occluded (the window hidden or the screen locked): DXGI draws nothing until it is shown again

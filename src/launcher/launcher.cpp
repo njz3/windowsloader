@@ -267,6 +267,89 @@ static int remote_has_module(DWORD pid, const wchar_t *dllPath)
     return found;
 }
 
+// ------------------------------------------------------------------------------
+// A port driver DLL the game imports statically (Ford Racing's INPOUT32.dll) would be loaded by
+// Windows with the game's other imports, before windowsloader, and it reaches the hardware
+// through a kernel driver. Before the suspended game initializes, its import is pointed at
+// windowsloader's DLL (by its full path, as Detours does it), which exports the same functions
+// at the same ordinals (wlhook.def).
+// ------------------------------------------------------------------------------
+
+typedef LONG(NTAPI *NtQueryInformationProcessFn)(HANDLE, int, PVOID, ULONG, PULONG);
+
+struct WlBasicInfo // PROCESS_BASIC_INFORMATION
+{
+    void *reserved1;
+    void *peb;
+    void *reserved2[2];
+    ULONG_PTR pid;
+    void *reserved3;
+};
+
+static int read_at(HANDLE p, ULONG_PTR addr, void *out, SIZE_T size)
+{
+    SIZE_T got = 0;
+    return ReadProcessMemory(p, (LPCVOID)addr, out, size, &got) && got == size;
+}
+
+static int is_port_driver(const char *name)
+{
+    return !_stricmp(name, "inpout32.dll") || !_stricmp(name, "inpout32_d.dll") || !_stricmp(name, "inpoutx64.dll");
+}
+
+// Memory for the new name within 4 GB above the image, an RVA's reach
+static ULONG_PTR alloc_after(HANDLE p, ULONG_PTR base, DWORD imageSize, SIZE_T size)
+{
+    for (ULONG_PTR at = (base + imageSize + 0xFFFF) & ~(ULONG_PTR)0xFFFF; at - base < 0x7FFF0000; at += 0x10000)
+    {
+        void *mem = VirtualAllocEx(p, (LPVOID)at, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (mem)
+            return (ULONG_PTR)mem;
+    }
+    return 0;
+}
+
+static void redirect_port_imports(const PROCESS_INFORMATION *pi, const wchar_t *dll)
+{
+    NtQueryInformationProcessFn query = (NtQueryInformationProcessFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess");
+    WlBasicInfo bi;
+    ULONG_PTR base = 0;
+    if (!query || query(pi->hProcess, 0 /* ProcessBasicInformation */, &bi, sizeof bi, NULL) < 0 ||
+        !read_at(pi->hProcess, (ULONG_PTR)bi.peb + 2 * sizeof(void *), &base, sizeof base)) // PEB.ImageBaseAddress
+        return;
+    IMAGE_DOS_HEADER dos;
+    IMAGE_NT_HEADERS nt; // the launcher has the game's bitness
+    if (!read_at(pi->hProcess, base, &dos, sizeof dos) || !read_at(pi->hProcess, base + dos.e_lfanew, &nt, sizeof nt))
+        return;
+    const IMAGE_DATA_DIRECTORY &dir = nt.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    for (DWORD at = dir.VirtualAddress; dir.VirtualAddress && at + sizeof(IMAGE_IMPORT_DESCRIPTOR) <= dir.VirtualAddress + dir.Size;
+         at += sizeof(IMAGE_IMPORT_DESCRIPTOR))
+    {
+        IMAGE_IMPORT_DESCRIPTOR d;
+        char name[64] = "";
+        if (!read_at(pi->hProcess, base + at, &d, sizeof d) || !d.Name)
+            break;
+        read_at(pi->hProcess, base + d.Name, name, sizeof name - 1);
+        if (!is_port_driver(name))
+            continue;
+        char path[MAX_PATH * 2];
+        int n = WideCharToMultiByte(CP_ACP, 0, dll, -1, path, sizeof path, NULL, NULL);
+        ULONG_PTR mem = n > 0 ? alloc_after(pi->hProcess, base, nt.OptionalHeader.SizeOfImage, (SIZE_T)n) : 0;
+        DWORD old;
+        if (!mem || !WriteProcessMemory(pi->hProcess, (LPVOID)mem, path, (SIZE_T)n, NULL) ||
+            !VirtualProtectEx(pi->hProcess, (LPVOID)(base + at), sizeof d, PAGE_READWRITE, &old))
+        {
+            say("windowsloader: could not keep the game's %s out (it reaches the hardware's ports)\n", name);
+            continue;
+        }
+        d.Name = (DWORD)(mem - base);
+        d.TimeDateStamp = 0; // not bound: resolved from windowsloader's exports
+        WriteProcessMemory(pi->hProcess, (LPVOID)(base + at), &d, sizeof d, NULL);
+        VirtualProtectEx(pi->hProcess, (LPVOID)(base + at), sizeof d, old, &old);
+        say("  ports:  %s, imported by the game, replaced by windowsloader's own\n", name);
+    }
+}
+
 // LoadLibraryW(dll) in the suspended game. The remote thread also runs the process
 // initialization (static imports, TLS callbacks) before our DLL, so the game's own imports
 // are already loaded when DllMain installs the hooks.
@@ -487,6 +570,13 @@ int wmain(int argc, wchar_t **argv)
     wchar_t iniPath[MAX_PATH];
     swprintf(iniPath, MAX_PATH, L"%s\\windowsloader.ini", selfDir);
     SetEnvironmentVariableW(WL_ENV_INI, iniPath);
+    // On a laptop with two graphics cards, an OpenGL game gets the dedicated NVIDIA one through the
+    // Optimus shim's per-process switch (Direct3D games are given it by the DLL);
+    // WINDOWSLOADER_GPU=default keeps Windows' choice
+    wchar_t gpu[16] = L"";
+    GetEnvironmentVariableW(L"WINDOWSLOADER_GPU", gpu, 16);
+    if (_wcsicmp(gpu, L"default"))
+        SetEnvironmentVariableW(L"SHIM_MCCOMPAT", L"0x800000001");
 
     static wchar_t cmd[CMDLINE_MAX];
     cmd[0] = 0;
@@ -515,6 +605,7 @@ int wmain(int argc, wchar_t **argv)
             say_error("putting the game in a job object (it will survive the launcher)");
     }
 
+    redirect_port_imports(&pi, dllPath);
     if (!inject(&pi, dllPath))
     {
         TerminateProcess(pi.hProcess, 1);

@@ -59,12 +59,39 @@ static HMODULE port_driver(const char *name, const void *caller)
     return mod;
 }
 
+// A DLL refused by the game's module (wl_system_refuse_dll)
+static char g_refusedDll[64];
+
+void wl_system_refuse_dll(const char *name)
+{
+    snprintf(g_refusedDll, sizeof g_refusedDll, "%s", name);
+}
+
+static int refused_dll(const char *path, const void *caller)
+{
+    if (!g_refusedDll[0] || !path)
+        return 0;
+    const char *base = strrchr(path, '\\');
+    const char *slash = strrchr(path, '/');
+    if (slash && (!base || slash > base))
+        base = slash;
+    base = base ? base + 1 : path;
+    if (_stricmp(base, g_refusedDll))
+        return 0;
+    char where[128];
+    wl_log("LoadLibrary \"%s\" refused by the game's module [%s]", path, where_of(caller, where, sizeof where));
+    SetLastError(ERROR_MOD_NOT_FOUND);
+    return 1;
+}
+
 static HMODULE(WINAPI *oLoadLibraryA)(LPCSTR);
 static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
 {
     int nested = wl_busy();
     if (!nested && wl_ioports_is_driver_dll(name) && !wl_is_system_caller(WL_CALLER))
         return port_driver(name, WL_CALLER);
+    if (!nested && refused_dll(name, WL_CALLER))
+        return NULL;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryA(name);
     wl_busy_leave();
@@ -82,6 +109,8 @@ static HMODULE WINAPI hLoadLibraryW(LPCWSTR name)
     char n8[MAX_PATH * 2];
     if (!nested && name && wl_ioports_is_driver_dll(wl_u8(name, n8, sizeof n8)) && !wl_is_system_caller(WL_CALLER))
         return port_driver(n8, WL_CALLER);
+    if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
+        return NULL;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryW(name);
     wl_busy_leave();
@@ -101,6 +130,8 @@ static HMODULE WINAPI hLoadLibraryExA(LPCSTR name, HANDLE file, DWORD flags)
     int nested = wl_busy();
     if (!nested && wl_ioports_is_driver_dll(name) && !wl_is_system_caller(WL_CALLER))
         return port_driver(name, WL_CALLER);
+    if (!nested && refused_dll(name, WL_CALLER))
+        return NULL;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryExA(name, file, flags);
     wl_busy_leave();
@@ -118,6 +149,8 @@ static HMODULE WINAPI hLoadLibraryExW(LPCWSTR name, HANDLE file, DWORD flags)
     char n8[MAX_PATH * 2];
     if (!nested && name && wl_ioports_is_driver_dll(wl_u8(name, n8, sizeof n8)) && !wl_is_system_caller(WL_CALLER))
         return port_driver(n8, WL_CALLER);
+    if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
+        return NULL;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryExW(name, file, flags);
     wl_busy_leave();
@@ -388,6 +421,136 @@ static BOOLEAN WINAPI hSetSuspendState(BOOLEAN hibernate, BOOLEAN force, BOOLEAN
 {
     wl_log("SetSuspendState (hibernate=%d) refused", hibernate);
     return TRUE;
+}
+
+// The PC's clock: a cabinet shell sets it from its service menu
+static BOOL(WINAPI *oSetLocalTime)(const SYSTEMTIME *);
+static BOOL WINAPI hSetLocalTime(const SYSTEMTIME *t)
+{
+    char where[128];
+    if (t)
+        wl_log("SetLocalTime %04u-%02u-%02u %02u:%02u:%02u refused [%s]", t->wYear, t->wMonth, t->wDay, t->wHour, t->wMinute, t->wSecond,
+               where_of(WL_CALLER, where, sizeof where));
+    return TRUE;
+}
+
+static BOOL(WINAPI *oSetSystemTime)(const SYSTEMTIME *);
+static BOOL WINAPI hSetSystemTime(const SYSTEMTIME *t)
+{
+    char where[128];
+    if (t)
+        wl_log("SetSystemTime %04u-%02u-%02u %02u:%02u:%02u refused [%s]", t->wYear, t->wMonth, t->wDay, t->wHour, t->wMinute, t->wSecond,
+               where_of(WL_CALLER, where, sizeof where));
+    return TRUE;
+}
+
+static BOOL(WINAPI *oSetTimeZoneInformation)(const TIME_ZONE_INFORMATION *);
+static BOOL WINAPI hSetTimeZoneInformation(const TIME_ZONE_INFORMATION *tz)
+{
+    char where[128];
+    wl_log("SetTimeZoneInformation (bias %ld min) refused [%s]", tz ? tz->Bias : 0, where_of(WL_CALLER, where, sizeof where));
+    return TRUE;
+}
+
+// ------------------------------------------------------------------------------
+// The machine's registry (HKEY_LOCAL_MACHINE): read only for the game. A cabinet shell writes
+// there the network card's address, for one; the keys it opens under HKLM are given without
+// their write rights, so its writes fail as they would for a user who is not administrator.
+// The keys opened under one of those are followed too (a small table of handles).
+// ------------------------------------------------------------------------------
+
+#define KEY_WRITES (KEY_SET_VALUE | KEY_CREATE_SUB_KEY | KEY_CREATE_LINK | DELETE | WRITE_DAC | WRITE_OWNER)
+
+static HKEY g_hklmKeys[64];
+
+static int is_hklm(HKEY key)
+{
+    if (key == HKEY_LOCAL_MACHINE)
+        return 1;
+    for (int i = 0; i < 64; i++)
+        if (key && g_hklmKeys[i] == key)
+            return 1;
+    return 0;
+}
+
+static void hklm_add(HKEY key)
+{
+    for (int i = 0; i < 64; i++)
+        if (!g_hklmKeys[i] && InterlockedCompareExchangePointer((PVOID *)&g_hklmKeys[i], key, NULL) == NULL)
+            return;
+}
+
+static REGSAM hklm_rights(REGSAM sam, const char *fn, const char *sub, const void *caller)
+{
+    if (!(sam & KEY_WRITES))
+        return sam;
+    char where[128];
+    wl_log("%s HKLM\\...\\%s: opened read only [%s]", fn, sub ? sub : "", where_of(caller, where, sizeof where));
+    sam &= ~(REGSAM)KEY_WRITES;
+    return (sam & (KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_NOTIFY)) ? sam : sam | KEY_READ;
+}
+
+static LSTATUS(WINAPI *oRegOpenKeyExA)(HKEY, LPCSTR, DWORD, REGSAM, PHKEY);
+static LSTATUS WINAPI hRegOpenKeyExA(HKEY key, LPCSTR sub, DWORD options, REGSAM sam, PHKEY result)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegOpenKeyExA(key, sub, options, sam, result);
+    LSTATUS r = oRegOpenKeyExA(key, sub, options, hklm_rights(sam, "RegOpenKeyEx", sub, WL_CALLER), result);
+    if (r == ERROR_SUCCESS && result)
+        hklm_add(*result);
+    return r;
+}
+
+static LSTATUS(WINAPI *oRegOpenKeyExW)(HKEY, LPCWSTR, DWORD, REGSAM, PHKEY);
+static LSTATUS WINAPI hRegOpenKeyExW(HKEY key, LPCWSTR sub, DWORD options, REGSAM sam, PHKEY result)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegOpenKeyExW(key, sub, options, sam, result);
+    char s[512];
+    LSTATUS r = oRegOpenKeyExW(key, sub, options, hklm_rights(sam, "RegOpenKeyEx", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER), result);
+    if (r == ERROR_SUCCESS && result)
+        hklm_add(*result);
+    return r;
+}
+
+// A key created under HKLM: only an existing one is opened, read only
+static LSTATUS(WINAPI *oRegCreateKeyExA)(HKEY, LPCSTR, DWORD, LPSTR, DWORD, REGSAM, const LPSECURITY_ATTRIBUTES, PHKEY, LPDWORD);
+static LSTATUS WINAPI hRegCreateKeyExA(HKEY key, LPCSTR sub, DWORD reserved, LPSTR cls, DWORD options, REGSAM sam, const LPSECURITY_ATTRIBUTES sa,
+                                       PHKEY result, LPDWORD disposition)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegCreateKeyExA(key, sub, reserved, cls, options, sam, sa, result, disposition);
+    LSTATUS r = oRegOpenKeyExA(key, sub, 0, hklm_rights(sam | KEY_CREATE_SUB_KEY, "RegCreateKeyEx", sub, WL_CALLER), result);
+    if (r == ERROR_SUCCESS && result)
+        hklm_add(*result);
+    if (r == ERROR_SUCCESS && disposition)
+        *disposition = REG_OPENED_EXISTING_KEY;
+    return r == ERROR_FILE_NOT_FOUND ? ERROR_ACCESS_DENIED : r;
+}
+
+static LSTATUS(WINAPI *oRegCreateKeyExW)(HKEY, LPCWSTR, DWORD, LPWSTR, DWORD, REGSAM, const LPSECURITY_ATTRIBUTES, PHKEY, LPDWORD);
+static LSTATUS WINAPI hRegCreateKeyExW(HKEY key, LPCWSTR sub, DWORD reserved, LPWSTR cls, DWORD options, REGSAM sam, const LPSECURITY_ATTRIBUTES sa,
+                                       PHKEY result, LPDWORD disposition)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegCreateKeyExW(key, sub, reserved, cls, options, sam, sa, result, disposition);
+    char s[512];
+    LSTATUS r = oRegOpenKeyExW(key, sub, 0, hklm_rights(sam | KEY_CREATE_SUB_KEY, "RegCreateKeyEx", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER),
+                               result);
+    if (r == ERROR_SUCCESS && result)
+        hklm_add(*result);
+    if (r == ERROR_SUCCESS && disposition)
+        *disposition = REG_OPENED_EXISTING_KEY;
+    return r == ERROR_FILE_NOT_FOUND ? ERROR_ACCESS_DENIED : r;
+}
+
+static LSTATUS(WINAPI *oRegCloseKey)(HKEY);
+static LSTATUS WINAPI hRegCloseKey(HKEY key)
+{
+    for (int i = 0; i < 64; i++)
+        if (key && g_hklmKeys[i] == key)
+            InterlockedCompareExchangePointer((PVOID *)&g_hklmKeys[i], NULL, key);
+    return oRegCloseKey(key);
 }
 
 // ------------------------------------------------------------------------------
@@ -691,15 +854,35 @@ static const char *sockaddr_text(const struct sockaddr *a, int len, char *buf, s
     return buf;
 }
 
+// A game listening on its cabinet's own address (Sonic & Sega All-Stars Racing: 192.168.88.<id>,
+// the address it gives itself) listens on this PC's 127.0.0.1 instead, the same port: that address
+// is not on this PC, and the game stays off the local network. What it sends to that network (the
+// other cabinets, its broadcast) is taken and dropped: the cabinet is alone on it.
+static volatile LONG g_cabinetNet; // its first three bytes, 0 for none
 static int(WINAPI *obind)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hbind(UINT_PTR s, const struct sockaddr *a, int len)
 {
+    int game = !wl_busy() && !wl_is_system_caller(WL_CALLER);
+    unsigned char local[16];
+    const unsigned char *b = (const unsigned char *)a;
+    if (game && a && len >= 8 && len <= (int)sizeof local && ((const unsigned short *)a)[0] == 2 /* AF_INET */ && b[4] != 127 &&
+        (b[4] || b[5] || b[6] || b[7]))
+    {
+        char t[32], where[128];
+        wl_log("bind %s: on 127.0.0.1 instead [%s]", sockaddr_text(a, len, t, sizeof t), where_of(WL_CALLER, where, sizeof where));
+        memcpy(local, a, len);
+        InterlockedExchange(&g_cabinetNet, (LONG)(b[4] << 16 | b[5] << 8 | b[6]));
+        local[4] = 127, local[5] = 0, local[6] = 0, local[7] = 1;
+        a = (const struct sockaddr *)local;
+    }
     int r = obind(s, a, len);
-    if (!wl_busy() && !wl_is_system_caller(WL_CALLER))
+    DWORD err = GetLastError(); // the socket's error (WSAGetLastError), kept for the game
+    if (game)
     {
         char t[32], where[128];
         wl_log("bind %s -> %d [%s]", sockaddr_text(a, len, t, sizeof t), r, where_of(WL_CALLER, where, sizeof where));
     }
+    SetLastError(err);
     return r;
 }
 
@@ -737,11 +920,13 @@ static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
     if (game && lan_refused(a, len, "connect", WL_CALLER))
         return -1; // SOCKET_ERROR
     int r = oconnect(s, a, len);
+    DWORD err = GetLastError(); // WSAEWOULDBLOCK on a non-blocking socket: the game reads it
     if (game)
     {
         char t[32], where[128];
         wl_log("connect %s -> %d [%s]", sockaddr_text(a, len, t, sizeof t), r, where_of(WL_CALLER, where, sizeof where));
     }
+    SetLastError(err);
     return r;
 }
 
@@ -749,14 +934,27 @@ static int(WINAPI *osendto)(UINT_PTR, const char *, int, int, const struct socka
 static int WINAPI hsendto(UINT_PTR s, const char *buf, int n, int flags, const struct sockaddr *a, int len)
 {
     static volatile LONG logged;
+    const unsigned char *b = (const unsigned char *)a;
+    if (g_cabinetNet && a && len >= 8 && ((const unsigned short *)a)[0] == 2 /* AF_INET */ && (b[4] << 16 | b[5] << 8 | b[6]) == g_cabinetNet)
+    {
+        static volatile LONG dropped;
+        if (InterlockedIncrement(&dropped) == 1)
+        {
+            char t[32], where[128];
+            wl_log("sendto %s: dropped, the cabinet is alone on its network [%s]", sockaddr_text(a, len, t, sizeof t), where_of(WL_CALLER, where, sizeof where));
+        }
+        return n;
+    }
     if (!wl_busy() && !wl_is_system_caller(WL_CALLER) && lan_refused(a, len, "sendto", WL_CALLER))
         return -1;
     int r = osendto(s, buf, n, flags, a, len);
+    DWORD err = GetLastError();
     if (!wl_busy() && !wl_is_system_caller(WL_CALLER) && InterlockedIncrement(&logged) <= 30)
     {
         char t[32], where[128];
         wl_log("sendto %s (%d bytes) -> %d [%s]", sockaddr_text(a, len, t, sizeof t), n, r, where_of(WL_CALLER, where, sizeof where));
     }
+    SetLastError(err);
     return r;
 }
 
@@ -817,6 +1015,14 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", IsDebuggerPresent),
     WL_HOOK(L"kernel32.dll", ExitProcess),
     WL_HOOK(L"kernel32.dll", TerminateProcess),
+    WL_HOOK(L"kernel32.dll", SetLocalTime),
+    WL_HOOK(L"kernel32.dll", SetSystemTime),
+    WL_HOOK(L"kernel32.dll", SetTimeZoneInformation),
+    WL_HOOK(L"advapi32.dll", RegOpenKeyExA),
+    WL_HOOK(L"advapi32.dll", RegOpenKeyExW),
+    WL_HOOK(L"advapi32.dll", RegCreateKeyExA),
+    WL_HOOK(L"advapi32.dll", RegCreateKeyExW),
+    WL_HOOK(L"advapi32.dll", RegCloseKey),
     WL_HOOK(L"shell32.dll", ShellExecuteA),
     WL_HOOK(L"shell32.dll", ShellExecuteW),
     WL_HOOK(L"shell32.dll", ShellExecuteExA),

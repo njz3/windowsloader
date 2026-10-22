@@ -387,7 +387,8 @@ static void page_ffb(void)
 // Display: linuxloader's three settings, the first two applied at once
 static void page_display(void)
 {
-    static const char *aspects[WL_ASPECT_COUNT] = {"Original (forme de l'image du jeu)", "4:3", "16:9", "4:3 avec bandes noires"};
+    static const char *aspects[WL_ASPECT_COUNT] = {"Original (forme de l'image du jeu)", "4:3 (bandes noires si l'image n'est pas en 4:3)",
+                                                   "16:9 (bandes noires si l'image n'est pas en 16:9)", "4:3 avec bandes noires (comme 4:3)"};
     static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré"};
     static const int sizes[][2] = {{0, 0},     {640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 1024}, {1360, 768},
                                    {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};

@@ -40,6 +40,9 @@ void wl_game_init(void)
     }
     else if (wl_game_daytona(exe, &g_title))
         g_name = "daytona";
-    else
+    else if (wl_game_fordracing(exe, &g_title))
+        g_name = "fordracing";
+    else if (!wl_game_codemasters(exe, &g_name, &g_title) && !wl_game_ringedge(exe, &g_name, &g_title) &&
+             !wl_game_taito(exe, &g_name, &g_title))
         wl_log("game not recognized: observing only");
 }
