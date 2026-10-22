@@ -53,6 +53,9 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 42 | 22/10 | « As tu déjà fait GTI Club ? », puis « Image borne me dit avoir fini » | ✅ GTI Club 3 copié (3,15 Go), module `konami.cpp` : démarre, joue jusqu'en course, vJoy, F10, menu de service (voir BILAN.md) |
 | 43 | 22/10 | (transmise par la session Linuxloader FFB edition) Les réglages de linuxloader, mêmes noms et même sens : `ASPECT_RATIO` étiré et recadré, `CROP_POSITION`, la courbure (`CROP_BARREL`, `BARREL_CENTER`, `BARREL_RADIUS`), le fichier `<nom court>.ini` par jeu avec « Sauvegarder pour ce jeu », `-c`, `--set SECTION.CLE=VALEUR` | ✅ tout, vérifié sur GTI Club 3 (D3D9, 16:9), Battle Gear 4 (D3D9, 4:3) et DiRT Showdown (D3D11, 16:9). Écarts : la courbure seulement avec `PRESENT = GDI` (le défaut) ; en `DIRECT`, D3D9 recadre sans courber et D3D11 montre l'image entière entre bandes noires |
 | 44 | 22/10 | Commit et pousse | ✅ 3 commits poussés : le code (`ce52978`, GTI Club 3 et les réglages de linuxloader), BILAN.md et README.md (`b4d2724`), NOTES.md |
+| 45 | 22/10 | Poursuit (la chaîne des jeux) | 🔄 Wasteland Racers 2071 : copie commencée, carte d'E/S étudiée (voir le journal) |
+| 46 | 22/10 | Mets-toi en pause, je redémarre | ✅ copie arrêtée à 2529 fichiers sur 4860, Image borne prévenue |
+| 47 | 22/10 | Commit et pousse | ✅ rien d'autre en attente : NOTES.md seul |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -680,3 +683,19 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   sur GTI Club 3, Battle Gear 4 et DiRT Showdown ; `--set` en minuscules, « Sauvegarder pour ce jeu » qui
   copie `windowsloader.ini` en `gticlub3.ini` puis y écrit, ce fichier relu au lancement suivant, `-c autre.ini`
   lu tel quel. Le `gticlub3.ini` d'essai mis à la Corbeille.
+
+### 22/10 — Wasteland Racers 2071, préparation (copie interrompue)
+
+- Trio Tech, 2006, `Arcade.exe` 32 bits (Direct3D, fmod, SDL2). Copie depuis racecab1 dans `games/wasteland`,
+  arrêtée à 2529 fichiers sur 4860 (1,47 Go sur 1,7 Go) pour un redémarrage du PC : relancer robocopy (depuis
+  PowerShell) la termine, après avoir prévenu Image borne.
+- Carte d'E/S : `SDC2.dll` (exports `Init`, `Shutdown`, `IsConnected`, `GetAxisData`, `GetDigitalIn`,
+  `GetCoin`, `SetCoin`, `ClearCoin`, `SetForce`, `SetSteeringPos`, `SetDigitalOut`, `SetDGain`, `GetModel`,
+  `GetSerial`, `GetFirmware`, `GetErrorCode`), un volant à retour de force sur COM3 (`ForceFeedbackWheel.xml`,
+  `SerialPort 3`). `Inputs.xml` : axe X volant, Y accélérateur, Z frein ; boutons 0 BOOST, 1 CAMERA, 2 à 5
+  CHEAT1-4, 7 GEAR, 8 COIN, 11 MAINTENANCE, 12 STOP ; sorties BOOST, CAMERA, CHEAT1, ACTIVEBOOST, BRAKES.
+- Retour de force : FFBArcadePlugin (`Game Files/WastelandRacers2071.cpp`) remplace `SetForce` (force =
+  argument / 32768) et `SetSteeringPos` (position / 128000) de `SDC2.dll`. Le module de windowsloader pourra
+  remplacer les exports de `SDC2.dll` de la même façon, entrées comprises, sans COM3.
+- Le `dinput8.dll` du dossier est celui de FFBArcadePlugin (avec `FFBPlugin.ini`, GameId 83) : à tenir à
+  l'écart (comme l'import d'inpout32 réécrit par le lanceur, ou un `LoadLibrary` redirigé vers celui du système).
