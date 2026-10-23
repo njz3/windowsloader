@@ -146,22 +146,34 @@ static struct
     char from[MAX_PATH], to[MAX_PATH];
     wchar_t toW[MAX_PATH];
     size_t len;
-} g_redirs[4];
+    int prefix; // the text replaced as it is, no separator added (wl_files_redirect_prefix)
+} g_redirs[8];
 static int g_redirCount;
 
-void wl_files_redirect(const char *from, const char *to)
+static void add_redirect(const char *from, const char *to, int prefix)
 {
     if (g_redirCount >= (int)(sizeof g_redirs / sizeof g_redirs[0]))
         return;
     snprintf(g_redirs[g_redirCount].from, MAX_PATH, "%s", from);
     snprintf(g_redirs[g_redirCount].to, MAX_PATH, "%s", to);
     size_t len = strlen(g_redirs[g_redirCount].from);
-    while (len && (g_redirs[g_redirCount].from[len - 1] == '\\' || g_redirs[g_redirCount].from[len - 1] == '/'))
+    while (!prefix && len && (g_redirs[g_redirCount].from[len - 1] == '\\' || g_redirs[g_redirCount].from[len - 1] == '/'))
         g_redirs[g_redirCount].from[--len] = 0;
     g_redirs[g_redirCount].len = len;
+    g_redirs[g_redirCount].prefix = prefix;
     MultiByteToWideChar(CP_ACP, 0, g_redirs[g_redirCount].to, -1, g_redirs[g_redirCount].toW, MAX_PATH);
-    wl_log("files: %s redirected to %s", g_redirs[g_redirCount].from, g_redirs[g_redirCount].to);
+    wl_log("files: %s redirected to %s%s", g_redirs[g_redirCount].from, g_redirs[g_redirCount].to, prefix ? " (as a prefix)" : "");
     g_redirCount++;
+}
+
+void wl_files_redirect(const char *from, const char *to)
+{
+    add_redirect(from, to, 0);
+}
+
+void wl_files_redirect_prefix(const char *from, const char *to)
+{
+    add_redirect(from, to, 1);
 }
 
 static int same_char(int a, int b)
@@ -190,9 +202,9 @@ static const char *redir(const char *path, char *buf, size_t size)
             i++;
         const char *rest = path + i;
         int relative = *rest && *rest != '\\' && *rest != '/';
-        if (i < g_redirs[r].len || (relative && !is_drive(r)))
+        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix))
             continue;
-        snprintf(buf, size, relative ? "%s\\%s" : "%s%s", g_redirs[r].to, rest);
+        snprintf(buf, size, relative && !g_redirs[r].prefix ? "%s\\%s" : "%s%s", g_redirs[r].to, rest);
         return buf;
     }
     return path;
@@ -207,9 +219,9 @@ static const wchar_t *redirW(const wchar_t *path, wchar_t *buf, size_t size)
             i++;
         const wchar_t *rest = path + i;
         int relative = *rest && *rest != L'\\' && *rest != L'/';
-        if (i < g_redirs[r].len || (relative && !is_drive(r)))
+        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix))
             continue;
-        swprintf(buf, size, relative ? L"%s\\%s" : L"%s%s", g_redirs[r].toW, rest);
+        swprintf(buf, size, relative && !g_redirs[r].prefix ? L"%s\\%s" : L"%s%s", g_redirs[r].toW, rest);
         return buf;
     }
     return path;
@@ -258,6 +270,33 @@ static HANDLE open_vhid(const char *path, const void *caller)
     return h;
 }
 
+// A serial or parallel port windowsloader does not emulate is refused to the game, as if missing:
+// the cabinet's are not on this PC, and the PC's own lead elsewhere (a com0com pair to another
+// program, a Bluetooth link). Mario Kart Arcade GP DX tries COM0 to COM15.
+static int port_refused(const char *path, const void *caller)
+{
+    if (!path || wl_is_system_caller(caller))
+        return 0;
+    const char *p = path;
+    if (p[0] == '\\' && p[1] == '\\' && (p[2] == '.' || p[2] == '?') && p[3] == '\\')
+        p += 4;
+    if ((_strnicmp(p, "COM", 3) && _strnicmp(p, "LPT", 3)) || !isdigit((unsigned char)p[3]))
+        return 0;
+    const char *q = p + 3;
+    while (isdigit((unsigned char)*q))
+        q++;
+    if (*q && !(*q == ':' && !q[1]))
+        return 0;
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 20)
+    {
+        char where[128];
+        wl_log("CreateFile \"%s\" refused: not emulated, the PC's own ports are not the cabinet's [%s]", path, wl_where(caller, where, sizeof where));
+    }
+    SetLastError(ERROR_FILE_NOT_FOUND);
+    return 1;
+}
+
 static HANDLE(WINAPI *oCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
 static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
 {
@@ -267,6 +306,8 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
     const WlVirtualDevice *vdev = nested ? NULL : wl_vdev_by_path(name);
     if (vdev)
         return open_vdev(vdev, name, WL_CALLER);
+    if (!nested && port_refused(name, WL_CALLER))
+        return INVALID_HANDLE_VALUE;
     char rbuf[MAX_PATH * 2];
     if (!nested)
         name = redir(name, rbuf, sizeof rbuf);
@@ -296,6 +337,8 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
         const WlVirtualDevice *vdev = wl_vdev_by_path(wl_u8(name, path, sizeof path));
         if (vdev)
             return open_vdev(vdev, path, WL_CALLER);
+        if (port_refused(path, WL_CALLER))
+            return INVALID_HANDLE_VALUE;
     }
     wchar_t rbuf[MAX_PATH * 2];
     if (!nested)

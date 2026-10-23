@@ -21,9 +21,13 @@
 #define JVS_SYNC 0xE0
 #define JVS_ESCAPE 0xD0
 
-static const WlJvsBoard *g_board;
-static unsigned char g_address; // 0 until the host gives one
-static unsigned short g_used[2]; // coins taken by the host (command 0x30)
+#define JVS_NODES 2
+
+// The boards on the bus, the first one registered first
+static const WlJvsBoard *g_boards[JVS_NODES];
+static int g_nodes;
+static unsigned char g_address[JVS_NODES]; // 0 until the host gives one
+static unsigned short g_used[JVS_NODES][2]; // coins taken by the host (command 0x30)
 
 // Bytes from the host, until a whole packet is there; bytes to the host
 static unsigned char g_in[512];
@@ -59,34 +63,36 @@ static void send_packet(const unsigned char *data, int length)
     out_byte(sum, 1);
 }
 
-// One request (its commands) -> the reply's status and reports in r; returns its length, 0 for none
-static int answer(const unsigned char *p, int n, unsigned char *r)
+// One request (its commands) to board b -> the reply's status and reports in r; returns its length,
+// 0 for none
+static int answer(int b, const unsigned char *p, int n, unsigned char *r)
 {
+    const WlJvsBoard *board = g_boards[b];
     int k = 0;
     r[k++] = 0x01; // status: fine
     WlJvsState st;
     memset(&st, 0, sizeof st);
-    if (g_board->read)
-        g_board->read(&st);
+    if (board->read)
+        board->read(&st);
     int i = 0;
     while (i < n)
     {
         unsigned char c = p[i++];
         switch (c)
         {
-        case 0xF0: // reset (broadcast, no reply)
+        case 0xF0: // reset (broadcast, no reply): every board
             i++;
-            g_address = 0;
+            memset(g_address, 0, sizeof g_address);
             return 0;
         case 0xF1: // address
-            g_address = p[i++];
+            g_address[b] = p[i++];
             r[k++] = 0x01;
             break;
         case 0x10: // identity
         {
-            size_t len = strlen(g_board->id) + 1;
+            size_t len = strlen(board->id) + 1;
             r[k++] = 0x01;
-            memcpy(r + k, g_board->id, len);
+            memcpy(r + k, board->id, len);
             k += (int)len;
             break;
         }
@@ -104,13 +110,13 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             break;
         case 0x14: // features
             r[k++] = 0x01;
-            r[k++] = 0x01, r[k++] = (unsigned char)g_board->players, r[k++] = (unsigned char)(g_board->switchBytes * 8), r[k++] = 0;
-            if (g_board->coinSlots)
-                r[k++] = 0x02, r[k++] = (unsigned char)g_board->coinSlots, r[k++] = 0, r[k++] = 0;
-            if (g_board->analogChannels)
-                r[k++] = 0x03, r[k++] = (unsigned char)g_board->analogChannels, r[k++] = (unsigned char)g_board->analogBits, r[k++] = 0;
-            if (g_board->outputs)
-                r[k++] = 0x12, r[k++] = (unsigned char)g_board->outputs, r[k++] = 0, r[k++] = 0;
+            r[k++] = 0x01, r[k++] = (unsigned char)board->players, r[k++] = (unsigned char)(board->switchBytes * 8), r[k++] = 0;
+            if (board->coinSlots)
+                r[k++] = 0x02, r[k++] = (unsigned char)board->coinSlots, r[k++] = 0, r[k++] = 0;
+            if (board->analogChannels)
+                r[k++] = 0x03, r[k++] = (unsigned char)board->analogChannels, r[k++] = (unsigned char)board->analogBits, r[k++] = 0;
+            if (board->outputs)
+                r[k++] = 0x12, r[k++] = (unsigned char)board->outputs, r[k++] = 0, r[k++] = 0;
             r[k++] = 0x00;
             break;
         case 0x15: // the host's identity
@@ -141,7 +147,7 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             r[k++] = 0x01;
             for (int s = 0; s < slots; s++)
             {
-                unsigned short count = s < 2 ? (unsigned short)(st.coins[s] - g_used[s]) & 0x3FFF : 0;
+                unsigned short count = s < 2 ? (unsigned short)(st.coins[s] - g_used[b][s]) & 0x3FFF : 0;
                 r[k++] = (unsigned char)(count >> 8);
                 r[k++] = (unsigned char)count;
             }
@@ -159,13 +165,21 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             }
             break;
         }
+        case 0x26: // general purpose inputs: byte count
+        {
+            int bytes = p[i++];
+            r[k++] = 0x01;
+            for (int m = 0; m < bytes; m++)
+                r[k++] = m < 4 ? st.misc[m] : 0;
+            break;
+        }
         case 0x30: // take coins: slot, count
         {
             int slot = p[i] - 1;
             unsigned short count = (unsigned short)(p[i + 1] << 8 | p[i + 2]);
             i += 3;
             if (slot >= 0 && slot < 2)
-                g_used[slot] += count;
+                g_used[b][slot] += count;
             r[k++] = 0x01;
             break;
         }
@@ -175,15 +189,15 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             unsigned short count = (unsigned short)(p[i + 1] << 8 | p[i + 2]);
             i += 3;
             if (slot >= 0 && slot < 2)
-                g_used[slot] -= count;
+                g_used[b][slot] -= count;
             r[k++] = 0x01;
             break;
         }
         case 0x32: // general purpose outputs: byte count, bytes
         {
             int bytes = p[i++];
-            if (g_board->output)
-                g_board->output(p + i, bytes);
+            if (board->output)
+                board->output(p + i, bytes);
             i += bytes;
             r[k++] = 0x01;
             break;
@@ -194,8 +208,8 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             unsigned short values[16];
             for (int ch = 0; ch < channels && ch < 16; ch++)
                 values[ch] = (unsigned short)(p[i + 2 * ch] << 8 | p[i + 2 * ch + 1]);
-            if (g_board->analogOutput)
-                g_board->analogOutput(values, channels < 16 ? channels : 16);
+            if (board->analogOutput)
+                board->analogOutput(values, channels < 16 ? channels : 16);
             i += 2 * channels;
             r[k++] = 0x01;
             break;
@@ -233,6 +247,21 @@ static int answer(const unsigned char *p, int n, unsigned char *r)
             i += 1;
             r[k++] = 0x01;
             break;
+        case 0x64: // Taito's, one byte (Battle Gear 4, now and then): taken
+            i += 1;
+            r[k++] = 0x01;
+            break;
+        case 0x66: // Taito's, two bytes (Battle Gear 4 Pro, its last request): taken, logged on change
+        {
+            static int last = -1, logged;
+            int v = p[i] << 8 | p[i + 1];
+            if (v != last && logged++ < 40)
+                wl_log("jvs: command 66 (Taito) %02x %02x", p[i], p[i + 1]);
+            last = v;
+            i += 2;
+            r[k++] = 0x01;
+            break;
+        }
         case 0x2F: // send the last reply again: not kept, an empty one
             r[k++] = 0x01;
             break;
@@ -292,14 +321,21 @@ static void take_packets(void)
             send_packet(&r, 1);
             continue;
         }
-        // For this board: its address, or the broadcast (reset, addressing while it has none)
-        if (node != 0xFF && (!g_address || node != g_address))
+        // The board at that address; the broadcast (reset, addressing) to the first one without an
+        // address, or the first one when all have one
+        int b = -1;
+        for (int k = 0; k < g_nodes && b < 0; k++)
+            if (node == 0xFF ? !g_address[k] : node == g_address[k])
+                b = k;
+        if (b < 0 && node == 0xFF)
+            b = 0;
+        if (b < 0)
             continue;
         static unsigned packets;
         if (++packets % 1000 == 0)
             wl_log("jvs: %u requests answered", packets);
         unsigned char reply[512];
-        int n = answer(pkt + 2, length - 1, reply);
+        int n = answer(b, pkt + 2, length - 1, reply);
         if (n)
             send_packet(reply, n);
     }
@@ -338,12 +374,17 @@ static DWORD jvs_waiting(void)
 }
 
 // The sense line, as the Sega libraries read it (OpenParrot, Ring_amLib/amJvs.cpp): CTS, and DSR
-// once the board has an address. Taito's Type X (Battle Gear 4 +0x60cb0a): CTS once it has one.
+// once the boards have an address. Taito's Type X (Battle Gear 4 +0x60cb0a): CTS once they have one,
+// the host giving addresses until then (+0x60cb37).
 static DWORD jvs_modem(void)
 {
-    if (g_board->ctsWhenAddressed)
-        return g_address ? MS_CTS_ON : 0;
-    return g_address ? MS_CTS_ON | MS_DSR_ON : MS_CTS_ON;
+    int addressed = 1;
+    for (int k = 0; k < g_nodes; k++)
+        if (!g_address[k])
+            addressed = 0;
+    if (g_boards[0]->ctsWhenAddressed)
+        return addressed ? MS_CTS_ON : 0;
+    return addressed ? MS_CTS_ON | MS_DSR_ON : MS_CTS_ON;
 }
 
 // The \\.\mxjvs driver of the RingWide (K.O. Drive's amJvst +0x7c0d3e): one call takes a request
@@ -376,7 +417,8 @@ static WlVirtualDevice g_ports[2] = {{NULL, jvs_ioctl, jvs_read, jvs_write, jvs_
 
 void wl_jvs_register(const WlJvsBoard *board)
 {
-    g_board = board;
+    g_boards[0] = board;
+    g_nodes = 1;
     InitializeCriticalSection(&g_lock);
     g_ports[0].name = board->port;
     wl_vdev_register(&g_ports[0]);
@@ -388,4 +430,12 @@ void wl_jvs_add_port(const char *port)
     g_ports[1].name = port;
     wl_vdev_register(&g_ports[1]);
     wl_log("emulated JVS board also on %s", port);
+}
+
+void wl_jvs_add_node(const WlJvsBoard *board)
+{
+    if (g_nodes < 1 || g_nodes >= JVS_NODES)
+        return;
+    g_boards[g_nodes++] = board;
+    wl_log("emulated JVS board, node %d on the same bus: %s", g_nodes, board->id);
 }

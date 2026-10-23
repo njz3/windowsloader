@@ -18,6 +18,7 @@
 
 static const char *g_name = "unknown";
 static const char *g_title = "jeu inconnu";
+static void (*g_onSettings)(void);
 
 const char *wl_game_name(void)
 {
@@ -43,6 +44,18 @@ void wl_game_init(void)
     else if (wl_game_fordracing(exe, &g_title))
         g_name = "fordracing";
     else if (!wl_game_codemasters(exe, &g_name, &g_title) && !wl_game_ringedge(exe, &g_name, &g_title) &&
-             !wl_game_taito(exe, &g_name, &g_title) && !wl_game_konami(exe, &g_name, &g_title))
+             !wl_game_taito(exe, &g_name, &g_title) && !wl_game_konami(exe, &g_name, &g_title) &&
+             !wl_game_triotech(exe, &g_name, &g_title) && !wl_game_namco(exe, &g_name, &g_title))
         wl_log("game not recognized: observing only");
+}
+
+void wl_game_on_settings(void (*fn)(void))
+{
+    g_onSettings = fn;
+}
+
+void wl_game_settings(void)
+{
+    if (g_onSettings)
+        g_onSettings();
 }

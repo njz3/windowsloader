@@ -12,7 +12,8 @@
 // its own project; such code is marked with its origin.
 
 // The DirectInput joystick played by windowsloader (vdinput.h): an IDirectInputDevice8A of its
-// own with 6 absolute axes and up to 32 buttons, no POV, no force feedback. The game's data
+// own with 6 absolute axes and up to 32 buttons, no POV, force feedback when the module asks for
+// it (its effects played as windowsloader's force, below). The game's data
 // format is honoured as DirectInput does it: each object of the format takes the first free
 // object of the device of its type (and GUID, and instance when it names one), GetDeviceState
 // writes them at the format's offsets. Axes report in the range the game sets (DIPROP_RANGE),
@@ -21,14 +22,17 @@
 #define DIRECTINPUT_VERSION 0x0800
 #include <windows.h>
 #include <dinput.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "ffb.h"
 #include "hooks.h"
 #include "log.h"
 #include "vdinput.h"
 
 static const WlVirtualJoystick *g_joy;
+static CRITICAL_SECTION g_effectsLock; // the force feedback effects (below)
 
 // {57A4C0DE-D17A-4E10-9C3B-77696E6C6472}: the instance GUID, made up for windowsloader
 static const GUID g_instance = {0x57A4C0DE, 0xD17A, 0x4E10, {0x9C, 0x3B, 0x77, 0x69, 0x6E, 0x6C, 0x64, 0x72}};
@@ -136,6 +140,7 @@ static UINT WINAPI hGetRawInputDeviceInfoW(HANDLE device, UINT command, LPVOID d
 void wl_vdinput_register(const WlVirtualJoystick *joy)
 {
     g_joy = joy;
+    InitializeCriticalSection(&g_effectsLock);
     wl_log("dinput: \"%s\" played by windowsloader (%d buttons), the PC's game controllers hidden from the game", joy->name, joy->buttons);
     HMODULE game = GetModuleHandleW(NULL);
     int listed = wl_patch_iat(game, "user32.dll", "GetRawInputDeviceList", (void *)hGetRawInputDeviceList, (void **)&oGetRawInputDeviceList);
@@ -147,6 +152,11 @@ void wl_vdinput_register(const WlVirtualJoystick *joy)
 int wl_vdinput_active(void)
 {
     return g_joy != NULL;
+}
+
+int wl_vdinput_ffb(void)
+{
+    return g_joy && g_joy->ffb;
 }
 
 int wl_vdinput_is_ours(REFGUID instance)
@@ -166,12 +176,17 @@ static DWORD device_type(void)
     return DI8DEVTYPE_DRIVING | DI8DEVTYPEDRIVING_DUALPEDALS << 8 | DIDEVTYPE_HID;
 }
 
+// {57A4C0DE-D17A-4E10-9C3B-77696E6C6666}: the force feedback driver's GUID, made up as well
+static const GUID g_ffDriver = {0x57A4C0DE, 0xD17A, 0x4E10, {0x9C, 0x3B, 0x77, 0x69, 0x6E, 0x6C, 0x66, 0x66}};
+
 void wl_vdinput_instance(DIDEVICEINSTANCEA *out)
 {
     memset(out, 0, sizeof *out);
     out->dwSize = sizeof *out;
     out->guidInstance = g_instance;
     out->guidProduct = product_guid();
+    if (g_joy->ffb)
+        out->guidFFDriver = g_ffDriver;
     out->dwDevType = device_type();
     snprintf(out->tszInstanceName, sizeof out->tszInstanceName, "%s", g_joy->name);
     snprintf(out->tszProductName, sizeof out->tszProductName, "%s", g_joy->name);
@@ -212,6 +227,320 @@ static DWORD didft_of(int obj)
 static const GUID *guid_of(int obj)
 {
     return is_axis(obj) ? g_axisGuids[obj] : &GUID_Button;
+}
+
+// ------------------------------------------------------------------------------
+// Force feedback (WlVirtualJoystick.ffb): the effects the game creates are kept and played
+// together as one force on the X axis. Springs pull towards their offset by the wheel's
+// position, constant forces, ramps and periodic forces push; dampers, inertia and friction are
+// left out (the wheel's speed is not known here). A force towards +X is towards the right.
+// ------------------------------------------------------------------------------
+
+#define MAX_EFFECTS 32
+
+class VirtualEffect;
+static VirtualEffect *g_effects[MAX_EFFECTS];
+static LONG g_deviceGain = 10000;
+static int g_actuators = 1; // DISFFC_SETACTUATORSOFF clears it
+
+static int effect_kind(REFGUID g)
+{
+    if (IsEqualGUID(g, GUID_ConstantForce))
+        return 1;
+    if (IsEqualGUID(g, GUID_RampForce))
+        return 2;
+    if (IsEqualGUID(g, GUID_Square) || IsEqualGUID(g, GUID_Sine) || IsEqualGUID(g, GUID_Triangle) || IsEqualGUID(g, GUID_SawtoothUp) ||
+        IsEqualGUID(g, GUID_SawtoothDown))
+        return 3;
+    if (IsEqualGUID(g, GUID_Spring))
+        return 4;
+    if (IsEqualGUID(g, GUID_Damper) || IsEqualGUID(g, GUID_Inertia) || IsEqualGUID(g, GUID_Friction))
+        return 5;
+    return 0;
+}
+
+static const char *effect_name(REFGUID g)
+{
+    static const char *names[] = {"unknown", "constant", "ramp", "periodic", "spring", "damper/inertia/friction"};
+    return names[effect_kind(g)];
+}
+
+class VirtualEffect : public IDirectInputEffect
+{
+  public:
+    VirtualEffect(REFGUID g) : m_refs(1), m_guid(g), m_gain(10000), m_duration(INFINITE), m_dir(1), m_playing(0), m_start(0), m_iterations(1)
+    {
+        memset(&m_constant, 0, sizeof m_constant);
+        memset(&m_ramp, 0, sizeof m_ramp);
+        memset(&m_periodic, 0, sizeof m_periodic);
+        memset(&m_condition, 0, sizeof m_condition);
+        EnterCriticalSection(&g_effectsLock);
+        for (int i = 0; i < MAX_EFFECTS; i++)
+            if (!g_effects[i])
+            {
+                g_effects[i] = this;
+                break;
+            }
+        LeaveCriticalSection(&g_effectsLock);
+    }
+
+    // IUnknown
+    STDMETHODIMP QueryInterface(REFIID riid, LPVOID *out)
+    {
+        if (!out)
+            return E_POINTER;
+        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IDirectInputEffect))
+        {
+            *out = this;
+            AddRef();
+            return S_OK;
+        }
+        *out = NULL;
+        return E_NOINTERFACE;
+    }
+    STDMETHODIMP_(ULONG) AddRef()
+    {
+        return (ULONG)InterlockedIncrement(&m_refs);
+    }
+    STDMETHODIMP_(ULONG) Release()
+    {
+        LONG n = InterlockedDecrement(&m_refs);
+        if (!n)
+        {
+            EnterCriticalSection(&g_effectsLock);
+            for (int i = 0; i < MAX_EFFECTS; i++)
+                if (g_effects[i] == this)
+                    g_effects[i] = NULL;
+            LeaveCriticalSection(&g_effectsLock);
+            delete this;
+        }
+        return (ULONG)n;
+    }
+
+    // IDirectInputEffect
+    STDMETHODIMP Initialize(HINSTANCE inst, DWORD version, REFGUID g)
+    {
+        return DI_OK;
+    }
+    STDMETHODIMP GetEffectGuid(LPGUID g)
+    {
+        if (!g)
+            return E_POINTER;
+        *g = m_guid;
+        return DI_OK;
+    }
+    STDMETHODIMP GetParameters(LPDIEFFECT e, DWORD flags)
+    {
+        if (!e)
+            return E_POINTER;
+        if (flags & DIEP_GAIN)
+            e->dwGain = m_gain;
+        if (flags & DIEP_DURATION)
+            e->dwDuration = m_duration;
+        if ((flags & DIEP_TYPESPECIFICPARAMS) && e->lpvTypeSpecificParams)
+        {
+            const void *p = specific();
+            DWORD size = specific_size();
+            if (e->cbTypeSpecificParams < size)
+                return DIERR_MOREDATA;
+            memcpy(e->lpvTypeSpecificParams, p, size);
+            e->cbTypeSpecificParams = size;
+        }
+        return DI_OK;
+    }
+    STDMETHODIMP SetParameters(LPCDIEFFECT e, DWORD flags)
+    {
+        if (!e)
+            return E_POINTER;
+        EnterCriticalSection(&g_effectsLock);
+        if (flags & DIEP_GAIN)
+            m_gain = e->dwGain;
+        if (flags & DIEP_DURATION)
+            m_duration = e->dwDuration;
+        if ((flags & DIEP_DIRECTION) && e->rglDirection && e->cAxes)
+        {
+            // One axis: the sign along X (polar: 9000 is +X, 27000 is -X)
+            LONG d = e->rglDirection[0];
+            if (e->dwFlags & DIEFF_POLAR)
+                m_dir = d > 0 && d < 18000 ? 1 : d > 18000 ? -1 : 0;
+            else if (e->dwFlags & DIEFF_SPHERICAL)
+                m_dir = d < 9000 || d > 27000 ? 1 : -1;
+            else
+                m_dir = d > 0 ? 1 : d < 0 ? -1 : 0;
+        }
+        if ((flags & DIEP_TYPESPECIFICPARAMS) && e->lpvTypeSpecificParams)
+        {
+            DWORD size = specific_size();
+            memcpy(specific(), e->lpvTypeSpecificParams, e->cbTypeSpecificParams < size ? e->cbTypeSpecificParams : size);
+        }
+        LeaveCriticalSection(&g_effectsLock);
+        static int logged;
+        if (logged++ < 40)
+            wl_log("dinput \"%s\": %s effect set (flags 0x%lx, gain %lu, direction %d)", g_joy->name, effect_name(m_guid), flags, m_gain, m_dir);
+        if (flags & DIEP_START)
+            Start(1, 0);
+        return DI_OK;
+    }
+    STDMETHODIMP Start(DWORD iterations, DWORD flags)
+    {
+        EnterCriticalSection(&g_effectsLock);
+        if (flags & DIES_SOLO)
+            for (int i = 0; i < MAX_EFFECTS; i++)
+                if (g_effects[i])
+                    g_effects[i]->m_playing = 0;
+        m_playing = 1;
+        m_start = GetTickCount();
+        m_iterations = iterations ? iterations : 1;
+        LeaveCriticalSection(&g_effectsLock);
+        return DI_OK;
+    }
+    STDMETHODIMP Stop()
+    {
+        m_playing = 0;
+        return DI_OK;
+    }
+    STDMETHODIMP GetEffectStatus(LPDWORD status)
+    {
+        if (!status)
+            return E_POINTER;
+        *status = playing(GetTickCount()) ? DIEGES_PLAYING : 0;
+        return DI_OK;
+    }
+    STDMETHODIMP Download()
+    {
+        return DI_OK;
+    }
+    STDMETHODIMP Unload()
+    {
+        m_playing = 0;
+        return DI_OK;
+    }
+    STDMETHODIMP Escape(LPDIEFFESCAPE esc)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+
+    // Its force now towards +X, -10000..10000, the wheel at x (-10000 left .. 10000 right)
+    double force(LONG x, DWORD now)
+    {
+        if (!playing(now))
+            return 0;
+        double f = 0, t = (double)(now - m_start);
+        switch (effect_kind(m_guid))
+        {
+        case 1:
+            f = m_constant.lMagnitude * (double)m_dir;
+            break;
+        case 2:
+        {
+            double k = m_duration && m_duration != INFINITE ? t * 1000.0 / m_duration : 0;
+            k -= (long)k;
+            f = (m_ramp.lStart + (m_ramp.lEnd - m_ramp.lStart) * k) * m_dir;
+            break;
+        }
+        case 3:
+        {
+            double period = m_periodic.dwPeriod ? m_periodic.dwPeriod / 1000.0 : 1, phase = t / period + m_periodic.dwPhase / 36000.0;
+            phase -= (long)phase;
+            double w;
+            if (IsEqualGUID(m_guid, GUID_Square))
+                w = phase < 0.5 ? 1 : -1;
+            else if (IsEqualGUID(m_guid, GUID_Triangle))
+                w = phase < 0.5 ? 4 * phase - 1 : 3 - 4 * phase;
+            else if (IsEqualGUID(m_guid, GUID_SawtoothUp))
+                w = 2 * phase - 1;
+            else if (IsEqualGUID(m_guid, GUID_SawtoothDown))
+                w = 1 - 2 * phase;
+            else
+                w = sin(phase * 6.283185307179586);
+            f = ((double)m_periodic.dwMagnitude * w + m_periodic.lOffset) * m_dir;
+            break;
+        }
+        case 4:
+        {
+            // A spring pulls back towards its offset, its push limited by its saturation
+            LONG d = x - m_condition.lOffset;
+            if (d <= (LONG)m_condition.lDeadBand && d >= -(LONG)m_condition.lDeadBand)
+                return 0;
+            LONG c = d > 0 ? m_condition.lPositiveCoefficient : m_condition.lNegativeCoefficient;
+            DWORD sat = d > 0 ? m_condition.dwPositiveSaturation : m_condition.dwNegativeSaturation;
+            f = -(double)c * d / 10000.0;
+            if (sat && f > (double)sat)
+                f = sat;
+            if (sat && f < -(double)sat)
+                f = -(double)sat;
+            break;
+        }
+        default:
+            return 0;
+        }
+        return f * m_gain / 10000.0;
+    }
+
+  private:
+    int playing(DWORD now)
+    {
+        if (!m_playing)
+            return 0;
+        if (m_duration != INFINITE && m_iterations != INFINITE && (double)(now - m_start) * 1000.0 > (double)m_duration * m_iterations)
+            m_playing = 0;
+        return m_playing;
+    }
+
+    void *specific()
+    {
+        switch (effect_kind(m_guid))
+        {
+        case 1:
+            return &m_constant;
+        case 2:
+            return &m_ramp;
+        case 3:
+            return &m_periodic;
+        default:
+            return &m_condition;
+        }
+    }
+    DWORD specific_size()
+    {
+        switch (effect_kind(m_guid))
+        {
+        case 1:
+            return sizeof m_constant;
+        case 2:
+            return sizeof m_ramp;
+        case 3:
+            return sizeof m_periodic;
+        default:
+            return sizeof m_condition;
+        }
+    }
+
+    volatile LONG m_refs;
+    GUID m_guid;
+    DWORD m_gain, m_duration;
+    int m_dir;
+    volatile int m_playing;
+    DWORD m_start, m_iterations;
+    DICONSTANTFORCE m_constant;
+    DIRAMPFORCE m_ramp;
+    DIPERIODIC m_periodic;
+    DICONDITION m_condition; // the first axis's
+};
+
+// The effects together, played on windowsloader's force (> 0 to the left), the wheel at x
+static void ffb_update(unsigned short x)
+{
+    LONG pos = (LONG)x * 20000 / 65535 - 10000;
+    DWORD now = GetTickCount();
+    double total = 0;
+    EnterCriticalSection(&g_effectsLock);
+    for (int i = 0; i < MAX_EFFECTS; i++)
+        if (g_effects[i])
+            total += g_effects[i]->force(pos, now);
+    LeaveCriticalSection(&g_effectsLock);
+    total = g_actuators ? total * g_deviceGain / 10000.0 / 10000.0 : 0;
+    wl_ffb_set(total > 1 ? -1 : total < -1 ? 1 : -total);
 }
 
 class VirtualDevice : public IDirectInputDevice8A
@@ -261,7 +590,7 @@ class VirtualDevice : public IDirectInputDevice8A
         DWORD size = caps->dwSize;
         memset(caps, 0, size);
         caps->dwSize = size;
-        caps->dwFlags = DIDC_ATTACHED | DIDC_EMULATED;
+        caps->dwFlags = DIDC_ATTACHED | DIDC_EMULATED | (g_joy->ffb ? DIDC_FORCEFEEDBACK : 0);
         caps->dwDevType = device_type();
         caps->dwAxes = WL_VDINPUT_AXES;
         caps->dwButtons = g_joy->buttons;
@@ -318,6 +647,11 @@ class VirtualDevice : public IDirectInputDevice8A
             ((LPDIPROPDWORD)h)->dwData = 0;
             return DI_OK;
         }
+        if (&prop == &DIPROP_FFGAIN && g_joy->ffb)
+        {
+            ((LPDIPROPDWORD)h)->dwData = (DWORD)g_deviceGain;
+            return DI_OK;
+        }
         return DIERR_UNSUPPORTED;
     }
 
@@ -344,6 +678,8 @@ class VirtualDevice : public IDirectInputDevice8A
             }
             return set ? DI_OK : DIERR_OBJECTNOTFOUND;
         }
+        if (&prop == &DIPROP_FFGAIN)
+            g_deviceGain = (LONG)((LPCDIPROPDWORD)h)->dwData;
         // Buffer, dead zone, saturation, auto-centre: accepted, nothing to do
         return DI_OK;
     }
@@ -366,6 +702,8 @@ class VirtualDevice : public IDirectInputDevice8A
         unsigned short axes[WL_VDINPUT_AXES] = {32768, 32768, 32768, 32768, 32768, 32768};
         unsigned char buttons[32] = {0};
         g_joy->fill(axes, buttons);
+        if (g_joy->ffb)
+            ffb_update(axes[0]);
         unsigned char *p = (unsigned char *)data;
         memset(p, 0, size);
         for (int k = 0; k < m_formatCount; k++)
@@ -476,28 +814,73 @@ class VirtualDevice : public IDirectInputDevice8A
         return DI_OK;
     }
 
-    // No force feedback: the wheel motor of these cabinets is driven another way
+    // Force feedback only on a wheel that has it (WlVirtualJoystick.ffb): the others' motor is
+    // driven another way
     STDMETHODIMP CreateEffect(REFGUID g, LPCDIEFFECT e, LPDIRECTINPUTEFFECT *out, LPUNKNOWN outer)
     {
-        if (out)
-            *out = NULL;
-        return DIERR_UNSUPPORTED;
+        if (!out)
+            return E_POINTER;
+        *out = NULL;
+        if (!g_joy->ffb || !effect_kind(g))
+            return DIERR_UNSUPPORTED;
+        VirtualEffect *v = new VirtualEffect(g);
+        if (e)
+            v->SetParameters(e, DIEP_ALLPARAMS);
+        *out = v;
+        wl_log("dinput \"%s\": %s effect created", g_joy->name, effect_name(g));
+        return DI_OK;
     }
     STDMETHODIMP EnumEffects(LPDIENUMEFFECTSCALLBACKA cb, LPVOID ref, DWORD type)
     {
+        if (!cb || !g_joy->ffb)
+            return DI_OK;
+        static const GUID *const guids[] = {&GUID_ConstantForce, &GUID_RampForce, &GUID_Square, &GUID_Sine, &GUID_Triangle, &GUID_SawtoothUp,
+                                            &GUID_SawtoothDown, &GUID_Spring, &GUID_Damper, &GUID_Inertia, &GUID_Friction};
+        for (int i = 0; i < (int)(sizeof guids / sizeof guids[0]); i++)
+        {
+            DIEFFECTINFOA info;
+            effect_info(*guids[i], &info);
+            if (type != DIEFT_ALL && DIEFT_GETTYPE(type) != DIEFT_GETTYPE(info.dwEffType))
+                continue;
+            if (cb(&info, ref) == DIENUM_STOP)
+                break;
+        }
         return DI_OK;
     }
     STDMETHODIMP GetEffectInfo(LPDIEFFECTINFOA info, REFGUID g)
     {
-        return DIERR_UNSUPPORTED;
+        if (!info)
+            return E_POINTER;
+        if (!g_joy->ffb || !effect_kind(g))
+            return DIERR_DEVICENOTREG;
+        effect_info(g, info);
+        return DI_OK;
     }
     STDMETHODIMP GetForceFeedbackState(LPDWORD state)
     {
-        return DIERR_UNSUPPORTED;
+        if (!state)
+            return E_POINTER;
+        if (!g_joy->ffb)
+            return DIERR_UNSUPPORTED;
+        *state = DIGFFS_POWERON | (g_actuators ? DIGFFS_ACTUATORSON : DIGFFS_ACTUATORSOFF);
+        return DI_OK;
     }
     STDMETHODIMP SendForceFeedbackCommand(DWORD cmd)
     {
-        return DIERR_UNSUPPORTED;
+        if (!g_joy->ffb)
+            return DIERR_UNSUPPORTED;
+        EnterCriticalSection(&g_effectsLock);
+        if (cmd & (DISFFC_RESET | DISFFC_STOPALL))
+            for (int i = 0; i < MAX_EFFECTS; i++)
+                if (g_effects[i])
+                    g_effects[i]->Stop();
+        if (cmd & DISFFC_SETACTUATORSON)
+            g_actuators = 1;
+        if (cmd & DISFFC_SETACTUATORSOFF)
+            g_actuators = 0;
+        LeaveCriticalSection(&g_effectsLock);
+        wl_log("dinput \"%s\": force feedback command 0x%lx", g_joy->name, cmd);
+        return DI_OK;
     }
     STDMETHODIMP EnumCreatedEffectObjects(LPDIENUMCREATEDEFFECTOBJECTSCALLBACK cb, LPVOID ref, DWORD flags)
     {
@@ -510,6 +893,13 @@ class VirtualDevice : public IDirectInputDevice8A
 
     STDMETHODIMP Poll()
     {
+        if (g_joy->ffb)
+        {
+            unsigned short axes[WL_VDINPUT_AXES] = {32768, 32768, 32768, 32768, 32768, 32768};
+            unsigned char buttons[32] = {0};
+            g_joy->fill(axes, buttons);
+            ffb_update(axes[0]);
+        }
         return DI_OK;
     }
     STDMETHODIMP SendDeviceData(DWORD size, LPCDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
@@ -538,6 +928,17 @@ class VirtualDevice : public IDirectInputDevice8A
     }
 
   private:
+    static void effect_info(REFGUID g, DIEFFECTINFOA *info)
+    {
+        memset(info, 0, sizeof *info);
+        info->dwSize = sizeof *info;
+        info->guid = g;
+        int k = effect_kind(g);
+        info->dwEffType = k == 1 ? DIEFT_CONSTANTFORCE : k == 2 ? DIEFT_RAMPFORCE : k == 3 ? DIEFT_PERIODIC : DIEFT_CONDITION;
+        info->dwStaticParams = info->dwDynamicParams = DIEP_DURATION | DIEP_GAIN | DIEP_AXES | DIEP_DIRECTION | DIEP_TYPESPECIFICPARAMS;
+        snprintf(info->tszName, sizeof info->tszName, "%s", effect_name(g));
+    }
+
     // The object a property header names (DIPH_BYID: its type and instance, DIPH_BYOFFSET: its
     // offset in the data format), -1 when none
     int find_object(LPCDIPROPHEADER h)
@@ -557,6 +958,11 @@ class VirtualDevice : public IDirectInputDevice8A
         o->dwOfs = m_offset[i] >= 0 ? (DWORD)m_offset[i] : (DWORD)i;
         o->dwType = didft_of(i);
         o->dwFlags = is_axis(i) ? DIDOI_ASPECTPOSITION : 0;
+        if (i == 0 && g_joy->ffb)
+        {
+            o->dwType |= DIDFT_FFACTUATOR;
+            o->dwFlags |= DIDOI_FFACTUATOR;
+        }
         if (is_axis(i))
             snprintf(o->tszName, sizeof o->tszName, "%s", g_axisNames[i]);
         else

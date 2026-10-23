@@ -446,6 +446,16 @@ static BOOL CALLBACK enum_cb_w(LPCDIDEVICEINSTANCEW di, LPVOID ref)
     return r;
 }
 
+// A game that reads its controls elsewhere (a JVS board) but takes the first DirectInput game
+// controller anyway (Battle Gear 4, exclusively): the PC's are hidden from it, vJoy among them
+static int g_hideControllers;
+
+void wl_dinput_hide_controllers(void)
+{
+    g_hideControllers = 1;
+    wl_log("dinput: the PC's game controllers hidden from the game");
+}
+
 typedef HRESULT(STDMETHODCALLTYPE *EnumDevicesAFn)(IDirectInput8A *, DWORD, LPDIENUMDEVICESCALLBACKA, LPVOID, DWORD);
 typedef HRESULT(STDMETHODCALLTYPE *EnumDevicesWFn)(IDirectInput8W *, DWORD, LPDIENUMDEVICESCALLBACKW, LPVOID, DWORD);
 typedef HRESULT(STDMETHODCALLTYPE *CreateDeviceFn)(void *, REFGUID, void **, LPUNKNOWN);
@@ -457,7 +467,7 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesA(IDirectInput8A *di, DWORD type, L
 {
     wl_log("dinput: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
     int ours = wl_vdinput_active();
-    if (ours && cb && wants_game_controllers(type) && !(flags & DIEDFL_FORCEFEEDBACK))
+    if (ours && cb && wants_game_controllers(type) && (!(flags & DIEDFL_FORCEFEEDBACK) || wl_vdinput_ffb()))
     {
         DIDEVICEINSTANCEA d;
         wl_vdinput_instance(&d);
@@ -469,19 +479,20 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesA(IDirectInput8A *di, DWORD type, L
             return DI_OK;
     }
     // Only game controllers asked for: the PC has none for the game
-    if (ours && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
+    int hide = ours || g_hideControllers;
+    if (hide && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
         return DI_OK;
-    EnumWrapA w = {cb, ref, ours};
+    EnumWrapA w = {cb, ref, hide};
     return oEnumDevicesA(di, type, cb ? enum_cb_a : NULL, cb ? &w : ref, flags);
 }
 
 static HRESULT STDMETHODCALLTYPE hEnumDevicesW(IDirectInput8W *di, DWORD type, LPDIENUMDEVICESCALLBACKW cb, LPVOID ref, DWORD flags)
 {
     wl_log("dinput: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
-    int ours = wl_vdinput_active();
-    if (ours && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
+    int hide = wl_vdinput_active() || g_hideControllers;
+    if (hide && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
         return DI_OK;
-    EnumWrapW w = {cb, ref, ours};
+    EnumWrapW w = {cb, ref, hide};
     return oEnumDevicesW(di, type, cb ? enum_cb_w : NULL, cb ? &w : ref, flags);
 }
 

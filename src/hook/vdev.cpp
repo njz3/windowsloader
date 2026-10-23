@@ -12,6 +12,8 @@
 // its own project; such code is marked with its origin.
 
 #include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "hooks.h"
@@ -221,6 +223,176 @@ static DWORD WINAPI hSetFilePointer(HANDLE h, LONG low, PLONG high, DWORD method
     return result.LowPart;
 }
 
+// ReadFileEx / WriteFileEx (Mario Kart Arcade GP DX's JVS): done at once, the game's routine
+// called as Windows calls it, an APC of the calling thread run at its next alertable wait. The
+// OVERLAPPED's event is the game's own here: not set.
+struct ApcCall
+{
+    LPOVERLAPPED_COMPLETION_ROUTINE fn;
+    DWORD error, bytes;
+    OVERLAPPED *ov;
+};
+
+static void CALLBACK apc_complete(ULONG_PTR p)
+{
+    ApcCall *c = (ApcCall *)p;
+    c->fn(c->error, c->bytes, c->ov);
+    free(c);
+}
+
+static BOOL queue_completion_to(HANDLE thread, LPOVERLAPPED_COMPLETION_ROUTINE fn, DWORD error, DWORD n, OVERLAPPED *ov)
+{
+    if (ov)
+    {
+        ov->Internal = error ? (ULONG_PTR)0xC0000001 : 0;
+        ov->InternalHigh = n;
+    }
+    ApcCall *c = (ApcCall *)malloc(sizeof *c);
+    if (!c || !fn)
+    {
+        free(c);
+        return !error;
+    }
+    c->fn = fn;
+    c->error = error;
+    c->bytes = n;
+    c->ov = ov;
+    if (!QueueUserAPC(apc_complete, thread, (ULONG_PTR)c))
+    {
+        free(c);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+static BOOL queue_completion(LPOVERLAPPED_COMPLETION_ROUTINE fn, BOOL ok, DWORD n, OVERLAPPED *ov)
+{
+    return queue_completion_to(GetCurrentThread(), fn, ok ? 0 : GetLastError(), n, ov);
+}
+
+// A read with nothing to read yet stays pending, as on a serial port: done when the device has
+// data (its answer to the next write) or after the read timeout, by a service thread
+#define PENDING_READS 8
+#define PENDING_TIMEOUT_MS 600 // Mario Kart Arcade GP DX's: read interval 600, total 2*n+600
+static struct
+{
+    HANDLE h, thread;
+    void *buf;
+    DWORD size;
+    OVERLAPPED *ov;
+    LPOVERLAPPED_COMPLETION_ROUTINE fn;
+    ULONGLONG deadline;
+    int aborted;
+} g_pending[PENDING_READS];
+static SRWLOCK g_pendingLock = SRWLOCK_INIT;
+static HANDLE g_pendingThread;
+
+static DWORD WINAPI pending_reads(LPVOID)
+{
+    for (;;)
+    {
+        Sleep(1);
+        AcquireSRWLockExclusive(&g_pendingLock);
+        for (int i = 0; i < PENDING_READS; i++)
+        {
+            if (!g_pending[i].h)
+                continue;
+            DWORD n = 0, error = 0;
+            int gone = !wl_vdev_of(g_pending[i].h);
+            if (g_pending[i].aborted || gone)
+                error = ERROR_OPERATION_ABORTED;
+            else if (!wl_vdev_read(g_pending[i].h, g_pending[i].buf, g_pending[i].size, &n, NULL))
+                error = GetLastError();
+            if (!error && !n && GetTickCount64() < g_pending[i].deadline)
+                continue;
+            static volatile LONG logged;
+            if (InterlockedIncrement(&logged) <= 8)
+                wl_log("ReadFileEx (emulated): done, %lu of %lu bytes, error %lu", n, g_pending[i].size, error);
+            queue_completion_to(g_pending[i].thread, g_pending[i].fn, error, n, g_pending[i].ov);
+            CloseHandle(g_pending[i].thread);
+            g_pending[i].h = NULL;
+        }
+        ReleaseSRWLockExclusive(&g_pendingLock);
+    }
+}
+
+static BOOL(WINAPI *oReadFileEx)(HANDLE, LPVOID, DWORD, LPOVERLAPPED, LPOVERLAPPED_COMPLETION_ROUTINE);
+static BOOL WINAPI hReadFileEx(HANDLE h, LPVOID buf, DWORD size, LPOVERLAPPED ov, LPOVERLAPPED_COMPLETION_ROUTINE fn)
+{
+    if (!g_deviceCount || wl_busy() || !wl_vdev_of(h))
+        return oReadFileEx(h, buf, size, ov, fn);
+    DWORD n = 0;
+    BOOL ok = wl_vdev_read(h, buf, size, &n, NULL);
+    if (!ok || n)
+        return queue_completion(fn, ok, n, ov);
+    HANDLE thread = OpenThread(THREAD_SET_CONTEXT, FALSE, GetCurrentThreadId());
+    AcquireSRWLockExclusive(&g_pendingLock);
+    int slot = -1;
+    for (int i = 0; i < PENDING_READS && slot < 0; i++)
+        if (!g_pending[i].h)
+            slot = i;
+    if (slot >= 0 && thread)
+    {
+        g_pending[slot].h = h;
+        g_pending[slot].thread = thread;
+        g_pending[slot].buf = buf;
+        g_pending[slot].size = size;
+        g_pending[slot].ov = ov;
+        g_pending[slot].fn = fn;
+        g_pending[slot].deadline = GetTickCount64() + PENDING_TIMEOUT_MS;
+        g_pending[slot].aborted = 0;
+        if (!g_pendingThread)
+        {
+            wl_busy_enter();
+            g_pendingThread = CreateThread(NULL, 0, pending_reads, NULL, 0, NULL);
+            wl_busy_leave();
+        }
+    }
+    ReleaseSRWLockExclusive(&g_pendingLock);
+    if (slot < 0 || !thread)
+    {
+        if (thread)
+            CloseHandle(thread);
+        return queue_completion(fn, TRUE, 0, ov); // no room: a timed out read
+    }
+    if (ov)
+        ov->Internal = (ULONG_PTR)0x103; // STATUS_PENDING
+    return TRUE;
+}
+
+static BOOL(WINAPI *oWriteFileEx)(HANDLE, LPCVOID, DWORD, LPOVERLAPPED, LPOVERLAPPED_COMPLETION_ROUTINE);
+static BOOL WINAPI hWriteFileEx(HANDLE h, LPCVOID buf, DWORD size, LPOVERLAPPED ov, LPOVERLAPPED_COMPLETION_ROUTINE fn)
+{
+    if (!g_deviceCount || wl_busy() || !wl_vdev_of(h))
+        return oWriteFileEx(h, buf, size, ov, fn);
+    DWORD n = 0;
+    BOOL ok = wl_vdev_write(h, buf, size, &n, NULL);
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 12)
+        wl_log_hex("WriteFileEx (emulated):", buf, size);
+    return queue_completion(fn, ok, n, ov);
+}
+
+// A pending read cancelled: done with ERROR_OPERATION_ABORTED
+static BOOL(WINAPI *oCancelIoEx)(HANDLE, LPOVERLAPPED);
+static BOOL WINAPI hCancelIoEx(HANDLE h, LPOVERLAPPED ov)
+{
+    if (!g_deviceCount || !wl_vdev_of(h))
+        return oCancelIoEx(h, ov);
+    int found = 0;
+    AcquireSRWLockExclusive(&g_pendingLock);
+    for (int i = 0; i < PENDING_READS; i++)
+        if (g_pending[i].h == h && (!ov || g_pending[i].ov == ov))
+        {
+            g_pending[i].aborted = 1;
+            found = 1;
+        }
+    ReleaseSRWLockExclusive(&g_pendingLock);
+    if (!found)
+        SetLastError(ERROR_NOT_FOUND);
+    return found;
+}
+
 static BOOL(WINAPI *oGetCommTimeouts)(HANDLE, LPCOMMTIMEOUTS);
 static BOOL WINAPI hGetCommTimeouts(HANDLE h, LPCOMMTIMEOUTS t)
 {
@@ -235,6 +407,9 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", SetFilePointerEx),
     WL_HOOK(L"kernel32.dll", SetFilePointer),
     WL_HOOK(L"kernel32.dll", GetCommTimeouts),
+    WL_HOOK(L"kernel32.dll", ReadFileEx),
+    WL_HOOK(L"kernel32.dll", WriteFileEx),
+    WL_HOOK(L"kernel32.dll", CancelIoEx),
 };
 
 void wl_vdev_hooks(void)

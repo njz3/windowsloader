@@ -370,10 +370,23 @@ static HRESULT STDMETHODCALLTYPE present_out(IDirect3DDevice9 *dev, const RECT *
     return oPresent(dev, src, dst, wnd, dirty);
 }
 
+// The game's device; the ones Windows makes for itself in the game's process (DirectShow's video
+// renderer, quartz.dll) are left alone: same vtable, so their calls come here too
+static IDirect3DDevice9 *g_gameDev;
+
+static int made_by_windows(const void *caller)
+{
+    HMODULE mod = NULL;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)caller, &mod);
+    return mod != g_wlModule && wl_is_system_caller(caller);
+}
+
 static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
+    if (dev != g_gameDev)
+        return oPresent(dev, src, dst, wnd, dirty);
     wl_menu_present(dev, present_out); // F10: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
@@ -415,6 +428,8 @@ static void after_device(const D3DPRESENT_PARAMETERS *pp, HWND focus, int forced
 static HRESULT(STDMETHODCALLTYPE *oReset)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *);
 static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp)
 {
+    if (dev != g_gameDev)
+        return oReset(dev, pp);
     log_pp("Reset", pp);
     wl_menu_device_reset();
     gdi_release(); // its render target, in the default pool, would make the Reset fail
@@ -454,12 +469,20 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
 {
     char where[128];
     wl_log("CreateDevice adapter=%u type=%d focus=%p behavior=0x%lx [%s]", adapter, type, focus, behavior, wl_where(WL_CALLER, where, sizeof where));
+    if (made_by_windows(WL_CALLER))
+    {
+        HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
+        wl_log("CreateDevice -> 0x%08lx, Windows' own device (a video's): left alone", hr);
+        return hr;
+    }
     log_pp("  asked", pp);
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");
     wl_display_prepare(pp);
     HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
+    if (SUCCEEDED(hr) && out)
+        g_gameDev = *out;
     if (SUCCEEDED(hr))
         after_device(pp, focus, forced);
     wl_log("CreateDevice -> 0x%08lx", hr);
@@ -475,6 +498,12 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
 {
     char where[128];
     wl_log("CreateDeviceEx adapter=%u type=%d focus=%p behavior=0x%lx [%s]", adapter, type, focus, behavior, wl_where(WL_CALLER, where, sizeof where));
+    if (made_by_windows(WL_CALLER))
+    {
+        HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
+        wl_log("CreateDeviceEx -> 0x%08lx, Windows' own device (a video's): left alone", hr);
+        return hr;
+    }
     log_pp("  asked", pp);
     int forced = make_windowed(pp);
     if (forced)
@@ -484,6 +513,8 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
     }
     wl_display_prepare(pp);
     HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
+    if (SUCCEEDED(hr) && out)
+        g_gameDev = *out;
     if (SUCCEEDED(hr))
         after_device(pp, focus, forced);
     wl_log("CreateDeviceEx -> 0x%08lx", hr);

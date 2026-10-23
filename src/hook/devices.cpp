@@ -220,6 +220,43 @@ static BOOL WINAPI hSetCommState(HANDLE h, LPDCB dcb)
     return ok;
 }
 
+// The mode string a game turns into its port's settings ("COM1: baud=19200 parity=N data=8...").
+// Windows refuses one naming a port this PC does not have: for an emulated port the settings are
+// read without the name (Mario Kart Arcade GP DX's JVS port)
+static BOOL(WINAPI *oBuildCommDCBA)(LPCSTR, LPDCB);
+static BOOL WINAPI hBuildCommDCBA(LPCSTR def, LPDCB dcb)
+{
+    int nested = wl_busy();
+    char port[32] = "";
+    const char *colon = def ? strchr(def, ':') : NULL;
+    if (!nested && colon && colon - def < (int)sizeof port)
+    {
+        memcpy(port, def, colon - def);
+        port[colon - def] = 0;
+        if (wl_vdev_by_path(port))
+        {
+            def = colon + 1;
+            while (*def == ' ')
+                def++;
+        }
+    }
+    wl_busy_enter();
+    BOOL ok = oBuildCommDCBA(def, dcb);
+    DWORD err = GetLastError();
+    wl_busy_leave();
+    if (!nested && !wl_is_system_caller(WL_CALLER))
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 10)
+        {
+            char where[128];
+            wl_log("BuildCommDCB \"%s\" -> %s%s [%s]", def ? def : "", ok ? "ok" : "failed", ok ? "" : " (error)", wl_where(WL_CALLER, where, sizeof where));
+        }
+    }
+    SetLastError(err);
+    return ok;
+}
+
 static BOOL(WINAPI *oSetCommTimeouts)(HANDLE, LPCOMMTIMEOUTS);
 static BOOL WINAPI hSetCommTimeouts(HANDLE h, LPCOMMTIMEOUTS t)
 {
@@ -731,6 +768,7 @@ static BOOLEAN WINAPI hHidD_SetOutputReport(HANDLE h, PVOID buf, ULONG len)
 static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", GetCommState),
     WL_HOOK(L"kernel32.dll", SetCommState),
+    WL_HOOK(L"kernel32.dll", BuildCommDCBA),
     WL_HOOK(L"kernel32.dll", SetCommTimeouts),
     WL_HOOK(L"kernel32.dll", SetupComm),
     WL_HOOK(L"kernel32.dll", PurgeComm),

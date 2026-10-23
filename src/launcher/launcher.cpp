@@ -276,7 +276,8 @@ static int remote_has_module(DWORD pid, const wchar_t *dllPath)
 // Windows with the game's other imports, before windowsloader, and it reaches the hardware
 // through a kernel driver. Before the suspended game initializes, its import is pointed at
 // windowsloader's DLL (by its full path, as Detours does it), which exports the same functions
-// at the same ordinals (wlhook.def).
+// at the same ordinals (wlhook.def). The same way, a Windows component's proxy left in the game's
+// folder by another loader is replaced by Windows' own (is_system_component).
 // ------------------------------------------------------------------------------
 
 typedef LONG(NTAPI *NtQueryInformationProcessFn)(HANDLE, int, PVOID, ULONG, PULONG);
@@ -301,6 +302,19 @@ static int is_port_driver(const char *name)
     return !_stricmp(name, "inpout32.dll") || !_stricmp(name, "inpout32_d.dll") || !_stricmp(name, "inpoutx64.dll");
 }
 
+// A Windows component found in the game's folder is another loader's proxy (FFBArcadePlugin's
+// dinput8.dll next to Wasteland Racers 2071, which opens the wheel itself): the game's import of it
+// is pointed at Windows' own, by its full path
+static int is_system_component(const char *name)
+{
+    static const char *names[] = {"dinput8.dll", "dinput.dll", "d3d8.dll", "d3d9.dll", "d3d11.dll", "dxgi.dll", "ddraw.dll",
+                                  "opengl32.dll", "winmm.dll", "dsound.dll", "version.dll", "xinput1_3.dll", "xinput1_4.dll"};
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
+        if (!_stricmp(name, names[i]))
+            return 1;
+    return 0;
+}
+
 // Memory for the new name within 4 GB above the image, an RVA's reach
 static ULONG_PTR alloc_after(HANDLE p, ULONG_PTR base, DWORD imageSize, SIZE_T size)
 {
@@ -313,7 +327,7 @@ static ULONG_PTR alloc_after(HANDLE p, ULONG_PTR base, DWORD imageSize, SIZE_T s
     return 0;
 }
 
-static void redirect_port_imports(const PROCESS_INFORMATION *pi, const wchar_t *dll)
+static void redirect_imports(const PROCESS_INFORMATION *pi, const wchar_t *dll, const wchar_t *gameDir)
 {
     NtQueryInformationProcessFn query = (NtQueryInformationProcessFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess");
     WlBasicInfo bi;
@@ -334,23 +348,39 @@ static void redirect_port_imports(const PROCESS_INFORMATION *pi, const wchar_t *
         if (!read_at(pi->hProcess, base + at, &d, sizeof d) || !d.Name)
             break;
         read_at(pi->hProcess, base + d.Name, name, sizeof name - 1);
-        if (!is_port_driver(name))
+        // The replacement: windowsloader's DLL for a port driver, Windows' own for a component
+        // whose proxy is in the game's folder
+        wchar_t to[MAX_PATH], wname[64], local[MAX_PATH];
+        MultiByteToWideChar(CP_ACP, 0, name, -1, wname, 64);
+        swprintf(local, MAX_PATH, L"%s\\%s", gameDir, wname);
+        if (is_port_driver(name))
+            wcscpy_s(to, MAX_PATH, dll);
+        else if (is_system_component(name) && GetFileAttributesW(local) != INVALID_FILE_ATTRIBUTES && GetSystemDirectoryW(to, MAX_PATH))
+        {
+            swprintf(to + wcslen(to), MAX_PATH - wcslen(to), L"\\%s", wname);
+            if (GetFileAttributesW(to) == INVALID_FILE_ATTRIBUTES)
+                continue;
+        }
+        else
             continue;
         char path[MAX_PATH * 2];
-        int n = WideCharToMultiByte(CP_ACP, 0, dll, -1, path, sizeof path, NULL, NULL);
+        int n = WideCharToMultiByte(CP_ACP, 0, to, -1, path, sizeof path, NULL, NULL);
         ULONG_PTR mem = n > 0 ? alloc_after(pi->hProcess, base, nt.OptionalHeader.SizeOfImage, (SIZE_T)n) : 0;
         DWORD old;
         if (!mem || !WriteProcessMemory(pi->hProcess, (LPVOID)mem, path, (SIZE_T)n, NULL) ||
             !VirtualProtectEx(pi->hProcess, (LPVOID)(base + at), sizeof d, PAGE_READWRITE, &old))
         {
-            say("windowsloader: could not keep the game's %s out (it reaches the hardware's ports)\n", name);
+            say("windowsloader: could not keep the game's %s out\n", name);
             continue;
         }
         d.Name = (DWORD)(mem - base);
-        d.TimeDateStamp = 0; // not bound: resolved from windowsloader's exports
+        d.TimeDateStamp = 0; // not bound: resolved from the replacement's exports
         WriteProcessMemory(pi->hProcess, (LPVOID)(base + at), &d, sizeof d, NULL);
         VirtualProtectEx(pi->hProcess, (LPVOID)(base + at), sizeof d, old, &old);
-        say("  ports:  %s, imported by the game, replaced by windowsloader's own\n", name);
+        if (is_port_driver(name))
+            say("  ports:  %s, imported by the game, replaced by windowsloader's own\n", name);
+        else
+            say("  import: %s of the game's folder (another loader's) left out, Windows' own loaded\n", name);
     }
 }
 
@@ -632,7 +662,7 @@ int wmain(int argc, wchar_t **argv)
             say_error("putting the game in a job object (it will survive the launcher)");
     }
 
-    redirect_port_imports(&pi, dllPath);
+    redirect_imports(&pi, dllPath, gameDir);
     if (!inject(&pi, dllPath))
     {
         TerminateProcess(pi.hProcess, 1);

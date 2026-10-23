@@ -29,10 +29,14 @@ struct WlVirtualJoystick
     // The state now: axes X, Y, Z, Rx, Ry, Rz in 0..65535 (scaled to the range the game sets),
     // buttons 0 or 1
     void (*fill)(unsigned short axes[WL_VDINPUT_AXES], unsigned char *buttons);
+    // 1: a force feedback wheel (X its steering, low values to the left): the effects the game
+    // creates on it are played as windowsloader's force (wl_ffb_set)
+    int ffb;
 };
 
 void wl_vdinput_register(const WlVirtualJoystick *joy);
 int wl_vdinput_active(void);
+int wl_vdinput_ffb(void); // the joystick is a force feedback wheel
 
 // For dinputhook.cpp
 #ifdef DIRECTINPUT_VERSION

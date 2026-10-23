@@ -20,6 +20,7 @@
 #include <windows.h>
 #include <stdlib.h>
 #include <d3d11.h>
+#include <d3d10.h>
 #include <dxgi1_2.h>
 #include <dwmapi.h>
 #include <stdio.h>
@@ -252,11 +253,111 @@ static void gdi_release(void)
     g_gdiPixels = NULL;
 }
 
+// The 32-bit formats made BGRX, as StretchDIBits takes them: R and B swapped, or 10 bits a channel
+// brought to 8 (DiRT Showdown); NULL when the rows can be drawn as they are
+static const void *to_bgrx(const void *data, UINT pitch, UINT w, UINT h, int rgba, int ten, int *outPitch)
+{
+    if (!rgba && !ten)
+    {
+        *outPitch = (int)pitch;
+        return data;
+    }
+    if (!g_gdiPixels)
+        return NULL;
+    for (UINT y = 0; y < h; y++)
+    {
+        const UINT *row = (const UINT *)((const unsigned char *)data + (size_t)y * pitch);
+        UINT *out = (UINT *)(g_gdiPixels + (size_t)y * w * 4);
+        for (UINT x = 0; x < w; x++)
+        {
+            UINT v = row[x];
+            out[x] = ten ? ((v >> 22 & 0xFF) | (v >> 12 & 0xFF) << 8 | (v >> 2 & 0xFF) << 16) : ((v >> 16 & 0xFF) | (v & 0xFF00) | (v & 0xFF) << 16);
+        }
+    }
+    *outPitch = (int)w * 4;
+    return g_gdiPixels;
+}
+
+// A Direct3D 10 swap chain (Mario Kart Arcade GP DX): its buffer is not a Direct3D 11 texture
+static ID3D10Texture2D *g_gdiStaging10, *g_gdiResolved10;
+static ID3D10Device *g_gdiDev10;
+static D3D10_TEXTURE2D_DESC g_gdiDesc10;
+
+static void gdi_copy10(IDXGISwapChain *sc)
+{
+    ID3D10Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+        return;
+    D3D10_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    int rgba = d.Format == DXGI_FORMAT_R8G8B8A8_UNORM || d.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    int bgra = d.Format == DXGI_FORMAT_B8G8R8A8_UNORM || d.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB || d.Format == DXGI_FORMAT_B8G8R8X8_UNORM;
+    int ten = d.Format == DXGI_FORMAT_R10G10B10A2_UNORM;
+    ID3D10Device *dev = NULL;
+    bb->GetDevice(&dev);
+    if ((rgba || bgra || ten) && (!g_gdiStaging10 || dev != g_gdiDev10 || d.Width != g_gdiDesc10.Width || d.Height != g_gdiDesc10.Height ||
+                                  d.Format != g_gdiDesc10.Format || d.SampleDesc.Count != g_gdiDesc10.SampleDesc.Count))
+    {
+        if (g_gdiStaging10)
+            g_gdiStaging10->Release();
+        if (g_gdiResolved10)
+            g_gdiResolved10->Release();
+        g_gdiStaging10 = g_gdiResolved10 = NULL;
+        free(g_gdiPixels);
+        g_gdiPixels = NULL;
+        g_gdiDev10 = dev;
+        g_gdiDesc10 = d;
+        D3D10_TEXTURE2D_DESC s = d;
+        s.MipLevels = 1;
+        s.ArraySize = 1;
+        s.SampleDesc.Count = 1;
+        s.SampleDesc.Quality = 0;
+        s.MiscFlags = 0;
+        s.BindFlags = 0;
+        if (d.SampleDesc.Count > 1)
+        {
+            s.Usage = D3D10_USAGE_DEFAULT;
+            s.CPUAccessFlags = 0;
+            dev->CreateTexture2D(&s, NULL, &g_gdiResolved10);
+        }
+        s.Usage = D3D10_USAGE_STAGING;
+        s.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+        dev->CreateTexture2D(&s, NULL, &g_gdiStaging10);
+        if (!bgra)
+            g_gdiPixels = (unsigned char *)malloc((size_t)d.Width * d.Height * 4);
+        wl_log("display: the Direct3D 10 picture %ux%u (format %d) copied by GDI", d.Width, d.Height, d.Format);
+    }
+    D3D10_MAPPED_TEXTURE2D m;
+    if ((rgba || bgra || ten) && g_gdiStaging10)
+    {
+        ID3D10Texture2D *src = bb;
+        if (g_gdiResolved10)
+        {
+            dev->ResolveSubresource(g_gdiResolved10, 0, bb, 0, d.Format);
+            src = g_gdiResolved10;
+        }
+        dev->CopyResource(g_gdiStaging10, src);
+        if (SUCCEEDED(g_gdiStaging10->Map(0, D3D10_MAP_READ, 0, &m)))
+        {
+            int pitch;
+            const void *pixels = to_bgrx(m.pData, m.RowPitch, d.Width, d.Height, rgba, ten, &pitch);
+            if (pixels)
+                wl_display_gdi_draw(pixels, pitch, (int)d.Width, (int)d.Height, 32, 0);
+            g_gdiStaging10->Unmap(0);
+        }
+    }
+    dev->Release();
+    bb->Release();
+}
+
 static void gdi_copy(IDXGISwapChain *sc)
 {
     ID3D11Texture2D *bb = NULL;
     if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+    {
+        gdi_copy10(sc);
         return;
+    }
     D3D11_TEXTURE2D_DESC d;
     bb->GetDesc(&d);
     int rgba = d.Format == DXGI_FORMAT_R8G8B8A8_UNORM || d.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
@@ -303,26 +404,10 @@ static void gdi_copy(IDXGISwapChain *sc)
         ctx->CopyResource(g_gdiStaging, src);
         if (SUCCEEDED(ctx->Map(g_gdiStaging, 0, D3D11_MAP_READ, 0, &m)))
         {
-            const void *pixels = m.pData;
-            int pitch = (int)m.RowPitch;
-            if (!bgra && g_gdiPixels)
-            {
-                // Made BGRX: R and B swapped, or 10 bits a channel brought to 8 (DiRT Showdown)
-                for (UINT y = 0; y < d.Height; y++)
-                {
-                    const UINT *row = (const UINT *)((const unsigned char *)m.pData + (size_t)y * m.RowPitch);
-                    UINT *out = (UINT *)(g_gdiPixels + (size_t)y * d.Width * 4);
-                    for (UINT x = 0; x < d.Width; x++)
-                    {
-                        UINT v = row[x];
-                        out[x] = ten ? ((v >> 22 & 0xFF) | (v >> 12 & 0xFF) << 8 | (v >> 2 & 0xFF) << 16)
-                                     : ((v >> 16 & 0xFF) | (v & 0xFF00) | (v & 0xFF) << 16);
-                    }
-                }
-                pixels = g_gdiPixels;
-                pitch = (int)d.Width * 4;
-            }
-            wl_display_gdi_draw(pixels, pitch, (int)d.Width, (int)d.Height, 32, 0);
+            int pitch;
+            const void *pixels = to_bgrx(m.pData, m.RowPitch, d.Width, d.Height, rgba, ten, &pitch);
+            if (pixels)
+                wl_display_gdi_draw(pixels, pitch, (int)d.Width, (int)d.Height, 32, 0);
             ctx->Unmap(g_gdiStaging, 0);
         }
     }

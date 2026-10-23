@@ -92,6 +92,9 @@ void wl_files_cap(const char *nameEnd, unsigned long long maxBytes);
 // beside the game): the game's paths under from go to the same paths under to, so nothing is
 // written at the fixed place on this PC. Paths are compared without regard to case or / and \.
 void wl_files_redirect(const char *from, const char *to);
+// The same, the path's beginning replaced as text: "F:\" to "<folder>\F" makes F:\system\x
+// <folder>\Fsystem\x (Mario Kart Arcade GP DX's drives, as its cabinets' copies keep them)
+void wl_files_redirect_prefix(const char *from, const char *to);
 
 // A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
 // parallel port helper): returns 1 when the module took it over. The game is still told the
@@ -104,13 +107,19 @@ void wl_system_set_process_handler(WlProcessHandler fn);
 // PC's registry: the game's OpenAL then takes its generic DirectSound driver)
 void wl_system_refuse_dll(const char *name);
 
+// The game's broadcasts (x.x.x.255) sent to 127.0.0.1 instead, the same port: a game whose cabinets
+// elect a host by broadcast hears itself and becomes the host, nothing leaves the PC
+void wl_system_loopback_broadcast(int on);
+
 // Per-module hook tables
 void wl_files_hooks(void);
 void wl_devices_hooks(void);
 void wl_system_hooks(void);
 void wl_window_hooks(void);
+void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
 void wl_dinput_hooks(void);
+void wl_dinput_hide_controllers(void); // the PC's game controllers kept from the game's DirectInput
 void wl_d3d11_hooks(void);
 void wl_gl_hooks(void);
 void wl_crash_init(void);

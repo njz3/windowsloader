@@ -28,6 +28,7 @@
 #include "inputs.h"
 #include "jvs.h"
 #include "log.h"
+#include "settings.h"
 #include "vdev.h"
 
 enum
@@ -47,7 +48,9 @@ enum
     IN_SHIFT_DOWN,
     IN_NITRO, // Chase H.Q. 2's (its I/O test): PATO-NITRO bit 2, SHIFT-NITRO bit 12
     IN_SHIFT_NITRO,
-    IN_COUNT
+    IN_CLUTCH, // Battle Gear 4 Pro's
+    IN_GEAR1,  // Battle Gear 4 Pro's H shifter, 1 to 6
+    IN_COUNT = IN_GEAR1 + 6
 };
 
 static WlInput g_inputs[IN_COUNT] = {
@@ -66,10 +69,24 @@ static WlInput g_inputs[IN_COUNT] = {
     {"ShiftDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
     {"Nitro", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
     {"ShiftNitro", "ShiftNitro", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Clutch", "P1_Clutch", WL_INPUT_ANALOG, 0, 255, 0},
+    {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
-static int g_bg4;
+enum
+{
+    BG4_TUNED = 1,
+    BG4_ORIGINAL // the first edition, 2006
+};
+static int g_bg4; // the edition, 0 for Chase H.Q. 2
 static void bg4_tick(void);
+static int g_pro;            // Battle Gear 4 Pro's cabinet ([Game] CABINET = PRO)
+static unsigned char g_lever; // its second board's inputs: the H shifter's columns
 
 // Both games read 3 switch bytes for one player and 10 analog channels (Chase H.Q. 2; Battle Gear
 // 4 asks 8); the accelerator is channel 3 and the brake 4 in both
@@ -95,9 +112,35 @@ static void jvs_state(WlJvsState *s)
         static const unsigned short bits[] = {1u << 13, 1u << 12, 1u << 11, 1u << 9, 1u << 8, 1u << 7};
         if (wl_input_get(&g_inputs[IN_START]))
             s->player[0] |= 0x8000;
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < (g_pro ? 4 : 6); i++)
             if (wl_input_get(&g_inputs[IN_VIEW + i]))
                 s->player[0] |= bits[i];
+        if (!g_pro)
+            return;
+        // The Pro's H shifter, as the game reads it (+0x48adf2): its rows on bits 8 ("up": 2, 4,
+        // 6) and 7 ("down": 1, 3, 5), active low on this cabinet, none of them the neutral; its
+        // columns on the second board, left (1, 2) 0x80 and right (5, 6) 0x40. ShiftUp and
+        // ShiftDown give the rows alone: the sequential modes (AT, MT) and the test menu.
+        int gear = 0;
+        for (int i = 0; i < 6; i++)
+            if (wl_input_get(&g_inputs[IN_GEAR1 + i]))
+                gear = i + 1;
+        int up = (gear && !(gear & 1)) || wl_input_get(&g_inputs[IN_SHIFT_UP]);
+        int down = (gear & 1) || wl_input_get(&g_inputs[IN_SHIFT_DOWN]);
+        if (!up)
+            s->player[0] |= 1u << 8;
+        if (!down)
+            s->player[0] |= 1u << 7;
+        unsigned char lever = 0;
+        if (gear == 1 || gear == 2)
+            lever |= 0x80;
+        if (gear == 5 || gear == 6)
+            lever |= 0x40;
+        g_lever = lever;
+        // The clutch on channel 6 (the game's analog words from +0xde: the accelerator +0xe4, the
+        // brake +0xe6, the clutch +0xea read at +0x41e860, only in a race; the test menu's
+        // ADJUSTMENT calibrates it)
+        s->analog[6] = (unsigned short)(wl_input_get(&g_inputs[IN_CLUTCH]) << 8);
         return;
     }
     // Chase H.Q. 2: Start bit 3, the steering on channel 2, the two-position lever held where it
@@ -166,6 +209,31 @@ static void jvs_output(const unsigned char *data, int length)
 }
 
 static WlJvsBoard g_jvs = {"COM2", "SEGA ENTERPRISES,LTD.;I/O BD JVS;837-14572;Ver1.00;2005/10", 2, 2, 2, 10, 10, 20, jvs_state, jvs_output, 1, jvs_analog_output};
+
+// Battle Gear 4 Pro's second board: the shifter's columns (set by the first board's poll) and its
+// gate, moved by a motor between the sequential modes (AT, MT) and the H of "6-speed MT". The game
+// drives it by the outputs 0x80 and 0x40 in turn, 4 s each (+0x41f098), until its two sensors give
+// the position it wants, "SHIFT SEN1" (0x20) alone or "SEN2" (0x10) alone, both active low
+// (+0x41df70, +0x41e0a0), then stops it: here the gate is where the last of them sent it, 0x80
+// SEN1's side.
+static int g_gate = 1; // 1 SEN1's side, 2 SEN2's
+
+static void pro_state(WlJvsState *s)
+{
+    s->misc[0] = (unsigned char)(g_lever | (g_gate == 1 ? 0x10 : 0x20));
+}
+
+static void pro_output(const unsigned char *data, int length)
+{
+    if (length < 1)
+        return;
+    int gate = data[0] & 0x80 ? 1 : data[0] & 0x40 ? 2 : g_gate;
+    if (gate != g_gate)
+        wl_log("shifter gate: to %s's side", gate == 1 ? "SEN1" : "SEN2");
+    g_gate = gate;
+}
+
+static WlJvsBoard g_jvsPro = {"COM2", "SEGA ENTERPRISES,LTD.;I/O BD JVS;837-14572;Ver1.00;2005/10", 1, 2, 0, 0, 0, 16, pro_state, pro_output, 1, NULL};
 
 // The cabinet's drives D: and E: are there, fixed disks, and E:\ is the current folder (as
 // OpenParrot's TypeX2Generic.cpp gives them, GPL v3: the game quits at once without them)
@@ -411,14 +479,39 @@ static DWORD wheel_waiting(void)
 static WlVirtualDevice g_wheel = {"COM1", NULL, wheel_read, wheel_write, wheel_modem, wheel_waiting};
 
 // Each JVS poll (OpenParrot's BG4General, BattleGear4InputMisc.cpp, GPL v3): once the game's
-// screen +0x4e3668 has been 8, its pause flag +0x42d29c held at 1
+// screen +0x4e3668 has been 8, its pause flag +0x42d29c held at 1 (Tuned's addresses)
 static void bg4_tick(void)
 {
     static int stopPausing;
+    if (g_bg4 != BG4_TUNED)
+        return;
     if (*(volatile unsigned char *)0x8E3668 == 8)
         stopPausing = 1;
     if (stopPausing)
         *(volatile unsigned char *)0x82D29C = 1;
+}
+
+// [Game] CABINET = PRO: the Professional edition's cabinet (wide monitor, clutch, H shifter), its
+// second I/O board on the bus. The game counts the boards at each start (+0x60cb37, +0x600d8c):
+// two, a "WIDE MONITOR & CLUTCH TYPE" cabinet (+0x50f464); after a change it rewrites its
+// config.bin and closes once. HOLD_GEAR: the gear stays engaged once the shifter leaves it
+// (OpenParrot's "Hold Gear", TypeX2Generic.cpp, GPL v3: the neutral's store at +0x8adff taken
+// out), for shifters whose positions do not stay.
+static void bg4_settings(void)
+{
+    char v[32];
+    wl_settings_get("Game", "CABINET", "STANDARD", v, sizeof v);
+    if (_stricmp(v, "PRO"))
+        return;
+    g_pro = 1;
+    wl_jvs_add_node(&g_jvsPro);
+    wl_log("game: Battle Gear 4 Pro's cabinet");
+    if (wl_settings_get_bool("Game", "HOLD_GEAR", 0))
+    {
+        static const unsigned char neutral[10] = {0xC7, 0x81, 0x60, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        static const unsigned char nops[10] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+        wl_patch_code((void *)0x48ADFF, neutral, nops, 10, "hold gear");
+    }
 }
 
 static int exists(const wchar_t *dir, const wchar_t *name)
@@ -438,8 +531,22 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     int chq2 = !_wcsicmp(base, L"game.exe") && exists(dir, L"chq2.ini");
     if (!bg4 && !chq2)
         return 0;
-    *name = bg4 ? "bg4" : "chasehq2";
-    *title = bg4 ? "Battle Gear 4 Tuned" : "Chase H.Q. 2";
+    // Battle Gear 4's two editions, told apart by their exe's time stamp: Tuned (2007, v2.08, its
+    // Pro cabinet included) and the first one (2006, OpenParrot's "BG4_Eng"); anything else is
+    // left alone
+    if (bg4)
+    {
+        const unsigned char *exe = (const unsigned char *)GetModuleHandleW(NULL);
+        DWORD stamp = *(const DWORD *)(exe + *(const DWORD *)(exe + 0x3C) + 8);
+        bg4 = stamp == 0x4675EF6F ? BG4_TUNED : stamp == 0x446D0EFA ? BG4_ORIGINAL : 0;
+        if (!bg4)
+        {
+            wl_log("game: Battle Gear 4, edition not known (time stamp %08lx): observing only", stamp);
+            return 0;
+        }
+    }
+    *name = bg4 == BG4_TUNED ? "bg4" : bg4 ? "bg4eng" : "chasehq2";
+    *title = bg4 == BG4_TUNED ? "Battle Gear 4 Tuned" : bg4 ? "Battle Gear 4" : "Chase H.Q. 2";
     wl_log("game: %s (Taito Type X%s)", *title, bg4 ? "+" : "2");
 
     // D:\ and E:\ are the game's folder
@@ -464,23 +571,30 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         return 1;
     }
 
-    // No menu bar on the window (its LoadMenu, +0x1f21b0, returns at once: OpenParrot's "windowed
-    // off", TypeX2Generic.cpp, GPL v3)
+    // No menu bar on the window (its LoadMenu, Tuned +0x1f21b0, the first edition +0x1b8030,
+    // returns at once: OpenParrot's "windowed off", TypeX2Generic.cpp, GPL v3)
+    int tuned = bg4 == BG4_TUNED;
     static const unsigned char menuWas[3] = {0x0F, 0xB7, 0x44}, ret4[3] = {0xC2, 0x04, 0x00};
-    wl_patch_code((void *)0x5F21B0, menuWas, ret4, 3, "no menu bar");
+    wl_patch_code((void *)(ULONG_PTR)(tuned ? 0x5F21B0 : 0x5B8030), menuWas, ret4, 3, "no menu bar");
     // The intro, black and stuck without it: a field the game leaves unset is set to 1.0 where it
-    // stores its neighbour (OpenParrot's IntroFix, TypeX2Generic.cpp, GPL v3). Code put in the
-    // padding at +0x57ace, jumped to from +0x57f01.
+    // stores its neighbour (OpenParrot's IntroFix, TypeX2Generic.cpp, GPL v3). Code put in padding
+    // (Tuned +0x57ace, the first edition +0x46e3e), jumped to from the store (+0x57f01, +0x471b5).
     static const unsigned char pad15[15] = {0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC};
     static const unsigned char cave[15] = {0x89, 0x68, 0x14, 0xC7, 0x40, 0x08, 0x00, 0x00, 0x80, 0x3F, 0x83, 0xC1, 0x08, 0xEB, 0x0A};
-    static const unsigned char back[5] = {0xE9, 0x1B, 0x04, 0x00, 0x00};
-    static const unsigned char storeWas[6] = {0x89, 0x68, 0x14, 0x83, 0xC1, 0x08}, toCave[6] = {0xE9, 0xC8, 0xFB, 0xFF, 0xFF, 0x90};
-    if (wl_patch_code((void *)0x457ACE, pad15, cave, 15, "intro fix") && wl_patch_code((void *)0x457AE7, pad15, back, 5, "intro fix, back"))
-        wl_patch_code((void *)0x457F01, storeWas, toCave, 6, "intro fix, jump");
+    static const unsigned char backTuned[5] = {0xE9, 0x1B, 0x04, 0x00, 0x00}, backFirst[5] = {0xE9, 0x5F, 0x03, 0x00, 0x00};
+    static const unsigned char storeWas[6] = {0x89, 0x68, 0x14, 0x83, 0xC1, 0x08};
+    static const unsigned char toCaveTuned[6] = {0xE9, 0xC8, 0xFB, 0xFF, 0xFF, 0x90}, toCaveFirst[6] = {0xE9, 0x84, 0xFC, 0xFF, 0xFF, 0x90};
+    unsigned char *at = (unsigned char *)(ULONG_PTR)(tuned ? 0x457ACE : 0x446E3E);
+    if (wl_patch_code(at, pad15, cave, 15, "intro fix") && wl_patch_code(at + 0x19, pad15, tuned ? backTuned : backFirst, 5, "intro fix, back"))
+        wl_patch_code((void *)(ULONG_PTR)(tuned ? 0x457F01 : 0x4471B5), storeWas, tuned ? toCaveTuned : toCaveFirst, 6, "intro fix, jump");
     wl_hooks_add(g_bg4Hooks, sizeof g_bg4Hooks / sizeof g_bg4Hooks[0]);
+    // The game takes the first DirectInput game controller, exclusively (vJoy on the test PC)
+    wl_dinput_hide_controllers();
     InitializeCriticalSection(&g_wheelLock);
     wl_vdev_register(&g_wheel);
     wl_log("emulated steering board on COM1 (Taito)");
-    g_bg4 = 1;
+    if (tuned)
+        wl_game_on_settings(bg4_settings);
+    g_bg4 = bg4;
     return 1;
 }

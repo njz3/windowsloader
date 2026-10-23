@@ -69,6 +69,7 @@ static void wl_init(void)
     wl_vdev_hooks();
     wl_system_hooks();
     wl_window_hooks();
+    wl_d3d8_hooks();
     wl_d3d9_hooks();
     wl_dinput_hooks();
     wl_d3d11_hooks();
@@ -76,6 +77,7 @@ static void wl_init(void)
     wl_game_init();
     // The settings once the game is known: its own <short name>.ini is read instead when there is one
     wl_settings_init();
+    wl_game_settings();
     wl_display_load();
     wl_pause_init();
     wl_hooks_install_pending();

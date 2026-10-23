@@ -43,6 +43,20 @@ add_library(minhook STATIC ${MINHOOK_SRC})
 target_include_directories(minhook PUBLIC src/minhook/include)
 
 # ------------------------------------------------------------------------------
+# d3d8to9 (static), crosire's (BSD 2-clause, src/d3d8to9/LICENSE.md): Direct3D 8 played on
+# Direct3D 9, for the Direct3D 8 games (src/hook/d3d8hook.cpp). Direct3D 8 is 32-bit only.
+# ------------------------------------------------------------------------------
+if(WL_BITS EQUAL 32)
+    file(GLOB D3D8TO9_SRC src/d3d8to9/*.cpp)
+    add_library(d3d8to9 STATIC ${D3D8TO9_SRC})
+    target_compile_definitions(d3d8to9 PRIVATE D3D8TO9NOLOG NOMINMAX)
+    if(MSVC)
+        target_compile_options(d3d8to9 PRIVATE /W1 /utf-8)
+    endif()
+    set(WL_D3D8TO9 d3d8to9)
+endif()
+
+# ------------------------------------------------------------------------------
 # windowsloader.exe / windowsloader64.exe: starts the game suspended and injects the DLL
 # ------------------------------------------------------------------------------
 add_executable(wl_launcher src/launcher/launcher.cpp)
@@ -82,6 +96,7 @@ add_library(wl_hook SHARED
     src/hook/pause.cpp
     src/hook/menu.cpp
     src/hook/display.cpp
+    src/hook/d3d8hook.cpp
     src/hook/settings.cpp
     src/hook/games/segarally3.cpp
     src/hook/games/daytona.cpp
@@ -89,6 +104,8 @@ add_library(wl_hook SHARED
     src/hook/games/ringedge.cpp
     src/hook/games/taito.cpp
     src/hook/games/konami.cpp
+    src/hook/games/triotech.cpp
+    src/hook/games/namco.cpp
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp
     src/hook/jvs.cpp
@@ -110,4 +127,7 @@ target_compile_definitions(wl_hook PRIVATE ${WL_C_DEFINES})
 target_compile_options(wl_hook PRIVATE ${WL_C_FLAGS})
 # SDL3 (vcpkg, static): the player's controllers, and later the force feedback
 find_package(SDL3 CONFIG REQUIRED)
-target_link_libraries(wl_hook PRIVATE minhook SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi dwmapi)
+if(WL_D3D8TO9)
+    target_compile_definitions(wl_hook PRIVATE WL_D3D8TO9)
+endif()
+target_link_libraries(wl_hook PRIVATE minhook ${WL_D3D8TO9} SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi dwmapi)

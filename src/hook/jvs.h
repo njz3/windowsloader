@@ -25,6 +25,7 @@ struct WlJvsState
     unsigned char player3[2];    // per player, a third switch byte (Battle Gear 4 reads 3)
     unsigned short coins[2];     // coin counters
     unsigned short analog[10];   // 16-bit values, the significant bits on top (Chase H.Q. 2 reads 10)
+    unsigned char misc[4];       // general purpose inputs, command 0x26 (Battle Gear 4 Pro's second board)
 };
 
 struct WlJvsBoard
@@ -40,3 +41,6 @@ struct WlJvsBoard
 
 void wl_jvs_register(const WlJvsBoard *board);
 void wl_jvs_add_port(const char *port); // the same board under a second name
+// A second board on the same bus (its port not used): node 2 once the host gives the addresses, the
+// sense line set when both have one (Battle Gear 4 Pro's)
+void wl_jvs_add_node(const WlJvsBoard *board);

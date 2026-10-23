@@ -630,6 +630,14 @@ void wl_display_window(HWND wnd, int width, int height)
 {
     if (!g_wl.windowed || !wnd)
         return;
+    // Only a window of the game's own: never the desktop or another program's
+    DWORD pid = 0;
+    GetWindowThreadProcessId(wnd, &pid);
+    if (wnd == GetDesktopWindow() || pid != GetCurrentProcessId())
+    {
+        wl_log("display: window %p is not the game's (pid %lu): left alone", wnd, pid);
+        return;
+    }
     g_wnd = wnd;
     g_bbW = width;
     g_bbH = height;

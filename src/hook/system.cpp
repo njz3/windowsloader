@@ -456,7 +456,10 @@ static BOOL WINAPI hSetTimeZoneInformation(const TIME_ZONE_INFORMATION *tz)
 // The machine's registry (HKEY_LOCAL_MACHINE): read only for the game. A cabinet shell writes
 // there the network card's address, for one; the keys it opens under HKLM are given without
 // their write rights, so its writes fail as they would for a user who is not administrator.
-// The keys opened under one of those are followed too (a small table of handles).
+// The keys opened under one of those are followed too (a small table of handles). The other
+// roots that are not the user's own (HKEY_CLASSES_ROOT, where COM classes are registered;
+// HKEY_USERS; HKEY_CURRENT_CONFIG) are treated the same. Deleting a key is refused everywhere,
+// a value under those roots too (Valve Limit R links ATL's registrar, RegDeleteKey and all).
 // ------------------------------------------------------------------------------
 
 #define KEY_WRITES (KEY_SET_VALUE | KEY_CREATE_SUB_KEY | KEY_CREATE_LINK | DELETE | WRITE_DAC | WRITE_OWNER)
@@ -465,7 +468,7 @@ static HKEY g_hklmKeys[64];
 
 static int is_hklm(HKEY key)
 {
-    if (key == HKEY_LOCAL_MACHINE)
+    if (key == HKEY_LOCAL_MACHINE || key == HKEY_CLASSES_ROOT || key == HKEY_USERS || key == HKEY_CURRENT_CONFIG)
         return 1;
     for (int i = 0; i < 64; i++)
         if (key && g_hklmKeys[i] == key)
@@ -485,7 +488,7 @@ static REGSAM hklm_rights(REGSAM sam, const char *fn, const char *sub, const voi
     if (!(sam & KEY_WRITES))
         return sam;
     char where[128];
-    wl_log("%s HKLM\\...\\%s: opened read only [%s]", fn, sub ? sub : "", where_of(caller, where, sizeof where));
+    wl_log("%s %s (the machine's registry): opened read only [%s]", fn, sub ? sub : "", where_of(caller, where, sizeof where));
     sam &= ~(REGSAM)KEY_WRITES;
     return (sam & (KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_NOTIFY)) ? sam : sam | KEY_READ;
 }
@@ -542,6 +545,88 @@ static LSTATUS WINAPI hRegCreateKeyExW(HKEY key, LPCWSTR sub, DWORD reserved, LP
     if (r == ERROR_SUCCESS && disposition)
         *disposition = REG_OPENED_EXISTING_KEY;
     return r == ERROR_FILE_NOT_FOUND ? ERROR_ACCESS_DENIED : r;
+}
+
+static void delete_refused(const char *fn, const char *sub, const void *caller)
+{
+    char where[128];
+    wl_log("%s %s refused: the registry is left alone [%s]", fn, sub ? sub : "", where_of(caller, where, sizeof where));
+}
+
+static LSTATUS(WINAPI *oRegDeleteKeyA)(HKEY, LPCSTR);
+static LSTATUS WINAPI hRegDeleteKeyA(HKEY key, LPCSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteKeyA(key, sub);
+    delete_refused("RegDeleteKey", sub, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteKeyW)(HKEY, LPCWSTR);
+static LSTATUS WINAPI hRegDeleteKeyW(HKEY key, LPCWSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteKeyW(key, sub);
+    char s[512];
+    delete_refused("RegDeleteKey", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteKeyExA)(HKEY, LPCSTR, REGSAM, DWORD);
+static LSTATUS WINAPI hRegDeleteKeyExA(HKEY key, LPCSTR sub, REGSAM sam, DWORD reserved)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteKeyExA(key, sub, sam, reserved);
+    delete_refused("RegDeleteKeyEx", sub, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteKeyExW)(HKEY, LPCWSTR, REGSAM, DWORD);
+static LSTATUS WINAPI hRegDeleteKeyExW(HKEY key, LPCWSTR sub, REGSAM sam, DWORD reserved)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteKeyExW(key, sub, sam, reserved);
+    char s[512];
+    delete_refused("RegDeleteKeyEx", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteTreeA)(HKEY, LPCSTR);
+static LSTATUS WINAPI hRegDeleteTreeA(HKEY key, LPCSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteTreeA(key, sub);
+    delete_refused("RegDeleteTree", sub, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteTreeW)(HKEY, LPCWSTR);
+static LSTATUS WINAPI hRegDeleteTreeW(HKEY key, LPCWSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oRegDeleteTreeW(key, sub);
+    char s[512];
+    delete_refused("RegDeleteTree", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteValueA)(HKEY, LPCSTR);
+static LSTATUS WINAPI hRegDeleteValueA(HKEY key, LPCSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegDeleteValueA(key, sub);
+    delete_refused("RegDeleteValue", sub, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static LSTATUS(WINAPI *oRegDeleteValueW)(HKEY, LPCWSTR);
+static LSTATUS WINAPI hRegDeleteValueW(HKEY key, LPCWSTR sub)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
+        return oRegDeleteValueW(key, sub);
+    char s[512];
+    delete_refused("RegDeleteValue", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER);
+    return ERROR_ACCESS_DENIED;
 }
 
 static LSTATUS(WINAPI *oRegCloseKey)(HKEY);
@@ -770,7 +855,8 @@ static int WINAPI hGetSystemMetrics(int index)
 
 // ------------------------------------------------------------------------------
 // The PC's camera: some cabinets photograph their player (Daytona Championship USA's face
-// pictures through Video for Windows). A game running on someone's PC gets no camera.
+// pictures through Video for Windows, Mario Kart Arcade GP DX's through Media Foundation). A game
+// running on someone's PC gets no camera.
 // ------------------------------------------------------------------------------
 
 static void camera_refused(const char *what, const void *caller)
@@ -809,6 +895,32 @@ static BOOL WINAPI hcapGetDriverDescriptionW(UINT index, LPWSTR name, int nameSi
 {
     camera_refused("capGetDriverDescription", WL_CALLER);
     return FALSE;
+}
+
+// Media Foundation's capture devices (Mario Kart Arcade GP DX's player photos): none listed, none
+// opened
+static HRESULT(WINAPI *oMFEnumDeviceSources)(void *, void ***, UINT32 *);
+static HRESULT WINAPI hMFEnumDeviceSources(void *attributes, void ***sources, UINT32 *count)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oMFEnumDeviceSources(attributes, sources, count);
+    camera_refused("MFEnumDeviceSources", WL_CALLER);
+    if (sources)
+        *sources = NULL;
+    if (count)
+        *count = 0;
+    return S_OK;
+}
+
+static HRESULT(WINAPI *oMFCreateDeviceSource)(void *, void **);
+static HRESULT WINAPI hMFCreateDeviceSource(void *attributes, void **source)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oMFCreateDeviceSource(attributes, source);
+    camera_refused("MFCreateDeviceSource", WL_CALLER);
+    if (source)
+        *source = NULL;
+    return E_ACCESSDENIED;
 }
 
 // COM objects the game creates: DirectShow's device enumerator would list the cameras too
@@ -930,11 +1042,37 @@ static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
     return r;
 }
 
+// A game whose cabinets elect a host by broadcast (Wasteland Racers 2071) hears its own broadcast
+// on this PC (127.0.0.1, the same port) when its module asks for it: alone, it becomes the host
+static int g_loopbackBroadcast;
+
+void wl_system_loopback_broadcast(int on)
+{
+    g_loopbackBroadcast = on;
+}
+
 static int(WINAPI *osendto)(UINT_PTR, const char *, int, int, const struct sockaddr *, int);
 static int WINAPI hsendto(UINT_PTR s, const char *buf, int n, int flags, const struct sockaddr *a, int len)
 {
     static volatile LONG logged;
     const unsigned char *b = (const unsigned char *)a;
+    if (g_loopbackBroadcast && a && len >= 8 && ((const unsigned short *)a)[0] == 2 /* AF_INET */ && b[7] == 255 && !wl_busy() &&
+        !wl_is_system_caller(WL_CALLER))
+    {
+        // Its length may be anything (Wasteland Racers passes a stray value): an IPv4 address is 16 bytes
+        unsigned char local[16];
+        len = len > 16 ? 16 : len;
+        memcpy(local, a, len);
+        local[4] = 127, local[5] = 0, local[6] = 0, local[7] = 1;
+        static volatile LONG told;
+        if (InterlockedIncrement(&told) == 1)
+        {
+            char t[32], where[128];
+            wl_log("sendto %s: to 127.0.0.1 instead, the cabinet hears its own broadcast [%s]", sockaddr_text(a, len, t, sizeof t),
+                   where_of(WL_CALLER, where, sizeof where));
+        }
+        return osendto(s, buf, n, flags, (const struct sockaddr *)local, len);
+    }
     if (g_cabinetNet && a && len >= 8 && ((const unsigned short *)a)[0] == 2 /* AF_INET */ && (b[4] << 16 | b[5] << 8 | b[6]) == g_cabinetNet)
     {
         static volatile LONG dropped;
@@ -956,6 +1094,85 @@ static int WINAPI hsendto(UINT_PTR s, const char *buf, int n, int flags, const s
     }
     SetLastError(err);
     return r;
+}
+
+// WinHTTP's connections go through Windows' own modules, out of lan_refused's reach: the game's
+// own WinHttpConnect is refused anything but this PC (Mario Kart Arcade GP DX's server at
+// amk3-cn01.nbgi-amnet.jp, its ALL.Net at 127.0.0.1)
+static void *(WINAPI *oWinHttpConnect)(void *, LPCWSTR, WORD, DWORD);
+static void *WINAPI hWinHttpConnect(void *session, LPCWSTR server, WORD port, DWORD reserved)
+{
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER) && server && _wcsicmp(server, L"localhost") && wcsncmp(server, L"127.", 4))
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 10)
+        {
+            char where[128], s[256];
+            wl_log("WinHttpConnect %s:%u refused: the game stays on this PC [%s]", wl_u8(server, s, sizeof s), port, where_of(WL_CALLER, where, sizeof where));
+        }
+        SetLastError(12007); // ERROR_WINHTTP_NAME_NOT_RESOLVED
+        return NULL;
+    }
+    return oWinHttpConnect(session, server, port, reserved);
+}
+
+// The PC's routing table is not the game's (Mario Kart Arcade GP DX sets the cabinet's routes):
+// refused as for a program without the administrator's rights
+static void route_refused(const char *what, const void *caller)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 10)
+    {
+        char where[128];
+        wl_log("%s refused: the PC's routes and addresses are left alone [%s]", what, where_of(caller, where, sizeof where));
+    }
+}
+
+static DWORD(WINAPI *oCreateIpForwardEntry)(void *);
+static DWORD WINAPI hCreateIpForwardEntry(void *route)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oCreateIpForwardEntry(route);
+    route_refused("CreateIpForwardEntry", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oSetIpForwardEntry)(void *);
+static DWORD WINAPI hSetIpForwardEntry(void *route)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oSetIpForwardEntry(route);
+    route_refused("SetIpForwardEntry", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oDeleteIpForwardEntry)(void *);
+static DWORD WINAPI hDeleteIpForwardEntry(void *route)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oDeleteIpForwardEntry(route);
+    route_refused("DeleteIpForwardEntry", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+// Nor are the PC's IP addresses (D1GP imports AddIPAddress and DeleteIPAddress, a cabinet's own
+// network): refused the same way
+static DWORD(WINAPI *oAddIPAddress)(ULONG, ULONG, DWORD, PULONG, PULONG);
+static DWORD WINAPI hAddIPAddress(ULONG address, ULONG mask, DWORD ifIndex, PULONG context, PULONG instance)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oAddIPAddress(address, mask, ifIndex, context, instance);
+    route_refused("AddIPAddress", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oDeleteIPAddress)(ULONG);
+static DWORD WINAPI hDeleteIPAddress(ULONG context)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oDeleteIPAddress(context);
+    route_refused("DeleteIPAddress", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
 }
 
 // Network adapters: some games check a MAC address
@@ -1023,6 +1240,14 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"advapi32.dll", RegCreateKeyExA),
     WL_HOOK(L"advapi32.dll", RegCreateKeyExW),
     WL_HOOK(L"advapi32.dll", RegCloseKey),
+    WL_HOOK(L"advapi32.dll", RegDeleteKeyA),
+    WL_HOOK(L"advapi32.dll", RegDeleteKeyW),
+    WL_HOOK(L"advapi32.dll", RegDeleteKeyExA),
+    WL_HOOK(L"advapi32.dll", RegDeleteKeyExW),
+    WL_HOOK(L"advapi32.dll", RegDeleteTreeA),
+    WL_HOOK(L"advapi32.dll", RegDeleteTreeW),
+    WL_HOOK(L"advapi32.dll", RegDeleteValueA),
+    WL_HOOK(L"advapi32.dll", RegDeleteValueW),
     WL_HOOK(L"shell32.dll", ShellExecuteA),
     WL_HOOK(L"shell32.dll", ShellExecuteW),
     WL_HOOK(L"shell32.dll", ShellExecuteExA),
@@ -1041,10 +1266,18 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"advapi32.dll", InitiateSystemShutdownExW),
     WL_HOOK(L"powrprof.dll", SetSuspendState),
     WL_HOOK(L"iphlpapi.dll", GetAdaptersInfo),
+    WL_HOOK(L"winhttp.dll", WinHttpConnect),
+    WL_HOOK(L"iphlpapi.dll", CreateIpForwardEntry),
+    WL_HOOK(L"iphlpapi.dll", SetIpForwardEntry),
+    WL_HOOK(L"iphlpapi.dll", DeleteIpForwardEntry),
+    WL_HOOK(L"iphlpapi.dll", AddIPAddress),
+    WL_HOOK(L"iphlpapi.dll", DeleteIPAddress),
     WL_HOOK(L"avicap32.dll", capCreateCaptureWindowA),
     WL_HOOK(L"avicap32.dll", capCreateCaptureWindowW),
     WL_HOOK(L"avicap32.dll", capGetDriverDescriptionA),
     WL_HOOK(L"avicap32.dll", capGetDriverDescriptionW),
+    WL_HOOK(L"mf.dll", MFEnumDeviceSources),
+    WL_HOOK(L"mf.dll", MFCreateDeviceSource),
     WL_HOOK(L"ole32.dll", CoCreateInstance),
     WL_HOOK(L"ws2_32.dll", bind),
     WL_HOOK(L"ws2_32.dll", connect),

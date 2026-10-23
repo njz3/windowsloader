@@ -23,8 +23,15 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title); // Sega RingEdge and RingWide games
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title);    // Taito Type X+ (Battle Gear 4)
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
+int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
+int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);
 const char *wl_game_title(void); // "Sega Rally 3", for the menu
 void wl_game_init(void);
+
+// A game module's part that needs the settings (its [Game] options): given by the module while it
+// recognizes its game, called once the settings are read, before the game runs
+void wl_game_on_settings(void (*fn)(void));
+void wl_game_settings(void);
