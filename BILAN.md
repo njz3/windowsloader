@@ -22,7 +22,7 @@ dans NOTES.md, « Jeux des bornes »).
 | GRID | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | DiRT Showdown | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ✅ |
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
-| Sonic & Sega All-Stars Racing (RingWide) | ✅ | ❌ | ⏳ | ⚠️ | ✅ | ⏳ | ✅ | ⚠️ |
+| Sonic & Sega All-Stars Racing (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Battle Gear 4 Tuned (Taito Type X+) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Battle Gear 4 Tuned Pro (même dossier, `[Game.bg4] CABINET = PRO`) | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
 | Chase H.Q. 2 (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
@@ -119,8 +119,11 @@ OutputBlaster et `teknoparrot.ini` mis de côté dans `_teknoparrot_off`.
 
 La plateforme RingEdge est émulée ; elle servira aussi aux RingWide (K.O. Drive, Sonic & Sega All-Stars
 Racing) :
-- les pilotes `\\.\mxsram` (SRAM dans `wl_sram.bin`), `mxsuperio`, `mxsmbus` et `columba`
-  (une table DMI fabriquée : plateforme « AAL ») ;
+- les pilotes `\\.\mxsram` (SRAM dans `wl_sram.bin`), `mxsuperio`, `mxsmbus` (EEPROM dans `wl_eeprom.bin`)
+  et `columba` (une table DMI fabriquée : plateforme « AAL ») ;
+- l'enregistrement système AM_SYSDATA_STATIC de l'EEPROM (région, numéro de la carte), écrit par windowsloader
+  quand il est vide ou abîmé (depuis Sonic, le 23/10 ; Initial D 6 et K.O. Drive pas relancés depuis, leurs
+  copies effacées) ;
 - les services PCP sur 127.0.0.1:40100 et suivants : mxmaster, la clé (keychip), le réseau, gcatcher ;
 - la clé répond à ses défis d'après `SBUU_Table.dat`, la table du jeu ;
 - le JVS sur COM4 ;
@@ -249,15 +252,26 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
     (`query_nic_status` 0) ; « NETWORK FAILURE - PLEASE CONTACT OPERATOR » disparaît ;
   - le jeu se donne l'adresse 192.168.88.1 (borne n° 1) et y ouvre ses sockets de liaison : elles sont ouvertes
     sur 127.0.0.1, et ce qu'il envoie à ce réseau (son broadcast) est jeté (borne seule) ;
-  - démo en boucle.
-- Commandes ❌ : le JVS est lu (test d'entrées : START octet 0 bit 7, ITEM octet 1 bit 0, volant, accélérateur,
-  pédale DRIFT), mais une partie ne démarre pas : en mode pièces, les pièces JVS ne sont pas comptées (la
-  comptabilité reste à 0) ; en jeu gratuit, Start est ignoré et « PRESS START » ne s'affiche pas. Cause pas
-  encore trouvée.
-- Crédits ⚠️ : le jeu gratuit est l'octet 0x0A de l'enregistrement AM_SYSDATA_CREDIT de l'EEPROM (offset 0x20,
-  CRC32 sur les octets 4 à 0x1F, copie en 0x220) ; posé à la main dans `wl_eeprom.bin` pour l'essai,
-  « FREE PLAY » s'affiche.
-- Retour de force ⚠️ : le test de la carte passe ; en course, pas encore vu.
+  - démo en boucle ;
+  - l'EEPROM (`wl_eeprom.bin`) : son premier enregistrement, AM_SYSDATA_STATIC, est écrit par le système de la
+    borne, pas par le jeu ; vide, le jeu ne démarre pas ses crédits (amCredit) et ignore pièces et Start.
+    windowsloader l'écrit quand il est vide ou abîmé : région export (4, celle de la clé), un numéro de série
+    inventé ;
+  - la sauvegarde : le jeu écrit `Y:\ssr_save.bin` (un disque de la borne) ; `Y:` est le dossier du jeu, où la
+    copie a déjà ce fichier. Sans lui, le jeu se bloquait au choix du pilote (plus aucune image, le fil
+    principal dans l'interpréteur des écrans).
+- Commandes ✅ : START octet 0 bit 7, ITEM octet 1 bit 0, volant, accélérateur, pédale DRIFT ; partie complète :
+  choix du mode, du pilote, du circuit, chargement, course (temps, tours, objets, turbo, retour en piste après
+  une chute dans l'eau). Le sens du volant vu en course (+0,8 à gauche).
+- Crédits ✅ : option du jeu `FREE_PLAY` ([Game.ssasr], menu F10 « Options du jeu », « Jeu gratuit », cochée par
+  défaut) : l'octet 0x0A de l'enregistrement AM_SYSDATA_CREDIT (offset 0x20, CRC32 sur les octets 4 à 0x1F,
+  copie en 0x220), réglé au lancement ; le menu de test du jeu n'a pas les réglages de pièces (ils sont dans
+  celui du système de la borne). Décochée : les pièces sont comptées (CREDIT(S) 1, 2, 3) et Start en prend une.
+- Retour de force ⚠️ : le test de la carte passe ; en course, le couple (84) de −16 à +20 sur 127, une trentaine
+  de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) est noté sans être joué. Sens pas
+  vérifié au volant.
+- vJoy ✅ : course avec les manettes ouvertes, retour de force sur le joueur 1.
+- Menu F10 ✅ : toutes les pages, dont « Options du jeu ».
 - Affichage ✅ : fenêtre 1280×720 (`Settings.ini`), FPS et `[ssasr]` dans le titre ; vu à l'écran à 61 images/s
   avec la recopie GDI (noir à l'écran avant, 47 images/s).
 - Menu de service ✅ : `gametest.exe` : GAME TEST MENU, test d'entrées, réglages du jeu, comptabilité,

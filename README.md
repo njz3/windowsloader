@@ -78,7 +78,9 @@ capitals; a list's values in capitals, `true`/`false`, numbers), set from the me
 jeu" page or by `--set Game.KEY=VALUE` for the game launched. Battle Gear 4 Tuned (`[Game.bg4]`):
 `CABINET = PRO` for the Professional edition's cabinet (wide screen, clutch, H shifter: actions
 `Clutch`, `Gear1` to `Gear6`; the game switches its own settings at the next start and closes once,
-start it again), `HOLD_GEAR = true` to keep the gear engaged once the lever is let go.
+start it again), `HOLD_GEAR = true` to keep the gear engaged once the lever is let go. Sonic &
+Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
+default; the game's test menu has no coin settings, the cabinet's system menu has them).
 
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,
