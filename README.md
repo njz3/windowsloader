@@ -71,6 +71,11 @@ default), `BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `DISPLAY_MODE
 resolution, `AUTO` by default). F11 or Alt+Enter switches between window and full screen. A game's
 own `<short name>.ini` next to `windowsloader.ini` (`gticlub3.ini`) is read instead when it exists.
 
+Game options are in a `[Game]` section. Battle Gear 4: `CABINET = PRO` for the Professional
+edition's cabinet (wide screen, clutch, H shifter: actions `Clutch`, `Gear1` to `Gear6`; the game
+switches its own settings at the next start and closes once, start it again), `HOLD_GEAR = true` to
+keep the gear engaged once the lever is let go.
+
 **F10** pauses the game and opens the settings menu: controls (bindings captured from the keyboard,
 a gamepad or a wheel, saved to `controls.ini`), display, force feedback strength and direction.
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
@@ -82,4 +87,7 @@ GPL v3 (see `LICENSE`), by Benjamin Maurin - njz3. Code taken from other project
 linuxloader, sm2-emu, Flycast, segatools) stays under its own license and names its origin.
 MinHook (`src/minhook`) is under the BSD 2-clause license of its author, Tsuda Kageyu. Dear ImGui
 (`src/imgui`, version 1.92.0, taken unchanged from sm2-emu, with its Direct3D 9, Direct3D 11 and
-Win32 backends) is under the MIT license of Omar Cornut.
+Win32 backends) is under the MIT license of Omar Cornut. d3d8to9 (`src/d3d8to9`, from
+https://github.com/crosire/d3d8to9 at commit 255338f, its entry point changed for windowsloader) is
+under the BSD 2-clause license of Patrick Mours (`src/d3d8to9/LICENSE.md`): Direct3D 8 games are
+played on Direct3D 9.

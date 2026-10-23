@@ -24,8 +24,14 @@ dans NOTES.md, « Jeux des bornes »).
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
 | Sonic & Sega All-Stars Racing (RingWide) | ✅ | ❌ | ⏳ | ⚠️ | ✅ | ⏳ | ✅ | ⚠️ |
 | Battle Gear 4 Tuned (Taito Type X+) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Battle Gear 4 Tuned Pro (même dossier, `[Game] CABINET = PRO`) | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
 | Chase H.Q. 2 (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | GTI Club: Supermini Festa! (GTI Club 3, Konami PC) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Wasteland Racers 2071 (Trio Tech PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
+| Mario Kart Arcade GP DX 1.18 (Namco ES3) | ⚠️ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Battle Gear 4 (Taito Type X+, 2006) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| D1GP (Taito Type X2) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Valve Limit R (Taito Type X) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 
 Fonctions :
 
@@ -312,6 +318,42 @@ de côté. « Professional Edition » est une option de TeknoParrot (correctifs 
 - La boîte du pare-feu de Windows s'ouvre au lancement (le jeu écoute sur le port 8821 pour la liaison des
   bornes) : la réponse est à l'utilisateur.
 
+### Battle Gear 4 Tuned Pro (borne « Professional »)
+
+Le même dossier et le même `game.exe` : la borne Pro est reconnue par le jeu lui-même, qui compte les cartes
+JVS du bus (+0x60cb37) ; deux cartes, c'est une borne « WIDE MONITOR & CLUTCH TYPE » (écran large,
+embrayage, levier en H). Dans windowsloader : `[Game] CABINET = PRO` (`--set Game.CABINET=PRO`, ou dans
+`bg4.ini`), qui met une seconde carte sur le bus JVS (nœud 2 ; `jvs.cpp` en accepte maintenant deux).
+
+- Lancement ✅ : au premier démarrage après un changement de `CABINET`, le jeu réécrit son `config.bin`
+  (deux octets, 0x74 et 0x75, et sa somme) et se ferme seul après 3 s : relancer. Sans remise à zéro usine.
+- Affichage ✅ : 1360×768 (la largeur 1366 d'OpenParrot, pour l'écran de la borne, n'est pas reprise :
+  windowsloader met l'image à la taille de sa fenêtre).
+- Commandes ✅ (mode agent) :
+  - levier en H, actions `Gear1` à `Gear6` (point mort quand aucune n'est tenue) : le jeu (+0x48adf2) lit
+    les rangées sur SHIFT UP (bit 8 : 2, 4, 6) et SHIFT DOWN (bit 7 : 1, 3, 5), actives à l'état bas sur
+    cette borne, et les colonnes sur la seconde carte (entrées générales, commande 0x26 : 0x80 gauche pour
+    1 et 2, 0x40 droite pour 5 et 6). Course en « 6速 MT » : rapports 1 à 5 vus au tableau de bord, 86 km/h ;
+    la 6e position est la marche arrière pour une voiture à 5 rapports (point mort en roulant) ;
+  - embrayage, action `Clutch` (`P1_Clutch` dans `controls.ini`) : voie analogique 6, lue seulement en course
+    (+0x41e860) et étalonnée par ADJUSTMENT (accélérateur, frein, puis embrayage). Vérifié : pédale enfoncée,
+    plein gaz en 1re, la voiture reste à 0 km/h ; relâchée, 24 puis 64 km/h ;
+  - la grille du levier est motorisée (séquentielle pour AT et MT, en H pour 6速 MT) : le jeu la pousse par
+    les sorties 0x80 et 0x40 de la seconde carte, 4 s chacune à tour de rôle (+0x41f098), jusqu'à ce que ses
+    capteurs « SHIFT SEN1 » (0x20) ou « SEN2 » (0x10), actifs à l'état bas, donnent la position voulue
+    (+0x41df70, +0x41e0a0). La grille émulée va où la dernière commande l'envoie : changement immédiat (sans
+    cela, « シフト変更中 » pendant 40 s, puis « remettez le levier au centre ») ;
+  - ShiftUp / ShiftDown donnent les rangées seules : AT et MT séquentielle, et la sélection du menu de
+    service (« ITEM SELECT: SHIFT-SW ») ;
+  - `[Game] HOLD_GEAR = true` : le rapport reste engagé levier relâché (« Hold Gear » d'OpenParrot, 10 octets
+    à +0x8adff), pour un levier dont les positions ne tiennent pas ; vérifié en course (2 puis 3, levier lâché).
+- La carte du nœud 1 reçoit en plus la commande Taito 0x66 (2 octets, sens inconnu, répondue).
+- Retour de force ⚠️ : le même qu'en Tuned (330 changements envoyés pendant une course AT).
+- Menu de service ✅ : test d'E/S (SHIFT LEFT/RIGHT, SEN1/SEN2, CLUTCH en plus), ADJUSTMENT avec l'embrayage.
+- Restent : vJoy et le menu F10 non refaits en Pro (le même code qu'en Tuned) ; l'identité de la seconde
+  carte est celle de la première (celle de la vraie borne inconnue) ; le côté de chaque capteur de la grille
+  est supposé (le jeu s'en accommode : il pousse dans les deux sens).
+
 ## Chase H.Q. 2 (Taito Type X2, 2007)
 
 `game.exe` (avec `chq2.ini`), x86, Direct3D 9 (RenderWare, back buffer 10 bits A2R10G10B10), 800×600.
@@ -433,3 +475,84 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
   sans).
 - Crédits ✅ : jeu gratuit (réglage de la copie) ; les pièces passent par `ac_io_hbhi_current_coinstock` de la
   carte, pas émulé.
+
+## Wasteland Racers 2071 (Trio Tech PC, 2006)
+
+`Arcade.exe`, x86, Direct3D 8 (2560×1440, `D3DLocalConfigData.txt`), son fmod, moteur Diesel de Grin. Nouveau module
+`src/hook/games/triotech.cpp`. Copie locale le 22/10 (4 860 fichiers, 1,66 Go), interrompue par un redémarrage puis
+terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin reste dans le dossier).
+
+- Lancement ✅ :
+  - la carte de la borne (volant à retour de force, pédales, boutons, monnayeur, sur COM3) passe par `SDC2.dll`,
+    que le jeu charge et dont il demande les fonctions par GetProcAddress : le GetProcAddress du jeu donne celles
+    de windowsloader, la carte n'est jamais ouverte (`Init` ne rend pas −1 : « Force feedback board disconnected »
+    sinon) ;
+  - le `dinput8.dll` du dossier est celui de FFBArcadePlugin (`FFBPlugin.ini` : l'appareil vJoy) : le lanceur
+    réécrit l'import du jeu vers le `dinput8.dll` de Windows avant son démarrage (règle générale : un composant
+    de Windows trouvé dans le dossier du jeu est le relais d'un autre loader) ;
+  - le jeu ouvre la première manette DirectInput qu'il trouve (vJoy ici) : un volant « Trio Tech Force Feedback
+    Wheel » de windowsloader est le seul listé ;
+  - Direct3D 8 joué sur Direct3D 9 par d3d8to9 (voir plus bas) ; `Backup.bat` lancé par le jeu, refusé ;
+  - les bornes élisent un serveur par diffusion sur UDP 2070 (« Finding Server... ») : ses diffusions vont à
+    127.0.0.1, la borne s'entend elle-même et devient serveur ; rien ne sort du PC ;
+  - le jeu écoute sur le réseau : une boîte du pare-feu s'ouvre, laissée à l'utilisateur ;
+  - au démarrage, environ 90 s de vidéo d'introduction (DirectShow) avant la première image.
+- Affichage ✅ : recopie GDI de l'image Direct3D 9 que d3d8to9 fait, fenêtre 2042×1149 sur ce portable,
+  60 à 90 images/s. ⚠️ Les vidéos (DirectShow, son propre appareil Direct3D 9, laissé tel quel) ne se voient pas
+  sur ce PC (un Present en mode blt n'y montre rien) : écran noir pendant l'attraction vidéo.
+- Commandes ✅ (mode agent, `crop`/`observe` du bloc-notes) : Boost à l'écran titre → « Finding Server » → choix de la
+  voiture (Destroyer) → choix du circuit (Airport Mayhem) → « Get Ready To Race » (environ 60 s de chargement) →
+  course : 75 à 106 km/h, 6e à 8e, la voiture va à gauche volant à gauche, à droite volant à droite. Les boutons
+  de `GetDigitalIn` sont actifs à l'état bas (le jeu inverse le mot, +0x136e7d) : 0x0000 lui faisait voir tous les
+  boutons tenus. Bits (masques lus dans l'objet du jeu, d'après `Inputs.xml`) : BOOST 0x1, CAMERA 0x2, CHEAT1 à 4
+  0x4 à 0x20, GEAR 0x80, COIN 0x100, MAINTENANCE 0x800, STOP 0x1000 (arrête le mouvement du siège ; `arcade.dll`
+  plante quand il est tenu). Axes de `GetAxisData` en −1..1 : volant (gauche négatif) ; les pédales à l'envers,
+  1 relâchée, 0 enfoncée (le jeu prend 1 − valeur, +0x13dcfc) : avec 0 au repos il voyait accélérateur et frein
+  enfoncés ensemble (12 km/h au plus).
+- Retour de force ✅ : le moteur est un asservissement en position, `SetForce` la raideur et `SetSteeringPos` la
+  position tenue (secousses : ±30 464 en alternance) ; joué comme un ressort : volant à gauche 0,4 → −0,39 (pousse
+  à droite), à droite 0,8 → +0,78 ; en course 176 changements en 25 s (secousses ±0,91). vJoy ✅ (`--controllers` :
+  le joueur 1 est vJoy, les forces lui sont envoyées).
+- Menu F10 ✅ : les cinq pages, jeu en pause (images 143 → 143), reprise à la fermeture.
+- Menu de service ✅ : MAINTENANCE (bouton Test) : étalonnage (BOOST, lance `CalibrationStarter.exe`, refusé, et
+  quitte le jeu), prix de la partie (VIEW), jeu gratuit, statistiques.
+- Crédits ✅ : jeu gratuit (réglage de la copie) : le jeu met le prix d'une partie dans le compteur de la carte
+  (`SetCoin(8, …)`, le compteur du bit COIN) puis le relit (`GetCoin(8)`) ; une pièce compte une fois par appui.
+
+## Mario Kart Arcade GP DX 1.18 (Namco System ES3), commencé
+
+`MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 et 9Ex. Module `src/hook/games/namco.cpp`. Le jeu démarre et dessine
+(noir) à 60 images/s en fenêtre 1360×768. Fait : volant DirectInput de windowsloader (vJoy caché), client ShareK non
+démarré (classe COM non enregistrée), lecteurs F:\ et G:\ vers les `F*`/`G*` de la copie. Voir NOTES.md pour les
+garde-fous ajoutés (caméra, ports série, routes, WinHTTP).
+
+Retrouvé dans l'exe (23/10), émulé, pas encore essayé (plus d'écran sur le PC) :
+- la carte JVS est sur **COM3** à 115 200 bauds, ouverte par la bibliothèque JVS du jeu (son hôte « NBGI.;WinArc;Ver2.01;JPN »)
+  une fois un chargement fini ; CTS bas tant qu'une carte n'a pas d'adresse ;
+- **COM1** à 19 200 bauds est la carte du moteur du volant : elle annonce « C01 » (prête), le jeu lui envoie alors toutes
+  les 8 ms une position visée sur 14 bits, un ressort, un amortisseur et une vibration ; joués ici en ressort vers la
+  cible plus la vibration (sens à vérifier).
+
+## Battle Gear 4 (Taito Type X+, 2006), D1GP (Taito Type X2) et Valve Limit R (Taito Type X)
+
+Copiés le 23/10 ; pas encore lancés avec un écran (le PC n'en a plus eu à partir de 3 h).
+
+- Battle Gear 4 de 2006 : un autre exe que Tuned ; taito.cpp le reconnaît par l'horodatage de l'exe et pose ses propres
+  correctifs (barre de menu, IntroFix, aux adresses de cette édition ; repris d'OpenParrot, « BG4_Eng ») ; la borne Pro
+  n'existe que pour Tuned. Les deux éditions ouvraient la première manette DirectInput en exclusif (vJoy) : elle leur est
+  maintenant cachée.
+- D1GP : JVS sur COM2 ; volant, pédales et boutons par DirectInput, réglés par un fichier `<nom du produit>.txt` ;
+  retour de force par Immersion (effets DirectInput). Le volant DirectInput de windowsloader sait maintenant jouer des
+  effets (ressorts, forces constantes, rampes, périodiques) : prévu pour lui.
+- Valve Limit R : `launcher.exe`, Direct3D 9, COM1 et COM2.
+- Garde-fous ajoutés pour eux : adresses IP du PC (AddIPAddress, DeleteIPAddress), suppression de clés du registre,
+  HKEY_CLASSES_ROOT et HKEY_USERS en lecture seule comme HKLM.
+
+## Direct3D 8 (d3d8to9)
+
+windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,
+version 255338f du 23/09/2026), compilé dans la DLL 32 bits (Direct3D 8 n'existe qu'en 32 bits). Seule
+modification : son point d'entrée reçoit l'IDirect3D9 que windowsloader crée, et n'affiche plus de boîte ni de page
+web quand `d3dx9_43.dll` manque (le journal le dit). L'appareil prend alors le chemin Direct3D 9 de windowsloader
+(recopie GDI, modes d'affichage, recadrage, F10, images de l'agent). `WINDOWSLOADER_D3D8=native` garde le Direct3D 8
+de Windows (fenêtre gardée, images comptées, rien à l'écran sur ce PC).
