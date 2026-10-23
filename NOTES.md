@@ -70,6 +70,13 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 59 | 23/10 | Décrire les protocoles de pilotage des cartes moteur dans DRIVEBOARD.md de BackForceFeeder, en particulier Namco et Taito sur port série | ✅ section « Other boards, as the Windows arcade games drive them » ajoutée à la fin : volant de Battle Gear 4, grille de BG4 Pro, moteur de Chase H.Q. 2 sur les sorties JVS, carte moteur de Mario Kart DX, Kickback de Namco, servo Sega des jeux RingEdge / RingWide, Crazy Ride, Wasteland ; non commité |
 | 60 | 23/10 | Un JVS.md à côté : le protocole JVS complet et ses dérivés, et pour chaque plateforme ou jeu le sens des entrées-sorties | ✅ JVS.md (anglais) : couche physique, ligne de détection par plateforme, trame, statuts, toutes les commandes, celles de Taito et de Namco, les cartes des E/S de Lindbergh (d'après linuxloader), RingEdge / RingWide, Battle Gear 4 et sa version Pro, Chase H.Q. 2, Mario Kart DX ; non commité |
 | 61 | 23/10 | La carte Taito de Battle Gear 3 n'est pas la même que les autres : garder ce qui est écrit, ajouter les autres cartes dans une section à part | ✅ rien de l'existant retiré ; les autres cartes dans la section à part, qui dit ne pas les supposer pareilles ; un paragraphe de comparaison corrigé (Battle Gear 3 envoie aussi 0D 80) |
+| 62 | 23/10 | Il y a deux ports COM10 et COM11 en tunnel virtuel si tu veux essayer les modes passthrough | ✅ essayé avec Battle Gear 4 : la carte du volant puis le JVS sur COM10, un script Python jouant la carte sur COM11 ; créneau convenu avec Linuxloader |
+| 63 | 23/10 | Commit et pousse juste ton dépôt | ✅ 3 commits poussés (`56fa766..2df21e3`) : le code (options du jeu, passthrough, Crazy Ride, commandes JVS de Namco), BILAN.md et README.md, NOTES.md ; BILAN.md mis à jour avant ; le dépôt de BackForceFeeder laissé tel quel |
+| 64 | 23/10 | Où en es-tu ? | ✅ le point : demandes faites, reste de la liste des jeux (Mario Kart DX, Battle Gear 4 de 2006, D1GP, Valve Limit R, Crazy Ride, Sonic, SWDC) |
+| 65 | 23/10 | Termine Mario Kart DX puis enchaîne avec les jeux suivants | 🔄 Mario Kart DX fait : démarrage complet (clé, lecteur de cartes, réseau des bornes, hors ligne), image (Direct3D 10), commandes vues au menu de test, retour de force reçu, F10 ; vJoy et le sens de la force au volant restent. Battle Gear 4 de 2006 fait : sa vidéo de démo par DirectShow (chemin redirigé), course, test d'E/S, vJoy, F10. D1GP fait : JVS (bits trouvés au test d'E/S), volant DirectInput en Unicode, retour de force Immersion par DirectInput 7, vJoy, F10 ; lecteur de cartes non émulé. Valve Limit R fait : JVS (table du jeu), carte du volant Taito et ses effets façon Battle Gear 3, étalonnage des pédales, captures 16 bits, vJoy, F10. Crazy Ride fait : blocage du rendu (fenêtres d'un autre fil), entrées, pédales, volant, vJoy, F10. Restent : Sonic, SWDC |
+| 66 | 23/10 | Dans la fenêtre des paramètres, pour chaque jeu, la carte d'E/S des contrôles et la carte moteur (« Controls on JVS board, version xx », « Motor board: Sega-like servoboard ») | ✅ deux lignes sous le nom du jeu dans la page « Jeu » du menu F10, déclarées par chaque module (`wl_game_set_boards`), notées aussi au démarrage ; libellés repris par Linuxloader |
+| 67 | 23/10 | Un mode « plein écran fenêtré / borderless » et « plein écran fenêtré / borderless stretch » | ✅ `DISPLAY_MODE = BORDERLESS` / `BORDERLESS_STRETCH` (l'ancien plein écran, fenêtre sans bordure à la résolution du bureau) ; `FULLSCREEN` change maintenant la résolution de l'écran ; mêmes noms chez Linuxloader |
+| 68 | 23/10 | Pendant que tu travailles et sans t'arrêter, le tableau des jeux déjà faits et supportés complètement, et de ceux restant à faire | ✅ donné d'après BILAN.md : 16 jeux jouables de bout en bout (retour de force à confirmer au volant pour la plupart) ; en cours Sonic, Valve Limit R (fini ensuite), Crazy Ride ; pas commencés SWDC et Mario Kart DX v1.10 |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -128,12 +135,12 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 
 | Jeu | Profil | Loader actuel | Matériel d'origine | PE | FFB (paquets) | windowsloader |
 |---|---|---|---|---|---|---|
-| Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ⏳ copié ; l'édition de 2006 reconnue (ses correctifs), pas encore lancée avec un écran |
+| Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ✅ l'édition de 2006 : vidéo de démo (DirectShow redirigé), course, test d'E/S, vJoy, F10 (agent) ; FFB ⚠️ |
 | Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ✅ `[Game.bg4] CABINET = PRO` sur le dossier Tuned : levier en H, embrayage, grille motorisée (agent) |
 | Battle Gear 4 Tuned | BattleGear4Tuned | OpenParrot | Taito Type X+ | 32 | oui (16 607) | ✅ jusqu'en course (agent), menu de service ; FFB ⚠️ (agent) ; la copie est l'édition « Professional » (option TeknoParrot) |
 | Chase HQ 2 | ChaseHQ2 | OpenParrot | Taito Type X2 | 32 | oui (6 816) | ✅ jusqu'en course (agent), étalonnage au menu de service ; FFB ⚠️ (agent) |
-| Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ⏳ copié, étudié (ses fonctions BIND_* de UsbPluginsDll_R.dll, à fournir) |
-| D1GP | D1GP | TeknoParrot | Taito Type X2 | 32 | non (0) | ⏳ copié, étudié (JVS COM2, volant DirectInput Immersion) |
+| Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ✅ course (agent, vJoy), menu de test, F10 ; FFB ⚠️ (moteur supposé) |
+| D1GP | D1GP | TeknoParrot | Taito Type X2 | 32 | non (0) | ✅ course (agent, vJoy), JVS, volant DirectInput, F10, service ; FFB ⚠️ (Immersion) ; lecteur de cartes non émulé |
 | Daytona 3 | Daytona3 | TeknoParrot | Sega | 32 | oui (9 164) | ⚠️ joue en mode agent (demande 24) |
 | Daytona 3 New Season | Daytona3NSE | TeknoParrot | Sega | 32 | oui (12 684) | ⚠️ joue en mode agent (demande 24) |
 | Ford Racing | FR | TeknoParrot | Sega Arcade PC | 32 | oui (4 426) | ✅ (menu de service ⚠️ : clé iButton) |
@@ -142,12 +149,12 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | Initial D 6 AA | ID6 | TeknoParrot | Sega Ringedge | 32 | oui (13 400) | ✅ jusqu'en course (agent) ; FFB, affichage ⚠️ |
 | K.O. Drive | KODrive | TeknoParrot | Sega Ringwide | 32 | oui (20 854) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB, affichage ⚠️ |
 | Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
-| Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ⚠️ démarre (noir) ; JVS sur COM3 et carte du moteur sur COM1 retrouvées, émulées, à essayer |
+| Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ✅ démarrage complet, course, menu de test, F10 (agent) ; FFB ⚠️, vJoy ⏳ |
 | Showdown | Showdown | TeknoParrot | Sega Arcade PC | 32 | oui (25 955) | ✅ jusqu'en course (agent) ; FFB ⚠️ (agent, port 0x378) |
 | Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ⚠️ démarre (carte du volant, réseau), menu de service ; une partie ne démarre pas |
 | Sega Rally 3 | SR3 | TeknoParrot | Sega Europa R | 32 | non (63) | ✅ (retour de force par le port 0x1020) |
 | Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | ⏳ |
-| Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ⏳ copié (« Valve Limit R », `launcher.exe`) |
+| Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ✅ « Valve Limit R » : course (agent, vJoy), test d'E/S, étalonnage des pédales, F10 ; FFB ⚠️ |
 | Wasteland Racers 2071 | WastelandRacers | TeknoParrot | Trio Tech PC | 32 | oui (23 484) | ✅ jusqu'en course (agent), vJoy, F10, menu de maintenance |
 
 13 des 21 émettent du retour de force sous leur loader actuel. Sega Rally 3 a huit entrées (Standard,
@@ -912,3 +919,154 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
     (1 766 requêtes en 60 s), l'attract normal. Avec un script qui répond 50 ms trop tard, le jeu redemande la réponse
     (`2F`, 520 fois) : c'est le jeu qui tolère, pas une erreur du passthrough. Une pièce donnée par le script à 40 s ne
     s'est pas vue à l'écran : pas creusé.
+
+### 23/10 — Mario Kart DX, son démarrage (demande 65) ; les cartes dans F10 (66) ; le plein écran fenêtré (67)
+
+- Les cartes dans F10 (demande 66) : chaque module déclare deux lignes (`wl_game_set_boards`, game.h), montrées sous le
+  nom du jeu dans la page « Jeu » et notées au démarrage : « Controls on JVS board, Sega 837-14572, JVS 3.0 (COM4) »,
+  « Motor board: Sega-like servoboard (COM1) » ; les autres familles : « Sega PC parallel-port driver » (Sega Rally 3,
+  GRID, DiRT Showdown, Daytona, Ford Racing : un octet, la force en 4 bits et le sens), « Taito steering board, Battle
+  Gear protocol », « Namco motor board », les sorties JVS de Chase H.Q. 2, l'ACIO de Konami, la SDC2 de Trio Tech, la
+  carte de UNIS. Vu à l'écran sur Battle Gear 4. Linuxloader reprend les mêmes libellés.
+- Plein écran fenêtré (demande 67) : `DISPLAY_MODE = BORDERLESS` et `BORDERLESS_STRETCH`, à la suite des quatre
+  modes (mêmes noms et libellés chez Linuxloader). C'est ce que faisait jusqu'ici `FULLSCREEN` : une fenêtre sans
+  bordure qui couvre l'écran, à la résolution du bureau. `FULLSCREEN` change maintenant la résolution de l'écran pour
+  son plus petit mode qui contient l'image du jeu, comme SDL chez Linuxloader (`ChangeDisplaySettingsEx`, `CDS_FULLSCREEN`, rendue en revenant à une fenêtre et par
+  Windows à la fin du jeu ; une taille refusée : la résolution du bureau). F11 va de la fenêtre au plein écran choisi
+  (`BORDERLESS` si le mode choisi est une fenêtre). Vérifié sur Battle Gear 4 : BORDERLESS 2048x1280, l'image 1707x1280
+  entre deux bandes, BORDERLESS_STRETCH l'image pleine. FULLSCREEN pas essayé à l'écran (il passerait celui de ce
+  portable en 800x600 pendant l'essai). La capture « screen » de l'agent prend les pixels physiques d'un écran mis à
+  l'échelle (150 %) : à corriger à part.
+- Mario Kart DX 1.18 : il dessinait du noir parce qu'il restait dans sa vérification du démarrage (`clBootCheck`,
+  douze étapes, +0x2044e0), sans rien charger (2 fichiers lus en 2 min). Sondes posées sur les étapes :
+  - réponses JVS d'après ce que la bibliothèque du jeu lit (+0x4adf90, +0x4aefa0) : `70 18 PL` rapport 01 et un
+    octet ; « 70 18 PL 14 D0 » du départ suivi de 6 octets restés dans son tampon (longueur fixe) ; un lien série dans
+    la carte (`70 16` réglage, `70 05` envoi, `70 15` réception, compte 0) ; 3 octets de contacts par joueur (le bouton
+    Mario, bit 0x02 du troisième, d'après TeknoParrot) ; la table des commandes de TeknoParrot (Entrée bouton 1, carte
+    bouton 2, objet bouton 5, haut / bas) ;
+  - étape 2, « ドライブ筐体 » : la clé de sécurité de la borne (un périphérique USB, interface
+    {3ABF6F2D-71C4-462a-8A92-1E6861E6AF27}, données signées) ; +0x4b17b0 remplacée : « présente, vérifiée », numéro
+    « 271011020001 » (2710 le jeu, puis un chiffre, un chiffre de 0 à 3, « 02 », 4 chiffres) ;
+  - étapes 4 et 5, le lecteur Banapass (`bngrw.dll`) : ses requêtes rappellent une fonction (n° du lecteur,
+    résultat, contexte) et le jeu attend ce rappel ; émulé (attaché, aucune carte), OpenBanapass d'OpenParrot ne
+    rappelant pas ;
+  - étape 8, la liaison entre bornes : diffusion UDP 20199, renvoyée sur 127.0.0.1 ; le jeu lance aussi `cmd.exe /c
+    ipconfig /release` et retire la passerelle (refusés). Il veut en fait le réseau des bornes : son adresse en
+    192.168.112.11..20 et une passerelle, prises dans `WSAIoctl(SIO_GET_INTERFACE_LIST)` et `GetAdaptersInfo` ; puis il
+    change la route par défaut et pingue le routeur 192.168.112.254. Pour ses propres appels seulement (ses imports) :
+    une interface 192.168.112.11, une passerelle, la route « changée » sans rien toucher, le routeur et la borne
+    répondent au ping → « リンクOK » ;
+  - étapes 9 et 10, le serveur : son authentification (`F:/system/last_auth.bin`, absente) prise pour récente, la
+    limite de 36 h hors ligne (`boot_limit.bin`, novembre 2024) pour non atteinte → « オフライン », démarrage fini :
+    `clSequenceDataStay` (chargement), `clSequenceNotice`, `clSequenceGameDemo`.
+- Toujours noir : le jeu dessine en Direct3D 10 (le 9Ex ne dessine rien) et la recopie GDI lisait sa mémoire d'image
+  par un contexte Direct3D 11, qui passe avant les commandes du jeu. Avec `PRESENT = DIRECT` l'attraction se voyait :
+  lecture maintenant par l'appareil Direct3D 10 (recopie et images de l'agent). Le menu F10, dessiné par un contexte
+  Direct3D 11, ne se voyait pas non plus : backend DX10 de Dear ImGui (le même 1.92.0, de sm2-emu), menu dessiné par
+  l'appareil du jeu.
+- Menu de test : Test est un interrupteur (un appui court entre et sort aussitôt) ; sélecteur haut / bas, Entrée.
+  Commandes trouvées au test des contacts : objet 0x0020 (0x0010 aussi), Mario 0x0002 (pas un 3e octet comme le
+  disait la table de TeknoParrot), le reste comme elle. Les voies analogiques, contre l'étalonnage du menu (fait dans
+  la copie, volant centré, pédales relâchées) : -512..+512 pour le volant, gauche négatif. Piège de mes essais : la
+  commande `set` de l'agent prend -1..1 (+1 la butée gauche), pas une valeur brute.
+- Les réglages du menu ne s'enregistraient pas : `testmode_<n>.bin.tmp` jamais renommé, `_wrename` → `MoveFileW` sans
+  la redirection de F:\ (seulement CreateFile, DeleteFile…). MoveFile(Ex)A/W redirigés (files.cpp).
+- Retour de force : « ハンドル反力の使用 » était OFF dans la copie (réglages du jeu) : mis à ON, la carte moteur reçoit ses
+  trames en course. Leur visée est au centre en 0x200 (pas 0x2000 : corrigé ici et dans DRIVEBOARD.md).
+
+### 23/10 — Battle Gear 4 de 2006 (demande 65, suite)
+
+- Les images de l'agent échouaient au premier lancement (« no frame ») : passager, plus revu ensuite ; le jeu présente
+  à 30 images/s.
+- « $WAIT FOR A WHILE » / « $ OUT OF SERVICE » en alternance sur l'afficheur JVS de 5 à 9 s : le démarrage qui attend la
+  carte du volant, rien à corriger (le trafic JVS semblait s'arrêter : la limite de 500 lignes du journal par port).
+- Plantage à 50 s dans la démo, lecture à l'adresse 0 (+0xeb838, IMediaControl::Stop sur un pointeur nul). Le lecteur
+  vidéo du jeu (+0xebcb0) est l'exemple Texture3D9 de Microsoft : un rendu « TEXTURERENDERER » (RGB24, textures
+  RenderWare), AddSourceFilter, FindPin « Output » ou sinon RenderFile. Programme d'essai à part (DirectShow, 32 bits) :
+  le fichier se décode sur ce PC (lecteur ASF, « WMVideo Decoder DMO », WMV3). Sonde sur la fonction du jeu : elle
+  reçoit `E:/data/Scene/demo/attract/attract_demo.wmv` et échoue en 0x80070003 (chemin introuvable) : le lecteur ASF
+  ouvre le fichier depuis les DLL de Windows, sans passer par les crochets de fichiers, et E:\ n'existe pas. Tuned n'a
+  pas ce fichier (il ne lit pas de vidéo).
+- Corrigé dans `system.cpp` : à la création d'un FilterGraph, IGraphBuilder::RenderFile et AddSourceFilter reçoivent le
+  chemin redirigé (`wl_files_redirectedW`, files.cpp), journalisés. La vidéo passe (400×256), le jeu tourne 90 s sans
+  plantage, puis jusqu'en course. Sonde retirée.
+- Course en mode agent (constructeur, voiture, AT, mode course, circuit, grille, départ). Menu de service : SHIFT UP
+  descend, SHIFT DOWN remonte (aller sur EXIT et START ferme le jeu, comme une borne qui redémarre) ; test d'E/S :
+  volant, pédales, VIEW, HAZARD, SIDE BRAKE. F10 : pause et pages. La page Jeu disait la seconde carte JVS de la borne
+  Pro : texte propre à cette édition, sans elle.
+- vJoy : le premier essai a chevauché celui de la session Linuxloader (Maximum Tune 3), les menus bougeaient seuls ;
+  refait seul : course, 34 changements de force au joueur 1. `race_check.py` connaît maintenant `bg4eng`.
+
+### 23/10 — D1GP (demande 65, suite)
+
+- Reconnu dans `taito.cpp` (game.exe, `IFC23.dll`, `game.inf`). Premier lancement : réseau (35 s d'échec), « DANGER!
+  Handle initialize », attraction. COM2 ouvert deux fois : la bibliothèque « Wdt » (chien de garde, `05 03 e8` au
+  nœud 0, commande inconnue de notre JVS, le jeu continue), puis « Xio », du JVS ordinaire. COM1 est le lecteur de
+  cartes (refusé : « CARD VENDOR / ERROR », on joue sans carte).
+- Le jeu crée DirectInput 8 en Unicode (`IDirectInput8W`), énumère les manettes à retour de force seulement
+  (`DIEDFL_FORCEFEEDBACK`), prend le nom du produit et lit `<nom>.txt` (boutons « x » nommés comme une manette PS2,
+  ACCEL et BRAKE des numéros d'axe, STEER0/STEER1 zone morte et saturation ; un fichier par défaut écrit s'il manque) ;
+  le Logitech Driving Force Pro a un traitement à part. Le volant DirectInput de windowsloader n'existait qu'en ANSI :
+  `VirtualDeviceW` par-dessus (les structures à noms converties), listé et ouvert par `IDirectInput8W`.
+- Les boutons de la borne sont sur le JVS. Bit 15 (Start de Battle Gear 4) sans effet ; des bits de sonde B0..B23
+  appuyés un à un dans TEST MODE puis tenus dans le test d'E/S : START bit 3, VIEW CHANGE 2 (descend dans le menu),
+  SHIFT DOWN 8, SHIFT UP 9, SIDE BRAKE 10, SERVICE 14 ; COIN s'allume sur un bit du 3e octet, les pièces passent par
+  les compteurs. Sondes retirées. Volant ±0,8 → HANDLE ∓1,000 (étalonnage du jeu), ACCELE et BRAKE 1,000.
+- Retour de force : `IFC23.dll` essaie l'API TouchSense par COM (absente), puis `CoCreateInstance(CLSID_DirectInput,
+  IID_IDirectInputA)`, `Initialize(0x700)`, EnumDevices(joystick, retour de force), CreateDevice, QueryInterface
+  `IDirectInputDevice2A`. Ce DirectInput 7 ne passe pas par les crochets de dinput8 : accroché à sa création
+  (system.cpp → `wl_dinput_legacy`), il liste et ouvre le même volant, avec le type joystick/volant de DirectInput 7
+  (même place des méthodes que DirectInput 8, la même classe sert). Effets créés : constantes, ressort, amortisseur,
+  frottement, périodiques ; le ressort mis à jour à chaque image.
+- La force alternait avec 0 à chaque trame : sonde sur la somme des effets (jamais nulle), puis trouvé : les sorties
+  JVS de D1GP (lampes) passaient par le calcul du moteur de Chase H.Q. 2 (`jvs_output`, `!g_bg4`). Réservé à Chase H.Q. 2.
+- Course en mode agent puis avec vJoy (512 changements de force au joueur 1), F10, menu de service. `race_check.py`
+  connaît `d1gp`. Une erreur de ma part : une commande `python -` vide laissée en fin de ligne a tourné en boucle en
+  arrière-plan (sortie de 64 Mo dans le dossier de la session), arrêtée par son identifiant de tâche.
+
+### 23/10 — Valve Limit R (demande 65, suite) ; le point des jeux (demande 68)
+
+- Reconnu dans `taito.cpp` (`launcher.exe`, `game.inf`, `data\bin2`). JVS sur COM2 par la « BG3 I/O Libraly » de Taito,
+  carte du volant de Battle Gear 4 sur COM1 (même protocole). Premier lancement : images de l'agent refusées, le fond
+  d'image en R5G6B5 : conversion 16 bits ajoutée à la capture Direct3D 9.
+- « PLEASE CALIBRATE I/O DEVICE / PRESS TEST BUTTON » ; ni le bit Test ni aucun des 24 bits du joueur 1 n'ouvrait le
+  menu. Lu dans le code : la bibliothèque range la réponse 0x20 (octet système puis joueurs) dans un nœud (0x99dc70 +
+  0x1b8 par nœud), l'objet d'E/S (+0x41aab0, un fil qui interroge toutes les 16 ms) la traduit par une table
+  (0x4c3c78) en mot de boutons du jeu (Test 0x100, valider 8, haut/bas 0x20/0x10), recopié à chaque image avec la
+  valeur d'avant pour les fronts. Une sonde dans la boucle JVS (état des objets toutes les 2 s, et serré autour d'un
+  appui) : Test arrivait bien, l'écran passait à son menu ; mes appuis tombaient avant l'écran qui l'attend (le
+  démarrage alterne avec la démo). Un script qui réappuie jusqu'à voir « TEST MODE » en rouge règle le minutage.
+- Test d'E/S (I/O CHECK) avec les bits de sonde : START 15, SERVICE 14, NITRO 13, VIEW 12, SIDE BRAKE 11, SHIFT UP 10,
+  SHIFT DOWN 9. Pédales : voies 1 et 2 (code), affichées à 0 tant que non étalonnées. Étalonnage minuté (5 s par phase)
+  fait et sauvé dans la copie (`expdat`, `extdat`) ; le démarrage suivant n'a plus le message.
+- Carte du volant : le jeu envoie des paramètres d'effets à la manière de Battle Gear 3 (`01` couple constant en chocs,
+  `03` ressort, `04` amortisseur, `05`/`06` vibration) et interroge par `00 00` ; joués pour lui seul (`vlr_effects`).
+  Course en mode agent puis avec vJoy (362 changements de force), F10. `race_check.py` connaît `vlimitr`.
+- Demande 68 (« le tableau des jeux faits et de ceux qui restent ») : donné d'après BILAN.md, pendant le travail.
+
+### 23/10 — Crazy Ride, premiers lancements (demande 65, suite)
+
+- `CrazyTaxiGame-Win64-Shipping.exe` (Unreal Engine 4.19, 64 bits) lancé par `windowsloader.exe`, qui le passe à
+  `windowsloader64.exe`. Fenêtre 2048×1280, Direct3D 11, première image à 5-15 s, puis le chargement : de 16 s à plus
+  de 200 s selon les lancements. Les images de l'agent échouent tant qu'il charge (aucun Present en 5 s).
+- Échantillonneur de fils 64 bits (`sampler64.py`, contextes x64, adresses de code trouvées sur les piles, noms par le
+  dbghelp des Debugging Tools : le PDB du jeu ne se charge pas, ntdll et le pilote NVIDIA si) : un lancement bloqué
+  montre le fil de rendu dans le Present de windowsloader, sur StretchDIBits de la recopie GDI, le fil principal en
+  attente.
+- Correction (display.cpp) : Present tourne ici sur le fil de rendu, pas sur celui qui possède les fenêtres ;
+  `SetWindowPos` ou un changement de style depuis là attend les messages du fil propriétaire, qui peut lui-même attendre
+  le rendu. Le mode est maintenant appliqué par la procédure de fenêtre (message posté), la fenêtre fille placée en
+  `SWP_ASYNCWINDOWPOS`. Ensuite 17 lancements de suite sans blocage (10 s à 2 min 30 de chargement : le cache du disque).
+- Le jeu demande à supprimer `AppData\Local\FB` et `AppData\Local\Unreal Engine` (BIND_SHDeleteFolder) : refusé ;
+  il cherche une caméra (MFEnumDeviceSources, refusé chaque seconde) et appelle des serveurs en 443 (refusé).
+- Les entrées : A2 (octet 2 bit 2) ouvre le menu de test ; les trois boutons ronds de ce menu s'allument avec A0
+  (rouge, valider), A1 (noir « D », suivant), A2 (vert). Start est B0 (octet 3 bit 0) : il lance l'avertissement, la
+  ceinture, les consignes, le choix de la voiture, puis le Nitro ; B1 est « Pause Seat Motion » (Input Test). B2 a
+  d'abord semblé lancer la partie : c'était le B0 appuyé juste après. Le code (+0x1b3b90, la trame copiée à +0x4b9 de
+  l'objet) lit aussi les bits 2 et 7 de l'octet 3, usage non vu.
+- Le volant : `Setting_Test_Input.ini` (étalonnage fait sous TeknoParrot) attend 1..127, milieu 64 ; windowsloader
+  donnait 0..4095. Le sens vu au choix de la voiture, puis à l'Input Test : 1 à gauche.
+- Les pédales : la voiture ne bougeait pas (« Push Gas Pedal ») ; l'accélérateur est l'octet 7 et le frein le 6 (la
+  voiture part octet 7 à fond, freine octet 6 à fond).
+- Le moteur du volant : « 3 64 0 0 », « 0 108 0 0 », « 3 108 0 0 » et « 3 108 5 0 » aux chocs ; joué comme ressort et
+  secousse (supposé). Course en mode agent puis avec vJoy (512 changements de force), F10.
