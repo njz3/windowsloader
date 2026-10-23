@@ -56,6 +56,12 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 45 | 22/10 | Poursuit (la chaîne des jeux) | 🔄 Wasteland Racers 2071 : copie commencée, carte d'E/S étudiée (voir le journal) |
 | 46 | 22/10 | Mets-toi en pause, je redémarre | ✅ copie arrêtée à 2529 fichiers sur 4860, Image borne prévenue |
 | 47 | 22/10 | Commit et pousse | ✅ rien d'autre en attente : NOTES.md seul |
+| 48 | 22/10 | Reprends | ✅ copie de Wasteland Racers finie (après un croisement avec la copie de linuxloader, tranché par Image borne) ; jeu lancé jusqu'en course (voir le journal) |
+| 49 | 22/10 | (question) Télécharger d3d8to9 ? « Oui, télécharge-le » | ✅ crosire/d3d8to9, version 255338f (23/09/2026), relu, dans `src/d3d8to9` |
+| 50 | 22/10 | SWDC (Sega World Drivers Championship) est-il compatible windowsloader ? | ✅ réponse : pas encore ; 64 bits, Unreal Engine 4 (Direct3D 11 probable, déjà géré), mais la plateforme Sega ALLS (amdaemon, keychip, carte d'E/S USB, carte du volant) est à faire, un module de la taille de RingEdge |
+| 51 | 22/10 | Poursuis ton travail selon la liste de jeux | 🔄 Wasteland Racers fini (commandes, vJoy, F10, service) ; Battle Gear 4 Pro = Tuned + options ; Mario Kart DX 1.18 copié, commencé (carte d'E/S « WinArc » à retrouver) |
+| 52 | 23/10 | Continue avec les jeux suivants | 🔄 Battle Gear 4 Pro fait (`[Game] CABINET = PRO` : seconde carte JVS, levier en H, embrayage, grille motorisée, `HOLD_GEAR`) ; Tuned et Chase H.Q. 2 revérifiés |
+| 53 | 23/10 | Continue avec tous les autres jeux de la liste | 🔄 copiés : Battle Gear 4 (2006), D1GP, Valve Limit R ; Battle Gear 4 (2006) reconnu à part (correctifs à ses adresses) ; Mario Kart DX : la carte JVS est sur COM3, COM1 est la carte du moteur (protocole retrouvé, émulée) ; garde-fous : adresses IP, suppressions dans le registre, racines HKCR/HKU ; retour de force du volant DirectInput de windowsloader ; essais arrêtés à 3 h : plus aucun écran sur le PC |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -114,12 +120,12 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 
 | Jeu | Profil | Loader actuel | Matériel d'origine | PE | FFB (paquets) | windowsloader |
 |---|---|---|---|---|---|---|
-| Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ⏳ |
-| Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ⏳ |
+| Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ⏳ copié ; l'édition de 2006 reconnue (ses correctifs), pas encore lancée avec un écran |
+| Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ✅ `[Game] CABINET = PRO` sur le dossier Tuned : levier en H, embrayage, grille motorisée (agent) |
 | Battle Gear 4 Tuned | BattleGear4Tuned | OpenParrot | Taito Type X+ | 32 | oui (16 607) | ✅ jusqu'en course (agent), menu de service ; FFB ⚠️ (agent) ; la copie est l'édition « Professional » (option TeknoParrot) |
 | Chase HQ 2 | ChaseHQ2 | OpenParrot | Taito Type X2 | 32 | oui (6 816) | ✅ jusqu'en course (agent), étalonnage au menu de service ; FFB ⚠️ (agent) |
-| Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ⏳ |
-| D1GP | D1GP | TeknoParrot | Taito Type X2 | 32 | non (0) | ⏳ |
+| Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ⏳ copié, étudié (ses fonctions BIND_* de UsbPluginsDll_R.dll, à fournir) |
+| D1GP | D1GP | TeknoParrot | Taito Type X2 | 32 | non (0) | ⏳ copié, étudié (JVS COM2, volant DirectInput Immersion) |
 | Daytona 3 | Daytona3 | TeknoParrot | Sega | 32 | oui (9 164) | ⚠️ joue en mode agent (demande 24) |
 | Daytona 3 New Season | Daytona3NSE | TeknoParrot | Sega | 32 | oui (12 684) | ⚠️ joue en mode agent (demande 24) |
 | Ford Racing | FR | TeknoParrot | Sega Arcade PC | 32 | oui (4 426) | ✅ (menu de service ⚠️ : clé iButton) |
@@ -128,13 +134,13 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | Initial D 6 AA | ID6 | TeknoParrot | Sega Ringedge | 32 | oui (13 400) | ✅ jusqu'en course (agent) ; FFB, affichage ⚠️ |
 | K.O. Drive | KODrive | TeknoParrot | Sega Ringwide | 32 | oui (20 854) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB, affichage ⚠️ |
 | Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
-| Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ⏳ |
+| Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ⚠️ démarre (noir) ; JVS sur COM3 et carte du moteur sur COM1 retrouvées, émulées, à essayer |
 | Showdown | Showdown | TeknoParrot | Sega Arcade PC | 32 | oui (25 955) | ✅ jusqu'en course (agent) ; FFB ⚠️ (agent, port 0x378) |
 | Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ⚠️ démarre (carte du volant, réseau), menu de service ; une partie ne démarre pas |
 | Sega Rally 3 | SR3 | TeknoParrot | Sega Europa R | 32 | non (63) | ✅ (retour de force par le port 0x1020) |
 | Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | ⏳ |
-| Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ⏳ |
-| Wasteland Racers 2071 | WastelandRacers | TeknoParrot | Trio Tech PC | 32 | oui (23 484) | ⏳ |
+| Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ⏳ copié (« Valve Limit R », `launcher.exe`) |
+| Wasteland Racers 2071 | WastelandRacers | TeknoParrot | Trio Tech PC | 32 | oui (23 484) | ✅ jusqu'en course (agent), vJoy, F10, menu de maintenance |
 
 13 des 21 émettent du retour de force sous leur loader actuel. Sega Rally 3 a huit entrées (Standard,
 Alpine, Artic, Canyon, Master, Safari, Tropical, Tropical478) : huit dossiers qui partagent le même
@@ -699,3 +705,150 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   remplacer les exports de `SDC2.dll` de la même façon, entrées comprises, sans COM3.
 - Le `dinput8.dll` du dossier est celui de FFBArcadePlugin (avec `FFBPlugin.ini`, GameId 83) : à tenir à
   l'écart (comme l'import d'inpout32 réécrit par le lanceur, ou un `LoadLibrary` redirigé vers celui du système).
+
+### 22/10 — Wasteland Racers 2071 (demandes 48 et 49)
+
+- Copie : reprise après le redémarrage ; les deux sessions s'étaient effacées l'une devant l'autre, Image borne a
+  tranché (« celui qui a une copie commencée la termine »). 4 860 fichiers, 0 échec.
+- Lanceur : un composant de Windows dans le dossier du jeu (`dinput8.dll`, `d3d9.dll`, `winmm.dll`…) est le relais
+  d'un autre loader : l'import du jeu est réécrit vers celui de Windows (comme pour inpout32). Ici le relais de
+  FFBArcadePlugin, qui vise vJoy.
+- Premier lancement : le jeu a ouvert vJoy par DirectInput (créé, jamais acquis : Acquire 0x80070005, aucun effet,
+  aucune force). Le volant DirectInput de windowsloader est maintenant le seul listé.
+- Direct3D 8 : un crochet minimal (fenêtre, images comptées) a montré une fenêtre noire : comme Direct3D 9 en mode
+  blt, rien ne s'affiche sur ce PC. Avec l'accord de l'utilisateur, d3d8to9 (BSD 2 clauses) téléchargé, relu (une
+  boîte et une page web ouvertes si D3DX manque : retirées), compilé dans la DLL 32 bits : l'image s'affiche par la
+  recopie GDI.
+- Défaut trouvé : la vidéo d'attraction (DirectShow, quartz.dll) crée son propre appareil Direct3D 9 sur la fenêtre
+  du bureau ; windowsloader l'a pris pour celui du jeu et a voulu placer la fenêtre du bureau (refusé par Windows :
+  sa taille et son style sont restés normaux, vérifié). Corrigé : un appareil créé par Windows lui-même est laissé
+  tel quel, et windowsloader n'adopte jamais une fenêtre qui n'est pas au jeu.
+- Commandes : rien ne démarrait. Trois causes, trouvées dans le code et les scripts du jeu (`Data\Menu\Main\main.dsf`) :
+  le mot des boutons est actif à l'état bas (le jeu l'inverse) ; les compteurs de pièces sont par bit
+  (`GetCoin(8)`, le bit COIN), et le jeu gratuit y met le prix d'une partie ; les bornes élisent un serveur par
+  diffusion UDP, refusée pour garder le jeu hors du réseau : la diffusion va maintenant à 127.0.0.1 (option du
+  module, `wl_system_loopback_broadcast`) ; le jeu passait une longueur d'adresse fantaisiste (7 449 552).
+- Course atteinte : écran titre → serveur → voiture → circuit → chargement (≈ 60 s) → course. Menu MAINTENANCE
+  (bouton Test) vu. Retour de force : un ressort (asservissement en position), sens vérifié.
+- La voiture plafonnait à 12 km/h : les pédales de la carte sont à l'envers (le jeu prend 1 − valeur) ; corrigé,
+  75 à 106 km/h, le volant tourne du bon côté. F10 (cinq pages, pause) et vJoy (`--controllers`, forces envoyées)
+  vus, après le « vJoy libre » de linuxloader et en l'annonçant.
+- Battle Gear 4 Pro (profil TeknoParrot à part) : d'après Image borne, un doublon exact du dossier Tuned, seul
+  `teknoparrot.ini` diffère (options « Professional Edition » d'OpenParrot, et pas de `[FFB Blaster]`) : pas de
+  copie, à faire sur la copie de Tuned. OpenParrot (`TypeX2Generic.cpp`) : largeur 1366 en +0x1f4c6d et +0xa0536
+  (ou une résolution choisie), « Hold Gear » = 10 octets NOP en +0x8adff.
+
+### 22/10 — Mario Kart Arcade GP DX 1.18 (Namco System ES3), commencé
+
+- Copie : 18 715 fichiers, 6,19 Go, 8 min 46, 0 échec (12 Mo/s ; Image borne : ce partage va de 6 à 16 Mo/s).
+- `MK_AGP3_FINAL.exe`, x86 relogeable (ASLR : adresses depuis la base), Direct3D 10 (par d3d10.dll, sur
+  Direct3D 11) et un appareil Direct3D 9Ex, DirectInput, JVS série, lecteur Banapass (`bngrw.dll`), ALL.Net
+  (AMAuthd, Mucha), webcam (photos des joueurs), ShareK (contenus par le réseau).
+- Garde-fous ajoutés avant tout lancement (généraux) : la caméra par Media Foundation refusée
+  (`MFEnumDeviceSources`, `MFCreateDeviceSource`) ; un port série ou parallèle non émulé refusé au jeu (le jeu
+  essaie COM0 à COM15, et ce PC a une paire com0com COM10/COM11 qui mène à un autre programme) ; la table de
+  routage du PC refusée (`Create/Set/DeleteIpForwardEntry`) ; WinHTTP limité à ce PC (`WinHttpConnect` : le jeu
+  vise `amk3-cn01.nbgi-amnet.jp`).
+- Premier lancement : le jeu a pris vJoy comme volant DirectInput (exclusif, environ 2 s, avant de planter tout
+  seul) ; linuxloader prévenue. Module `namco.cpp` : un volant DirectInput de windowsloader, vJoy caché.
+- Plantage : ShareK passe par une classe COM .NET d'`ipccl.dll` que la borne enregistre (`RegAsm` dans
+  `project.ps1`) ; windowsloader ne touche pas au registre : le client ShareK n'est pas démarré (+0x7e80d).
+- Lecteurs F:\ et G:\ (system, Bookkeeping, DongleData, TestMode) : les dossiers et fichiers `F*` et `G*` de la
+  copie (redirection par préfixe : `F:\system\x` → `Fsystem\x`).
+- Affichage : la recopie GDI lit aussi une chaîne d'échange Direct3D 10 (ici le tampon se lit déjà en Direct3D 11).
+  Le jeu dessine du noir à 60 i/s : il attend sa carte d'E/S.
+- Port COM1, 19200 bauds : `BuildCommDCB "COM1: …"` refusé par Windows pour un port absent (lu sans le nom pour un
+  port émulé) ; lectures et écritures par `ReadFileEx`/`WriteFileEx` (routines de fin par APC, maintenant servies
+  pour les appareils émulés, une lecture sans données restant en attente jusqu'au délai de 600 ms). Le jeu lit des
+  en-têtes de 3 octets et n'écrit rien : la carte parle la première. Ce n'est pas le JVS classique mais la carte
+  « WinArc » de Namco (classe `clWaJvIo`, identité « NBGI.;WinArc;Ver2.01;JPN ») : protocole à retrouver dans le code
+  du jeu (rien de public).
+
+### 23/10 — Battle Gear 4 Pro (demande 52)
+
+- Pas de copie : le dossier de Tuned sert. Le type de borne se lit dans le code : l'état 1 de la remise à zéro
+  usine (+0x50f464) choisit « WIDE MONITOR & CLUTCH TYPE » quand `[[0x8d92a4]+0x4d8] > 1` ; cette valeur est
+  le nombre de cartes JVS moins 1 (+0x600d8c ← `[0x8df904] - 1`), compté par l'adressage du bus (+0x60cb37 :
+  F1 tant que la ligne de détection, CTS, reste basse). Une borne Pro a donc deux cartes.
+- `jvs.cpp` accepte une seconde carte sur le même bus (`wl_jvs_add_node`) : l'adresse diffusée va à la première
+  carte sans adresse, CTS monte quand toutes en ont une. Nœud 2 interrogé par « 26 02 » (2 octets d'entrées
+  générales, nouvelle commande) et « 32 02 » ; le nœud 1 reçoit en plus la commande Taito 0x66 (2 octets).
+  Les options d'un jeu lues après les réglages : `wl_game_on_settings` (appelé avant que le jeu ne tourne).
+- Avec deux cartes et l'ancien `config.bin`, le jeu réécrit deux octets (0x74, 0x75) et sa somme, puis quitte
+  seul après 3,5 s ; au lancement suivant il est en Pro (1360×768, « ITEM SELECT: SHIFT-SW ») ; sans remise à
+  zéro usine. Retour en standard : de même dans l'autre sens.
+- Test d'E/S (une entrée tenue à la fois, puis la table du test lue dans l'exe, +0x3ab0b8 : nom, type, masque
+  du mot d'entrées) : SHIFT LEFT 0x08000000 et RIGHT 0x10000000 sur le nœud 2 (0x80, 0x40), SEN1 0x02000000 et
+  SEN2 0x04000000 (0x20, 0x10, actifs bas), SHIFT UP et DOWN sur les bits 8 et 7 du nœud 1 mais actifs bas en
+  Pro : au repos le jeu voyait les deux rangées, c'est-à-dire la 4e.
+- Décodage du levier (+0x48adf2) : DOWN+LEFT 1, UP+LEFT 2, DOWN 3, UP 4, DOWN+RIGHT 5, UP+RIGHT 6 (marche
+  arrière si la voiture n'a que 5 rapports) ; aucune rangée : point mort (le « Hold Gear » d'OpenParrot retire
+  justement ce stockage, +0x8adff).
+- Embrayage : rien sur les voies libres au test d'E/S. Le code des entrées (+0x41e80a) lit les mots analogiques
+  du JVS depuis +0xde (accélérateur +0xe4 = voie 3, frein +0xe6 = voie 4, embrayage +0xea = voie 6) et
+  l'embrayage seulement en course ; étalonné par ADJUSTMENT. En course : enfoncé, 0 km/h plein gaz ; relâché,
+  la voiture part.
+- Course en « 6速 MT » d'abord bloquée sur « シフト変更中 » (changement de grille, ne touchez pas le levier)
+  40 s : la grille est motorisée ; le jeu pousse 0x80 puis 0x40 (sorties du nœud 2), 4 s chacune, jusqu'à lire
+  SEN1 seul ou SEN2 seul (+0x41df70, +0x41e0a0), puis arrête le moteur. Grille émulée : elle suit la dernière
+  commande ; changement immédiat ensuite, rapports 1 à 5 vus au tableau de bord.
+- Revérifiés après les changements du JVS : Tuned en standard (AT, 100 km/h, retour de force) et Chase H.Q. 2
+  (course, 137 mph). `config.bin` d'origine (standard) remis dans la copie ; celui de Pro, étalonné avec
+  l'embrayage, gardé dans le bloc-notes de la session.
+
+### 23/10 — La suite de la liste (demande 53), la nuit sans écran
+
+- Copies (Image borne prévenue, « fini » à chacune) : Battle Gear 4 « Taito Type X+ » (2 895 fichiers, 3,6 Go, 8 min 28),
+  D1GP (1 809 fichiers, 1,4 Go, 4 min 26), Valve Limit R (509 fichiers, 206 Mo, 1 min) ; OpenParrot, outputblaster,
+  dgVoodoo et le plugin FFB laissés sur racecab1.
+- **Plus d'écran depuis environ 3 h** : DXGI ne liste aucune sortie sur les trois cartes (Intel, NVIDIA, Basic Render),
+  EnumDisplayDevices aucun écran attaché (un moniteur 1920×1080 virtuel seulement), et Windows met `apphelp.dll` devant
+  MessageBox et IDirect3D9. Mario Kart DX dit « Could not find any compatible Direct3D devices », Battle Gear 4 Tuned
+  (qui roulait à 1 h) quitte 0,1 s après Direct3DCreate9. Essais de jeux arrêtés, Linuxloader prévenu ; reste le travail
+  sans écran.
+- **Battle Gear 4 (2006)** : un autre exe que Tuned (horodatage 0x446d0efa contre 0x4675ef6f), les correctifs de taito.cpp
+  étaient aux adresses de Tuned (ceux à octets vérifiés refusaient, mais le drapeau de pause de BG4General s'écrivait
+  à l'aveugle). taito.cpp reconnaît maintenant l'édition par l'horodatage (`bg4` Tuned, `bg4eng` la première, nom
+  d'OpenParrot « BG4_Eng ») ; pour la première : barre de menu +0x1b8030, IntroFix +0x46e3e / +0x46e57 / +0x471b5
+  (le même motif que Tuned, retrouvé dans l'exe) ; ni BG4General ni la borne Pro. Premier lancement (écran déjà
+  absent) : plantage +0x1a6247 à l'ouverture de COM2, à revoir avec un écran.
+- **vJoy pris par Battle Gear 4** : les deux éditions énumèrent les manettes DirectInput et ouvrent la première en
+  exclusif (vJoy ici) ; c'était déjà le cas dans mes essais de Tuned. `wl_dinput_hide_controllers()` (dinputhook.cpp) :
+  les manettes du PC cachées au jeu sans manette de windowsloader à la place ; appelé pour Battle Gear 4.
+- **Mario Kart DX 1.18** (étude de l'exe) :
+  - la bibliothèque JVS du jeu (+0x8ab550, son hôte « NBGI.;WinArc;Ver2.01;JPN », WinArc est donc l'hôte et non la
+    carte) ouvre **COM3** à 115 200 bauds (+0x8ac1b0), CTS bas tant qu'une carte n'a pas d'adresse (comme Taito) ;
+    elle connaît les cartes DE-JV, FCA-1, MINI-JV, NeoJV, TSS-I/O… et vérifie « namco ltd. » et « Ver6 ». Démarrée
+    par l'initialisation +0x601ec0, une fois un chargement fini (+0x75eb89) : jamais atteinte dans les essais de 15 s ;
+  - **COM1** à 19 200 bauds est la carte du moteur du volant (classe clWaJvIo, fil +0x5f57d0) : elle parle en 3
+    caractères (« C01 » moteur prêt, sans quoi le jeu ne bâtit pas ses commandes ; « C06 » arrêté ; « E00 »..« E20 »
+    erreurs) ; le jeu envoie toutes les 8 ms, une fois prêt (+0x602ec4), 10 octets : FF FF, une position visée sur 14
+    bits (0x2000 au milieu), la raideur d'un ressort 0..127, 0, un amortisseur 0..127, 0, une vibration −128..127, 0 ;
+  - namco.cpp : la carte JVS sur COM3, la carte du moteur sur COM1 (« C01 » à la première lecture, ses commandes
+    jouées en ressort vers la cible plus la vibration ; le sens à vérifier). Pas encore lancé avec un écran.
+- **D1GP** (Taito Type X2, 2009) : JVS sur COM2, lecteur de cartes sur un autre port COM, `d:\bk_info\` et
+  `d:\card_backup\` ; volant, pédales et boutons par DirectInput, réglés par un fichier `<nom du produit>.txt` (les
+  espaces en « _ » ; boutons « x », ACCEL et BRAKE numéros d'axe, STEER0/STEER1, FFB ; le Logitech Driving Force Pro
+  traité à part, +0x46c1b0) ; retour de force par Immersion (IFC23, `data/game.ifr`, `steer_align.ifr`), c'est-à-dire
+  des effets DirectInput. Le jeu importe AddIPAddress/DeleteIPAddress.
+- **Valve Limit R** (Taito Type X, 2005) : `launcher.exe`, Direct3D 9, DirectInput, COM1 et COM2, AddIPAddress /
+  DeleteIPAddress, SetLocalTime (déjà refusé), et le registrar d'ATL (RegDeleteKey, RegDeleteValue).
+- Garde-fous ajoutés (system.cpp) : AddIPAddress / DeleteIPAddress refusés comme la table de routage ; HKEY_CLASSES_ROOT,
+  HKEY_USERS et HKEY_CURRENT_CONFIG traités comme HKLM (lecture seule) ; RegDeleteKey(Ex), RegDeleteTree refusés
+  partout, RegDeleteValue sous ces racines.
+- **Retour de force du volant DirectInput de windowsloader** (vdinput.cpp, `WlVirtualJoystick.ffb`) : effets
+  constants, rampes, périodiques et ressorts tenus et joués ensemble sur la force de windowsloader (le ressort tire vers
+  son point selon la position du volant ; amortisseurs, inertie et frottement laissés de côté) ; le volant se dit à
+  retour de force (DIDC_FORCEFEEDBACK, X actionneur) et se montre aux énumérations « force feedback ». Pour D1GP. Pas
+  encore essayé.
+- **Crazy Ride** (UNIS, Unreal Engine 4, 64 bits) copié : 22 228 fichiers, 4,85 Go, 40 min (108 ms par fichier ; selon
+  Image borne le débit en Mo/s ne dit rien sur ce partage) ; laissés sur racecab1 : les installateurs de pilotes
+  `DrvWiz3` et le flasheur de la carte `M3BootLoader_Burn`. Le dossier `SysStart\Plugin` contient les scripts de la
+  borne (EWF, ResetSys, résolution, réseau…) : à ne jamais lancer (windowsloader refuse déjà les programmes lancés
+  par le jeu). Le jeu charge `Plugins\UsbPluginsDll_R.dll` par son nom et y demande 71 fonctions `BIND_*` (carte
+  d'E/S Unis sur port série, volant HID à part, pièces, lampes, clé « SSNK », mais aussi `BIND_SetLocalTime`,
+  `BIND_ResetMachine`, `BIND_SHDeleteFolder`, `BIND_SetSystemVolume`) : à fournir par windowsloader comme le SDC2 de
+  Wasteland, celles qui touchent au PC sans effet. `BIND_GetIoData` (+0x1c13e0 dans le jeu) rend 17 octets, la
+  dernière trame de la carte ; le jeu (+0x1b3b90) en lit des boutons dans les octets 2 et 3, deux valeurs 0..255
+  dans les octets 6 et 7 (les pédales, sans doute) ; le volant par `BIND_GetSteeringWheelAngle`, son moteur par
+  `BIND_SetSteeringWheelData` (4 entiers). À finir avec le jeu en marche (le sens de chaque bit).
