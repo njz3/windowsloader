@@ -11,8 +11,9 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// Sega RingEdge and RingWide, the platforms of Initial D Arcade Stage 6 AA (id6_dump_.exe, OpenGL)
-// and K.O. Drive (M-DriveR_RingWide.exe, Direct3D 9), both x86. The game reaches the PC board
+// Sega RingEdge and RingWide, the platforms of Initial D Arcade Stage 6 AA (id6_dump_.exe, OpenGL),
+// K.O. Drive (M-DriveR_RingWide.exe, Direct3D 9) and Sonic & Sega All-Stars Racing (game.exe,
+// Direct3D 9), all x86. The game reaches the PC board
 // through Sega's amLib, linked into it:
 // - drivers: \\.\mxsram (battery-backed SRAM, read and written as a disk), \\.\mxsuperio (the
 //   hardware monitor of the Super I/O chip), \\.\mxsmbus (SMBus: EEPROM, a PCA9535 port expander),
@@ -58,6 +59,8 @@ struct RingGame
     int switchCount;
     int freeWheelTest; // the drive board's power-on test wants the wheel to turn (driveboard.h)
     int linkUp;        // the network card's link: Sonic wants it (query_nic_status 0) to ask its address
+    const char *saveDrive; // a drive of the cabinet's, the game's folder here (Sonic's Y:\ssr_save.bin)
+    int freePlayOption;    // the option FREE_PLAY (eeprom_system)
 };
 
 static const RingGame *g_game;
@@ -232,6 +235,81 @@ static unsigned char g_smbusRegs[128][256];
 
 static unsigned char pca9535_input(int port); // with the inputs, below
 
+// The system records (amSysData) start with a CRC32 of their other bytes and have a copy 0x200
+// further. The first, AM_SYSDATA_STATIC, is written by the cabinet's system, not by the game: its
+// byte 0x0C is the board's region (1 Japan, 2, 4 export, 8 China), its 16 bytes at 0x0F the board's
+// serial. Sonic & Sega All-Stars Racing starts its credits (amCredit, +0x414ed0) only with a region
+// among those (+0x414950), so a blank or broken one is written with the keychip's export region.
+static unsigned crc32(const unsigned char *p, int n)
+{
+    unsigned c = 0xFFFFFFFF;
+    for (int i = 0; i < n; i++)
+    {
+        c ^= p[i];
+        for (int k = 0; k < 8; k++)
+            c = c & 1 ? c >> 1 ^ 0xEDB88320 : c >> 1;
+    }
+    return ~c;
+}
+
+#define RECORD 0x20
+
+static int record_read(HANDLE file, unsigned char *r, DWORD at)
+{
+    OVERLAPPED ov;
+    memset(&ov, 0, sizeof ov);
+    ov.Offset = at;
+    DWORD done = 0;
+    return ReadFile(file, r, RECORD, &done, &ov) && done == RECORD && *(const unsigned *)r == crc32(r + 4, RECORD - 4);
+}
+
+static void record_write(HANDLE file, unsigned char *r, DWORD at)
+{
+    *(unsigned *)r = crc32(r + 4, RECORD - 4);
+    for (DWORD copy = at; copy <= at + 0x200; copy += 0x200)
+    {
+        OVERLAPPED ov;
+        memset(&ov, 0, sizeof ov);
+        ov.Offset = copy;
+        DWORD done = 0;
+        WriteFile(file, r, RECORD, &done, &ov);
+    }
+}
+
+// AM_SYSDATA_CREDIT (0x20) as Sonic writes it in a blank EEPROM (coins); its byte 0x0A is the free
+// play. Sonic's test menu has no coin settings (the cabinet's system menu has them): the option
+// FREE_PLAY sets it.
+static const unsigned char g_creditDefault[RECORD] = {0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x01, 0x00, 0x01, 0x01, 0x00, 0x01, 0x01,
+                                                      0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00};
+
+static void eeprom_system(HANDLE file)
+{
+    unsigned char r[RECORD];
+    if (!record_read(file, r, 0))
+    {
+        memset(r, 0, sizeof r);
+        r[0x0C] = 4; // export, as keychip.appboot.region
+        memcpy(r + 0x0F, "AAMN-01A00000001", 16); // made up
+        record_write(file, r, 0);
+        wl_log("eeprom: AM_SYSDATA_STATIC written (region export, serial AAMN-01A00000001)");
+    }
+    if (!g_game->freePlayOption)
+        return;
+    int free = wl_game_option_bool("FREE_PLAY");
+    if (!record_read(file, r, RECORD))
+    {
+        if (!free)
+            return; // the game writes its own
+        memcpy(r, g_creditDefault, sizeof r);
+    }
+    if (r[0x0A] != free)
+    {
+        r[0x0A] = (unsigned char)free;
+        record_write(file, r, RECORD);
+        wl_log("eeprom: AM_SYSDATA_CREDIT set to %s", free ? "free play" : "coins");
+    }
+}
+
 static void eeprom_io(void *data, int length, int offset, int write)
 {
     if (offset + length > EEPROM_SIZE)
@@ -244,6 +322,8 @@ static void eeprom_io(void *data, int length, int offset, int write)
         wchar_t path[MAX_PATH];
         swprintf(path, MAX_PATH, L"%swl_eeprom.bin", g_dir);
         g_eepromFile = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
+        if (g_eepromFile != INVALID_HANDLE_VALUE)
+            eeprom_system(g_eepromFile);
     }
     OVERLAPPED ov;
     memset(&ov, 0, sizeof ov);
@@ -742,14 +822,20 @@ static void use_toolmode(void)
 
 #define COUNT(a) (int)(sizeof a / sizeof a[0])
 
+static const WlGameOption g_creditOptions[] = {
+    {"FREE_PLAY", "Jeu gratuit",
+     "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a).",
+     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
+};
+
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
-     L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0},
+     L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
     {{L"M-DriveR_RingWide.exe", L"M-DriveR_RingWide 1080P.exe", L"M-DriveR_RingWide original.exe"}, L"TestMode.exe", NULL, "kodrive", "K.O. Drive",
      "SBXA", L"..\\fs\\table\\SBXA_Table.dat", "AAM", "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_kodInputs, KOD_COUNT,
-     g_kodSwitches, COUNT(g_kodSwitches), 1, 0},
+     g_kodSwitches, COUNT(g_kodSwitches), 1, 0, NULL, 0},
     {{L"game.exe"}, L"gametest.exe", L"SBVH_Table.dat", "ssasr", "Sonic & Sega All-Stars Racing", "SBVH", L"SBVH_Table.dat", "AAM",
-     "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_ssrInputs, SSR_COUNT, g_ssrSwitches, COUNT(g_ssrSwitches), 1, 1},
+     "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_ssrInputs, SSR_COUNT, g_ssrSwitches, COUNT(g_ssrSwitches), 1, 1, "Y:", 1},
 };
 
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title)
@@ -779,11 +865,23 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     snprintf(controls, sizeof controls, "Controls on JVS board, Sega 837-14572, JVS 3.0 (%s)",
              !strcmp(g_game->jvsPort, "\\\\.\\mxjvs") ? "mxjvs driver" : g_game->jvsPort);
     wl_game_set_boards(controls, "Motor board: Sega-like servoboard (COM1)");
+    if (g_game->freePlayOption)
+        wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));
 
     wchar_t table[MAX_PATH];
     swprintf(table, MAX_PATH, L"%s%s", g_dir, g_game->table);
     if (GetFileAttributesW(table) == INVALID_FILE_ATTRIBUTES)
         use_toolmode();
+
+    if (g_game->saveDrive)
+    {
+        char folder[MAX_PATH];
+        WideCharToMultiByte(CP_ACP, 0, g_dir, -1, folder, sizeof folder, NULL, NULL);
+        size_t n = strlen(folder);
+        if (n && folder[n - 1] == '\\')
+            folder[n - 1] = 0;
+        wl_files_redirect(g_game->saveDrive, folder);
+    }
 
     build_bios();
     wl_inputs_set_table(g_game->inputs, g_game->inputCount);
