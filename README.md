@@ -71,13 +71,22 @@ default), `BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `DISPLAY_MODE
 resolution, `AUTO` by default). F11 or Alt+Enter switches between window and full screen. A game's
 own `<short name>.ini` next to `windowsloader.ini` (`gticlub3.ini`) is read instead when it exists.
 
-Game options are in a `[Game]` section. Battle Gear 4: `CABINET = PRO` for the Professional
-edition's cabinet (wide screen, clutch, H shifter: actions `Clutch`, `Gear1` to `Gear6`; the game
-switches its own settings at the next start and closes once, start it again), `HOLD_GEAR = true` to
-keep the gear engaged once the lever is let go.
+A game's own options are in its `[Game.<short name>]` section, as linuxloader has them (keys in
+capitals; a list's values in capitals, `true`/`false`, numbers), set from the menu's "Options du
+jeu" page or by `--set Game.KEY=VALUE` for the game launched. Battle Gear 4 Tuned (`[Game.bg4]`):
+`CABINET = PRO` for the Professional edition's cabinet (wide screen, clutch, H shifter: actions
+`Clutch`, `Gear1` to `Gear6`; the game switches its own settings at the next start and closes once,
+start it again), `HOLD_GEAR = true` to keep the gear engaged once the lever is let go.
+
+A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
+`[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,
+`EMULATE_DRIVEBOARD = false` with `SERIAL_<n>_PATH` for the game's other emulated ports (its
+`COM<n>`: a wheel's or a motor's board). The same choices are in the "Options du jeu" page, part
+"Cartes".
 
 **F10** pauses the game and opens the settings menu: controls (bindings captured from the keyboard,
-a gamepad or a wheel, saved to `controls.ini`), display, force feedback strength and direction.
+a gamepad or a wheel, saved to `controls.ini`), the game's own options, display, force feedback
+strength and direction.
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
 own file (made from a copy of the file read the first time).
 

@@ -24,7 +24,7 @@ dans NOTES.md, « Jeux des bornes »).
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
 | Sonic & Sega All-Stars Racing (RingWide) | ✅ | ❌ | ⏳ | ⚠️ | ✅ | ⏳ | ✅ | ⚠️ |
 | Battle Gear 4 Tuned (Taito Type X+) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
-| Battle Gear 4 Tuned Pro (même dossier, `[Game] CABINET = PRO`) | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
+| Battle Gear 4 Tuned Pro (même dossier, `[Game.bg4] CABINET = PRO`) | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ⚠️ | ✅ | ✅ |
 | Chase H.Q. 2 (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | GTI Club: Supermini Festa! (GTI Club 3, Konami PC) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Wasteland Racers 2071 (Trio Tech PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
@@ -32,6 +32,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Battle Gear 4 (Taito Type X+, 2006) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | D1GP (Taito Type X2) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | Valve Limit R (Taito Type X) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Crazy Ride (UNIS PC, 64 bits) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 
 Fonctions :
 
@@ -322,8 +323,8 @@ de côté. « Professional Edition » est une option de TeknoParrot (correctifs 
 
 Le même dossier et le même `game.exe` : la borne Pro est reconnue par le jeu lui-même, qui compte les cartes
 JVS du bus (+0x60cb37) ; deux cartes, c'est une borne « WIDE MONITOR & CLUTCH TYPE » (écran large,
-embrayage, levier en H). Dans windowsloader : `[Game] CABINET = PRO` (`--set Game.CABINET=PRO`, ou dans
-`bg4.ini`), qui met une seconde carte sur le bus JVS (nœud 2 ; `jvs.cpp` en accepte maintenant deux).
+embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page « Options du jeu » du menu F10,
+`--set Game.CABINET=PRO`, ou à la main dans le fichier de réglages), qui met une seconde carte sur le bus JVS (nœud 2 ; `jvs.cpp` en accepte maintenant deux).
 
 - Lancement ✅ : au premier démarrage après un changement de `CABINET`, le jeu réécrit son `config.bin`
   (deux octets, 0x74 et 0x75, et sa somme) et se ferme seul après 3 s : relancer. Sans remise à zéro usine.
@@ -345,7 +346,7 @@ embrayage, levier en H). Dans windowsloader : `[Game] CABINET = PRO` (`--set Gam
     cela, « シフト変更中 » pendant 40 s, puis « remettez le levier au centre ») ;
   - ShiftUp / ShiftDown donnent les rangées seules : AT et MT séquentielle, et la sélection du menu de
     service (« ITEM SELECT: SHIFT-SW ») ;
-  - `[Game] HOLD_GEAR = true` : le rapport reste engagé levier relâché (« Hold Gear » d'OpenParrot, 10 octets
+  - `[Game.bg4] HOLD_GEAR = true` : le rapport reste engagé levier relâché (« Hold Gear » d'OpenParrot, 10 octets
     à +0x8adff), pour un levier dont les positions ne tiennent pas ; vérifié en course (2 puis 3, levier lâché).
 - La carte du nœud 1 reçoit en plus la commande Taito 0x66 (2 octets, sens inconnu, répondue).
 - Retour de force ⚠️ : le même qu'en Tuned (330 changements envoyés pendant une course AT).
@@ -431,6 +432,34 @@ Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe 
   (D3D11, 16:9) : les 16 cas de `crop_check.py` (bloc-notes) et le menu ; `--set`, `-c`, le fichier du jeu
   créé, relu au lancement suivant.
 - Non fait : OpenGL (Initial D 6) garde sa fenêtre telle quelle, sans aucun de ces réglages.
+
+## Options propres à chaque jeu (menu F10, « Options du jeu »)
+
+Comme linuxloader (forme convenue avec sa session le 23/10) : section `[Game.<nom court>]` du fichier de réglages (le
+commun ou le `<nom court>.ini` du jeu), clés en majuscules, valeurs de liste en majuscules, `true`/`false`, nombres ;
+`--set Game.CLE=VALEUR` vise la section du jeu lancé. Le module du jeu déclare ses options (case, liste ou curseur, une
+aide, « au prochain lancement » ou non) ; l'onglet « Options du jeu » les montre (sinon « Aucune option pour ce jeu. »),
+avec la mention « (au prochain lancement) » et un rappel si l'une a changé ; « Sauvegarder » et « Sauvegarder pour ce
+jeu » les écrivent avec le reste. Premier jeu : Battle Gear 4 Tuned (borne Standard ou Pro, garder le rapport).
+Vérifié : `--set Game.CABINET=PRO` et `game.hold_gear=true` lus dans `[Game.bg4]`, borne Pro et patch posés ; la page
+vue à l'écran sur Battle Gear 4 (liste à 45 % de la largeur, libellés « Standard » / « Pro », le détail dans l'aide).
+
+## Vraies cartes sur un port série (passthrough)
+
+Comme linuxloader, mêmes clés : `[Emulation] EMULATE_JVS = false` avec `[Paths] JVS_PATH = COM5` envoie le port JVS du
+jeu à une vraie carte ; `EMULATE_DRIVEBOARD = false` avec `SERIAL_<n>_PATH` (n : le COM du jeu) ses autres ports émulés
+(carte du volant, du moteur). Le jeu ouvre alors lui-même le port du PC (`\\.\COMx`), avec ses propres réglages
+(vitesse, délais, lectures en attente) ; le refus des ports non émulés est levé pour ce port-là. Les mêmes choix sont
+dans la partie « Cartes » de « Options du jeu » : une liste par port émulé du jeu, « Émulée » ou « Vraie carte sur
+COMn » (les ports que Windows connaît), au prochain lancement.
+
+Vérifié (23/10) avec Battle Gear 4 sur une paire de ports virtuels (COM10 vers COM11, un script Python jouant la carte
+sur COM11) :
+- carte du volant (COM1 du jeu) : la même séquence de démarrage que la carte émulée, puis l'interrogation, le jeu
+  jusqu'à l'attract ;
+- carte JVS (COM2 du jeu) : ligne de détection lue sur les lignes de modem du vrai port, carte adressée et identifiée,
+  1 766 interrogations en 60 s sans reprise, attract normal.
+Pas encore essayé avec une vraie carte (ce PC n'en a pas).
 
 ## Menu F10 sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
 
@@ -526,12 +555,29 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
 démarré (classe COM non enregistrée), lecteurs F:\ et G:\ vers les `F*`/`G*` de la copie. Voir NOTES.md pour les
 garde-fous ajoutés (caméra, ports série, routes, WinHTTP).
 
-Retrouvé dans l'exe (23/10), émulé, pas encore essayé (plus d'écran sur le PC) :
+Retrouvé dans l'exe (23/10) et émulé :
 - la carte JVS est sur **COM3** à 115 200 bauds, ouverte par la bibliothèque JVS du jeu (son hôte « NBGI.;WinArc;Ver2.01;JPN »)
-  une fois un chargement fini ; CTS bas tant qu'une carte n'a pas d'adresse ;
-- **COM1** à 19 200 bauds est la carte du moteur du volant : elle annonce « C01 » (prête), le jeu lui envoie alors toutes
-  les 8 ms une position visée sur 14 bits, un ressort, un amortisseur et une vibration ; joués ici en ressort vers la
-  cible plus la vibration (sens à vérifier).
+  une fois un chargement fini ; CTS bas tant qu'une carte n'a pas d'adresse. Vu en marche : la carte (identité
+  « namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose. ») adressée, identifiée, puis interrogée avec des commandes de Namco
+  (0x70 et ses sous-commandes, 0x78 à 0x7A, 0x7F) que le module répond « fait ». Reste : « 70 18 50 4C 14 D0 »,
+  envoyée 8 fois au départ (sa réponse attendue n'est pas connue), et le sens des entrées ;
+- **COM1** à 19 200 bauds est la carte du moteur du volant : elle annonce « C01 » (prête, accepté par le jeu), le jeu
+  lui envoie alors toutes les 8 ms une position visée sur 14 bits, un ressort, un amortisseur et une vibration ; joués
+  ici en ressort vers la cible plus la vibration (sens à vérifier).
+
+## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits), commencé
+
+`CrazyTaxiGame-Win64-Shipping.exe`. Module `src/hook/games/unis.cpp`. Copié le 23/10, pas encore lancé. Le jeu atteint sa
+borne par `UsbPluginsDll_R.dll`, dont il demande les fonctions `BIND_*` par GetProcAddress : windowsloader donne les
+siennes à la place.
+- Clé : BIND_InitDongle puis BIND_IsDongleVerify avec 8 octets fixes ; le jeu ne garde qu'un booléen : « présente,
+  vérifiée ».
+- Carte d'E/S : 17 octets ; boutons dans les octets 2 et 3 (sondes A0..A7 et B0..B7 tant que leur sens n'est pas vu),
+  pédales dans les octets 6 et 7 ; pièces.
+- Volant : angle 0..4095, que le jeu place entre ses trois valeurs d'étalonnage ; BIND_SetSteeringWheelData (le
+  moteur) notée dans le journal, pas encore jouée ; vibreur du siège.
+- Sans effet : BIND_SetLocalTime, BIND_ResetMachine, BIND_SHDeleteFolder, BIND_SetSystemVolume ; BIND_ICMPPing
+  échoue (pas de réseau).
 
 ## Battle Gear 4 (Taito Type X+, 2006), D1GP (Taito Type X2) et Valve Limit R (Taito Type X)
 
