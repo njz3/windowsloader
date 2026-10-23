@@ -231,6 +231,8 @@ int wl_game_fordracing(const wchar_t *exePath, const char **title)
 
     *title = shell ? "Ford Racing Full Blown, GameShell" : "Ford Racing Full Blown";
     wl_log("game: %s", *title);
+    wl_game_set_boards("Controls on USB HID board, Happ Controls UGCI (VID 078B, PID 0010)",
+                       "Motor board: Sega PC parallel-port driver (port 0x378 through inpout32: strength nibble, direction bit)");
 
     for (int i = 0; i < 16; i++)
     {

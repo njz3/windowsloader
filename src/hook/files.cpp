@@ -227,6 +227,11 @@ static const wchar_t *redirW(const wchar_t *path, wchar_t *buf, size_t size)
     return path;
 }
 
+const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t size)
+{
+    return redirW(path, buf, size);
+}
+
 // ------------------------------------------------------------------------------
 // CreateFile / ReadFile / WriteFile / CloseHandle
 // ------------------------------------------------------------------------------
@@ -796,6 +801,44 @@ static BOOL WINAPI hCopyFileA(LPCSTR from, LPCSTR to, BOOL failIfExists)
     return oCopyFileA(redir(from, rfrom, sizeof rfrom), redir(to, rto, sizeof rto), failIfExists);
 }
 
+// A file renamed (Mario Kart DX saves its settings as F:\TestMode\testmode_<n>.bin.tmp, then
+// renames it, _wrename): both names redirected
+static BOOL(WINAPI *oMoveFileExA)(LPCSTR, LPCSTR, DWORD);
+static BOOL WINAPI hMoveFileExA(LPCSTR from, LPCSTR to, DWORD flags)
+{
+    char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
+    if (wl_busy())
+        return oMoveFileExA(from, to, flags);
+    return oMoveFileExA(redir(from, rfrom, sizeof rfrom), to ? redir(to, rto, sizeof rto) : NULL, flags);
+}
+
+static BOOL(WINAPI *oMoveFileExW)(LPCWSTR, LPCWSTR, DWORD);
+static BOOL WINAPI hMoveFileExW(LPCWSTR from, LPCWSTR to, DWORD flags)
+{
+    wchar_t rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
+    if (wl_busy())
+        return oMoveFileExW(from, to, flags);
+    return oMoveFileExW(redirW(from, rfrom, MAX_PATH * 2), to ? redirW(to, rto, MAX_PATH * 2) : NULL, flags);
+}
+
+static BOOL(WINAPI *oMoveFileA)(LPCSTR, LPCSTR);
+static BOOL WINAPI hMoveFileA(LPCSTR from, LPCSTR to)
+{
+    char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
+    if (wl_busy())
+        return oMoveFileA(from, to);
+    return oMoveFileA(redir(from, rfrom, sizeof rfrom), redir(to, rto, sizeof rto));
+}
+
+static BOOL(WINAPI *oMoveFileW)(LPCWSTR, LPCWSTR);
+static BOOL WINAPI hMoveFileW(LPCWSTR from, LPCWSTR to)
+{
+    wchar_t rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
+    if (wl_busy())
+        return oMoveFileW(from, to);
+    return oMoveFileW(redirW(from, rfrom, MAX_PATH * 2), redirW(to, rto, MAX_PATH * 2));
+}
+
 static BOOL(WINAPI *oSetCurrentDirectoryA)(LPCSTR);
 static BOOL WINAPI hSetCurrentDirectoryA(LPCSTR path)
 {
@@ -812,6 +855,10 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", GetFileAttributesExW),
     WL_HOOK(L"kernel32.dll", SetFileAttributesA),
     WL_HOOK(L"kernel32.dll", CopyFileA),
+    WL_HOOK(L"kernel32.dll", MoveFileA),
+    WL_HOOK(L"kernel32.dll", MoveFileW),
+    WL_HOOK(L"kernel32.dll", MoveFileExA),
+    WL_HOOK(L"kernel32.dll", MoveFileExW),
     WL_HOOK(L"kernel32.dll", SetCurrentDirectoryA),
     WL_HOOK(L"kernel32.dll", CreateFileA),
     WL_HOOK(L"kernel32.dll", CreateFileW),

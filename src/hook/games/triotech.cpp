@@ -318,6 +318,8 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
     *name = "wasteland";
     *title = "Wasteland Racers 2071";
     wl_log("game: %s (Trio Tech PC)", *title);
+    wl_game_set_boards("Controls on Trio Tech SDC2 board (serial, through SDC2.dll)",
+                       "Motor board: Trio Tech SDC2 board (position servo: stiffness and target)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_joystick);
     // The cabinets elect a host by broadcast on UDP 2070 ("Finding Server..."): alone, it hears itself

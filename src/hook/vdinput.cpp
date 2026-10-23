@@ -12,7 +12,7 @@
 // its own project; such code is marked with its origin.
 
 // The DirectInput joystick played by windowsloader (vdinput.h): an IDirectInputDevice8A of its
-// own with 6 absolute axes and up to 32 buttons, no POV, force feedback when the module asks for
+// own (an IDirectInputDevice8W over it at the end, and DirectInput 7's device) with 6 absolute axes and up to 32 buttons, no POV, force feedback when the module asks for
 // it (its effects played as windowsloader's force, below). The game's data
 // format is honoured as DirectInput does it: each object of the format takes the first free
 // object of the device of its type (and GUID, and instance when it names one), GetDeviceState
@@ -171,8 +171,14 @@ static GUID product_guid(void)
     return g;
 }
 
-static DWORD device_type(void)
+// DirectInput 8's type, or DirectInput 7's (legacy: a joystick of the wheel kind; dinput.h keeps
+// those constants for DIRECTINPUT_VERSION 0x700 and below)
+#define LEGACY_JOYSTICK 4
+#define LEGACY_JOYSTICK_WHEEL 6
+static DWORD device_type(int legacy)
 {
+    if (legacy)
+        return LEGACY_JOYSTICK | LEGACY_JOYSTICK_WHEEL << 8 | DIDEVTYPE_HID;
     return DI8DEVTYPE_DRIVING | DI8DEVTYPEDRIVING_DUALPEDALS << 8 | DIDEVTYPE_HID;
 }
 
@@ -187,11 +193,17 @@ void wl_vdinput_instance(DIDEVICEINSTANCEA *out)
     out->guidProduct = product_guid();
     if (g_joy->ffb)
         out->guidFFDriver = g_ffDriver;
-    out->dwDevType = device_type();
+    out->dwDevType = device_type(0);
     snprintf(out->tszInstanceName, sizeof out->tszInstanceName, "%s", g_joy->name);
     snprintf(out->tszProductName, sizeof out->tszProductName, "%s", g_joy->name);
     out->wUsagePage = 0x01; // generic desktop
     out->wUsage = 0x04;     // joystick
+}
+
+void wl_vdinput_instance_legacy(DIDEVICEINSTANCEA *out)
+{
+    wl_vdinput_instance(out);
+    out->dwDevType = device_type(1);
 }
 
 // ------------------------------------------------------------------------------
@@ -543,10 +555,12 @@ static void ffb_update(unsigned short x)
     wl_ffb_set(total > 1 ? -1 : total < -1 ? 1 : -total);
 }
 
+// DirectInput 7's devices (legacy) have the same methods at the same places as DirectInput 8's,
+// up to WriteEffectToFile: the same device serves them, with their own device type
 class VirtualDevice : public IDirectInputDevice8A
 {
   public:
-    VirtualDevice() : m_refs(1), m_formatCount(0), m_dataSize(0), m_acquired(0), m_logged(0)
+    VirtualDevice(int legacy) : m_refs(1), m_legacy(legacy), m_formatCount(0), m_dataSize(0), m_acquired(0), m_logged(0)
     {
         for (int i = 0; i < MAX_OBJECTS; i++)
         {
@@ -561,7 +575,9 @@ class VirtualDevice : public IDirectInputDevice8A
     {
         if (!out)
             return E_POINTER;
-        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IDirectInputDevice8A))
+        if (IsEqualIID(riid, IID_IUnknown) || (!m_legacy && IsEqualIID(riid, IID_IDirectInputDevice8A)) ||
+            (m_legacy && (IsEqualIID(riid, IID_IDirectInputDeviceA) || IsEqualIID(riid, IID_IDirectInputDevice2A) ||
+                          IsEqualIID(riid, IID_IDirectInputDevice7A))))
         {
             *out = this;
             AddRef();
@@ -591,7 +607,7 @@ class VirtualDevice : public IDirectInputDevice8A
         memset(caps, 0, size);
         caps->dwSize = size;
         caps->dwFlags = DIDC_ATTACHED | DIDC_EMULATED | (g_joy->ffb ? DIDC_FORCEFEEDBACK : 0);
-        caps->dwDevType = device_type();
+        caps->dwDevType = device_type(m_legacy);
         caps->dwAxes = WL_VDINPUT_AXES;
         caps->dwButtons = g_joy->buttons;
         return DI_OK;
@@ -799,6 +815,7 @@ class VirtualDevice : public IDirectInputDevice8A
             return DIERR_INVALIDPARAM;
         DIDEVICEINSTANCEA d;
         wl_vdinput_instance(&d);
+        d.dwDevType = device_type(m_legacy);
         DWORD size = info->dwSize;
         memcpy(info, &d, size < sizeof d ? size : sizeof d);
         info->dwSize = size;
@@ -972,6 +989,7 @@ class VirtualDevice : public IDirectInputDevice8A
     }
 
     volatile LONG m_refs;
+    int m_legacy;
     int m_formatCount;
     int m_formatObj[MAX_FORMAT]; // the device object each object of the format reads, -1 for none
     DWORD m_formatOfs[MAX_FORMAT];
@@ -985,5 +1003,289 @@ class VirtualDevice : public IDirectInputDevice8A
 
 IDirectInputDevice8A *wl_vdinput_create(void)
 {
-    return g_joy ? new VirtualDevice() : NULL;
+    return g_joy ? new VirtualDevice(0) : NULL;
+}
+
+IDirectInputDevice8A *wl_vdinput_create_legacy(void)
+{
+    return g_joy ? new VirtualDevice(1) : NULL;
+}
+
+// ------------------------------------------------------------------------------
+// The Unicode interface (a game's IDirectInput8W, D1GP's): the ANSI device above, the structures
+// that carry names converted
+// ------------------------------------------------------------------------------
+
+static void to_wide(const char *in, WCHAR *out, int size)
+{
+    MultiByteToWideChar(CP_UTF8, 0, in, -1, out, size);
+}
+
+void wl_vdinput_instance_w(DIDEVICEINSTANCEW *out)
+{
+    DIDEVICEINSTANCEA a;
+    wl_vdinput_instance(&a);
+    memset(out, 0, sizeof *out);
+    out->dwSize = sizeof *out;
+    out->guidInstance = a.guidInstance;
+    out->guidProduct = a.guidProduct;
+    out->dwDevType = a.dwDevType;
+    to_wide(a.tszInstanceName, out->tszInstanceName, MAX_PATH);
+    to_wide(a.tszProductName, out->tszProductName, MAX_PATH);
+    out->guidFFDriver = a.guidFFDriver;
+    out->wUsagePage = a.wUsagePage;
+    out->wUsage = a.wUsage;
+}
+
+static void object_to_wide(const DIDEVICEOBJECTINSTANCEA *a, DIDEVICEOBJECTINSTANCEW *w)
+{
+    memset(w, 0, sizeof *w);
+    w->dwSize = sizeof *w;
+    w->guidType = a->guidType;
+    w->dwOfs = a->dwOfs;
+    w->dwType = a->dwType;
+    w->dwFlags = a->dwFlags;
+    to_wide(a->tszName, w->tszName, MAX_PATH);
+    w->dwFFMaxForce = a->dwFFMaxForce;
+    w->dwFFForceResolution = a->dwFFForceResolution;
+    w->wCollectionNumber = a->wCollectionNumber;
+    w->wDesignatorIndex = a->wDesignatorIndex;
+    w->wUsagePage = a->wUsagePage;
+    w->wUsage = a->wUsage;
+    w->dwDimension = a->dwDimension;
+    w->wExponent = a->wExponent;
+    w->wReportId = a->wReportId;
+}
+
+static void effect_to_wide(const DIEFFECTINFOA *a, DIEFFECTINFOW *w)
+{
+    memset(w, 0, sizeof *w);
+    w->dwSize = sizeof *w;
+    w->guid = a->guid;
+    w->dwEffType = a->dwEffType;
+    w->dwStaticParams = a->dwStaticParams;
+    w->dwDynamicParams = a->dwDynamicParams;
+    to_wide(a->tszName, w->tszName, MAX_PATH);
+}
+
+// The game's callback and its argument, for the ANSI enumerations
+struct WideObjects
+{
+    LPDIENUMDEVICEOBJECTSCALLBACKW cb;
+    LPVOID ref;
+};
+static BOOL CALLBACK wide_object(LPCDIDEVICEOBJECTINSTANCEA a, LPVOID ref)
+{
+    WideObjects *w = (WideObjects *)ref;
+    DIDEVICEOBJECTINSTANCEW o;
+    object_to_wide(a, &o);
+    return w->cb(&o, w->ref);
+}
+
+struct WideEffects
+{
+    LPDIENUMEFFECTSCALLBACKW cb;
+    LPVOID ref;
+};
+static BOOL CALLBACK wide_effect(LPCDIEFFECTINFOA a, LPVOID ref)
+{
+    WideEffects *w = (WideEffects *)ref;
+    DIEFFECTINFOW e;
+    effect_to_wide(a, &e);
+    return w->cb(&e, w->ref);
+}
+
+class VirtualDeviceW : public IDirectInputDevice8W
+{
+  public:
+    VirtualDeviceW() : m_refs(1), m_a(new VirtualDevice(0))
+    {
+    }
+    virtual ~VirtualDeviceW()
+    {
+        m_a->Release();
+    }
+
+    // IUnknown
+    STDMETHODIMP QueryInterface(REFIID riid, LPVOID *out)
+    {
+        if (!out)
+            return E_POINTER;
+        if (IsEqualIID(riid, IID_IUnknown) || IsEqualIID(riid, IID_IDirectInputDevice8W))
+        {
+            *out = this;
+            AddRef();
+            return S_OK;
+        }
+        return m_a->QueryInterface(riid, out);
+    }
+    STDMETHODIMP_(ULONG) AddRef()
+    {
+        return (ULONG)InterlockedIncrement(&m_refs);
+    }
+    STDMETHODIMP_(ULONG) Release()
+    {
+        LONG n = InterlockedDecrement(&m_refs);
+        if (!n)
+            delete this;
+        return (ULONG)n;
+    }
+
+    // IDirectInputDevice8W: the ANSI device's, names in UTF-16
+    STDMETHODIMP GetCapabilities(LPDIDEVCAPS caps)
+    {
+        return m_a->GetCapabilities(caps);
+    }
+    STDMETHODIMP EnumObjects(LPDIENUMDEVICEOBJECTSCALLBACKW cb, LPVOID ref, DWORD flags)
+    {
+        if (!cb)
+            return DIERR_INVALIDPARAM;
+        WideObjects w = {cb, ref};
+        return m_a->EnumObjects(wide_object, &w, flags);
+    }
+    STDMETHODIMP GetProperty(REFGUID prop, LPDIPROPHEADER h)
+    {
+        return m_a->GetProperty(prop, h);
+    }
+    STDMETHODIMP SetProperty(REFGUID prop, LPCDIPROPHEADER h)
+    {
+        return m_a->SetProperty(prop, h);
+    }
+    STDMETHODIMP Acquire()
+    {
+        return m_a->Acquire();
+    }
+    STDMETHODIMP Unacquire()
+    {
+        return m_a->Unacquire();
+    }
+    STDMETHODIMP GetDeviceState(DWORD size, LPVOID data)
+    {
+        return m_a->GetDeviceState(size, data);
+    }
+    STDMETHODIMP GetDeviceData(DWORD size, LPDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
+    {
+        return m_a->GetDeviceData(size, data, count, flags);
+    }
+    STDMETHODIMP SetDataFormat(LPCDIDATAFORMAT f)
+    {
+        return m_a->SetDataFormat(f);
+    }
+    STDMETHODIMP SetEventNotification(HANDLE e)
+    {
+        return m_a->SetEventNotification(e);
+    }
+    STDMETHODIMP SetCooperativeLevel(HWND w, DWORD flags)
+    {
+        return m_a->SetCooperativeLevel(w, flags);
+    }
+    STDMETHODIMP GetObjectInfo(LPDIDEVICEOBJECTINSTANCEW info, DWORD obj, DWORD how)
+    {
+        if (!info || info->dwSize < sizeof(DIDEVICEOBJECTINSTANCE_DX3W))
+            return DIERR_INVALIDPARAM;
+        DIDEVICEOBJECTINSTANCEA a;
+        a.dwSize = sizeof a;
+        HRESULT hr = m_a->GetObjectInfo(&a, obj, how);
+        if (FAILED(hr))
+            return hr;
+        DIDEVICEOBJECTINSTANCEW w;
+        object_to_wide(&a, &w);
+        DWORD size = info->dwSize;
+        memcpy(info, &w, size < sizeof w ? size : sizeof w);
+        info->dwSize = size;
+        return DI_OK;
+    }
+    STDMETHODIMP GetDeviceInfo(LPDIDEVICEINSTANCEW info)
+    {
+        if (!info || info->dwSize < sizeof(DIDEVICEINSTANCE_DX3W))
+            return DIERR_INVALIDPARAM;
+        DIDEVICEINSTANCEW d;
+        wl_vdinput_instance_w(&d);
+        DWORD size = info->dwSize;
+        memcpy(info, &d, size < sizeof d ? size : sizeof d);
+        info->dwSize = size;
+        return DI_OK;
+    }
+    STDMETHODIMP RunControlPanel(HWND w, DWORD flags)
+    {
+        return m_a->RunControlPanel(w, flags);
+    }
+    STDMETHODIMP Initialize(HINSTANCE inst, DWORD version, REFGUID g)
+    {
+        return m_a->Initialize(inst, version, g);
+    }
+    STDMETHODIMP CreateEffect(REFGUID g, LPCDIEFFECT e, LPDIRECTINPUTEFFECT *out, LPUNKNOWN outer)
+    {
+        return m_a->CreateEffect(g, e, out, outer);
+    }
+    STDMETHODIMP EnumEffects(LPDIENUMEFFECTSCALLBACKW cb, LPVOID ref, DWORD type)
+    {
+        if (!cb)
+            return DI_OK;
+        WideEffects w = {cb, ref};
+        return m_a->EnumEffects(wide_effect, &w, type);
+    }
+    STDMETHODIMP GetEffectInfo(LPDIEFFECTINFOW info, REFGUID g)
+    {
+        if (!info)
+            return E_POINTER;
+        DIEFFECTINFOA a;
+        HRESULT hr = m_a->GetEffectInfo(&a, g);
+        if (SUCCEEDED(hr))
+            effect_to_wide(&a, info);
+        return hr;
+    }
+    STDMETHODIMP GetForceFeedbackState(LPDWORD state)
+    {
+        return m_a->GetForceFeedbackState(state);
+    }
+    STDMETHODIMP SendForceFeedbackCommand(DWORD cmd)
+    {
+        return m_a->SendForceFeedbackCommand(cmd);
+    }
+    STDMETHODIMP EnumCreatedEffectObjects(LPDIENUMCREATEDEFFECTOBJECTSCALLBACK cb, LPVOID ref, DWORD flags)
+    {
+        return m_a->EnumCreatedEffectObjects(cb, ref, flags);
+    }
+    STDMETHODIMP Escape(LPDIEFFESCAPE esc)
+    {
+        return m_a->Escape(esc);
+    }
+    STDMETHODIMP Poll()
+    {
+        return m_a->Poll();
+    }
+    STDMETHODIMP SendDeviceData(DWORD size, LPCDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
+    {
+        return m_a->SendDeviceData(size, data, count, flags);
+    }
+    STDMETHODIMP EnumEffectsInFile(LPCWSTR file, LPDIENUMEFFECTSINFILECALLBACK cb, LPVOID ref, DWORD flags)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+    STDMETHODIMP WriteEffectToFile(LPCWSTR file, DWORD count, LPDIFILEEFFECT effects, DWORD flags)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+    STDMETHODIMP BuildActionMap(LPDIACTIONFORMATW af, LPCWSTR user, DWORD flags)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+    STDMETHODIMP SetActionMap(LPDIACTIONFORMATW af, LPCWSTR user, DWORD flags)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+    STDMETHODIMP GetImageInfo(LPDIDEVICEIMAGEINFOHEADERW info)
+    {
+        return DIERR_UNSUPPORTED;
+    }
+
+  private:
+    volatile LONG m_refs;
+    VirtualDevice *m_a;
+};
+
+IDirectInputDevice8W *wl_vdinput_create_w(void)
+{
+    return g_joy ? new VirtualDeviceW() : NULL;
 }

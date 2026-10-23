@@ -22,9 +22,12 @@
 // - The key: the game calls BIND_InitDongle, then BIND_IsDongleVerify with 8 fixed bytes
 //   (+0x1aa600; the DLL has the key compute on them and compares) and keeps only the answer:
 //   present and verified, as linuxloader answers its games' keys (their library's functions).
-// - The I/O data (+0x1b3b90): buttons in bytes 2 and 3, two values 0..255 in bytes 6 and 7.
+// - The I/O data (+0x1b3b90): buttons in bytes 2 and 3, the brake in byte 6 and the accelerator in
+//   byte 7 (0..255; seen in a race).
 // - The wheel's angle: a raw value the game places between the three of its calibration
-//   (left, middle, right, its settings); 0..4095 here.
+//   (Setting_Test_Input.ini beside the exe: IoDataList_iMin_X, iMiddle_X, iMax_X, 127, 64 and 1 in
+//   the copy, made with TeknoParrot); the same range here, 1 at the left end (the car selection
+//   moves with it as the wheel goes).
 
 #include <windows.h>
 #include <stdio.h>
@@ -43,19 +46,26 @@ enum
     IN_GAS,
     IN_BRAKE,
     IN_COIN,
-    IN_PROBE, // PROBE: bytes 2 and 3 of the I/O data, bit by bit, until their meaning is known
-    IN_COUNT = IN_PROBE + 16
+    IN_ENTER,   // byte 2 bit 0: the red button, confirms in the test menu
+    IN_DOWN,    // byte 2 bit 1: the black one ("D"), the next line in the test menu
+    IN_TEST,    // byte 2 bit 2: the green one, opens the test menu
+    IN_START,   // byte 3 bit 0: starts a game, then the Nitro
+    IN_SEAT,    // byte 3 bit 1: "Pause Seat Motion"
+    IN_COUNT
 };
 
+// Found by bits tried one by one and the test menu's Input Test; byte 3 bits 2 and 7 are read by
+// the game too (+0x1b3deb, +0x1b3eee), their use not seen
 static WlInput g_inputs[IN_COUNT] = {
-    {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 4095, 2048},
+    {"Steering", "P1_Steer", WL_INPUT_AXIS, 1, 127, 64},
     {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 255, 0},
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 255, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
-    {"A0", "A0", WL_INPUT_SWITCH, 0, 1, 0}, {"A1", "A1", WL_INPUT_SWITCH, 0, 1, 0}, {"A2", "A2", WL_INPUT_SWITCH, 0, 1, 0}, {"A3", "A3", WL_INPUT_SWITCH, 0, 1, 0},
-    {"A4", "A4", WL_INPUT_SWITCH, 0, 1, 0}, {"A5", "A5", WL_INPUT_SWITCH, 0, 1, 0}, {"A6", "A6", WL_INPUT_SWITCH, 0, 1, 0}, {"A7", "A7", WL_INPUT_SWITCH, 0, 1, 0},
-    {"B0", "B0", WL_INPUT_SWITCH, 0, 1, 0}, {"B1", "B1", WL_INPUT_SWITCH, 0, 1, 0}, {"B2", "B2", WL_INPUT_SWITCH, 0, 1, 0}, {"B3", "B3", WL_INPUT_SWITCH, 0, 1, 0},
-    {"B4", "B4", WL_INPUT_SWITCH, 0, 1, 0}, {"B5", "B5", WL_INPUT_SWITCH, 0, 1, 0}, {"B6", "B6", WL_INPUT_SWITCH, 0, 1, 0}, {"B7", "B7", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Enter", "SelectEnter", WL_INPUT_SWITCH, 0, 1, 0},
+    {"MenuDown", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
+    {"SeatPause", "SeatPause", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 static volatile LONG g_coins; // coins the game has not taken yet
@@ -139,11 +149,15 @@ static bool BIND_GetIoData(unsigned char *data)
     if (!data)
         return false;
     memset(data, 0, 17);
-    for (int i = 0; i < 16; i++)
-        if (wl_input_get(&g_inputs[IN_PROBE + i]))
-            data[2 + i / 8] |= (unsigned char)(1 << (i % 8));
-    data[6] = (unsigned char)wl_input_get(&g_inputs[IN_GAS]);
-    data[7] = (unsigned char)wl_input_get(&g_inputs[IN_BRAKE]);
+    static const struct
+    {
+        int input, byte, bit;
+    } bits[] = {{IN_ENTER, 2, 0}, {IN_DOWN, 2, 1}, {IN_TEST, 2, 2}, {IN_START, 3, 0}, {IN_SEAT, 3, 1}};
+    for (size_t i = 0; i < sizeof bits / sizeof bits[0]; i++)
+        if (wl_input_get(&g_inputs[bits[i].input]))
+            data[bits[i].byte] |= (unsigned char)(1 << bits[i].bit);
+    data[6] = (unsigned char)wl_input_get(&g_inputs[IN_BRAKE]);
+    data[7] = (unsigned char)wl_input_get(&g_inputs[IN_GAS]);
     count_coins();
     return true;
 }
@@ -190,9 +204,27 @@ static bool BIND_CloseSteeringWheelDevice(void)
     return true;
 }
 
+// The motor as the game drives it (seen in its attract and a race): "3 64 0 0" when the wheel is
+// opened, "0 108 0 0" after its init, "3 108 0 0" from then on, and "3 108 5 0" for a moment at a
+// crash. Taken as a centring spring (a = 3) of strength b and a shake c, played at each angle read
+// (each frame); the meaning is a guess.
+static volatile LONG g_motor[4];
+
+static void motor_force(int raw)
+{
+    static int flip;
+    double left = (64 - raw) / 63.0; // the wheel, +1 at the left end
+    double force = g_motor[0] == 3 ? -left * g_motor[1] / 127.0 : 0;
+    if (g_motor[2])
+        force += (flip ^= 1) ? g_motor[2] / 20.0 : -g_motor[2] / 20.0;
+    wl_ffb_set(force > 1 ? 1 : force < -1 ? -1 : force);
+}
+
 static int BIND_GetSteeringWheelAngle(void)
 {
-    return wl_input_get(&g_inputs[IN_STEERING]);
+    int raw = wl_input_get(&g_inputs[IN_STEERING]);
+    motor_force(raw);
+    return raw;
 }
 
 static int BIND_GetSteeringWheelLevel(void)
@@ -206,6 +238,10 @@ static bool BIND_SetSteeringWheelData(int a, int b, int c, int d)
     if ((a != last[0] || b != last[1] || c != last[2] || d != last[3]) && logged++ < 200)
         wl_log("unis: wheel motor %d %d %d %d (wheel %d)", a, b, c, d, wl_input_get(&g_inputs[IN_STEERING]));
     last[0] = a, last[1] = b, last[2] = c, last[3] = d;
+    InterlockedExchange(&g_motor[0], a);
+    InterlockedExchange(&g_motor[1], b);
+    InterlockedExchange(&g_motor[2], c);
+    InterlockedExchange(&g_motor[3], d);
     return true;
 }
 
@@ -312,6 +348,8 @@ int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
     *name = "crazyride";
     *title = "Crazy Ride";
     wl_log("game: %s (UNIS PC, Unreal Engine 4)", *title);
+    wl_game_set_boards("Controls on UNIS I/O board (serial, through UsbPluginsDll_R.dll)",
+                       "Motor board: UNIS wheel board (serial, 6-byte frames 55 a b c d sum, through UsbPluginsDll_R.dll)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
         wl_log("game: UsbPluginsDll_R.dll's board, wheel, coins and key functions given by windowsloader");

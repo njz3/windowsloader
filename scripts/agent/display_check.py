@@ -145,7 +145,7 @@ with WLAgent(LAUNCHER, GAME, log=LOG, extra_args=("--timeout", "400")) as game:
     print("ready", game.game, game.width, game.height, "back buffer shape %.3f" % (game.width / game.height), flush=True)
     time.sleep(START)
     print("game window: %s of the screen's scale (%d dpi)" % (awareness(), user32.GetDpiForWindow(game_window() or 0)), flush=True)
-    for mode in ("WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH"):
+    for mode in ("WINDOW", "WINDOW_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"):  # FULLSCREEN: the same layout, the screen's resolution switched
         for aspect in ("ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX"):
             game.display(aspect, mode)
             time.sleep(1.5)

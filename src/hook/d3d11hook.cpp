@@ -128,12 +128,69 @@ static void log_desc(const char *what, const DXGI_SWAP_CHAIN_DESC *d)
 // IDXGISwapChain
 // ------------------------------------------------------------------------------
 
+// A Direct3D 10 game's swap chain (Mario Kart Arcade GP DX): its buffer also reads as a Direct3D 11
+// texture, but a copy through a Direct3D 11 context runs before the game's own commands, still in
+// its Direct3D 10 device (a black picture): its pictures are read through that device
+static int is_d3d10(IDXGISwapChain *sc)
+{
+    ID3D10Device *dev = NULL;
+    if (FAILED(sc->GetDevice(__uuidof(ID3D10Device), (void **)&dev)) || !dev)
+        return 0;
+    dev->Release();
+    return 1;
+}
+
+static void take_pending_shot10(IDXGISwapChain *sc, const char *path)
+{
+    ID3D10Texture2D *bb = NULL, *staging = NULL;
+    ID3D10Device *dev = NULL;
+    int ok = 0;
+    if (SUCCEEDED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+    {
+        D3D10_TEXTURE2D_DESC d, s;
+        bb->GetDesc(&d);
+        bb->GetDevice(&dev);
+        int rgba = d.Format == DXGI_FORMAT_R8G8B8A8_UNORM || d.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        s = d;
+        s.MipLevels = 1;
+        s.ArraySize = 1;
+        s.MiscFlags = 0;
+        s.BindFlags = 0;
+        s.Usage = D3D10_USAGE_STAGING;
+        s.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+        D3D10_MAPPED_TEXTURE2D m;
+        if (d.SampleDesc.Count == 1 && SUCCEEDED(dev->CreateTexture2D(&s, NULL, &staging)))
+        {
+            dev->CopyResource(staging, bb);
+            if (SUCCEEDED(staging->Map(0, D3D10_MAP_READ, 0, &m)))
+            {
+                ok = wl_write_bmp(path, (const unsigned char *)m.pData, (int)m.RowPitch, (int)d.Width, (int)d.Height, rgba);
+                staging->Unmap(0);
+            }
+        }
+        if (!ok)
+            wl_log("shot: Direct3D 10 back buffer %ux%u format %d msaa %u not read", d.Width, d.Height, d.Format, d.SampleDesc.Count);
+    }
+    if (staging)
+        staging->Release();
+    if (dev)
+        dev->Release();
+    if (bb)
+        bb->Release();
+    wl_shot_done(ok);
+}
+
 // The picture the agent asked for: the back buffer about to be presented, through a staging copy
 void wl_d3d11_take_pending_shot(IDXGISwapChain *sc)
 {
     const char *path = wl_shot_pending();
     if (!path)
         return;
+    if (is_d3d10(sc))
+    {
+        take_pending_shot10(sc, path);
+        return;
+    }
     ID3D11Texture2D *bb = NULL, *resolved = NULL, *staging = NULL;
     ID3D11Device *dev = NULL;
     ID3D11DeviceContext *ctx = NULL;
@@ -353,7 +410,7 @@ static void gdi_copy10(IDXGISwapChain *sc)
 static void gdi_copy(IDXGISwapChain *sc)
 {
     ID3D11Texture2D *bb = NULL;
-    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+    if (is_d3d10(sc) || FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
     {
         gdi_copy10(sc);
         return;
@@ -435,7 +492,10 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDXGISwapChain *sc, UINT sync, UINT fl
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
-    wl_menu_present11(sc, present_out); // F10: the menu runs here until it is closed
+    if (is_d3d10(sc))
+        wl_menu_present10(sc, present_out); // F10: the menu runs here until it is closed
+    else
+        wl_menu_present11(sc, present_out);
     wl_d3d11_take_pending_shot(sc);
     wl_display_dest(); // F11, Alt+Enter, the mode chosen in the menu
     HRESULT hr = present_out(sc, sync, flags);
@@ -766,6 +826,13 @@ static HRESULT WINAPI hD3D11CreateDeviceAndSwapChain(IDXGIAdapter *ad, D3D_DRIVE
         return oD3D11CreateDeviceAndSwapChain(ad, type, sw, flags, levels, nlevels, sdk, d, sc, dev, level, ctx);
     char where[128];
     wl_log("D3D11CreateDeviceAndSwapChain type=%d flags=0x%x [%s]", type, flags, wl_where(WL_CALLER, where, sizeof where));
+    DXGI_ADAPTER_DESC ad0;
+    if (ad && SUCCEEDED(ad->GetDesc(&ad0)))
+    {
+        char name[128];
+        WideCharToMultiByte(CP_UTF8, 0, ad0.Description, -1, name, sizeof name, NULL, NULL);
+        wl_log("  on %s (%llu MB of video memory)", name, (unsigned long long)ad0.DedicatedVideoMemory >> 20);
+    }
     log_desc("  asked", d);
     DXGI_SWAP_CHAIN_DESC copy, placed;
     const DXGI_SWAP_CHAIN_DESC *use = windowed_desc(d, &copy);

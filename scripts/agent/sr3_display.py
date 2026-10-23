@@ -54,7 +54,7 @@ try:
             game.step(20)
             game.screen(os.path.join(OUT, "res-%sx%s.bmp" % tuple(size)))
         else:
-            for mode in ("WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH"):
+            for mode in ("WINDOW", "WINDOW_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"):  # FULLSCREEN: the same layout, the screen's resolution switched
                 for aspect in ("ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX"):
                     print(game.display(aspect, mode), flush=True)
                     game.step(20)

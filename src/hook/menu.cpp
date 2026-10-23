@@ -24,6 +24,7 @@
 
 #include <windows.h>
 #include <d3d9.h>
+#include <d3d10_1.h>
 #include <d3d11.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@
 #include <string.h>
 
 #include "imgui.h"
+#include "backends/imgui_impl_dx10.h"
 #include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_dx9.h"
 #include "backends/imgui_impl_win32.h"
@@ -54,7 +56,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 static volatile LONG g_open;
 static volatile LONG g_request = -1; // the agent's: 1 open, 0 close
 static int g_ready;                  // 1 set up, -1 failed
-static int g_backend;                // 9 or 11: the renderer ImGui was set up for
+static int g_backend;                // 9, 10 or 11: the renderer ImGui was set up for
 static HWND g_wnd;
 static int g_bbW, g_bbH;
 
@@ -189,6 +191,20 @@ static int setup11(HWND wnd, ID3D11Device *dev, ID3D11DeviceContext *ctx)
     }
     g_backend = 11;
     wl_log("menu: ready (Direct3D 11, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
+    return 1;
+}
+
+// A Direct3D 10 game (Mario Kart Arcade GP DX): what a Direct3D 11 context draws on its swap chain's
+// buffer is not seen in the picture presented, the menu draws through the game's device
+static int setup10(HWND wnd, ID3D10Device *dev)
+{
+    if (!setup_imgui(wnd) || !ImGui_ImplDX10_Init(dev))
+    {
+        wl_log("menu: ImGui could not start on this device");
+        return 0;
+    }
+    g_backend = 10;
+    wl_log("menu: ready (Direct3D 10, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
     return 1;
 }
 
@@ -410,7 +426,8 @@ static void page_display(void)
     static const int choices[] = {WL_ASPECT_ORIGINAL,     WL_ASPECT_4_3,      WL_ASPECT_16_9,     WL_ASPECT_4_3_STRETCH,
                                   WL_ASPECT_16_9_STRETCH, WL_ASPECT_4_3_CROP, WL_ASPECT_16_9_CROP};
     static const char *aspects[] = {"Original", "4:3 bandes noires", "16:9 bandes noires", "4:3 étiré", "16:9 étiré", "4:3 recadré", "16:9 recadré"};
-    static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré"};
+    static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré",
+                                               "Plein écran fenêtré (sans bordure)", "Plein écran fenêtré étiré"};
     static const int sizes[][2] = {{0, 0},     {640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 1024}, {1360, 768},
                                    {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
     int aspect = wl_display_aspect(), mode = wl_display_mode(), choice = 0;
@@ -455,7 +472,10 @@ static void page_display(void)
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
     if (ImGui::Combo("Mode d'affichage", &mode, modes, WL_MODE_COUNT))
         wl_display_set(aspect, mode);
-    ImGui::TextDisabled("F11 ou Alt+Entrée : fenêtre / plein écran.");
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("Plein écran : l'écran passe à la taille de l'image du jeu. Plein écran fenêtré : une fenêtre sans bordure "
+                        "couvre l'écran, à la résolution du bureau. F11 ou Alt+Entrée : fenêtre / plein écran.");
+    ImGui::PopTextWrapPos();
     ImGui::Spacing();
 
     int w, h, sw, sh, current = -1;
@@ -548,6 +568,15 @@ static void save_buttons(void)
 static void page_game(void)
 {
     ImGui::Text("%s est en pause.", wl_game_title());
+    // The cabinet's boards, as the game's module describes them
+    const char *boards[2] = {wl_game_controls(), wl_game_motor()};
+    for (int i = 0; i < 2; i++)
+        if (boards[i])
+        {
+            ImGui::Bullet();
+            ImGui::SameLine();
+            ImGui::TextWrapped("%s", boards[i]);
+        }
     ImGui::Spacing();
     if (ImGui::Button("Reprendre (F10)"))
         InterlockedExchange(&g_open, 0);
@@ -1033,5 +1062,114 @@ void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present)
     if (bb)
         bb->Release();
     f.ctx->Release();
+    f.dev->Release();
+}
+
+// The same through a Direct3D 10 device
+struct Frame10
+{
+    IDXGISwapChain *sc;
+    ID3D10Device *dev;
+    ID3D10Texture2D *frozen;
+    WlPresent11Fn present;
+};
+
+static void render_frame10(void *arg)
+{
+    Frame10 *f = (Frame10 *)arg;
+    ID3D10Texture2D *bb = NULL;
+    if (FAILED(f->sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+    {
+        Sleep(16);
+        return;
+    }
+    ID3D10RenderTargetView *oldRtv = NULL, *rtv = NULL;
+    ID3D10DepthStencilView *oldDsv = NULL;
+    D3D10_VIEWPORT oldVp[D3D10_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+    UINT vpCount = D3D10_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+    f->dev->OMGetRenderTargets(1, &oldRtv, &oldDsv);
+    f->dev->RSGetViewports(&vpCount, oldVp);
+
+    if (f->frozen)
+        f->dev->CopyResource(bb, f->frozen);
+    if (SUCCEEDED(f->dev->CreateRenderTargetView(bb, NULL, &rtv)))
+    {
+        if (!f->frozen)
+        {
+            const float black[4] = {0, 0, 0, 1};
+            f->dev->ClearRenderTargetView(rtv, black);
+        }
+        f->dev->OMSetRenderTargets(1, &rtv, NULL);
+        D3D10_VIEWPORT vp = {0, 0, (UINT)g_bbW, (UINT)g_bbH, 0, 1};
+        f->dev->RSSetViewports(1, &vp);
+        ImGui_ImplDX10_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        feed_mouse();
+        ImGui::NewFrame();
+        draw_menu();
+        ImGui::Render();
+        ImGui_ImplDX10_RenderDrawData(ImGui::GetDrawData());
+        rtv->Release();
+    }
+    wl_d3d11_take_pending_shot(f->sc); // the agent's pictures show the menu too
+
+    f->dev->OMSetRenderTargets(1, &oldRtv, oldDsv);
+    f->dev->RSSetViewports(vpCount, oldVp);
+    if (oldRtv)
+        oldRtv->Release();
+    if (oldDsv)
+        oldDsv->Release();
+    bb->Release();
+    wl_display_dest();
+    HRESULT hr = f->present(f->sc, 1, 0);
+    if (FAILED(hr) || hr == DXGI_STATUS_OCCLUDED)
+        Sleep(16);
+}
+
+void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present)
+{
+    int want = f10_pressed();
+    if (InterlockedExchange(&g_request, -1) == 1)
+        want = 1;
+    if (!want)
+        return;
+
+    ID3D10Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+        return;
+    D3D10_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    g_bbW = (int)d.Width;
+    g_bbH = (int)d.Height;
+    Frame10 f = {sc, NULL, NULL, present};
+    bb->GetDevice(&f.dev);
+    if (!g_ready)
+    {
+        DXGI_SWAP_CHAIN_DESC sd;
+        g_ready = SUCCEEDED(sc->GetDesc(&sd)) && setup10(sd.OutputWindow, f.dev) ? 1 : -1;
+    }
+    if (g_ready > 0 && g_backend == 10)
+    {
+        D3D10_TEXTURE2D_DESC fd = d;
+        fd.Usage = D3D10_USAGE_DEFAULT;
+        fd.BindFlags = d.SampleDesc.Count > 1 ? D3D10_BIND_RENDER_TARGET : 0;
+        fd.CPUAccessFlags = 0;
+        fd.MiscFlags = 0;
+        if (SUCCEEDED(f.dev->CreateTexture2D(&fd, NULL, &f.frozen)))
+            f.dev->CopyResource(f.frozen, bb);
+        bb->Release();
+        bb = NULL;
+
+        run_menu(render_frame10, &f);
+
+        if (f.frozen)
+        {
+            if (SUCCEEDED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+                f.dev->CopyResource(bb, f.frozen);
+            f.frozen->Release();
+        }
+    }
+    if (bb)
+        bb->Release();
     f.dev->Release();
 }

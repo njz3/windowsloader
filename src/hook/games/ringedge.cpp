@@ -775,6 +775,10 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     *name = g_game->name;
     *title = g_game->title;
     wl_log("game: %s (Sega %s)", *title, g_game->board);
+    static char controls[96];
+    snprintf(controls, sizeof controls, "Controls on JVS board, Sega 837-14572, JVS 3.0 (%s)",
+             !strcmp(g_game->jvsPort, "\\\\.\\mxjvs") ? "mxjvs driver" : g_game->jvsPort);
+    wl_game_set_boards(controls, "Motor board: Sega-like servoboard (COM1)");
 
     wchar_t table[MAX_PATH];
     swprintf(table, MAX_PATH, L"%s%s", g_dir, g_game->table);

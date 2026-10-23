@@ -29,6 +29,7 @@ void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present);
 struct IDXGISwapChain;
 typedef HRESULT(STDMETHODCALLTYPE *WlPresent11Fn)(IDXGISwapChain *, UINT, UINT);
 void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present);
+void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present); // a Direct3D 10 game's swap chain
 
 // Before IDirect3DDevice9::Reset: the menu's device objects are released
 void wl_menu_device_reset(void);

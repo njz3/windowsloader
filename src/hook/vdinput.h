@@ -41,6 +41,11 @@ int wl_vdinput_ffb(void); // the joystick is a force feedback wheel
 // For dinputhook.cpp
 #ifdef DIRECTINPUT_VERSION
 void wl_vdinput_instance(DIDEVICEINSTANCEA *out);
+void wl_vdinput_instance_w(DIDEVICEINSTANCEW *out);
 int wl_vdinput_is_ours(REFGUID instance);
 IDirectInputDevice8A *wl_vdinput_create(void);
+IDirectInputDevice8W *wl_vdinput_create_w(void); // the Unicode interface, the same device
+// DirectInput 7's (ANSI): its device type, the same device (whose methods are at the same places)
+void wl_vdinput_instance_legacy(DIDEVICEINSTANCEA *out);
+IDirectInputDevice8A *wl_vdinput_create_legacy(void);
 #endif

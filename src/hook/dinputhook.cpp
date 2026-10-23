@@ -18,7 +18,7 @@
 //
 // With an I/O board played as a DirectInput joystick (vdinput.h), the enumeration lists that
 // board first and hides the PC's game controllers, and CreateDevice on it gives windowsloader's
-// own device. Only the ANSI interface has it so far (the Unicode one just hides the controllers).
+// own device, on the ANSI and the Unicode interfaces.
 
 #define DIRECTINPUT_VERSION 0x0800
 #include <windows.h>
@@ -489,7 +489,20 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesA(IDirectInput8A *di, DWORD type, L
 static HRESULT STDMETHODCALLTYPE hEnumDevicesW(IDirectInput8W *di, DWORD type, LPDIENUMDEVICESCALLBACKW cb, LPVOID ref, DWORD flags)
 {
     wl_log("dinput: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
-    int hide = wl_vdinput_active() || g_hideControllers;
+    int ours = wl_vdinput_active();
+    if (ours && cb && wants_game_controllers(type) && (!(flags & DIEDFL_FORCEFEEDBACK) || wl_vdinput_ffb()))
+    {
+        DIDEVICEINSTANCEW d;
+        wl_vdinput_instance_w(&d);
+        BOOL r = cb(&d, ref);
+        char name[160], where[128];
+        wl_u8(d.tszProductName, name, sizeof name);
+        wl_log("dinput: device \"%s\" (windowsloader) -> %s [the game's callback %s]", name, r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped",
+               wl_where((const void *)cb, where, sizeof where));
+        if (r != DIENUM_CONTINUE)
+            return DI_OK;
+    }
+    int hide = ours || g_hideControllers;
     if (hide && type != DI8DEVCLASS_ALL && wants_game_controllers(type))
         return DI_OK;
     EnumWrapW w = {cb, ref, hide};
@@ -498,11 +511,11 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesW(IDirectInput8W *di, DWORD type, L
 
 static HRESULT create_device(CreateDeviceFn orig, void *di, REFGUID g, void **out, LPUNKNOWN outer, int unicode)
 {
-    if (!unicode && wl_vdinput_is_ours(g))
+    if (wl_vdinput_is_ours(g))
     {
         if (!out)
             return DIERR_INVALIDPARAM;
-        *out = wl_vdinput_create();
+        *out = unicode ? (void *)wl_vdinput_create_w() : (void *)wl_vdinput_create();
         wl_log("dinput: CreateDevice on the board played by windowsloader -> %p", *out);
         return *out ? DI_OK : DIERR_OUTOFMEMORY;
     }
@@ -552,6 +565,92 @@ static HRESULT STDMETHODCALLTYPE hGetDeviceStatusA(void *di, REFGUID g)
 static HRESULT STDMETHODCALLTYPE hGetDeviceStatusW(void *di, REFGUID g)
 {
     return device_status(oGetDeviceStatusW, di, g);
+}
+
+// DirectInput 7 and before (dinput.dll, ANSI), which a game's helper DLL may make through COM
+// (Immersion's IFC23.dll, D1GP's force feedback: CoCreateInstance(CLSID_DirectInput) from
+// system.cpp): the board played by windowsloader listed and opened there too, with DirectInput
+// 7's device types (a joystick, 4, where DirectInput 8 has its classes and types)
+#define LEGACY_JOYSTICK 4
+
+struct EnumWrapLegacy
+{
+    LPDIENUMDEVICESCALLBACKA cb;
+    LPVOID ref;
+};
+
+static BOOL CALLBACK enum_cb_legacy(LPCDIDEVICEINSTANCEA di, LPVOID ref)
+{
+    EnumWrapLegacy *w = (EnumWrapLegacy *)ref;
+    if (GET_DIDEVICE_TYPE(di->dwDevType) == LEGACY_JOYSTICK)
+    {
+        wl_log("dinput 7: device \"%s\" hidden from the game", di->tszProductName);
+        return DIENUM_CONTINUE;
+    }
+    return w->cb(di, w->ref);
+}
+
+typedef HRESULT(STDMETHODCALLTYPE *EnumDevicesLegacyFn)(void *, DWORD, LPDIENUMDEVICESCALLBACKA, LPVOID, DWORD);
+static EnumDevicesLegacyFn oEnumDevicesLegacy;
+static CreateDeviceFn oCreateDeviceLegacy;
+static GetDeviceStatusFn oGetDeviceStatusLegacy;
+
+static HRESULT STDMETHODCALLTYPE hEnumDevicesLegacy(void *di, DWORD type, LPDIENUMDEVICESCALLBACKA cb, LPVOID ref, DWORD flags)
+{
+    wl_log("dinput 7: EnumDevices type 0x%lx flags 0x%lx%s", type, flags, flags & DIEDFL_FORCEFEEDBACK ? " (force feedback only)" : "");
+    int ours = wl_vdinput_active();
+    int joysticks = !type || GET_DIDEVICE_TYPE(type) == LEGACY_JOYSTICK;
+    if (ours && cb && joysticks && (!(flags & DIEDFL_FORCEFEEDBACK) || wl_vdinput_ffb()))
+    {
+        DIDEVICEINSTANCEA d;
+        wl_vdinput_instance_legacy(&d);
+        BOOL r = cb(&d, ref);
+        char where[128];
+        wl_log("dinput 7: device \"%s\" (windowsloader) -> %s [the callback %s]", d.tszProductName, r == DIENUM_CONTINUE ? "next" : "chosen, enumeration stopped",
+               wl_where((const void *)cb, where, sizeof where));
+        if (r != DIENUM_CONTINUE)
+            return DI_OK;
+    }
+    int hide = ours || g_hideControllers;
+    if (hide && type && joysticks)
+        return DI_OK;
+    if (!hide || !cb)
+        return oEnumDevicesLegacy(di, type, cb, ref, flags);
+    EnumWrapLegacy w = {cb, ref};
+    return oEnumDevicesLegacy(di, type, enum_cb_legacy, &w, flags);
+}
+
+static HRESULT STDMETHODCALLTYPE hCreateDeviceLegacy(void *di, REFGUID g, void **out, LPUNKNOWN outer)
+{
+    if (wl_vdinput_is_ours(g))
+    {
+        if (!out)
+            return DIERR_INVALIDPARAM;
+        *out = wl_vdinput_create_legacy();
+        wl_log("dinput 7: CreateDevice on the board played by windowsloader -> %p", *out);
+        return *out ? DI_OK : DIERR_OUTOFMEMORY;
+    }
+    HRESULT hr = oCreateDeviceLegacy(di, g, out, outer);
+    char n[80];
+    instance_name(g, n, sizeof n);
+    wl_log("dinput 7: CreateDevice \"%s\" -> 0x%08lx", n, hr);
+    return hr;
+}
+
+static HRESULT STDMETHODCALLTYPE hGetDeviceStatusLegacy(void *di, REFGUID g)
+{
+    return device_status(oGetDeviceStatusLegacy, di, g);
+}
+
+void wl_dinput_legacy(void *di)
+{
+    static volatile LONG done;
+    if (!di || InterlockedExchange(&done, 1))
+        return;
+    void **vt = vtable_of(di);
+    wl_hook_code(vt[SLOT_DI_ENUMDEVICES], (void *)hEnumDevicesLegacy, (void **)&oEnumDevicesLegacy, "IDirectInputA::EnumDevices");
+    wl_hook_code(vt[SLOT_DI_CREATEDEVICE], (void *)hCreateDeviceLegacy, (void **)&oCreateDeviceLegacy, "IDirectInputA::CreateDevice");
+    wl_hook_code(vt[SLOT_DI_GETDEVICESTATUS], (void *)hGetDeviceStatusLegacy, (void **)&oGetDeviceStatusLegacy, "IDirectInputA::GetDeviceStatus");
 }
 
 static HRESULT(WINAPI *oDirectInput8Create)(HINSTANCE, DWORD, REFIID, LPVOID *, LPUNKNOWN);

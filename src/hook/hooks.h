@@ -95,6 +95,9 @@ void wl_files_redirect(const char *from, const char *to);
 // The same, the path's beginning replaced as text: "F:\" to "<folder>\F" makes F:\system\x
 // <folder>\Fsystem\x (Mario Kart Arcade GP DX's drives, as its cabinets' copies keep them)
 void wl_files_redirect_prefix(const char *from, const char *to);
+// The path under its redirected folder (written in buf), or the path itself: for the files Windows
+// opens for the game from its own DLLs, which the file hooks do not see (DirectShow's movies)
+const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t size);
 
 // A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
 // parallel port helper): returns 1 when the module took it over. The game is still told the
@@ -120,6 +123,7 @@ void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
 void wl_dinput_hooks(void);
 void wl_dinput_hide_controllers(void); // the PC's game controllers kept from the game's DirectInput
+void wl_dinput_legacy(void *directInputA); // DirectInput 7 (ANSI) made through COM: its devices handled the same way
 void wl_d3d11_hooks(void);
 void wl_gl_hooks(void);
 void wl_crash_init(void);

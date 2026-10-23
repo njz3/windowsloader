@@ -157,6 +157,8 @@ int wl_game_konami(const wchar_t *exePath, const char **name, const char **title
     *name = "gticlub3";
     *title = "GTI Club: Supermini Festa!";
     wl_log("game: %s (Konami PC)", *title);
+    wl_game_set_boards("Controls on Konami ACIO board \"HBHI\" (COM2, through libacio.dll)",
+                       "Motor board: Konami ACIO board \"HBHI\" (the force the game leaves for it)");
 
     char folder[MAX_PATH], to[MAX_PATH];
     WideCharToMultiByte(CP_ACP, 0, dir, -1, folder, sizeof folder, NULL, NULL);

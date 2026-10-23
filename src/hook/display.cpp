@@ -41,6 +41,15 @@ static volatile LONG g_barrelRadius = 50;           // % of the frame
 static int g_width, g_height;      // internal resolution, 0 = AUTO
 static int g_nextW, g_nextH;       // the one to save
 static volatile LONG g_apply;      // the window must take the mode again
+// Windows changed from the thread that owns them: Present may run on another (Unreal Engine 4's
+// render thread, Crazy Ride), and SetWindowPos or a style change from there waits for the owner's
+// messages, while the owner may be waiting for the render thread. The mode is then applied by the
+// window procedure (this message posted), the child placed asynchronously.
+static UINT g_applyMsg;
+static int owns(HWND wnd)
+{
+    return GetWindowThreadProcessId(wnd, NULL) == GetCurrentThreadId();
+}
 static volatile LONG g_toggle;     // Alt+Enter: window <-> full screen
 static volatile LONG g_repaint;    // the black bars must be painted again
 
@@ -60,7 +69,7 @@ static RECT g_src;                 // the back buffer's part shown (Direct3D 9's
 static int g_full = 1;             // the picture is the whole client area
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
-static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH"};
+static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"};
 
 // ------------------------------------------------------------------------------
 // windowsloader.ini
@@ -93,8 +102,10 @@ static const char *g_defaults =
     "BARREL_RADIUS = 50\r\n"
     "\r\n"
     "# WINDOW: a window at the aspect ratio, square pixels. WINDOW_STRETCH: the picture fills the window,\r\n"
-    "# which can be resized. FULLSCREEN: the whole screen, the picture at the aspect ratio between black\r\n"
-    "# bars. FULLSCREEN_STRETCH: the picture fills the screen. F11 or Alt+Enter: window / full screen.\r\n"
+    "# which can be resized. FULLSCREEN: the whole screen, switched to its smallest mode holding the game's\r\n"
+    "# picture, at the aspect ratio between black bars. FULLSCREEN_STRETCH: the same, the picture fills it.\r\n"
+    "# BORDERLESS and BORDERLESS_STRETCH: the same in a window covering the screen at the desktop's\r\n"
+    "# resolution (full screen window). F11 or Alt+Enter: window / full screen.\r\n"
     "DISPLAY_MODE = WINDOW\r\n"
     "\r\n"
     "# Direct3D 9 and 11 games in a window. GDI: windowsloader copies the picture into the window itself;\r\n"
@@ -373,7 +384,7 @@ static void layout(void)
 {
     GetClientRect(g_wnd, &g_client);
     int w = g_client.right, h = g_client.bottom;
-    int stretch = g_mode == WL_MODE_WINDOW_STRETCH || g_mode == WL_MODE_FULLSCREEN_STRETCH;
+    int stretch = g_mode == WL_MODE_WINDOW_STRETCH || g_mode == WL_MODE_FULLSCREEN_STRETCH || g_mode == WL_MODE_BORDERLESS_STRETCH;
     RECT frame = stretch ? g_client : fit(w, h, frame_aspect());
     RECT pic = frame, shown = frame;
     int kind = view_kind();
@@ -425,7 +436,68 @@ static void layout(void)
     {
         g_childRect = shown;
         wl_log("display: client %dx%d, picture %ldx%ld at %ld,%ld", w, h, shown.right - shown.left, shown.bottom - shown.top, shown.left, shown.top);
-        SetWindowPos(g_child, NULL, shown.left, shown.top, shown.right - shown.left, shown.bottom - shown.top, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+        SetWindowPos(g_child, NULL, shown.left, shown.top, shown.right - shown.left, shown.bottom - shown.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | (owns(g_child) ? 0 : SWP_ASYNCWINDOWPOS));
+    }
+}
+
+// FULLSCREEN: the screen the window is on switched to its smallest mode holding the game's picture
+// (CDS_FULLSCREEN: a temporary mode, which Windows also takes back when the game ends), back to the
+// desktop's in the other modes. A change the screen refuses is tried once: the full screen then
+// stays at the desktop's resolution, as BORDERLESS.
+static wchar_t g_screen[CCHDEVICENAME]; // the screen switched, "" when none
+static int g_screenRefusedW, g_screenRefusedH;
+
+static void screen_resolution(int full)
+{
+    if (!full)
+    {
+        if (!g_screen[0])
+            return;
+        wl_busy_enter();
+        LONG r = ChangeDisplaySettingsExW(g_screen, NULL, NULL, 0, NULL);
+        wl_busy_leave();
+        wl_log("display: the screen back at the desktop's resolution (%ld)", r);
+        g_screen[0] = 0;
+        return;
+    }
+    if (g_screen[0] || g_bbW <= 0 || g_bbH <= 0 || (g_bbW == g_screenRefusedW && g_bbH == g_screenRefusedH))
+        return;
+    MONITORINFOEXW mi;
+    mi.cbSize = sizeof mi;
+    if (!GetMonitorInfoW(MonitorFromWindow(g_wnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+        return;
+    // The screen's smallest mode holding the picture (its own size when the screen has it), as SDL
+    // chooses for linuxloader
+    DEVMODEW dm = {}, m = {};
+    dm.dmSize = m.dmSize = sizeof dm;
+    DWORD bestArea = 0;
+    for (DWORD i = 0; EnumDisplaySettingsW(mi.szDevice, i, &m); i++)
+        if (m.dmPelsWidth >= (DWORD)g_bbW && m.dmPelsHeight >= (DWORD)g_bbH && (!bestArea || m.dmPelsWidth * m.dmPelsHeight < bestArea))
+        {
+            bestArea = m.dmPelsWidth * m.dmPelsHeight;
+            dm.dmPelsWidth = m.dmPelsWidth;
+            dm.dmPelsHeight = m.dmPelsHeight;
+        }
+    if (!bestArea)
+    {
+        dm.dmPelsWidth = (DWORD)g_bbW;
+        dm.dmPelsHeight = (DWORD)g_bbH;
+    }
+    dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+    wl_busy_enter();
+    LONG r = ChangeDisplaySettingsExW(mi.szDevice, &dm, NULL, CDS_FULLSCREEN, NULL);
+    wl_busy_leave();
+    if (r == DISP_CHANGE_SUCCESSFUL)
+    {
+        wcscpy_s(g_screen, CCHDEVICENAME, mi.szDevice);
+        wl_log("display: the screen at %lux%lu for the full screen (the picture %dx%d)", dm.dmPelsWidth, dm.dmPelsHeight, g_bbW, g_bbH);
+    }
+    else
+    {
+        g_screenRefusedW = g_bbW;
+        g_screenRefusedH = g_bbH;
+        wl_log("display: the screen does not take %dx%d (%ld): full screen at the desktop's resolution", g_bbW, g_bbH, r);
     }
 }
 
@@ -433,14 +505,15 @@ static void apply_mode(void)
 {
     if (!g_wnd)
         return;
+    int mode = g_mode;
+    screen_resolution(mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH);
     MONITORINFO mi = {sizeof mi};
     GetMonitorInfoW(MonitorFromWindow(g_wnd, MONITOR_DEFAULTTOPRIMARY), &mi);
     DWORD ex = (DWORD)GetWindowLongW(g_wnd, GWL_EXSTYLE) & ~(WS_EX_TOPMOST | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME);
-    int mode = g_mode;
     int x, y, w, h;
     DWORD style;
 
-    if (mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH)
+    if (mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH || mode == WL_MODE_BORDERLESS || mode == WL_MODE_BORDERLESS_STRETCH)
     {
         style = WS_POPUP | WS_VISIBLE | (g_child ? WS_CLIPCHILDREN : 0);
         x = mi.rcMonitor.left;
@@ -541,6 +614,11 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_SYSCHAR && wp == VK_RETURN)
         return 0; // no beep for Alt+Enter
+    if (msg == g_applyMsg && g_applyMsg)
+    {
+        apply_mode();
+        return 0;
+    }
     if (msg == WM_PAINT || msg == WM_SIZE || msg == WM_ERASEBKGND)
         InterlockedExchange(&g_repaint, 1);
     // The game sees its window at its picture's size (as by GetClientRect above)
@@ -653,6 +731,7 @@ void wl_display_window(HWND wnd, int width, int height)
     }
     if (!g_proc)
     {
+        g_applyMsg = RegisterWindowMessageW(L"windowsloader apply display mode");
         g_unicode = IsWindowUnicode(wnd);
         g_proc = (WNDPROC)(g_unicode ? SetWindowLongPtrW(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc)
                                      : SetWindowLongPtrA(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc));
@@ -714,13 +793,25 @@ const RECT *wl_display_dest(void)
     int f11 = focus_is_ours() && (GetAsyncKeyState(VK_F11) & 0x8000);
     if ((f11 && !f11Was) || InterlockedExchange(&g_toggle, 0))
     {
-        static const int other[WL_MODE_COUNT] = {WL_MODE_FULLSCREEN, WL_MODE_FULLSCREEN_STRETCH, WL_MODE_WINDOW, WL_MODE_WINDOW_STRETCH};
-        InterlockedExchange(&g_mode, other[g_mode]); // not saved: DISPLAY_MODE stays the one chosen
+        // Window <-> the full screen chosen (BORDERLESS when the mode chosen is a window), stretched
+        // or not as it was; not saved: DISPLAY_MODE stays the one chosen
+        int mode = g_mode, chosen = g_modeChosen;
+        int stretch = mode == WL_MODE_WINDOW_STRETCH || mode == WL_MODE_FULLSCREEN_STRETCH || mode == WL_MODE_BORDERLESS_STRETCH;
+        int real = chosen == WL_MODE_FULLSCREEN || chosen == WL_MODE_FULLSCREEN_STRETCH;
+        int next = mode == WL_MODE_WINDOW || mode == WL_MODE_WINDOW_STRETCH
+                       ? (real ? (stretch ? WL_MODE_FULLSCREEN_STRETCH : WL_MODE_FULLSCREEN) : (stretch ? WL_MODE_BORDERLESS_STRETCH : WL_MODE_BORDERLESS))
+                       : (stretch ? WL_MODE_WINDOW_STRETCH : WL_MODE_WINDOW);
+        InterlockedExchange(&g_mode, next);
         InterlockedExchange(&g_apply, 1);
     }
     f11Was = f11;
     if (InterlockedExchange(&g_apply, 0))
-        apply_mode();
+    {
+        if (owns(g_wnd) || !g_proc)
+            apply_mode();
+        else
+            PostMessageW(g_wnd, g_applyMsg, 0, 0);
+    }
     layout();
 
     // Bars only around a picture windowsloader places: one that fills the window has none to paint

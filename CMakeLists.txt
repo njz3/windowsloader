@@ -116,6 +116,7 @@ add_library(wl_hook SHARED
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
     src/imgui/imgui_widgets.cpp
+    src/imgui/backends/imgui_impl_dx10.cpp
     src/imgui/backends/imgui_impl_dx11.cpp
     src/imgui/backends/imgui_impl_dx9.cpp
     src/imgui/backends/imgui_impl_win32.cpp)

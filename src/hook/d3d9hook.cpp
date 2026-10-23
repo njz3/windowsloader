@@ -134,9 +134,11 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
     if (d.MultiSampleType != D3DMULTISAMPLE_NONE && SUCCEEDED(dev->CreateRenderTarget(d.Width, d.Height, d.Format, D3DMULTISAMPLE_NONE, 0, FALSE, &resolved, NULL)) &&
         SUCCEEDED(dev->StretchRect(bb, NULL, resolved, NULL, D3DTEXF_NONE)))
         src = resolved;
-    // 8 bits per channel, or A2R10G10B10 (Chase H.Q. 2) brought back to 8
+    // 8 bits per channel, or A2R10G10B10 (Chase H.Q. 2) and the 16-bit formats (Valve Limit R's
+    // R5G6B5) brought to 8
     int tenBits = d.Format == D3DFMT_A2R10G10B10;
-    if (d.Format == D3DFMT_A8R8G8B8 || d.Format == D3DFMT_X8R8G8B8 || tenBits)
+    int sixteen = d.Format == D3DFMT_R5G6B5 ? 6 : d.Format == D3DFMT_X1R5G5B5 || d.Format == D3DFMT_A1R5G5B5 ? 5 : 0;
+    if (d.Format == D3DFMT_A8R8G8B8 || d.Format == D3DFMT_X8R8G8B8 || tenBits || sixteen)
     {
         step = "CreateOffscreenPlainSurface";
         hr = dev->CreateOffscreenPlainSurface(d.Width, d.Height, d.Format, D3DPOOL_SYSTEMMEM, &sys, NULL);
@@ -156,8 +158,27 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
             step = "writing the file";
             unsigned char *pixels = (unsigned char *)lr.pBits;
             int pitch = lr.Pitch;
-            unsigned char *converted = tenBits ? (unsigned char *)malloc((size_t)d.Width * d.Height * 4) : NULL;
-            if (converted)
+            unsigned char *converted = tenBits || sixteen ? (unsigned char *)malloc((size_t)d.Width * d.Height * 4) : NULL;
+            if (converted && sixteen)
+            {
+                for (UINT y = 0; y < d.Height; y++)
+                {
+                    const WORD *row = (const WORD *)(pixels + (size_t)y * lr.Pitch);
+                    unsigned char *out = converted + (size_t)y * d.Width * 4;
+                    for (UINT x = 0; x < d.Width; x++)
+                    {
+                        unsigned v = row[x];
+                        unsigned r = sixteen == 6 ? v >> 11 : v >> 10 & 0x1F, g = sixteen == 6 ? v >> 5 & 0x3F : v >> 5 & 0x1F, b = v & 0x1F;
+                        out[x * 4] = (unsigned char)(b << 3 | b >> 2);
+                        out[x * 4 + 1] = (unsigned char)(sixteen == 6 ? g << 2 | g >> 4 : g << 3 | g >> 2);
+                        out[x * 4 + 2] = (unsigned char)(r << 3 | r >> 2);
+                        out[x * 4 + 3] = 0;
+                    }
+                }
+                pixels = converted;
+                pitch = (int)d.Width * 4;
+            }
+            else if (converted)
             {
                 for (UINT y = 0; y < d.Height; y++)
                 {
@@ -173,7 +194,7 @@ static int save_back_buffer(IDirect3DDevice9 *dev, const char *path)
                 pixels = converted;
                 pitch = (int)d.Width * 4;
             }
-            if (!tenBits || converted)
+            if ((!tenBits && !sixteen) || converted)
                 ok = wl_write_bmp(path, pixels, pitch, (int)d.Width, (int)d.Height, 0);
             free(converted);
             sys->UnlockRect();
@@ -505,6 +526,9 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         return hr;
     }
     log_pp("  asked", pp);
+    D3DADAPTER_IDENTIFIER9 id;
+    if (SUCCEEDED(d3d->GetAdapterIdentifier(adapter, 0, &id)))
+        wl_log("  on %s", id.Description);
     int forced = make_windowed(pp);
     if (forced)
     {

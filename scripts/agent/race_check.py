@@ -17,7 +17,7 @@ picture every few seconds, a contact sheet at the end and the force feedback cha
 
     python scripts/agent/race_check.py GAME [MENUS DRIVE] [wheel]
 
-GAME: bg4 (Battle Gear 4 Tuned), chq2 (Chase H.Q. 2), showdown (DiRT Showdown) or gticlub3
+GAME: bg4 (Battle Gear 4 Tuned), bg4eng (Battle Gear 4, 2006), d1gp (D1GP Arcade), vlimitr (Valve Limit R), chq2 (Chase H.Q. 2), showdown (DiRT Showdown) or gticlub3
 (GTI Club: Supermini Festa!), copied in games/ as BILAN.md says. MENUS and DRIVE: seconds of Start presses and of driving (40 and 30).
 wheel: the controllers are opened too (launcher --controllers), the force feedback goes to the
 player 1 controller (vJoy on the test PC: warn its other users first).
@@ -39,6 +39,9 @@ LAUNCHER = os.path.join(ROOT, "bin", "Release", "windowsloader.exe")
 GAMES = {
     # name: path in games/, the cabinet's arguments, seconds of boot, coins taken
     "bg4": (("bg4tp", "game.exe"), ("_MTS_FULL_SCREEN_",), 30, True),
+    "bg4eng": (("bg4", "game.exe"), ("_MTS_FULL_SCREEN_",), 45, True),
+    "d1gp": (("d1gp", "game.exe"), (), 85, True),
+    "vlimitr": (("vlimitr", "launcher.exe"), (), 20, True),
     "chq2": (("chasehq2", "game.exe"), (), 45, True),
     "showdown": (("showdown", "Showdown", "Showdown.exe"), (), 40, False),
     "gticlub3": (("gticlub3", "gti3.exe"), (), 30, False),

@@ -11,11 +11,14 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// Taito Type X+ and X2: Battle Gear 4 Tuned and Chase H.Q. 2 (game.exe, x86, Direct3D 9). The game
-// finds its settings and saves on D:\ (and Battle Gear 4 its data in E:\data): its own folder. Its
-// JVS I/O board is on COM2; Battle Gear 4's wheel drive board on COM1.
+// Taito Type X, X+ and X2: Battle Gear 4 (Tuned and the first edition), Chase H.Q. 2, D1GP
+// (game.exe) and Valve Limit R (launcher.exe), x86, Direct3D 9. The game finds its settings and
+// saves on D:\ (and Battle Gear 4 its data in E:\data): its own folder. Its JVS I/O board is on
+// COM2; Battle Gear 4's and Valve Limit R's wheel drive board on COM1; D1GP's wheel is a DirectInput
+// one.
 
 #include <windows.h>
+#include <math.h>
 #include <stdio.h>
 #include <wchar.h>
 #include <mmsystem.h>
@@ -30,6 +33,7 @@
 #include "log.h"
 #include "settings.h"
 #include "vdev.h"
+#include "vdinput.h"
 
 enum
 {
@@ -83,7 +87,9 @@ enum
     BG4_TUNED = 1,
     BG4_ORIGINAL // the first edition, 2006
 };
-static int g_bg4; // the edition, 0 for Chase H.Q. 2
+static int g_bg4; // the edition, 0 for Chase H.Q. 2 and D1GP
+static int g_d1gp;
+static int g_vlimitr;
 static void bg4_tick(void);
 static int g_pro;            // Battle Gear 4 Pro's cabinet ([Game] CABINET = PRO)
 static unsigned char g_lever; // its second board's inputs: the H shifter's columns
@@ -143,6 +149,37 @@ static void jvs_state(WlJvsState *s)
         s->analog[6] = (unsigned short)(wl_input_get(&g_inputs[IN_CLUTCH]) << 8);
         return;
     }
+    if (g_d1gp)
+    {
+        // D1GP (its I/O test): START bit 3, VIEW CHANGE 2, SHIFT DOWN 8, SHIFT UP 9, SIDE BRAKE
+        // 10, SERVICE 14 (above); the wheel and the pedals on its DirectInput wheel (below)
+        if (wl_input_get(&g_inputs[IN_START]))
+            s->player[0] |= 1u << 3;
+        if (wl_input_get(&g_inputs[IN_VIEW]))
+            s->player[0] |= 1u << 2;
+        if (wl_input_get(&g_inputs[IN_SHIFT_DOWN]))
+            s->player[0] |= 1u << 8;
+        if (wl_input_get(&g_inputs[IN_SHIFT_UP]))
+            s->player[0] |= 1u << 9;
+        if (wl_input_get(&g_inputs[IN_SIDE_BRAKE]))
+            s->player[0] |= 1u << 10;
+        return;
+    }
+    if (g_vlimitr)
+    {
+        // Valve Limit R (its I/O check): START bit 15, SERVICE 14 (above), NITRO 13, VIEW 12, SIDE
+        // BRAKE 11, SHIFT UP 10, SHIFT DOWN 9; the accelerator on channel 1, the brake on 2 (its
+        // "BG3 I/O" library takes 1 to 3, +0x41ac50); the steering on COM1
+        static const unsigned short bits[] = {1u << 15, 1u << 13, 1u << 12, 1u << 11, 1u << 10, 1u << 9};
+        const int inputs[] = {IN_START, IN_NITRO, IN_VIEW, IN_SIDE_BRAKE, IN_SHIFT_UP, IN_SHIFT_DOWN};
+        for (int i = 0; i < 6; i++)
+            if (wl_input_get(&g_inputs[inputs[i]]))
+                s->player[0] |= bits[i];
+        s->analog[1] = (unsigned short)(wl_input_get(&g_inputs[IN_GAS]) << 8);
+        s->analog[2] = (unsigned short)(wl_input_get(&g_inputs[IN_BRAKE]) << 8);
+        s->analog[3] = s->analog[4] = 0;
+        return;
+    }
     // Chase H.Q. 2: Start bit 3, the steering on channel 2, the two-position lever held where it
     // was put (bit 13 set in LOW)
     if (wl_input_get(&g_inputs[IN_SHIFT_DOWN]))
@@ -184,7 +221,8 @@ static void jvs_output(const unsigned char *data, int length)
 {
     static unsigned char last[8];
     static int logged;
-    if (!g_bg4 && length >= 2)
+    // Chase H.Q. 2's motor (D1GP's is its DirectInput wheel's)
+    if (!g_bg4 && !g_d1gp && !g_vlimitr && length >= 2)
     {
         int torque = (data[0] >> 4 & 1) | (data[1] >> 6 & 1) << 1 | (data[0] >> 3 & 1) << 2 | (data[1] >> 5 & 1) << 3;
         if (data[0] & 0x20)
@@ -407,6 +445,30 @@ static void wheel_answer(unsigned char a, unsigned char b)
     g_wheelOut[g_wheelCount++] = b;
 }
 
+// Valve Limit R drives the board as Battle Gear 3 does, the board making the forces from their
+// parameters (BackForceFeeder's DRIVEBOARD.md, Taito board): 01 a constant torque (0x80 none,
+// above to the left), 03 a spring, 05 and 06 a vibration's frequency (Hz) and amplitude; 02 and 04,
+// friction and damper, are left out (the wheel's speed is not known). Played at each command (the
+// game polls about 30 times a second). The spring's and the vibration's scales are guesses.
+// Battle Gear 4 streams its own torque (0x0D) instead.
+static void vlr_effects(unsigned char cmd, unsigned char arg)
+{
+    static int constant = 0x80, spring, sineHz, sineAmp;
+    if (cmd == 0x01)
+        constant = arg;
+    else if (cmd == 0x03)
+        spring = arg;
+    else if (cmd == 0x05)
+        sineHz = arg;
+    else if (cmd == 0x06)
+        sineAmp = arg;
+    double left = (128 - wl_input_get(&g_inputs[IN_STEERING])) / 127.0; // the wheel, +1 at the left end
+    double force = (constant - 0x80) / 127.0 - left * spring / 64.0;
+    if (sineHz && sineAmp)
+        force += sineAmp / 255.0 * sin(GetTickCount() * 0.001 * sineHz * 6.283185307179586);
+    wl_ffb_set(force > 1 ? 1 : force < -1 ? -1 : force);
+}
+
 static void wheel_command(unsigned char cmd, unsigned char arg)
 {
     static int logged;
@@ -418,6 +480,8 @@ static void wheel_command(unsigned char cmd, unsigned char arg)
     last[cmd] = arg;
     if (cmd == 0x0D) // the motor's torque, 0x80 none
         wl_ffb_set((arg - 0x80) / 127.0);
+    if (g_vlimitr)
+        vlr_effects(cmd, arg);
     if (cmd == 0x20)
     {
         g_wheelReport = 0;
@@ -529,6 +593,19 @@ static void bg4_settings(void)
     }
 }
 
+// D1GP's wheel: a DirectInput force feedback wheel the game finds by its product name, the
+// cabinet's Immersion one ("<product name>.txt" beside the game maps its buttons and axes, the
+// copy's every entry 0); its motor is driven by Immersion's effects (IFC23.dll, data/game.ifr)
+static void d1gp_wheel(unsigned short axes[WL_VDINPUT_AXES], unsigned char *buttons)
+{
+    axes[0] = (unsigned short)(wl_input_get(&g_inputs[IN_STEERING]) * 257);
+    axes[1] = (unsigned short)(wl_input_get(&g_inputs[IN_GAS]) * 257);
+    axes[2] = (unsigned short)(wl_input_get(&g_inputs[IN_BRAKE]) * 257);
+}
+
+// VID and PID made up
+static const WlVirtualJoystick g_d1gpWheel = {"Immersion TouchSense Steering Wheel", 0x0001, 0x0001, 16, d1gp_wheel, 1};
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -544,7 +621,9 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     wcsncpy_s(dir, MAX_PATH, exePath, base - exePath);
     int bg4 = (!_wcsicmp(base, L"game.exe") || !_wcsicmp(base, L"game4.exe")) && exists(dir, L"game.inf") && exists(dir, L"data\\drivedata");
     int chq2 = !_wcsicmp(base, L"game.exe") && exists(dir, L"chq2.ini");
-    if (!bg4 && !chq2)
+    int d1gp = !bg4 && !_wcsicmp(base, L"game.exe") && exists(dir, L"IFC23.dll") && exists(dir, L"game.inf");
+    int vlimitr = !_wcsicmp(base, L"launcher.exe") && exists(dir, L"game.inf") && exists(dir, L"data\\bin2");
+    if (!bg4 && !chq2 && !d1gp && !vlimitr)
         return 0;
     // Battle Gear 4's two editions, told apart by their exe's time stamp: Tuned (2007, v2.08, its
     // Pro cabinet included) and the first one (2006, OpenParrot's "BG4_Eng"); anything else is
@@ -560,9 +639,26 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
             return 0;
         }
     }
-    *name = bg4 == BG4_TUNED ? "bg4" : bg4 ? "bg4eng" : "chasehq2";
-    *title = bg4 == BG4_TUNED ? "Battle Gear 4 Tuned" : bg4 ? "Battle Gear 4" : "Chase H.Q. 2";
-    wl_log("game: %s (Taito Type X%s)", *title, bg4 ? "+" : "2");
+    *name = bg4 == BG4_TUNED ? "bg4" : bg4 ? "bg4eng" : d1gp ? "d1gp" : vlimitr ? "vlimitr" : "chasehq2";
+    *title = bg4 == BG4_TUNED ? "Battle Gear 4 Tuned" : bg4 ? "Battle Gear 4" : d1gp ? "D1GP Arcade" : vlimitr ? "Valve Limit R" : "Chase H.Q. 2";
+    wl_log("game: %s (Taito Type X%s)", *title, bg4 ? "+" : vlimitr ? "" : "2");
+    if (bg4 == BG4_TUNED)
+        wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2); a second JVS board on the Pro cabinet "
+                           "(H shifter, gate motor)",
+                           "Motor board: Taito steering board, Battle Gear protocol (COM1, 38400 bauds)");
+    else if (bg4)
+        wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2)",
+                           "Motor board: Taito steering board, Battle Gear protocol (COM1, 38400 bauds)");
+    else if (vlimitr)
+        wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2)",
+                           "Motor board: Taito steering board, Battle Gear protocol (COM1, 38400 bauds)");
+    else if (d1gp)
+        wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2); wheel and pedals on a DirectInput wheel "
+                           "(\"Immersion TouchSense Steering Wheel\")",
+                           "Motor board: none, Immersion TouchSense force feedback (DirectInput effects) on the wheel");
+    else
+        wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2)",
+                           "Motor board: none, the JVS board's outputs drive the motor (torque 0..15, direction)");
 
     // D:\ and E:\ are the game's folder
     char folder[MAX_PATH];
@@ -583,6 +679,21 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         static const unsigned char jne = 0x75, jmp = 0xEB;
         wl_patch_code((void *)0x4107E3, &jne, &jmp, 1, "calibration skipped");
         wl_hooks_add(g_chq2Hooks, sizeof g_chq2Hooks / sizeof g_chq2Hooks[0]);
+        return 1;
+    }
+    if (d1gp)
+    {
+        wl_vdinput_register(&g_d1gpWheel);
+        g_d1gp = 1;
+        return 1;
+    }
+    if (vlimitr)
+    {
+        wl_dinput_hide_controllers();
+        InitializeCriticalSection(&g_wheelLock);
+        wl_vdev_register(&g_wheel);
+        wl_vdev_label("COM1", "Carte du volant");
+        g_vlimitr = 1;
         return 1;
     }
 

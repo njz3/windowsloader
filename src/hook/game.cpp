@@ -22,6 +22,7 @@
 
 static const char *g_name = "unknown";
 static const char *g_title = "jeu inconnu";
+static const char *g_controls, *g_motor;
 static void (*g_onSettings)(void);
 
 const char *wl_game_name(void)
@@ -32,6 +33,23 @@ const char *wl_game_name(void)
 const char *wl_game_title(void)
 {
     return g_title;
+}
+
+void wl_game_set_boards(const char *controls, const char *motor)
+{
+    g_controls = controls;
+    g_motor = motor;
+    wl_log("game: %s; %s", controls ? controls : "no controls board", motor ? motor : "no motor board");
+}
+
+const char *wl_game_controls(void)
+{
+    return g_controls;
+}
+
+const char *wl_game_motor(void)
+{
+    return g_motor;
 }
 
 void wl_game_init(void)

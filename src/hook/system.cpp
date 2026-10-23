@@ -19,6 +19,7 @@
 #include <windows.h>
 #include <objbase.h>
 #include <shellapi.h>
+#include <strmif.h>
 #include <stdio.h>
 
 struct sockaddr; // read as bytes: winsock's headers are not needed
@@ -926,6 +927,61 @@ static HRESULT WINAPI hMFCreateDeviceSource(void *attributes, void **source)
 // COM objects the game creates: DirectShow's device enumerator would list the cameras too
 static const GUID g_systemDeviceEnum = {0x62BE5D10, 0x60EB, 0x11D0, {0xBD, 0x3B, 0x00, 0xA0, 0xC9, 0x11, 0xCE, 0x86}};
 
+// DirectShow's filter graph, for a game's movies: its source filters open the file from Windows'
+// own DLLs, past the file hooks, so the path given to the graph is redirected here (Battle Gear 4's
+// "E:/data/.../attract_demo.wmv", E:\ being its folder)
+static const GUID g_filterGraph = {0xE436EBB3, 0x524F, 0x11CE, {0x9F, 0x53, 0x00, 0x20, 0xAF, 0x0B, 0xA7, 0x70}};
+
+// DirectInput 7 made through COM (Immersion's IFC23.dll): its devices handled as DirectInput 8's
+// (dinputhook.cpp), for its ANSI interfaces
+static const GUID g_directInput = {0x25E609E0, 0xB259, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID g_directInputA = {0x89521360, 0xAA8A, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID g_directInput2A = {0x5944E662, 0xAA8A, 0x11CF, {0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00}};
+static const GUID g_directInput7A = {0x9A4CB684, 0x236D, 0x11D3, {0x8E, 0x9D, 0x00, 0xC0, 0x4F, 0x68, 0x44, 0xAE}};
+
+static void log_movie(const char *what, LPCWSTR file, HRESULT hr, const void *caller)
+{
+    static volatile LONG logged;
+    char where[128];
+    if (!wl_is_system_caller(caller) && InterlockedIncrement(&logged) <= 20)
+        wl_log("DirectShow: %s \"%ls\" -> 0x%08lx [%s]", what, file ? file : L"", hr, where_of(caller, where, sizeof where));
+}
+
+static HRESULT(STDMETHODCALLTYPE *oRenderFile)(IGraphBuilder *, LPCWSTR, LPCWSTR);
+static HRESULT STDMETHODCALLTYPE hRenderFile(IGraphBuilder *graph, LPCWSTR file, LPCWSTR playList)
+{
+    wchar_t buf[MAX_PATH * 2];
+    const wchar_t *path = file ? wl_files_redirectedW(file, buf, MAX_PATH * 2) : file;
+    HRESULT hr = oRenderFile(graph, path, playList);
+    log_movie("RenderFile", path, hr, WL_CALLER);
+    return hr;
+}
+
+static HRESULT(STDMETHODCALLTYPE *oAddSourceFilter)(IGraphBuilder *, LPCWSTR, LPCWSTR, IBaseFilter **);
+static HRESULT STDMETHODCALLTYPE hAddSourceFilter(IGraphBuilder *graph, LPCWSTR file, LPCWSTR name, IBaseFilter **filter)
+{
+    wchar_t buf[MAX_PATH * 2];
+    const wchar_t *path = file ? wl_files_redirectedW(file, buf, MAX_PATH * 2) : file;
+    HRESULT hr = oAddSourceFilter(graph, path, name, filter);
+    log_movie("AddSourceFilter", path, hr, WL_CALLER);
+    return hr;
+}
+
+static void hook_filter_graph(IUnknown *object)
+{
+    static volatile LONG hooked;
+    IGraphBuilder *graph = NULL;
+    if (hooked || FAILED(object->QueryInterface(__uuidof(IGraphBuilder), (void **)&graph)))
+        return;
+    if (!InterlockedExchange(&hooked, 1))
+    {
+        void **vt = *(void ***)graph;
+        wl_hook_code(vt[13], (void *)hRenderFile, (void **)&oRenderFile, "IGraphBuilder::RenderFile");
+        wl_hook_code(vt[14], (void *)hAddSourceFilter, (void **)&oAddSourceFilter, "IGraphBuilder::AddSourceFilter");
+    }
+    graph->Release();
+}
+
 static HRESULT(WINAPI *oCoCreateInstance)(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID *);
 static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx, REFIID iid, LPVOID *out)
 {
@@ -939,6 +995,11 @@ static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx
     }
     wl_busy_enter();
     HRESULT hr = oCoCreateInstance(cls, outer, ctx, iid, out);
+    if (SUCCEEDED(hr) && out && *out && !outer && IsEqualCLSID(cls, g_filterGraph))
+        hook_filter_graph((IUnknown *)*out);
+    if (SUCCEEDED(hr) && out && *out && IsEqualCLSID(cls, g_directInput) &&
+        (IsEqualIID(iid, g_directInputA) || IsEqualIID(iid, g_directInput2A) || IsEqualIID(iid, g_directInput7A)))
+        wl_dinput_legacy(*out);
     wl_busy_leave();
     static volatile LONG logged;
     if (!nested && !wl_is_system_caller(WL_CALLER) && InterlockedIncrement(&logged) <= 100)

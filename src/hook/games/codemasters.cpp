@@ -232,6 +232,9 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
     g_buttons = grid ? g_gridButtons : g_showdownButtons;
     g_ffbPort = grid ? 0x1020 : 0x378;
     wl_log("game: %s", *title);
+    wl_game_set_boards("Controls on DirectInput board \"SEGA IO Controller\"",
+                       grid ? "Motor board: Sega PC parallel-port driver (I/O port 0x1020 through inpout32: strength nibble, direction bit)"
+                            : "Motor board: Sega PC parallel-port driver (port 0x378 through inpout32: strength nibble, direction bit)");
 
     // The copy's C:\Sega: the parent of the game's folder
     char sega[MAX_PATH];

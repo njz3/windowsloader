@@ -31,9 +31,11 @@
 //       frame (50): small bends hard at the edge, large compresses evenly. Only when windowsloader
 //       copies the picture (PRESENT = GDI); with PRESENT = DIRECT, Direct3D 9 crops without the
 //       bend and Direct3D 11 shows the whole picture between bars
-//   DISPLAY_MODE = WINDOW | WINDOW_STRETCH | FULLSCREEN | FULLSCREEN_STRETCH
-//       a window at the aspect ratio (square pixels), a window the frame fills, the whole screen
-//       with the frame at the aspect ratio between black bars, or the whole screen filled
+//   DISPLAY_MODE = WINDOW | WINDOW_STRETCH | FULLSCREEN | FULLSCREEN_STRETCH | BORDERLESS |
+//       BORDERLESS_STRETCH: a window at the aspect ratio (square pixels), a window the frame fills,
+//       the whole screen with the frame at the aspect ratio between black bars or the whole screen
+//       filled, the screen switched to its smallest mode holding the game's picture (FULLSCREEN) or left at the
+//       desktop's (BORDERLESS, a full screen window)
 //   WIDTH / HEIGHT = AUTO | pixels
 //       the game's render resolution, when its module can set it (taken at the next start)
 // The game is kept in a window whatever it asks (a borderless one covering the screen in the full
@@ -59,6 +61,8 @@ enum WlDisplayMode
     WL_MODE_WINDOW_STRETCH,
     WL_MODE_FULLSCREEN,
     WL_MODE_FULLSCREEN_STRETCH,
+    WL_MODE_BORDERLESS,
+    WL_MODE_BORDERLESS_STRETCH,
     WL_MODE_COUNT
 };
 

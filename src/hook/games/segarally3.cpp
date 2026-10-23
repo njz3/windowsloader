@@ -170,6 +170,8 @@ int wl_game_segarally3(const wchar_t *exePath)
     wchar_t dir[MAX_PATH];
     wcsncpy_s(dir, MAX_PATH, exePath, base - exePath);
     wl_log("game: Sega Rally 3 (Europa-R)");
+    wl_game_set_boards("Controls on USB HID board, Sega Europa-R I/O (VID 1043, PID 0000)",
+                       "Motor board: Sega PC parallel-port driver (I/O port 0x1020: strength nibble, direction bit)");
 
     for (int i = 0; i < 24; i++)
     {

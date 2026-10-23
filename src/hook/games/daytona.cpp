@@ -322,6 +322,8 @@ int wl_game_daytona(const wchar_t *exePath, const char **title)
     int version = GetPrivateProfileIntW(L"Update", L"Version", 0, ini);
     *title = version >= 190000 ? "Daytona Championship USA - New Season Edition" : "Daytona Championship USA";
     wl_log("game: %s (Install.ini version %d)", *title, version);
+    wl_game_set_boards("Controls on DirectInput board \"SEGA IO Controller\"",
+                       "Motor board: Sega PC parallel-port driver (port 0x378 through InpWrapper.exe: strength nibble, direction bit)");
 
     swprintf(ini, MAX_PATH, L"%s..\\ShellData\\ShellData.ini", dir);
     g_shell.freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;

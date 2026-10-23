@@ -32,6 +32,13 @@ const char *wl_game_name(void);
 const char *wl_game_title(void); // "Sega Rally 3", for the menu
 void wl_game_init(void);
 
+// The cabinet's boards, for the menu's "Jeu" page, given by the game's module: how the controls
+// reach the game ("Controls on JVS board, Sega 837-14572, JVS 3.0 (COM4)") and the wheel's motor
+// ("Motor board: Sega-like servoboard (COM1)"); NULL for none
+void wl_game_set_boards(const char *controls, const char *motor);
+const char *wl_game_controls(void);
+const char *wl_game_motor(void);
+
 // A game module's part that needs the settings (its options): given by the module while it
 // recognizes its game, called once the settings are read, before the game runs
 void wl_game_on_settings(void (*fn)(void));

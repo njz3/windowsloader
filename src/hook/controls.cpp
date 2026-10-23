@@ -618,6 +618,7 @@ static const char *g_defaults =
     "SelectDown = KEY_PageDown\r\n"
     "SelectLeft = KEY_Home\r\n"
     "SelectRight = KEY_End\r\n"
+    "SelectEnter = KEY_Return\r\n"
     "View1 = KEY_B, GC0_BUTTON_A\r\n"
     "View2 = KEY_N, GC0_BUTTON_B\r\n"
     "View3 = KEY_M, GC0_BUTTON_X\r\n"
