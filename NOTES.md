@@ -60,8 +60,16 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 49 | 22/10 | (question) Télécharger d3d8to9 ? « Oui, télécharge-le » | ✅ crosire/d3d8to9, version 255338f (23/09/2026), relu, dans `src/d3d8to9` |
 | 50 | 22/10 | SWDC (Sega World Drivers Championship) est-il compatible windowsloader ? | ✅ réponse : pas encore ; 64 bits, Unreal Engine 4 (Direct3D 11 probable, déjà géré), mais la plateforme Sega ALLS (amdaemon, keychip, carte d'E/S USB, carte du volant) est à faire, un module de la taille de RingEdge |
 | 51 | 22/10 | Poursuis ton travail selon la liste de jeux | 🔄 Wasteland Racers fini (commandes, vJoy, F10, service) ; Battle Gear 4 Pro = Tuned + options ; Mario Kart DX 1.18 copié, commencé (carte d'E/S « WinArc » à retrouver) |
-| 52 | 23/10 | Continue avec les jeux suivants | 🔄 Battle Gear 4 Pro fait (`[Game] CABINET = PRO` : seconde carte JVS, levier en H, embrayage, grille motorisée, `HOLD_GEAR`) ; Tuned et Chase H.Q. 2 revérifiés |
+| 52 | 23/10 | Continue avec les jeux suivants | 🔄 Battle Gear 4 Pro fait (`[Game.bg4] CABINET = PRO` : seconde carte JVS, levier en H, embrayage, grille motorisée, `HOLD_GEAR`) ; Tuned et Chase H.Q. 2 revérifiés |
 | 53 | 23/10 | Continue avec tous les autres jeux de la liste | 🔄 copiés : Battle Gear 4 (2006), D1GP, Valve Limit R ; Battle Gear 4 (2006) reconnu à part (correctifs à ses adresses) ; Mario Kart DX : la carte JVS est sur COM3, COM1 est la carte du moteur (protocole retrouvé, émulée) ; garde-fous : adresses IP, suppressions dans le registre, racines HKCR/HKU ; retour de force du volant DirectInput de windowsloader ; essais arrêtés à 3 h : plus aucun écran sur le PC |
+| 54 | 23/10 | Commit et pousse | ✅ 3 commits poussés (`8f2c1e1..56fa766`) : le code (Wasteland Racers, Battle Gear 4 Pro et première édition, cartes de Mario Kart DX, Direct3D 8, garde-fous), BILAN.md et README.md, NOTES.md |
+| 55 | 23/10 | Pour l'émulation de la présence de la clé, demande à linuxloader comment elle a fait | ✅ demandé ; réponse : les fonctions de la bibliothèque du jeu remplacées, des données fabriquées d'après le code qui les vérifie. Crazy Ride : « présente, vérifiée » suffit (le jeu ne garde qu'un booléen) ; `unis.cpp` écrit, pas encore lancé |
+| 56 | 23/10 | Une page de réglages du jeu en cours dans la fenêtre des paramètres, remplie selon le jeu lancé (Battle Gear 4 : mode Pro ; options matérielles d'autres jeux) | ✅ onglet « Options du jeu » du menu F10, table d'options déclarée par le module du jeu ; Battle Gear 4 Tuned d'abord ; la page pas encore vue à l'écran |
+| 57 | 23/10 | Demande à linuxloader comment elle va faire, pour faire la même chose | ✅ forme convenue : `[Game.<nom court>]`, `--set Game.CLE=VALEUR`, onglet « Options du jeu », case / liste / curseur, « (au prochain lancement) » |
+| 58 | 23/10 | Une option de passthrough avec choix d'un port COM pour la carte moteur de Mario Kart et des autres jeux à port série, idem pour le JVS | ✅ [Emulation] EMULATE_JVS / EMULATE_DRIVEBOARD, [Paths] JVS_PATH / SERIAL_n_PATH (noms de linuxloader), partie « Cartes » des options du jeu ; vérifié sur un port absent, puis sur la paire virtuelle COM10 / COM11 (carte du volant et JVS de Battle Gear 4) |
+| 59 | 23/10 | Décrire les protocoles de pilotage des cartes moteur dans DRIVEBOARD.md de BackForceFeeder, en particulier Namco et Taito sur port série | ✅ section « Other boards, as the Windows arcade games drive them » ajoutée à la fin : volant de Battle Gear 4, grille de BG4 Pro, moteur de Chase H.Q. 2 sur les sorties JVS, carte moteur de Mario Kart DX, Kickback de Namco, servo Sega des jeux RingEdge / RingWide, Crazy Ride, Wasteland ; non commité |
+| 60 | 23/10 | Un JVS.md à côté : le protocole JVS complet et ses dérivés, et pour chaque plateforme ou jeu le sens des entrées-sorties | ✅ JVS.md (anglais) : couche physique, ligne de détection par plateforme, trame, statuts, toutes les commandes, celles de Taito et de Namco, les cartes des E/S de Lindbergh (d'après linuxloader), RingEdge / RingWide, Battle Gear 4 et sa version Pro, Chase H.Q. 2, Mario Kart DX ; non commité |
+| 61 | 23/10 | La carte Taito de Battle Gear 3 n'est pas la même que les autres : garder ce qui est écrit, ajouter les autres cartes dans une section à part | ✅ rien de l'existant retiré ; les autres cartes dans la section à part, qui dit ne pas les supposer pareilles ; un paragraphe de comparaison corrigé (Battle Gear 3 envoie aussi 0D 80) |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -121,7 +129,7 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | Jeu | Profil | Loader actuel | Matériel d'origine | PE | FFB (paquets) | windowsloader |
 |---|---|---|---|---|---|---|
 | Battle Gear 4 | BattleGear4 | OpenParrot | Taito Type X+ | 32 | non (8) | ⏳ copié ; l'édition de 2006 reconnue (ses correctifs), pas encore lancée avec un écran |
-| Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ✅ `[Game] CABINET = PRO` sur le dossier Tuned : levier en H, embrayage, grille motorisée (agent) |
+| Battle Gear 4 Pro | BattleGear4Pro | OpenParrot | Taito Type X+ | 32 | oui (952) | ✅ `[Game.bg4] CABINET = PRO` sur le dossier Tuned : levier en H, embrayage, grille motorisée (agent) |
 | Battle Gear 4 Tuned | BattleGear4Tuned | OpenParrot | Taito Type X+ | 32 | oui (16 607) | ✅ jusqu'en course (agent), menu de service ; FFB ⚠️ (agent) ; la copie est l'édition « Professional » (option TeknoParrot) |
 | Chase HQ 2 | ChaseHQ2 | OpenParrot | Taito Type X2 | 32 | oui (6 816) | ✅ jusqu'en course (agent), étalonnage au menu de service ; FFB ⚠️ (agent) |
 | Crazy Ride | CrazyRide | TeknoParrot | UNIS PC (UE4) | 64 | non (0) | ⏳ copié, étudié (ses fonctions BIND_* de UsbPluginsDll_R.dll, à fournir) |
@@ -852,3 +860,55 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   dernière trame de la carte ; le jeu (+0x1b3b90) en lit des boutons dans les octets 2 et 3, deux valeurs 0..255
   dans les octets 6 et 7 (les pédales, sans doute) ; le volant par `BIND_GetSteeringWheelAngle`, son moteur par
   `BIND_SetSteeringWheelData` (4 entiers). À finir avec le jeu en marche (le sens de chaque bit).
+
+### 23/10 — La clé de Crazy Ride, les options propres à chaque jeu (demandes 55 à 57)
+
+- Clé de protection (demande 55) : Linuxloader remplace les fonctions de la bibliothèque du jeu (hasp_login, hasp_read,
+  hasp_decrypt… détournées ; Maximum Tune 3 : une image de 4 Ko de la mémoire de la clé, en clair, dont le numéro de série
+  et ses sommes, fabriqués d'après le code qui les vérifie ; Dead Heat Riders : un faux appareil USB pour son numéro de
+  série), sans valeur relevée sur une vraie clé. Crazy Ride : le jeu (+0x1aa600) appelle BIND_InitDongle puis
+  BIND_IsDongleVerify avec 8 octets fixes (le calcul se fait dans la DLL avec la clé) et ne garde qu'un booléen ;
+  BIND_GetDongleVerifyLic n'est pas demandée. `unis.cpp` (nouveau, x64) répond « présente, vérifiée » et donne aussi la
+  carte d'E/S (17 octets ; boutons des octets 2 et 3 en sondes A0..A7, B0..B7 tant que leur sens n'est pas vu, pédales
+  6 et 7), le volant (angle 0..4095, que le jeu place entre ses trois valeurs d'étalonnage), les pièces, le vibreur ;
+  sans effet : BIND_SetLocalTime, BIND_ResetMachine, BIND_SHDeleteFolder, BIND_SetSystemVolume, BIND_ICMPPing (pas de
+  réseau). Les autres BIND_* restent ceux de la DLL. Pas encore lancé.
+- Options propres à chaque jeu (demandes 56 et 57) : forme convenue avec Linuxloader, qui fait la même chose de son côté :
+  section `[Game.<nom court>]` (et non `[Game]`, qu'un fichier commun partagerait entre jeux), `--set Game.CLE=VALEUR`
+  vers la section du jeu lancé, onglet « Options du jeu » (titre du jeu, « [Game.bg4] de windowsloader.ini, pour ce jeu
+  seulement », « Aucune option pour ce jeu. »), case / liste / curseur entier, « (au prochain lancement) » et un rappel
+  quand une valeur diffère de celle du lancement, les deux boutons d'enregistrement écrivent aussi la section. Chez
+  windowsloader la table est dans le module du jeu (`wl_game_set_options`, game.h), chez linuxloader dans
+  `src/loader/config/gameOptions.c`. Première table : Battle Gear 4 Tuned (CABINET, HOLD_GEAR). Vérifié par un lancement
+  bref (sans écran) : les deux `--set` lus dans `[Game.bg4]`, borne Pro et patch posés, `config.bin` intact.
+
+### 23/10 — Écran revenu ; Mario Kart DX en JVS ; passthrough série (demandes 58 à 61)
+
+- Écran revenu à 10 h 22 (attente en arrière-plan). Page « Options du jeu » vue à l'écran sur Battle Gear 4 ; la liste
+  plus étroite (45 % de la largeur), libellés « Standard » / « Pro », le détail dans l'aide. Un `--set Game.CABINET=PRO`
+  d'essai a basculé le `config.bin` de la copie en Pro (le jeu le fait seul, puis se ferme) : remis en standard.
+- Mario Kart DX 1.18 : la carte du moteur répond « C01 » ; à 51 s la bibliothèque JVS ouvre COM3, adresse la carte, lit
+  son identité et ses fonctions, donne son hôte « WinArc », puis envoie des commandes de Namco : 0x70 suivi d'une
+  sous-commande (0x18 « PL » puis 02 et 2 octets, ou 80 et 1 octet ; 0x15 et 0x16 et 2 octets), 0x78, 0x79, 0x7A et
+  14 octets chacune (valeurs de 12 bits par trois : les lampes, semble-t-il), 0x7F seule. Le JVS de windowsloader passe
+  maintenant les commandes 0x60..0x7F d'abord au module de la carte (`WlJvsBoard.vendor`) : namco.cpp les répond
+  « fait » (rapport 01). Reste : la première, « 70 18 50 4C 14 D0 », envoyée 8 fois à l'initialisation (réessayée) ; à
+  voir avec le jeu en marche. Rien de public sur ce protocole (seul indice : 0x70 0x02 date de la carte FCA, 0x70 0x03
+  ses interrupteurs, forum arcade-projects).
+- Passthrough série (demande de l'utilisateur, forme convenue avec Linuxloader, qui a déjà ces clés) : `[Emulation]
+  EMULATE_JVS = false` et `[Paths] JVS_PATH = COM5` envoient le port JVS du jeu à une vraie carte ; `EMULATE_DRIVEBOARD
+  = false` et `SERIAL_<n>_PATH` (n : le COM du jeu) les autres ports émulés (carte du volant, du moteur) ; « COM5 » ou
+  `\\.\COM10`. Le jeu ouvre alors le port du PC lui-même, refus des ports non émulés levé pour lui. Menu : partie
+  « Cartes » de « Options du jeu », une liste par port du jeu (« Émulée » ou « Vraie carte sur COMn », les ports que
+  Windows connaît), au prochain lancement, écrite par les deux boutons. Vérifié : la carte du volant de Battle Gear 4
+  (COM1 du jeu) envoyée sur COM20, absent : `CreateFile "COM1" -> \\.\COM20` (erreur 2), le JVS (COM2) toujours émulé.
+  Pas d'essai avec une vraie carte : ce PC n'en a pas.
+- Passthrough essayé sur la paire virtuelle COM10 / COM11 (l'utilisateur la prête pour ça ; créneau convenu avec
+  Linuxloader, qui l'utilise aussi). Battle Gear 4 sur COM10, un script Python sur COM11 joue la carte :
+  - carte du volant (`SERIAL_1_PATH = COM10`) : la même séquence de démarrage que la carte émulée (`20 00`, `1F 00`,
+    `12 18` … `1A 05`), puis l'interrogation `00 00` (741 trames), le jeu jusqu'à l'attract ;
+  - carte JVS (`JVS_PATH = COM10`) : la ligne de détection passe par les lignes de modem de la paire (RTS de COM11 →
+    CTS de COM10) ; le jeu remet à zéro, adresse la carte, lit son identité et ses fonctions, puis l'interroge
+    (1 766 requêtes en 60 s), l'attract normal. Avec un script qui répond 50 ms trop tard, le jeu redemande la réponse
+    (`2F`, 520 fois) : c'est le jeu qui tolère, pas une erreur du passthrough. Une pièce donnée par le script à 40 s ne
+    s'est pas vue à l'écran : pas creusé.
