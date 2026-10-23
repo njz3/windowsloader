@@ -73,10 +73,14 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 62 | 23/10 | Il y a deux ports COM10 et COM11 en tunnel virtuel si tu veux essayer les modes passthrough | ✅ essayé avec Battle Gear 4 : la carte du volant puis le JVS sur COM10, un script Python jouant la carte sur COM11 ; créneau convenu avec Linuxloader |
 | 63 | 23/10 | Commit et pousse juste ton dépôt | ✅ 3 commits poussés (`56fa766..2df21e3`) : le code (options du jeu, passthrough, Crazy Ride, commandes JVS de Namco), BILAN.md et README.md, NOTES.md ; BILAN.md mis à jour avant ; le dépôt de BackForceFeeder laissé tel quel |
 | 64 | 23/10 | Où en es-tu ? | ✅ le point : demandes faites, reste de la liste des jeux (Mario Kart DX, Battle Gear 4 de 2006, D1GP, Valve Limit R, Crazy Ride, Sonic, SWDC) |
-| 65 | 23/10 | Termine Mario Kart DX puis enchaîne avec les jeux suivants | 🔄 Mario Kart DX fait : démarrage complet (clé, lecteur de cartes, réseau des bornes, hors ligne), image (Direct3D 10), commandes vues au menu de test, retour de force reçu, F10 ; vJoy et le sens de la force au volant restent. Battle Gear 4 de 2006 fait : sa vidéo de démo par DirectShow (chemin redirigé), course, test d'E/S, vJoy, F10. D1GP fait : JVS (bits trouvés au test d'E/S), volant DirectInput en Unicode, retour de force Immersion par DirectInput 7, vJoy, F10 ; lecteur de cartes non émulé. Valve Limit R fait : JVS (table du jeu), carte du volant Taito et ses effets façon Battle Gear 3, étalonnage des pédales, captures 16 bits, vJoy, F10. Crazy Ride fait : blocage du rendu (fenêtres d'un autre fil), entrées, pédales, volant, vJoy, F10. Restent : Sonic, SWDC |
+| 65 | 23/10 | Termine Mario Kart DX puis enchaîne avec les jeux suivants | 🔄 Mario Kart DX fait : démarrage complet (clé, lecteur de cartes, réseau des bornes, hors ligne), image (Direct3D 10), commandes vues au menu de test, retour de force reçu, F10 ; vJoy et le sens de la force au volant restent. Battle Gear 4 de 2006 fait : sa vidéo de démo par DirectShow (chemin redirigé), course, test d'E/S, vJoy, F10. D1GP fait : JVS (bits trouvés au test d'E/S), volant DirectInput en Unicode, retour de force Immersion par DirectInput 7, vJoy, F10 ; lecteur de cartes non émulé. Valve Limit R fait : JVS (table du jeu), carte du volant Taito et ses effets façon Battle Gear 3, étalonnage des pédales, captures 16 bits, vJoy, F10. Crazy Ride fait : blocage du rendu (fenêtres d'un autre fil), entrées, pédales, volant, vJoy, F10. Sonic fait : l'enregistrement système de l'EEPROM (les crédits démarrent), la sauvegarde sur `Y:\` (le blocage au choix du pilote), le jeu gratuit en option, course, vJoy, F10. Reste : SWDC (et Mario Kart DX v1.10), à copier de racecab1 |
 | 66 | 23/10 | Dans la fenêtre des paramètres, pour chaque jeu, la carte d'E/S des contrôles et la carte moteur (« Controls on JVS board, version xx », « Motor board: Sega-like servoboard ») | ✅ deux lignes sous le nom du jeu dans la page « Jeu » du menu F10, déclarées par chaque module (`wl_game_set_boards`), notées aussi au démarrage ; libellés repris par Linuxloader |
 | 67 | 23/10 | Un mode « plein écran fenêtré / borderless » et « plein écran fenêtré / borderless stretch » | ✅ `DISPLAY_MODE = BORDERLESS` / `BORDERLESS_STRETCH` (l'ancien plein écran, fenêtre sans bordure à la résolution du bureau) ; `FULLSCREEN` change maintenant la résolution de l'écran ; mêmes noms chez Linuxloader |
 | 68 | 23/10 | Pendant que tu travailles et sans t'arrêter, le tableau des jeux déjà faits et supportés complètement, et de ceux restant à faire | ✅ donné d'après BILAN.md : 16 jeux jouables de bout en bout (retour de force à confirmer au volant pour la plupart) ; en cours Sonic, Valve Limit R (fini ensuite), Crazy Ride ; pas commencés SWDC et Mario Kart DX v1.10 |
+| 69 | 23/10 | Commit et pousse | ✅ 3 commits poussés (`2df21e3..eafbe67`) : le code (Mario Kart DX, Battle Gear 4 de 2006, D1GP, Valve Limit R, Crazy Ride, modes plein écran fenêtré, cartes dans F10), BILAN.md et README.md, NOTES.md ; le dépôt de BackForceFeeder non touché |
+| 70 | 23/10 | Où en es-tu dans la liste de jeux ? | ✅ le point d'après BILAN.md : 18 jeux jouables (retour de force à confirmer au volant pour la plupart), Sonic commencé, SWDC et Mario Kart DX v1.10 à copier |
+| 71 | 23/10 | Continue | 🔄 Sonic fini : « PRESS START » et les pièces (enregistrement AM_SYSDATA_STATIC de l'EEPROM écrit), le choix du pilote (sauvegarde `Y:\ssr_save.bin` dans le dossier du jeu), course, option « Jeu gratuit », vJoy, F10 ; ensuite SWDC |
+| 72 | 23/10 | Où en es-tu ? | ✅ le point : Sonic fini (pas encore commité), SWDC en copie depuis racecab1 (11,3 Go sur 12,5), puis Mario Kart DX v1.10 |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -151,7 +155,7 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
 | Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ✅ démarrage complet, course, menu de test, F10 (agent) ; FFB ⚠️, vJoy ⏳ |
 | Showdown | Showdown | TeknoParrot | Sega Arcade PC | 32 | oui (25 955) | ✅ jusqu'en course (agent) ; FFB ⚠️ (agent, port 0x378) |
-| Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ⚠️ démarre (carte du volant, réseau), menu de service ; une partie ne démarre pas |
+| Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ✅ jouable : démarrage (carte du volant, réseau, EEPROM du système), pièces ou jeu gratuit (option), course, vJoy, F10, menu de service |
 | Sega Rally 3 | SR3 | TeknoParrot | Sega Europa R | 32 | non (63) | ✅ (retour de force par le port 0x1020) |
 | Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | ⏳ |
 | Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ✅ « Valve Limit R » : course (agent, vJoy), test d'E/S, étalonnage des pédales, F10 ; FFB ⚠️ |
@@ -1070,3 +1074,31 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   voiture part octet 7 à fond, freine octet 6 à fond).
 - Le moteur du volant : « 3 64 0 0 », « 0 108 0 0 », « 3 108 0 0 » et « 3 108 5 0 » aux chocs ; joué comme ressort et
   secousse (supposé). Course en mode agent puis avec vJoy (512 changements de force), F10.
+
+### 23/10 — Sonic & Sega All-Stars Racing, la partie (demande 65, suite ; demande 71)
+
+- Pourquoi pièces et Start étaient ignorés : amCredit (+0x414ed0) ne démarre que si la région de la carte
+  (+0x414950) est 1, 2, 4 ou 8. Elle vient du premier enregistrement de l'EEPROM, AM_SYSDATA_STATIC (octet 0x0C ;
+  le numéro de série de la carte en 0x0F), que le système de la borne écrit, pas le jeu : il était à zéro.
+  windowsloader l'écrit quand son CRC32 ne va pas (région export, comme la clé) ; « PRESS START BUTTON » s'affiche,
+  Start mène au choix du mode.
+- Ensuite le jeu ne présentait plus d'image après le choix du mode : le JVS et la carte du volant continuaient, le
+  fil principal tournait dans l'interpréteur des écrans (+0x23cfa0, octets lus un à un, 93 codes) appelé par
+  +0x17a230 (échantillonneur de fils 32 bits, attaché au jeu). Le journal montrait plus tôt `Y:\ssr_save.bin`
+  introuvable (erreur 3) : la sauvegarde, sur un disque de la borne. La copie a ce fichier dans le dossier du jeu
+  (329 728 octets, de 2021) ; `Y:` y est maintenant redirigé (champ `saveDrive` de la table RingEdge), et le
+  choix du pilote, du circuit, le chargement et la course passent.
+- Les fichiers `fe_character_select_sub_en.stz` et `fe_character_select_metalsonic_en.stz` manquent à la copie
+  (erreur 2) : sans effet vu.
+- Crédits : le menu de test du jeu n'a pas les réglages de pièces. Option du jeu `FREE_PLAY` (« Jeu gratuit »,
+  page « Options du jeu » de F10, cochée par défaut) : l'octet 0x0A d'AM_SYSDATA_CREDIT (0x20) mis à 1 ou 0 au
+  lancement, l'enregistrement par défaut du jeu écrit s'il manque. Vérifié des deux côtés, en partant d'une
+  EEPROM vide : pièces comptées (CREDIT(S) 1, 2, 3), Start en prend une ; jeu gratuit, Start direct. L'ancien
+  `wl_eeprom.bin` réglé à la main est mis de côté dans le dossier de travail.
+- Retour de force : en course, le couple (84) de −16 à +20 sur 127, l'amortisseur (86 2e 14, 86 2f 14…) noté sans
+  être joué, comme pour les autres jeux Sega. Avec vJoy : jusqu'à 173 changements de force en 5 s.
+- Le sens du volant vu en course : +0,8 tourne à gauche, −0,8 à droite.
+- Des images blanches avec le logo du jeu en pleine course : la transition du jeu quand la voiture tombe dans
+  l'eau (elle revient en piste transparente) ; elles viennent bien du Present du jeu, une seule fenêtre.
+- vJoy et l'écran pris en accord avec la session Linuxloader ; elle a copié R-Tuned puis Initial D 4 depuis
+  racecab1 pendant ce temps.
