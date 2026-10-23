@@ -233,7 +233,7 @@ static BOOL WINAPI hBuildCommDCBA(LPCSTR def, LPDCB dcb)
     {
         memcpy(port, def, colon - def);
         port[colon - def] = 0;
-        if (wl_vdev_by_path(port))
+        if (wl_vdev_by_path(port) || wl_vdev_real_port(port))
         {
             def = colon + 1;
             while (*def == ' ')

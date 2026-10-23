@@ -78,6 +78,15 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
     while (i < n)
     {
         unsigned char c = p[i++];
+        if (board->vendor && c >= 0x60 && c <= 0x7F)
+        {
+            int used = board->vendor(p + i - 1, n - (i - 1), r, &k);
+            if (used > 0)
+            {
+                i += used - 1;
+                continue;
+            }
+        }
         switch (c)
         {
         case 0xF0: // reset (broadcast, no reply): every board
@@ -430,6 +439,14 @@ void wl_jvs_add_port(const char *port)
     g_ports[1].name = port;
     wl_vdev_register(&g_ports[1]);
     wl_log("emulated JVS board also on %s", port);
+}
+
+int wl_jvs_is_port(const char *name)
+{
+    for (int i = 0; i < 2; i++)
+        if (g_ports[i].name && name && !_stricmp(g_ports[i].name, name))
+            return 1;
+    return 0;
 }
 
 void wl_jvs_add_node(const WlJvsBoard *board)

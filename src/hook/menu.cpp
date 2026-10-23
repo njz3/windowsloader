@@ -26,6 +26,8 @@
 #include <d3d9.h>
 #include <d3d11.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <wctype.h>
 #include <string.h>
 
 #include "imgui.h"
@@ -43,6 +45,7 @@
 #include "log.h"
 #include "menu.h"
 #include "pause.h"
+#include "vdev.h"
 #include "settings.h"
 #include "wlshared.h"
 
@@ -509,6 +512,8 @@ int wl_menu_save(int forGame, char *status, size_t size)
         return 0;
     }
     int ok = wl_display_save(file);
+    ok &= wl_game_options_save(file);
+    ok &= wl_serial_save(file);
     snprintf(status, size, ok ? (forGame ? "Enregistré dans %s (ce jeu seulement)" : "Enregistré dans %s") : "Impossible d'écrire %s", wl_u8(file, u, sizeof u));
     return ok;
 }
@@ -568,6 +573,148 @@ static void page_game(void)
     }
 }
 
+// The PC's serial ports, for the passthrough lists: COM1..COM255 that Windows knows now
+static int pc_ports(char ports[][16], int max)
+{
+    static wchar_t all[65536];
+    int n = 0;
+    if (!QueryDosDeviceW(NULL, all, sizeof all / sizeof all[0]))
+        return 0;
+    for (const wchar_t *p = all; *p && n < max; p += wcslen(p) + 1)
+        if (!_wcsnicmp(p, L"COM", 3) && iswdigit(p[3]))
+            snprintf(ports[n++], 16, "%S", p);
+    // In their order: COM2 before COM10
+    for (int i = 1; i < n; i++)
+        for (int j = i; j > 0 && atoi(ports[j - 1] + 3) > atoi(ports[j] + 3); j--)
+        {
+            char t[16];
+            memcpy(t, ports[j], 16);
+            memcpy(ports[j], ports[j - 1], 16);
+            memcpy(ports[j - 1], t, 16);
+        }
+    return n;
+}
+
+// "Cartes": each serial port the game finds emulated, or a real board on one of the PC's ports
+// instead ([Emulation] and [Paths], as linuxloader's), taken at the next start. 1 when one changed.
+static int page_boards(void)
+{
+    int count = wl_serial_count(), pending = 0;
+    if (!count)
+        return 0;
+    static char ports[64][16];
+    static int portCount = -1;
+    if (ImGui::IsWindowAppearing() || portCount < 0)
+        portCount = pc_ports(ports, 64);
+    ImGui::Spacing();
+    ImGui::SeparatorText("Cartes");
+    for (int k = 0; k < count; k++)
+    {
+        char *value = wl_serial_edit(k), label[128];
+        snprintf(label, sizeof label, "%s (%s du jeu)", wl_serial_label(k), wl_serial_name(k));
+        ImGui::PushID(1000 + k);
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
+        if (ImGui::BeginCombo(label, value[0] ? value : "Émulée"))
+        {
+            if (ImGui::Selectable("Émulée", !value[0]))
+                value[0] = 0;
+            for (int i = 0; i < portCount; i++)
+            {
+                char item[48];
+                snprintf(item, sizeof item, "Vraie carte sur %s", ports[i]);
+                if (ImGui::Selectable(item, !_stricmp(value, ports[i])))
+                    snprintf(value, 32, "%s", ports[i]);
+            }
+            ImGui::EndCombo();
+        }
+        if (_stricmp(value, wl_serial_started(k)))
+            pending = 1;
+        ImGui::PopID();
+    }
+    ImGui::Indent();
+    ImGui::PushTextWrapPos(0);
+    ImGui::TextDisabled("Au prochain lancement. Émulée : windowsloader joue la carte. Un port du PC : le jeu parle à la vraie "
+                        "carte branchée dessus ([Emulation] EMULATE_JVS ou EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH ou SERIAL_n_PATH).");
+    ImGui::PopTextWrapPos();
+    ImGui::Unindent();
+    return pending;
+}
+
+// The game's own options (game.h), declared by its module: a box, a list or a slider each, its
+// help below; those taken at the next start say so, and a reminder comes when one was changed
+static void page_game_options(void)
+{
+    char u[MAX_PATH * 2];
+    const wchar_t *file = wl_settings_file(), *base = wcsrchr(file, L'\\');
+    ImGui::TextUnformatted(wl_game_title());
+    ImGui::TextDisabled("[%s] de %s, pour ce jeu seulement", wl_game_option_section(), file[0] ? wl_u8(base ? base + 1 : file, u, sizeof u) : "(pas de fichier)");
+    ImGui::Separator();
+    int count = wl_game_option_count(), pending = 0;
+    if (!count && !wl_serial_count())
+        ImGui::TextUnformatted("Aucune option pour ce jeu.");
+    for (int i = 0; i < count; i++)
+    {
+        const WlGameOption *o = wl_game_option_at(i);
+        char *value = wl_game_option_edit(i), was[WL_OPTION_VALUE_SIZE];
+        memcpy(was, value, sizeof was);
+        ImGui::PushID(i);
+        if (o->type == WL_OPTION_BOOL)
+        {
+            bool on = !_stricmp(value, "true");
+            if (ImGui::Checkbox(o->label, &on))
+                snprintf(value, WL_OPTION_VALUE_SIZE, "%s", on ? "true" : "false");
+        }
+        else if (o->type == WL_OPTION_CHOICE)
+        {
+            const char *shown = value;
+            for (const WlOptionChoice *c = o->choices; c && c->value; c++)
+                if (!_stricmp(c->value, value))
+                    shown = c->label;
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
+            if (ImGui::BeginCombo(o->label, shown))
+            {
+                for (const WlOptionChoice *c = o->choices; c && c->value; c++)
+                    if (ImGui::Selectable(c->label, !_stricmp(c->value, value)))
+                        snprintf(value, WL_OPTION_VALUE_SIZE, "%s", c->value);
+                ImGui::EndCombo();
+            }
+        }
+        else
+        {
+            int n = atoi(value);
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
+            if (ImGui::SliderInt(o->label, &n, o->min, o->max))
+                snprintf(value, WL_OPTION_VALUE_SIZE, "%d", n);
+        }
+        if (o->nextStart)
+        {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(au prochain lancement)");
+            if (_stricmp(value, wl_game_option_started(i)))
+                pending = 1;
+        }
+        else if (o->apply && strcmp(was, value))
+            o->apply(value);
+        if (o->help)
+        {
+            ImGui::Indent();
+            ImGui::PushTextWrapPos(0);
+            ImGui::TextDisabled("%s", o->help);
+            ImGui::PopTextWrapPos();
+            ImGui::Unindent();
+        }
+        ImGui::Spacing();
+        ImGui::PopID();
+    }
+    pending |= page_boards();
+    if (pending)
+    {
+        ImGui::Separator();
+        ImGui::TextWrapped("Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou "
+                           "« Sauvegarder pour ce jeu »), puis relancez le jeu.");
+    }
+}
+
 static void page_about(void)
 {
     ImGui::Text("windowsloader %s (%d bits)", WL_VERSION, (int)sizeof(void *) * 8);
@@ -600,6 +747,11 @@ static void draw_menu(void)
             if (ImGui::BeginTabItem("Jeu", NULL, tab == 0 ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 page_game();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Options du jeu", NULL, tab == 5 ? ImGuiTabItemFlags_SetSelected : 0))
+            {
+                page_game_options();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Contrôles", NULL, tab == 1 ? ImGuiTabItemFlags_SetSelected : 0))

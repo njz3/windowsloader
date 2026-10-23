@@ -47,3 +47,17 @@ BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVE
 BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned, OVERLAPPED *ov);
 void wl_vdev_forget(HANDLE h);
 void wl_vdev_hooks(void); // SetFilePointer(Ex), GetCommTimeouts
+
+// Passthrough to a real board on one of the PC's serial ports (vdev.cpp: [Emulation] and [Paths],
+// as linuxloader's): the PC's port ("\\.\COM7") the game's goes to, NULL when emulated
+const char *wl_vdev_real_port(const char *path);
+void wl_vdev_settings(void); // once the settings are read
+void wl_vdev_label(const char *name, const char *label); // "Carte du moteur du volant", for the menu
+// For the menu: the game's serial ports, the PC's port chosen for each ("" emulated), written back
+int wl_serial_count(void);
+const char *wl_serial_name(int k);
+const char *wl_serial_label(int k);
+int wl_serial_is_jvs(int k);
+char *wl_serial_edit(int k); // 32 bytes
+const char *wl_serial_started(int k);
+int wl_serial_save(const wchar_t *file);

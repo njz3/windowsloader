@@ -107,7 +107,41 @@ static void jvs_output(const unsigned char *data, int length)
     }
 }
 
-static WlJvsBoard g_jvs = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.", 1, 2, 2, 8, 16, 16, jvs_state, jvs_output, 1, NULL};
+// Namco's own JVS commands, as the game sends them after the board's identity (each answered
+// "done", report 01, no data):
+// - 0x70, a second byte telling which: 0x18 "PL" then 0x02 and 2 bytes, or 0x80 and 1 byte (built
+//   at +0x8af7c1); 0x15 and 0x16, 2 bytes;
+// - 0x78, 0x79, 0x7A, 14 bytes each (12-bit values in threes: the lamps, it seems), 0x7F alone.
+static int namco_vendor(const unsigned char *p, int n, unsigned char *r, int *k)
+{
+    int used = 0;
+    if (p[0] == 0x70 && n >= 2)
+    {
+        if (p[1] == 0x18 && n >= 5)
+            used = p[4] == 0x02 ? 7 : p[4] == 0x80 ? 6 : 0;
+        else if (p[1] == 0x15 || p[1] == 0x16)
+            used = 4;
+    }
+    else if (p[0] >= 0x78 && p[0] <= 0x7A)
+        used = 15;
+    else if (p[0] == 0x7F)
+        used = 1;
+    if (!used || used > n)
+    {
+        static int logged;
+        if (logged++ < 20)
+            wl_log_hex("namco: JVS command not known", p, n);
+        return 0;
+    }
+    static unsigned char seen[256];
+    unsigned char id = p[0] == 0x70 ? p[1] : p[0];
+    if (!seen[id]++)
+        wl_log_hex("namco: JVS command", p, used);
+    r[(*k)++] = 0x01;
+    return used;
+}
+
+static WlJvsBoard g_jvs = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.", 1, 2, 2, 8, 16, 16, jvs_state, jvs_output, 1, NULL, namco_vendor};
 
 // The steering motor's board on COM1 at 19200 bauds (class clWaJvIo's Pimpl, its thread +0x5f57d0).
 // The board speaks in 3 characters, read 3 at a time (+0x5f5d00): "C01" its motor ready (the game
@@ -192,6 +226,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     wl_jvs_register(&g_jvs);
     InitializeCriticalSection(&g_motorLock);
     wl_vdev_register(&g_com1);
+    wl_vdev_label("COM1", "Carte du moteur du volant");
 
     // Its drives F:\ and G:\ (system, bookkeeping, dongle data, test mode settings) are the copy's
     // F* and G* folders and files: F:\system\x is Fsystem\x, G:\boot_limit_N.bin Gboot_limit_N.bin

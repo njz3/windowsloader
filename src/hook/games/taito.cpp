@@ -491,22 +491,37 @@ static void bg4_tick(void)
         *(volatile unsigned char *)0x82D29C = 1;
 }
 
-// [Game] CABINET = PRO: the Professional edition's cabinet (wide monitor, clutch, H shifter), its
-// second I/O board on the bus. The game counts the boards at each start (+0x60cb37, +0x600d8c):
+// Its options ([Game.bg4], the menu's "Options du jeu"): CABINET = PRO, the Professional
+// edition's cabinet (wide monitor, clutch, H shifter), its second I/O board on the bus. The game counts the boards at each start (+0x60cb37, +0x600d8c):
 // two, a "WIDE MONITOR & CLUTCH TYPE" cabinet (+0x50f464); after a change it rewrites its
 // config.bin and closes once. HOLD_GEAR: the gear stays engaged once the shifter leaves it
 // (OpenParrot's "Hold Gear", TypeX2Generic.cpp, GPL v3: the neutral's store at +0x8adff taken
 // out), for shifters whose positions do not stay.
+static const WlOptionChoice g_cabinets[] = {
+    {"STANDARD", "Standard"},
+    {"PRO", "Pro"},
+    {NULL, NULL},
+};
+
+static const WlGameOption g_bg4Options[] = {
+    {"CABINET", "Borne",
+     "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change "
+     "ses propres réglages au lancement suivant et se ferme une fois : le relancer.",
+     WL_OPTION_CHOICE, g_cabinets, 0, 0, "STANDARD", 1, NULL},
+    {"HOLD_GEAR", "Garder le rapport (borne Pro)", "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas.",
+     WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
+};
+
 static void bg4_settings(void)
 {
     char v[32];
-    wl_settings_get("Game", "CABINET", "STANDARD", v, sizeof v);
+    wl_game_option("CABINET", v, sizeof v);
     if (_stricmp(v, "PRO"))
         return;
     g_pro = 1;
     wl_jvs_add_node(&g_jvsPro);
     wl_log("game: Battle Gear 4 Pro's cabinet");
-    if (wl_settings_get_bool("Game", "HOLD_GEAR", 0))
+    if (wl_game_option_bool("HOLD_GEAR"))
     {
         static const unsigned char neutral[10] = {0xC7, 0x81, 0x60, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
         static const unsigned char nops[10] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
@@ -592,9 +607,13 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     wl_dinput_hide_controllers();
     InitializeCriticalSection(&g_wheelLock);
     wl_vdev_register(&g_wheel);
+    wl_vdev_label("COM1", "Carte du volant");
     wl_log("emulated steering board on COM1 (Taito)");
     if (tuned)
+    {
+        wl_game_set_options(g_bg4Options, sizeof g_bg4Options / sizeof g_bg4Options[0]);
         wl_game_on_settings(bg4_settings);
+    }
     g_bg4 = bg4;
     return 1;
 }

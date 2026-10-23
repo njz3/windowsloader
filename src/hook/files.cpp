@@ -298,11 +298,29 @@ static int port_refused(const char *path, const void *caller)
 }
 
 static HANDLE(WINAPI *oCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+
+// A port passed through to a real board (vdev.cpp): the PC's port the settings name is opened
+static HANDLE open_real_port(const char *path, const char *real, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags,
+                             HANDLE tmpl, const void *caller)
+{
+    wl_busy_enter();
+    HANDLE h = oCreateFileA(real, access, share, sa, disp, flags, tmpl);
+    DWORD err = GetLastError();
+    wl_busy_leave();
+    char where[128];
+    wl_log("CreateFile \"%s\" -> %s: %p (passthrough, error %lu) [%s]", path, real, h, h == INVALID_HANDLE_VALUE ? err : 0, wl_where(caller, where, sizeof where));
+    SetLastError(err);
+    return h;
+}
+
 static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
 {
     int nested = wl_busy();
     if (!nested && wl_vhid_is_path(name))
         return open_vhid(name, WL_CALLER);
+    const char *real = nested ? NULL : wl_vdev_real_port(name);
+    if (real)
+        return open_real_port(name, real, access, share, sa, disp, flags, tmpl, WL_CALLER);
     const WlVirtualDevice *vdev = nested ? NULL : wl_vdev_by_path(name);
     if (vdev)
         return open_vdev(vdev, name, WL_CALLER);
@@ -337,6 +355,9 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
         const WlVirtualDevice *vdev = wl_vdev_by_path(wl_u8(name, path, sizeof path));
         if (vdev)
             return open_vdev(vdev, path, WL_CALLER);
+        const char *real = wl_vdev_real_port(path);
+        if (real)
+            return open_real_port(path, real, access, share, sa, disp, flags, tmpl, WL_CALLER);
         if (port_refused(path, WL_CALLER))
             return INVALID_HANDLE_VALUE;
     }

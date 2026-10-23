@@ -25,13 +25,61 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX)
+int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);
 const char *wl_game_title(void); // "Sega Rally 3", for the menu
 void wl_game_init(void);
 
-// A game module's part that needs the settings (its [Game] options): given by the module while it
+// A game module's part that needs the settings (its options): given by the module while it
 // recognizes its game, called once the settings are read, before the game runs
 void wl_game_on_settings(void (*fn)(void));
 void wl_game_settings(void);
+
+// A game's own options, as linuxloader has them: section [Game.<short name>] of the settings file
+// ([Game.bg4]), keys in capitals; a list's values in capitals, true/false for a box, a number for
+// a slider; --set Game.KEY=VALUE for the game launched. The menu's "Options du jeu" page lists
+// them; "Sauvegarder" and "Sauvegarder pour ce jeu" write them with the other settings.
+enum
+{
+    WL_OPTION_BOOL,   // a box
+    WL_OPTION_CHOICE, // a list
+    WL_OPTION_INT     // a slider, min..max
+};
+
+struct WlOptionChoice
+{
+    const char *value; // in capitals, as in the file
+    const char *label;
+};
+
+struct WlGameOption
+{
+    const char *key;   // in capitals
+    const char *label; // for the menu
+    const char *help;  // a sentence under it, or NULL
+    int type;
+    const WlOptionChoice *choices; // WL_OPTION_CHOICE: ended by {NULL, NULL}
+    int min, max;                  // WL_OPTION_INT
+    const char *def;               // the default, as written in the file
+    int nextStart;                 // 1: taken at the game's next start
+    void (*apply)(const char *value); // the others: told each change, or NULL
+};
+
+// Given by the module while it recognizes its game
+void wl_game_set_options(const WlGameOption *options, int count);
+// A value: --set's, else the file's, else the default
+void wl_game_option(const char *key, char *out, size_t size);
+int wl_game_option_bool(const char *key);
+int wl_game_option_int(const char *key);
+
+// For the menu: the options, the value being edited (first the one read at the start) and the one
+// at the start, the section's name, and the edited values written to a file
+int wl_game_option_count(void);
+const WlGameOption *wl_game_option_at(int i);
+char *wl_game_option_edit(int i); // WL_OPTION_VALUE_SIZE bytes
+const char *wl_game_option_started(int i);
+const char *wl_game_option_section(void); // "Game.bg4"
+int wl_game_options_save(const wchar_t *file);
+#define WL_OPTION_VALUE_SIZE 64

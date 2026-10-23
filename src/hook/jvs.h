@@ -37,6 +37,10 @@ struct WlJvsBoard
     void (*output)(const unsigned char *data, int length); // 0x32 general purpose outputs (lamps), may be NULL
     int ctsWhenAddressed; // the sense line as Taito's Type X reads it: CTS off until the board has its address
     void (*analogOutput)(const unsigned short *values, int channels); // 0x33 (Chase H.Q. 2's motor), may be NULL
+    // The manufacturer's commands (0x60..0x7F) the board knows, before windowsloader's: given the
+    // request from the command on (n bytes left), it adds its reports to r and returns the bytes
+    // the command takes, 0 when it is not one of its own. May be NULL.
+    int (*vendor)(const unsigned char *p, int n, unsigned char *r, int *k);
 };
 
 void wl_jvs_register(const WlJvsBoard *board);
@@ -44,3 +48,4 @@ void wl_jvs_add_port(const char *port); // the same board under a second name
 // A second board on the same bus (its port not used): node 2 once the host gives the addresses, the
 // sense line set when both have one (Battle Gear 4 Pro's)
 void wl_jvs_add_node(const WlJvsBoard *board);
+int wl_jvs_is_port(const char *name); // one of the JVS board's ports ("COM2")

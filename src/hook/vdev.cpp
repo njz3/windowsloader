@@ -16,8 +16,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <ctype.h>
+
 #include "hooks.h"
+#include "jvs.h"
 #include "log.h"
+#include "settings.h"
 #include "vdev.h"
 
 static const WlVirtualDevice *g_devices[16];
@@ -40,20 +44,158 @@ void wl_vdev_register(const WlVirtualDevice *device)
     wl_log("emulated device: %s", device->name);
 }
 
-const WlVirtualDevice *wl_vdev_by_path(const char *path)
+// The device a path names, passed through or not
+static int device_index(const char *path)
 {
-    if (!path || !g_deviceCount)
-        return NULL;
+    if (!path)
+        return -1;
     for (int i = 0; i < g_deviceCount; i++)
     {
         const char *name = g_devices[i]->name;
         if (!_stricmp(path, name))
-            return g_devices[i];
+            return i;
         // "COM4" is also "\\.\COM4"
         if (!_strnicmp(path, "\\\\.\\", 4) && !_stricmp(path + 4, name))
-            return g_devices[i];
+            return i;
     }
-    return NULL;
+    return -1;
+}
+
+// ------------------------------------------------------------------------------
+// Passthrough: a serial port the game would find emulated goes to a real board on one of the PC's
+// ports instead, as linuxloader does: [Emulation] EMULATE_JVS = false and [Paths] JVS_PATH for
+// the JVS board, [Emulation] EMULATE_DRIVEBOARD = false and [Paths] SERIAL_<n>_PATH for the
+// game's other ports (its COM<n>: a wheel's or a motor's board). Read once the settings are; the
+// game's port then opens the PC's, and everything it does with it is the real port's.
+// ------------------------------------------------------------------------------
+
+static char g_through[16][32];                   // per device: the PC's port, "\\.\COM7", "" when emulated
+static char g_label[16][64];                     // per device: what the menu calls it
+static char g_started[16][32], g_edited[16][32]; // per device: the PC's port ("COM7") at the start, in the menu
+
+const WlVirtualDevice *wl_vdev_by_path(const char *path)
+{
+    int i = device_index(path);
+    return i >= 0 && !g_through[i][0] ? g_devices[i] : NULL;
+}
+
+const char *wl_vdev_real_port(const char *path)
+{
+    int i = device_index(path);
+    return i >= 0 && g_through[i][0] ? g_through[i] : NULL;
+}
+
+// "COM4" -> 4, 0 for a name that is not a serial port
+static int com_number(const char *name)
+{
+    if (_strnicmp(name, "COM", 3) || !isdigit((unsigned char)name[3]))
+        return 0;
+    return atoi(name + 3);
+}
+
+void wl_vdev_label(const char *name, const char *label)
+{
+    int i = device_index(name);
+    if (i >= 0)
+        snprintf(g_label[i], sizeof g_label[i], "%s", label);
+}
+
+// The k-th device that is a serial port
+static int serial_index(int k)
+{
+    for (int i = 0; i < g_deviceCount; i++)
+        if (com_number(g_devices[i]->name) && !k--)
+            return i;
+    return -1;
+}
+
+int wl_serial_count(void)
+{
+    int n = 0;
+    while (serial_index(n) >= 0)
+        n++;
+    return n;
+}
+
+const char *wl_serial_name(int k)
+{
+    return g_devices[serial_index(k)]->name;
+}
+
+const char *wl_serial_label(int k)
+{
+    int i = serial_index(k);
+    if (!g_label[i][0])
+        snprintf(g_label[i], sizeof g_label[i], "%s", wl_jvs_is_port(g_devices[i]->name) ? "Carte JVS" : "Carte série");
+    return g_label[i];
+}
+
+int wl_serial_is_jvs(int k)
+{
+    return wl_jvs_is_port(g_devices[serial_index(k)]->name);
+}
+
+char *wl_serial_edit(int k)
+{
+    return g_edited[serial_index(k)];
+}
+
+const char *wl_serial_started(int k)
+{
+    return g_started[serial_index(k)];
+}
+
+void wl_vdev_settings(void)
+{
+    int jvs = wl_settings_get_bool("Emulation", "EMULATE_JVS", 1), board = wl_settings_get_bool("Emulation", "EMULATE_DRIVEBOARD", 1);
+    for (int i = 0; i < g_deviceCount; i++)
+    {
+        int n = com_number(g_devices[i]->name);
+        if (!n)
+            continue;
+        char key[32], real[32];
+        int isJvs = wl_jvs_is_port(g_devices[i]->name);
+        snprintf(key, sizeof key, "SERIAL_%d_PATH", n);
+        wl_settings_get("Paths", isJvs ? "JVS_PATH" : key, "", real, sizeof real);
+        // "COM7", or "\\.\COM7" (the form Windows needs from COM10 on)
+        const char *bare = !_strnicmp(real, "\\\\.\\", 4) ? real + 4 : real;
+        if ((isJvs ? jvs : board) || !com_number(bare))
+            continue;
+        snprintf(g_through[i], sizeof g_through[i], "\\\\.\\%s", bare);
+        snprintf(g_started[i], sizeof g_started[i], "%s", bare);
+        memcpy(g_edited[i], g_started[i], sizeof g_edited[i]);
+        wl_log("passthrough: the game's %s goes to the PC's %s (%s)", g_devices[i]->name, bare, isJvs ? "its JVS board" : "its board");
+    }
+}
+
+// The menu's choices, written as linuxloader reads them: EMULATE_JVS / EMULATE_DRIVEBOARD false
+// with a port to go to, SERIAL_<n>_PATH emptied for a port left emulated beside one passed
+int wl_serial_save(const wchar_t *file)
+{
+    int ok = 1, jvs = 1, board = 1, count = wl_serial_count();
+    if (!count)
+        return 1;
+    for (int k = 0; k < count; k++)
+    {
+        int i = serial_index(k);
+        if (!g_edited[i][0])
+            continue;
+        if (wl_jvs_is_port(g_devices[i]->name))
+            jvs = 0, ok &= wl_settings_write(file, "Paths", "JVS_PATH", g_edited[i]);
+        else
+            board = 0;
+    }
+    ok &= wl_settings_write(file, "Emulation", "EMULATE_JVS", jvs ? "true" : "false");
+    ok &= wl_settings_write(file, "Emulation", "EMULATE_DRIVEBOARD", board ? "true" : "false");
+    for (int k = 0; k < count && !board; k++)
+    {
+        int i = serial_index(k);
+        char key[32];
+        snprintf(key, sizeof key, "SERIAL_%d_PATH", com_number(g_devices[i]->name));
+        if (!wl_jvs_is_port(g_devices[i]->name))
+            ok &= wl_settings_write(file, "Paths", key, g_edited[i]);
+    }
+    return ok;
 }
 
 HANDLE wl_vdev_open(const WlVirtualDevice *device)
