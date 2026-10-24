@@ -88,6 +88,13 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 77 | 24/10 | Passe la touche d'ouverture du menu paramètres à 'Tab' au lieu de F10, afin de rester homogène avec linuxloader et Supermodel | ✅ Tab ouvre et ferme le menu (pas Alt+Tab) ; Tab ne se capture plus comme commande, F10 si ; README, BILAN, commentaires. Pas essayé en jeu : l'écran du PC est déconnecté |
 | 78 | 24/10 | Fais un build et une archive release que tu mettras à côté des autres releases des autres émulateurs, puis reprends ton travail sur SWDC | ✅ `releases\windowsloader-0.1.0-20261024-njz3-windows.zip` (32 et 64 bits, RELEASE.txt : jeux, ligne de commande, SHA-256), les réponses à Image borne ; 🔄 SWDC |
 | 79 | 24/10 | Commit et pousse. Refais une release | ✅ 6 commits poussés (`f5c5104` et suivants : Mario Kart DX 1.10, touche Tab, SWDC en cours, docs, NOTES.md) ; release `windowsloader-0.1.0-20261024-2-njz3-windows.zip` tirée du commit poussé |
+| 80 | 24/10 | Quels jeux te reste-t-il à faire ? | ✅ de la liste des 21 jeux des bornes, SWDC seul (bloqué au test réseau, essais en attente de l'écran) ; à confirmer : retour de force au vrai volant, vJoy de Mario Kart DX 1.18, Tab en jeu ; hors liste : les écartés (Wangan Midnight 5, 5DX+ et 6 « à juger », Initial D 7 et 8, Raw Thrills) |
+| 81 | 24/10 | Essaie d'ajouter tous les autres jeux sauf les Raw Thrills | 🔄 faits : Sega Racing Classic, Storm Racer G, Wacky Races, Let's Go Safari (une course chacun) ; Initial D 7 et 8 en copie depuis racecab1 (au signal d'Image borne), puis les Wangan Midnight une à une |
+| 82 | 24/10 | En particulier Sega Racing Classic et Storm Racer G | ✅ Sega Racing Classic (levier en H, carte moteur lue dans les données du jeu ; course, menu de service, vJoy, Tab) ; Storm Racer G joue une course (`stormracer.cpp` : `usb_io.dll` remplacée, MSAA coupé, vidéos noires sans le codec WMV) ; restent ses boutons à nommer |
+| 83 | 24/10 | Reprends | ✅ Storm Racer G jusqu'en course : pièce, Start, menus, l'étape photo, course ; le moteur en ressort ; Wacky Races commencé |
+| 84 | 24/10 | Fais les derniers jeux | 🔄 Wacky Races (course, moteur par les sorties JVS, `LINKID` à 0 par défaut) et Let's Go Safari (carte JVS 837-14895, clé en toolmode, course, vibration) faits ; Initial D 7 et 8, puis Wangan Midnight 5, 5DX+ et 6 : copies depuis racecab1 |
+| 85 | 24/10 | Demande à la session « Image borne » de retirer les fichiers FFBPlugin des jeux parfaitement supportés par windowsloader | ✅ demandé : Sega Rally 3 (huit éditions), Daytona Championship USA et NSE, Ford Racing Full Blown, GRID, Wasteland Racers 2071 ; les fichiers rangés dans un sous-dossier, la DLL seulement si c'est bien le plugin |
+| 86 | 24/10 | En attendant, commit et pousse. Puis fais une release et préviens la session « Image borne » | ✅ 7 commits poussés (`bd122b8` et suivants : pédales `_SIDE`, Sega Racing Classic et Let's Go Safari, Storm Racer G, Wacky Races, BILAN.md, NOTES.md) ; release `windowsloader-0.1.0-20261024-4-njz3-windows.zip` tirée du commit poussé, Image borne prévenue |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -159,12 +166,12 @@ exécutable, ses imports, ses chaînes, ou copier un binaire (elle pilote les de
 | GTI Club 3 | GtiClub3 | OpenParrot | Konami PC | 32 | oui (9 573) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB ⚠️ (agent) |
 | Initial D 6 AA | ID6 | TeknoParrot | Sega Ringedge | 32 | oui (13 400) | ✅ jusqu'en course (agent) ; FFB, affichage ⚠️ |
 | K.O. Drive | KODrive | TeknoParrot | Sega Ringwide | 32 | oui (20 854) | ✅ jusqu'en course (agent), vJoy, F10, menu de service ; FFB, affichage ⚠️ |
-| Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ⏳ |
+| Mario Kart DX v1.10 | MKDX | TeknoParrot | Namco ES3 | 32 | non (62) | ✅ le mod français : clé, lecteur de cartes NFC, authentification, course, vJoy, menu ; FFB ⚠️ |
 | Mario Kart DX v1.18 | MKDX118 | TeknoParrot | Namco ES3 | 32 | oui (397) | ✅ démarrage complet, course, menu de test, F10 (agent) ; FFB ⚠️, vJoy ⏳ |
 | Showdown | Showdown | TeknoParrot | Sega Arcade PC | 32 | oui (25 955) | ✅ jusqu'en course (agent) ; FFB ⚠️ (agent, port 0x378) |
 | Sonic & Sega All-Stars Racing | SSASR | TeknoParrot | Sega Ringwide | 32 | oui (25 094) | ✅ jouable : démarrage (carte du volant, réseau, EEPROM du système), pièces ou jeu gratuit (option), course, vJoy, F10, menu de service |
 | Sega Rally 3 | SR3 | TeknoParrot | Sega Europa R | 32 | non (63) | ✅ (retour de force par le port 0x1020) |
-| Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | ⏳ |
+| Sega World Drivers Ch. | SWDC | TeknoParrot | Sega ALLS (UE4) | 64 | oui (14 261) | 🔄 démarre, s'arrête au test réseau (erreurs 8404 / 4103) |
 | Virtua RLimit | VirtuaRLimit | OpenParrot | Taito Type X | 32 | non (0) | ✅ « Valve Limit R » : course (agent, vJoy), test d'E/S, étalonnage des pédales, F10 ; FFB ⚠️ |
 | Wasteland Racers 2071 | WastelandRacers | TeknoParrot | Trio Tech PC | 32 | oui (23 484) | ✅ jusqu'en course (agent), vJoy, F10, menu de maintenance |
 
@@ -1206,3 +1213,54 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
 - Release (demande 78) : les deux builds (32 et 64 bits) et une archive à plat comme celle de linuxloader, avec
   README, BILAN, LICENSE et un RELEASE.txt (jeux et programme à donner, ligne de commande, ce qui manque :
   pas de `--write-dir`, pas de sortie réseau pour BackForceFeeder). Réponses à Image borne.
+
+### 24/10 — Les jeux écartés : Storm Racer G, Sega Racing Classic ; la touche Tab vérifiée (demandes 81 et 82)
+
+- Copies : Image borne faisait tourner une campagne d'essais (linuxloader) sur les deux bornes en même temps ; les
+  copies ont été arrêtées puis reprises à sa demande. Storm Racer G : `assets` seul arrivé (4,8 Go sur 6,3).
+- Storm Racer G (`bin\racing.exe`, x86, Direct3D 9) : tout le matériel par `usb_io.dll` (noms C++) et
+  `usb_cam.dll`, remplacés dans la table d'import (`stormracer.cpp`). Lu dans `usb_io.dll` : les entrées (deux mots
+  de boutons, volant centré à 0x80, accélérateur, frein, levier de boost bouton sous un seuil), le compteur de
+  pièces, le moteur en servo de position (`SetSteeringStatu` : force, fenêtre 0..255, mode ; `ForceFeedback.urc`
+  donne 127..130 et 400), joué en ressort. La caméra des photos de joueurs est déclarée absente (la webcam du PC
+  n'est jamais ouverte). Pas de dongle dans `racing.exe` ; `SRG_FS.exe` est un script AutoHotkey ajouté.
+- Sega Racing Classic (`C:\Sega Racing Classic\d1a.exe`, RingEdge 2009) : ajouté à la table de
+  `ringedge.cpp`. Les boutons d'après son INPUT TEST puis son code (+0xdb690, la fonction +0xbf030 lit des numéros :
+  0 Test, 1 Service, 2 Start, 3 à 6 les vues) : vues sur le joueur 1 bits 13..10, levier en H sur le joueur 2
+  (gauche+haut = 1, gauche+bas = 2, haut = 3, bas = 4), rapport tenu par windowsloader (`Gear1..4`, `GearUp`,
+  `GearDown`). La carte moteur n'est pilotée ni par JVS (ses sorties : les lampes), ni par un port : sa commande
+  d'un octet (Model 2/3) est lue dans les données du jeu (VA 0x834C19, l'adresse de FFBArcadePlugin) et jouée.
+  Partie jouée jusqu'en course ; retour de force cohérent en mode agent.
+- La touche Tab : vérifiée par une vraie frappe (`keybd_event`, seulement la fenêtre du jeu au premier plan)
+  sur Sega Racing Classic : menu ouvert puis refermé.
+
+### 24/10 — Storm Racer G, Wacky Races et Let's Go Safari jouables (demandes 83 à 85)
+
+- Storm Racer G : jusqu'en course. Il a fallu :
+  - couper l'anticrénelage, que le jeu demande et que le pilote refuse ;
+  - sauter la fonction du tableau de bord des points de passage quand ses textures manquent ;
+  - répondre « hors ligne » pour `NetDbSync.dll` ;
+  - envoyer au journal les messages de sa console (`printf`) ; `_getch` répond « c ».
+
+  Les vidéos sont des WMV3 en AVI : sans le décodeur Vidéo pour Windows, des images noires (pas de téléchargement
+  sans accord). Moteur : servo de position, joué en ressort.
+- Wacky Races (`Launcher.exe` + `wr.ini`, Taito Type X2) : les boutons d'après son I/O CHECK, le volant et les
+  pédales comme Chase H.Q. 2, le moteur par les sorties JVS. `LINKID` manque dans `wr.ini` : il vaut 0 par un
+  crochet sur la lecture des réglages. Le fichier n'est pas touché : la première tentative (une ligne ajoutée) avait
+  collé la ligne à « REGION U », et le fichier a été restauré depuis l'original. Les fonds des menus 2D sont en
+  800×600 en haut à gauche, à toute résolution.
+- Let's Go Safari (RingWide, `GameSampR_RingWide.exe`) :
+  - pas de table de clé : le chemin est construit par un format, remplacé par « toolmode » (`use_toolmode`, qui ne
+    savait faire que le chemin écrit en entier de K.O. Drive) ;
+  - le port PCP 40114 (stockages) servi, avec 40112 ;
+  - l'erreur 6402 : le jeu compare l'identité de la carte JVS (champs 3 « 837-14895 » et 6 « FE MODE ») et veut un
+    joueur, 14 boutons, 16 sorties. L'identité est celle de TeknoParrot (`JVSIdentifiers.cs`, TeknoParrotUI, open
+    source), lue sur GitHub ; `WlJvsBoard.switches` annonce un nombre de boutons qui n'est pas un multiple de 8 ;
+  - les boutons trouvés en allumant les bits un à un dans son INPUT TEST, les sorties dans son OUTPUT TEST. Le jeu
+    ne lit pas de voie analogique : le volant n'est vu que par deux contacts.
+- Les fichiers FFBPlugin : demande transmise à Image borne pour les jeux complets (Sega Rally 3, Daytona et NSE, Ford
+  Racing, GRID, Wasteland Racers).
+- Erreur de manipulation : dans le menu de test de Let's Go Safari, une suite d'appuis trop longue a changé la langue
+  et le son de démo, puis vidé la sauvegarde. Ce n'étaient que les fichiers émulés de la copie (`wl_sram.bin`,
+  `wl_eeprom.bin`, créés le jour même) : mis à la corbeille, le jeu repart des valeurs d'usine.
+- Copies : racecab1 libéré par Image borne ; Initial D 7, puis 8, puis les Wangan une à une.
