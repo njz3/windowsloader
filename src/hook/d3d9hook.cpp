@@ -35,6 +35,7 @@ enum
     SLOT_D3D9EX_CREATEDEVICEEX = 20,
     SLOT_DEVICE_RESET = 16,
     SLOT_DEVICE_PRESENT = 17,
+    SLOT_SWAPCHAIN_PRESENT = 3,
 };
 
 static void **vtable_of(void *com)
@@ -402,12 +403,25 @@ static int made_by_windows(const void *caller)
     return mod != g_wlModule && wl_is_system_caller(caller);
 }
 
+static volatile LONG g_presentThread; // the thread in hPresent: its swap chain's Present is d3d9's own
+
 static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
     if (dev != g_gameDev)
         return oPresent(dev, src, dst, wnd, dirty);
+    struct PresentThread
+    {
+        PresentThread()
+        {
+            InterlockedExchange(&g_presentThread, (LONG)GetCurrentThreadId());
+        }
+        ~PresentThread()
+        {
+            InterlockedExchange(&g_presentThread, 0);
+        }
+    } inPresent;
     wl_menu_present(dev, present_out); // Tab: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
@@ -436,6 +450,27 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
         lastTick = now;
     }
     return hr;
+}
+
+// A game presenting through its device's implicit swap chain (IDirect3DSwapChain9::Present: Storm
+// Racer G) goes the way of the device's Present; d3d9's own call from the device's Present, and
+// the other swap chains, are left as they are
+static HRESULT(STDMETHODCALLTYPE *oSwapChainPresent)(IDirect3DSwapChain9 *, const RECT *, const RECT *, HWND, const RGNDATA *, DWORD);
+static HRESULT STDMETHODCALLTYPE hSwapChainPresent(IDirect3DSwapChain9 *sc, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty,
+                                                   DWORD flags)
+{
+    if (g_presentThread == (LONG)GetCurrentThreadId() || !g_gameDev)
+        return oSwapChainPresent(sc, src, dst, wnd, dirty, flags);
+    IDirect3DSwapChain9 *implicit = NULL;
+    int ours = SUCCEEDED(g_gameDev->GetSwapChain(0, &implicit)) && implicit == sc;
+    if (implicit)
+        implicit->Release();
+    if (!ours)
+        return oSwapChainPresent(sc, src, dst, wnd, dirty, flags);
+    static int told;
+    if (!told++)
+        wl_log("IDirect3DSwapChain9::Present: the game presents through its device's swap chain");
+    return hPresent(g_gameDev, src, dst, wnd, dirty);
 }
 
 // The window set for the display mode, the picture placed in it (display.cpp)
@@ -478,6 +513,12 @@ static void hook_device(IDirect3DDevice9 *dev)
     void **vt = vtable_of(dev);
     wl_hook_code(vt[SLOT_DEVICE_PRESENT], (void *)hPresent, (void **)&oPresent, "IDirect3DDevice9::Present");
     wl_hook_code(vt[SLOT_DEVICE_RESET], (void *)hReset, (void **)&oReset, "IDirect3DDevice9::Reset");
+    IDirect3DSwapChain9 *sc = NULL;
+    if (SUCCEEDED(dev->GetSwapChain(0, &sc)) && sc)
+    {
+        wl_hook_code(vtable_of(sc)[SLOT_SWAPCHAIN_PRESENT], (void *)hSwapChainPresent, (void **)&oSwapChainPresent, "IDirect3DSwapChain9::Present");
+        sc->Release();
+    }
 }
 
 // ------------------------------------------------------------------------------

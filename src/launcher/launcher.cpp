@@ -141,6 +141,25 @@ static int pe_bits(const wchar_t *path)
     return bits;
 }
 
+// A console program (the PE's subsystem 3, IMAGE_SUBSYSTEM_WINDOWS_CUI): Storm Racer G's racing.exe
+static int pe_console(const wchar_t *path)
+{
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        return 0;
+    IMAGE_DOS_HEADER dos;
+    // the signature (4), the file header (20), then the optional header's subsystem at 68
+    unsigned char nt[4 + sizeof(IMAGE_FILE_HEADER) + 70];
+    DWORD rd;
+    int console = 0;
+    if (ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
+        SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, nt, sizeof nt, &rd, NULL) &&
+        rd == sizeof nt)
+        console = *(WORD *)(nt + 4 + sizeof(IMAGE_FILE_HEADER) + 68) == IMAGE_SUBSYSTEM_WINDOWS_CUI;
+    CloseHandle(f);
+    return console;
+}
+
 // Strips the file name: "C:\a\b.exe" -> "C:\a"
 static void parent_dir(wchar_t *path)
 {
@@ -768,9 +787,37 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
     }
 
-    STARTUPINFOW si = {sizeof si};
+    // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the
+    // agent's protocol, and a console game reading its input would wait for a key on a console
+    // nobody sees (Storm Racer G stood still before its first frame). A console game gets no
+    // console window.
+    SECURITY_ATTRIBUTES nulSa = {sizeof nulSa, NULL, TRUE};
+    HANDLE nul = CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &nulSa, OPEN_EXISTING, 0, NULL);
+    SIZE_T attrSize = 0;
+    InitializeProcThreadAttributeList(NULL, 1, 0, &attrSize);
+    LPPROC_THREAD_ATTRIBUTE_LIST attrs = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, attrSize);
+    int listed = nul != INVALID_HANDLE_VALUE && attrs && InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize) &&
+                 UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &nul, sizeof nul, NULL, NULL);
+    STARTUPINFOEXW sie = {{sizeof sie}};
+    DWORD flags = CREATE_SUSPENDED;
+    if (listed)
+    {
+        sie.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        sie.StartupInfo.hStdInput = sie.StartupInfo.hStdOutput = sie.StartupInfo.hStdError = nul;
+        sie.lpAttributeList = attrs;
+        flags |= EXTENDED_STARTUPINFO_PRESENT;
+    }
+    if (pe_console(gamePath))
+        flags |= CREATE_NO_WINDOW;
     PROCESS_INFORMATION pi;
-    if (!CreateProcessW(gamePath, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, gameDir, &si, &pi))
+    BOOL started = CreateProcessW(gamePath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);
+    if (listed)
+        DeleteProcThreadAttributeList(attrs);
+    if (attrs)
+        HeapFree(GetProcessHeap(), 0, attrs);
+    if (nul != INVALID_HANDLE_VALUE)
+        CloseHandle(nul);
+    if (!started)
     {
         say_error("CreateProcess");
         if (cpi.hProcess)
