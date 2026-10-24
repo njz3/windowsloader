@@ -110,6 +110,7 @@ add_library(wl_hook SHARED
     src/hook/games/unis.cpp
     src/hook/games/alls.cpp
     src/hook/games/stormracer.cpp
+    src/hook/games/cardrw.cpp
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp
     src/hook/jvs.cpp

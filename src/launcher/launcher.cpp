@@ -463,7 +463,8 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
 // amdaemon.exe, the platform's service, which the cabinet's script (App\Todoroki\StartApp.bat)
 // starts from App\Todoroki 5 s before the game (Sega World Drivers Championship), with the main
 // cabinet's settings (config_LanServer.json, the LAN install server; the script's choice when
-// Y:\SDDS\LanServer.dat is there). The folders are the game's folder's parents.
+// Y:\SDDS\LanServer.dat is there). Initial D 7 and 8's picodaemon.exe, the card reader-writer's
+// daemon, which game.bat starts just before the game. The folders are the game's folder's parents.
 static const struct
 {
     const wchar_t *game;    // the game's file name
@@ -475,6 +476,11 @@ static const struct
     {L"Todoroki-Win64-Shipping.exe", 4, L"WindowsNoEditor\\AMDaemon\\amdaemon.exe",
      L"-c WindowsNoEditor\\AMDaemon\\config.json -c WindowsNoEditor\\AMDaemon\\config_LanServer.json -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
      5000},
+    {L"InitialD7_GLW_RE_SBYD_dumped_.exe", 0, L"picodaemon.exe", L"", 1000},
+    {L"InitialD7_GLW_RE_SBYD.exe", 0, L"picodaemon.exe", L"", 1000},
+    {L"InitialD8_GLW_RE_SBZZ_dumped_.exe", 0, L"picodaemon.exe", L"", 1000},
+    {L"InitialD8_GLW_RE_SBZZ_redumped_.exe", 0, L"picodaemon.exe", L"", 1000},
+    {L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe", 0, L"picodaemon.exe", L"", 1000},
 };
 
 static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t *exe, wchar_t *dir, wchar_t *cmd, DWORD *waitMs)

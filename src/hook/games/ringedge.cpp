@@ -867,6 +867,21 @@ static int ssd_proof(const char *challenge, char *answer, size_t size)
     return 0;
 }
 
+// An answer to a challenge the table has not: bytes made from it, never all zero (Initial D 8 said
+// "Keychip Not Found", error 0949, once after a random challenge answered with zeros)
+static void made_up_answer(const char *challenge, int bytes, char *answer, size_t size)
+{
+    unsigned x = 0x9E3779B9u;
+    for (const char *c = challenge; *c; c++)
+        x = (x ^ (unsigned char)*c) * 0x01000193u;
+    size_t n = 0;
+    for (int k = 0; k < bytes && n + 3 < size; k++)
+    {
+        x ^= x << 13, x ^= x >> 17, x ^= x << 5;
+        n += snprintf(answer + n, size - n, "%02X", (x >> 8) & 0xFF);
+    }
+}
+
 static int pcp_answer(const char *request, char *response, size_t size)
 {
     char command[128];
@@ -884,7 +899,7 @@ static int pcp_answer(const char *request, char *response, size_t size)
         if (!ds_compute(value, atoi(page), answer, sizeof answer))
         {
             wl_log("keychip: challenge %s not in %S (a random one, not checked)", value, g_game->table);
-            snprintf(answer, sizeof answer, "%040d", 0);
+            made_up_answer(value, 20, answer, sizeof answer);
         }
         snprintf(response, size, "%s=%s", command, answer);
         return 1;
@@ -895,7 +910,7 @@ static int pcp_answer(const char *request, char *response, size_t size)
         if (!ssd_proof(value, answer, sizeof answer))
         {
             wl_log("keychip: proof %s not in %S (a random one, not checked)", value, g_game->table);
-            snprintf(answer, sizeof answer, "%032d", 0);
+            made_up_answer(value, 16, answer, sizeof answer);
         }
         snprintf(response, size, "%s=%s", command, answer);
         return 1;
@@ -1031,13 +1046,15 @@ static const WlGameOption g_creditOptions[] = {
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
      L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
-    // Initial D 7 and 8: the same cabinet as 6; the decrypted executables first (dumped)
+    // Initial D 7 and 8: the same cabinet as 6, the JVS board through the \\.\mxjvs driver (error
+    // 6401 otherwise), the card unit through picodaemon.exe (cardrw.cpp); the decrypted executables
+    // first (Initial D 8's _dumped_ lacks the manifest of the VC 2008 runtime: the redumped first)
     {{L"InitialD7_GLW_RE_SBYD_dumped_.exe", L"InitialD7_GLW_RE_SBYD.exe"}, NULL, L"SBYD_Table.dat", "initiald7", "Initial D Arcade Stage 7 AAX",
-     "SBYD", L"SBYD_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL,
-     0},
-    {{L"InitialD8_GLW_RE_SBZZ_dumped_.exe", L"InitialD8_GLW_RE_SBZZ_redumped_.exe", L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe"}, NULL,
-     L"SBZZ_Table.dat", "initiald8", "Initial D Arcade Stage 8 Infinity", "SBZZ", L"SBZZ_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL,
-     g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
+     "SBYD", L"SBYD_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "\\\\.\\mxjvs", "COM4", g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0,
+     0, NULL, 0},
+    {{L"InitialD8_GLW_RE_SBZZ_redumped_.exe", L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe", L"InitialD8_GLW_RE_SBZZ_dumped_.exe"}, NULL,
+     L"SBZZ_Table.dat", "initiald8", "Initial D Arcade Stage 8 Infinity", "SBZZ", L"SBZZ_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "\\\\.\\mxjvs",
+     "COM4", g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
     {{L"M-DriveR_RingWide.exe", L"M-DriveR_RingWide 1080P.exe", L"M-DriveR_RingWide original.exe"}, L"TestMode.exe", NULL, "kodrive", "K.O. Drive",
      "SBXA", L"..\\fs\\table\\SBXA_Table.dat", "AAM", "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_kodInputs, KOD_COUNT,
      g_kodSwitches, COUNT(g_kodSwitches), 1, 0, NULL, 0},
