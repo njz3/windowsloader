@@ -81,6 +81,12 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 70 | 23/10 | Où en es-tu dans la liste de jeux ? | ✅ le point d'après BILAN.md : 18 jeux jouables (retour de force à confirmer au volant pour la plupart), Sonic commencé, SWDC et Mario Kart DX v1.10 à copier |
 | 71 | 23/10 | Continue | 🔄 Sonic fini : « PRESS START » et les pièces (enregistrement AM_SYSDATA_STATIC de l'EEPROM écrit), le choix du pilote (sauvegarde `Y:\ssr_save.bin` dans le dossier du jeu), course, option « Jeu gratuit », vJoy, F10 ; ensuite SWDC |
 | 72 | 23/10 | Où en es-tu ? | ✅ le point : Sonic fini (pas encore commité), SWDC en copie depuis racecab1 (11,3 Go sur 12,5), puis Mario Kart DX v1.10 |
+| 73 | 23/10 | Commit et pousse pour Sonic | ✅ 3 commits poussés (`eafbe67..f80c03c`) : le code (`ringedge.cpp` : enregistrement système de l'EEPROM, disque `Y:`, option `FREE_PLAY`), BILAN.md et README.md, NOTES.md |
+| 74 | 23/10 | Je ferai le commit à la fin quand tu auras fait marcher tous les jeux | 🔄 noté : pas de commit avant ; Mario Kart DX 1.10 fait (clé, lecteur de cartes NFC sur COM4, authentification, course, retour de force, vJoy, F10) ; SWDC : la carte d'E/S passe, reste l'erreur 3003 (carte des lampes) |
+| 75 | 23/10 | J'ai mis une exclusion sur le dossier racine | ✅ après la mise en quarantaine de `bin\Release\windowsloader.exe` par Defender (« Behavior:Win32/DefenseEvasion.A!ml », 23:23, au lancement d'un essai de SWDC : injection, programme compagnon sans fenêtre) ; exclusion posée par l'utilisateur, le lanceur reconstruit |
+| 76 | 24/10 | Continue avec SWDC | 🔄 3003 passée (le tableau de bord sur COM20) ; puis 8404 « serveur d'installation LAN introuvable » : la borne est la principale (`config_LanServer.json`, `Y:\SDDS\LanServer.dat`), et amdaemon veut le fichier `ICF1`, absent de la copie |
+| 77 | 24/10 | Passe la touche d'ouverture du menu paramètres à 'Tab' au lieu de F10, afin de rester homogène avec linuxloader et Supermodel | ✅ Tab ouvre et ferme le menu (pas Alt+Tab) ; Tab ne se capture plus comme commande, F10 si ; README, BILAN, commentaires. Pas essayé en jeu : l'écran du PC est déconnecté |
+| 78 | 24/10 | Fais un build et une archive release que tu mettras à côté des autres releases des autres émulateurs, puis reprends ton travail sur SWDC | ✅ `releases\windowsloader-0.1.0-20261024-njz3-windows.zip` (32 et 64 bits, RELEASE.txt : jeux, ligne de commande, SHA-256), les réponses à Image borne ; 🔄 SWDC |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1102,3 +1108,100 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   l'eau (elle revient en piste transparente) ; elles viennent bien du Present du jeu, une seule fenêtre.
 - vJoy et l'écran pris en accord avec la session Linuxloader ; elle a copié R-Tuned puis Initial D 4 depuis
   racecab1 pendant ce temps.
+
+### 23/10 — Sega World Drivers Championship (ALLS), premiers pas (demande 71, suite)
+
+- Copie de racecab1 dans `games/swdc` (1 804 fichiers, 12,5 Go, 95 min à 2,3 Mo/s) ; le plugin FFB (`d3d11.dll`),
+  SDL2, `teknoparrot.ini` et le dossier `TeknoParrot` d'AMDaemon mis de côté dans `_teknoparrot_off`. Puis copie de
+  Mario Kart DX v1.10 lancée (16 497 fichiers, 5,8 Go).
+- Deux programmes x64 : `AMDaemon\amdaemon.exe`, le service de la plateforme (clé, carte d'E/S USB, lecteur de cartes,
+  réseau, crédits), et `Todoroki-Win64-Shipping.exe` (Unreal Engine 4), qui lui parle par mémoire partagée. Les scripts
+  de la borne ne sont pas lancés : `99_StartApp.bat` efface `Y:\` quand le dossier du jeu y manque, `10_PortSetting.bat`
+  importe un fichier dans le registre.
+- Le lanceur démarre maintenant un programme compagnon avant le jeu (`g_companions` de launcher.cpp) : amdaemon depuis
+  `App\Todoroki` avec ses fichiers `config*.json`, 5 s avant le jeu, sa sortie vers NUL (en mode agent, la sortie du
+  lanceur est le protocole), sans manettes ni agent, son journal `<journal>-companion.log`, arrêté avec le jeu.
+- Avant de le lancer, des gardes de plus dans system.cpp : amdaemon importe de quoi libérer l'adresse du PC
+  (`IpReleaseAddress`), changer de Wi-Fi (`WlanConnect`, `WlanSetProfile`), monter ou défaire un lecteur réseau
+  (`WNetAddConnection2W`, `WNetCancelConnection2W`), arrêter un service, vider le journal d'événements, effacer un
+  dossier par le shell (`SHFileOperationW`, permis dans son propre dossier seulement) : tout refusé et noté.
+- Fait pour amdaemon, d'après segatools (`common/platform`, `common/board`, Unlicense ; ses valeurs, pas son code) :
+  - le registre `HKLM\SYSTEM\SEGA\SystemProperty` inventé en mémoire (nouveau dans system.cpp : clés et valeurs
+    lues et écrites pour la durée du lancement) : la plateforme (`static`), la clé (`keychip` : jeu SDDS, plateforme ACA4,
+    région 1, numéro A69E-01A88888888), `Master`, les lecteurs (`mount` : AMFS `E:\`, APPDATA `Y:\`), le pilote
+    d'affichage (`amVideo`) et les réglages des écrans ;
+  - la clé `\??\FddDriver` (ses requêtes DeviceIoControl), le moniteur `\.\sghwmonitor`, le numéro de la carte
+    (`GetComputerNameA`), le pilote d'affichage `$amvideo` joué par windowsloader (une DLL virtuelle, nouvelle dans
+    system.cpp, ses fonctions par ordinal) ;
+  - les lecteurs `D:`, `E:` et `Y:` dans des dossiers de la copie (`D`, `AMFS`, `Y`) ; amdaemon y crée lui-même
+    `sysfile.dat` et `Y\SDDS\appfile.dat` ; `SHCreateDirectoryExW` est redirigé aussi (le shell crée les dossiers
+    lui-même, sans passer par nos crochets) ;
+  - la carte d'E/S USB « IO4 » 837-15257 (HID, VID 0CA3 PID 0021, sa chaîne de produit, rapports d'entrée et commandes) ;
+    ses lectures en attente doivent finir plus tard (nouveau dans vhid.cpp) : amdaemon vide la file de la carte en lisant
+    jusqu'à une lecture en attente, il bouclait sans fin ;
+  - l'afficheur VFD (COM4), le lecteur de cartes Aime (COM3, trames E0/D0, sans carte posée) ;
+  - une carte réseau de borne à la place de celle du PC (nouveau `netenv.cpp`) : 192.168.172.11/24, passerelle .1,
+    pings répondus.
+- Côté jeu : la carte du moteur du volant sur COM1 (le protocole des cartes de pilotage Sega, `driveboard.cpp`), la
+  carte des lampes 837-15070 sur COM2 (adresse 00), les entrées passées à amdaemon par une mémoire partagée.
+- Le jeu en plein écran se réduisait (notre refus de `SetFullscreenState` répond S_OK) : avec `-windowed` il s'affiche.
+  Étapes vues : « Core Setup », « Aime Setup », puis les erreurs une à une : 0087 (stockage) partie avec la comptabilité
+  ALL.Net coupée, 8002 (réseau de la borne) partie avec la carte réseau, 6501 (lecteur de cartes) parti avec le lecteur.
+  Pour l'essai, une config de plus passée à amdaemon (`WINDOWSLOADER_COMPANION_ARGS=-c <fichier>`) coupe l'authentification
+  et la comptabilité ALL.Net et la monnaie électronique ; couper le réseau est refusé par amdaemon (erreur 4104).
+- Reste : « Error 6401, I/O ボードを認識していません » (carte d'E/S non reconnue). amdaemon n'envoie à la carte que les
+  commandes 03 (effacer l'état) et 04 (lampes), jamais 01 ni 02 ; ses accusés de réception se lisent dans les rapports
+  d'entrée (`amUsbiopAnalyzeAcknowledge`). À suivre. Rien de SWDC n'est encore commité.
+
+### 24/10 — SWDC, la carte d'E/S reconnue ; Mario Kart DX 1.10 jouable (demande 74)
+
+- Après l'exclusion de Defender posée par l'utilisateur (demande 75), le lanceur reconstruit.
+- SWDC, « Error 6401 » (carte d'E/S non reconnue) : le journal d'amdaemon (`AMDaemon\amdaemon.log`) disait
+  « no acknowledge packet » (`usbio::Node::recvInputData`). amdaemon vide la file de la carte jusqu'à une lecture en
+  attente et exige au moins un rapport déjà là : une vraie carte en envoie sans cesse, le pilote HID de Windows en garde
+  32. vhid.cpp tient maintenant cette file (les rapports s'y ajoutent au rythme de la carte, une lecture en prend un ou
+  attend le suivant), avec une horloge précise (QueryPerformanceCounter, timeBeginPeriod(1) pour son fil) et une
+  période de 1 ms pour l'IO4 → 6401 parti.
+- SWDC, ensuite « Error 3003 » (communication avec la carte des lampes indicatrices) : la carte des lampes 837-15070 sur
+  COM2 répond maintenant à l'adresse que le jeu lui donne (00 et non 11), mais le jeu ne lui écrit rien pendant les
+  13 s avant l'erreur ; les quatre commandes vues ensuite sont celles du mode d'erreur. Le greffon série d'Unreal parle
+  d'un « COM20 » jamais ouvert. À suivre.
+- Mario Kart DX 1.10 (le mod français) : le même module que la 1.18, qui les distingue par `bngrw.dll`. Pas à pas :
+  - « E19-10 USB dongle error » : la fonction de la clé de sécurité retrouvée à +0x43aef0 (le GUID de son interface,
+    le même début que celle de la 1.18) ;
+  - « E07 IC card R/W not connected » : le lecteur de cartes sur COM4, 38400 bauds, en trames du PN532 de NXP (réveil
+    55, acquittements `00 00 FF 00 FF 00`, `D4` commande, réponses `D5` commande + 1) : vitesse (18), réglages radio
+    (32), écriture de registre (08, réponse avec un octet d'état), lecture de huit registres (06, sans octet d'état),
+    GPIO (0C, 0E), sans carte → « IC card R/W test OK » ;
+  - « E05 Initial network authentication error » : l'âge de l'authentification (+0x5b060, la première lecture de
+    « last_auth.bin », le même début que dans la 1.18) et la limite hors ligne (+0x5f630, les mêmes octets) ;
+  - puis attraction en français, partie, course (Château de Peach) ; « Reaction force » mis à ON dans le menu de test
+    de la copie : forces en course (raideur 22 à 28), vJoy (accord de Linuxloader), F10.
+- SWDC, suite : la liste des ports série de Windows (`HARDWARE\DEVICEMAP\SERIALCOMM`) inventée pour le jeu (COM1,
+  COM2 ; les clés inventées savent maintenant énumérer leurs valeurs) : le jeu ne la lit pas. Le « COM20 » vient du
+  même greffon série d'Unreal que COM2 (ses fonctions d'ouverture et de fermeture sont voisines), un second port
+  jamais ouvert. Tenir Test levé au démarrage n'ouvre pas de menu de test. L'erreur 3003 reste ; le déroulé du
+  démarrage est dans les Blueprints du jeu, pas lisible ainsi.
+
+### 24/10 — SWDC : le tableau de bord, la borne principale, l'ICF ; la touche Tab ; la release (demandes 76 à 78)
+
+- Le tableau de bord (838-15415, « Indicator BD ») : le Blueprint `BP_DashBoard` (sorti du .pak) cherche son port de
+  COM20 à COM29 dans la liste de Windows (`GetPortNames` du greffon SerialPort d'Unreal). Le greffon interroge la clé
+  par `RegQueryInfoKeyW` avant d'énumérer ses valeurs : les clés inventées y répondent maintenant (system.cpp), et
+  COM20 est dans la liste. Le protocole est du texte : `pr\r\n` demande l'état, la carte répond `ps` et six chiffres
+  (ses boutons), puis `\r\n` ; les commandes d'affichage sont `:sp` (vitesse), `:rp` (régime), `:gr` (rapport),
+  `:le` (lampes). → 3003 partie.
+- Ensuite « CONNECT MAIN CABINET » puis 8404 (« serveur d'installation LAN introuvable »). Le jeu se sait borne
+  principale par `Y:\SDDS\LanServer.dat` (son `MainDetector`), et le script de la borne lance alors amdaemon avec
+  `config_LanServer.json` (TeknoParrot : « Main Cabinet=1 »). Le lanceur prend désormais cette configuration ; le
+  fichier vide est créé dans la copie. Sans installation LAN : 4103 ; avec la livraison réseau : 4104.
+- 8404 reste : amdaemon lit `E:\ICF1` (AMFS), absent de cette copie. L'ICF décrit les images installées (plateforme,
+  application, options). Lu dans amdaemon : chiffré en AES-128-CBC (clé `09ca5efd…`, IV `b155c22c…`, recomposés par
+  amdaemon depuis trois tables de 32 octets) ; en-tête de 64 octets (CRC32 de tout le reste, taille, nombre d'entrées,
+  « SDDS », « ACA », CRC des entrées actives), puis des entrées de 64 octets.
+- La touche du menu passe de F10 à Tab (demande 77), comme Flycast, linuxloader et Supermodel ; Alt+Tab est laissé à
+  Windows. Pas d'essai en jeu possible : depuis ~6 h l'écran du PC est déconnecté (Windows ne voit qu'un « WinDisc »),
+  Sonic et Mario Kart DX ne trouvent plus de carte graphique.
+- Release (demande 78) : les deux builds (32 et 64 bits) et une archive à plat comme celle de linuxloader, avec
+  README, BILAN, LICENSE et un RELEASE.txt (jeux et programme à donner, ligne de commande, ce qui manque :
+  pas de `--write-dir`, pas de sortie réseau pour BackForceFeeder). Réponses à Image borne.
