@@ -88,7 +88,8 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 `COM<n>`: a wheel's or a motor's board). The same choices are in the "Options du jeu" page, part
 "Cartes".
 
-**F10** pauses the game and opens the settings menu: the game and its cabinet's boards (how the
+**Tab** pauses the game and opens the settings menu, Tab again closes it (F10 until October 2026;
+Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows): the game and its cabinet's boards (how the
 controls reach it, which motor board drives its wheel), controls (bindings captured from the
 keyboard, a gamepad or a wheel, saved to `controls.ini`), the game's own options, display, force
 feedback strength and direction.

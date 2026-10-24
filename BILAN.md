@@ -12,7 +12,7 @@ dans NOTES.md, « Jeux des bornes »).
 
 ## Vue d'ensemble
 
-| Jeu | Lancement | Commandes | vJoy | Retour de force | Affichage | Menu F10 | Menu de service | Crédits / Shell |
+| Jeu | Lancement | Commandes | vJoy | Retour de force | Affichage | Menu Tab | Menu de service | Crédits / Shell |
 |---|---|---|---|---|---|---|---|---|
 | Sega Rally 3 (Europa-R) | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ❌ | — |
 | Daytona Championship USA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
@@ -29,10 +29,12 @@ dans NOTES.md, « Jeux des bornes »).
 | GTI Club: Supermini Festa! (GTI Club 3, Konami PC) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Wasteland Racers 2071 (Trio Tech PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | Mario Kart Arcade GP DX 1.18 (Namco ES3) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Mario Kart Arcade GP DX 1.10 (Namco ES3, mod français) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Battle Gear 4 (Taito Type X+, 2006) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 
 Fonctions :
 
@@ -47,7 +49,7 @@ Fonctions :
   par `scripts/agent/display_check.py`. Par défaut l'image est recopiée dans la fenêtre par GDI
   (`PRESENT = GDI`, voir « Affichage sur ce PC » plus bas) ; `PRESENT = DIRECT` garde le Present du jeu.
   Les réglages de linuxloader en plus (voir « Rapport d'aspect, recadrage et courbure » plus bas).
-- **Menu F10** : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
+- **Menu Tab** (F10 jusqu'au 24/10/2026, Tab comme Flycast, linuxloader et Supermodel) : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
   et « Sauvegarder pour ce jeu ».
 - **Menu de service** : le menu de test de la borne (bouton Test).
 - **Crédits / Shell** : pièces, crédits et ce que le Shell de la borne fournit au jeu.
@@ -64,7 +66,7 @@ Fonctions :
   (`sr3_ffb.py`).
 - Affichage ✅ : 16 couples aspect × mode et fenêtres réduites justes à l'écran ; résolution interne
   (`config.ini`) vérifiée en 1280×720.
-- Menu F10 ✅ (`sr3_menu.py`).
+- Menu Tab ✅ (`sr3_menu.py`).
 - Menu de service ❌ : il appartient au Shell Europa-R, absent des copies.
 
 ## Daytona Championship USA (2017) et New Season Edition (2019)
@@ -81,7 +83,7 @@ effacées (Corbeille) le 22/10.
   vérifié dans les menus et en course.
 - Affichage ✅ (originale) : 16 couples et fenêtres réduites justes à l'écran (fenêtre enfant pour
   l'image Direct3D 11). NSE ⚠️ : même code, non vérifié à l'écran.
-- Menu F10 ✅ (Direct3D 11).
+- Menu Tab ✅ (Direct3D 11).
 - Menu de service ❌ : le menu de test est celui de `Shell.exe`, non émulé.
 - Crédits / Shell ✅ : Shell émulé (TCP 127.0.0.1:18888) : crédits, défi de sécurité, SKU (la NSE
   l'attend).
@@ -104,7 +106,7 @@ dgVoodoo et jconfig (JVSEmuFR.dll) mis de côté dans `_teknoparrot_off` ; effac
   sens vérifié en course (volant à droite : force moyenne vers la gauche).
 - Affichage ✅ : jeu 4:3 ; 4:3 / 16:9 / STRETCH justes à l'écran (16:9 : bandes latérales,
   `display_check.py fr`) ; résolution interne par `gamesettings.ini` ; FPS et `[fordracing]` dans le titre.
-- Menu F10 ✅ (pages Contrôles et Retour de force vues en course).
+- Menu Tab ✅ (pages Contrôles et Retour de force vues en course).
 - Menu de service ⚠️ : il est dans GameShell.exe, lancé sous windowsloader avec le même module
   (`fr_shell.py`). Il démarre, trouve la carte émulée, reçoit le CRC que lui donnerait le lanceur de la
   borne (`/k=`), puis s'arrête sur « SECURITY FAILURE 4 » : il veut la clé iButton de la borne (DS1991,
@@ -140,7 +142,7 @@ Racing) :
 - Affichage ⚠️ : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus (noir
   sur l'Intel) ; FPS et `[initiald6]` dans le titre ; captures pour l'agent. La fenêtre reste celle du
   jeu (1920×1080 sans cadre) : `[Display]` pas encore appliqué en OpenGL.
-- Menu F10 ❌ : pas encore en OpenGL.
+- Menu Tab ❌ : pas encore en OpenGL.
 - Menu de service ✅ : le jeu lancé avec `-t` (comme `gametest.bat`) : GAME TEST MODE, tests d'entrées
   et de sorties, choix au bouton Service, validation au bouton Test (`id6_race.py test`).
 - Crédits ✅ : pièces comptées par la carte JVS.
@@ -164,7 +166,7 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
 - Affichage ⚠️ : le jeu prenait la taille du bureau (3072×1920 sur ce portable : mémoire épuisée en course) ;
   EnumDisplaySettings lui donne `[Display]` WIDTH × HEIGHT, 1920×1080 au plus en AUTO. Fenêtre, FPS et
   `[grid]` dans le titre ; non mesuré par `display_check.py`.
-- Menu F10 ✅.
+- Menu Tab ✅.
 - Menu de service ❌ : il est dans la coquille `shell\Shell.exe` (Europa-R), qui ne démarre pas : elle
   importe `DK2win32.dll`, la bibliothèque d'une clé matérielle Dinkey, absente de la copie (installée dans le
   système de la borne). Il faudrait émuler cette clé.
@@ -191,7 +193,7 @@ Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22
 - Retour de force ⚠️ : par Out32 sur le port 0x378 (port parallèle ; GRID : 0x1020), même codage : volant à
   gauche −0,33 en moyenne, à droite +0,47 (un ressort de centrage), 512 changements par course. vJoy ✅ :
   `--controllers`, course, 421 changements envoyés au joueur 1. Sens à confirmer au volant.
-- Menu F10 ✅ : les cinq pages, jeu en pause tant qu'il est ouvert (images comptées), reprise à la fermeture.
+- Menu Tab ✅ : les cinq pages, jeu en pause tant qu'il est ouvert (images comptées), reprise à la fermeture.
 - Affichage ✅ : 1280×720, vu à l'écran à 60 images/s (« FREEPLAY / PRESS START » sur la démo). La fenêtre
   enfant Direct3D 11 restait blanche sur ce PC (23 images/s) : l'image est maintenant lue dans le back buffer
   et recopiée par GDI (voir « Affichage sur ce PC »).
@@ -230,7 +232,7 @@ Ce que la RingWide ajoute à la plateforme émulée :
   l'image remplit la fenêtre en 4:3). Pas mesurable à l'écran sur ce PC à ce moment-là (une fenêtre Direct3D 9
   y restait noire, même un petit programme d'essai sans windowsloader) ; corrigé depuis par la recopie GDI,
   pas revu sur K.O. Drive (copie effacée).
-- Menu F10 ✅ : pause, pages Jeu, Contrôles, Affichage, Retour de force.
+- Menu Tab ✅ : pause, pages Jeu, Contrôles, Affichage, Retour de force.
 - Menu de service ✅ : `TestMode.exe -t` : GAME TEST MODE, test d'entrées (volant, pédales, START/WEAPON,
   TEST, SERVICE), navigation par les boutons de la carte (`kod_race.py test`).
 - Crédits ✅ : pièces JVS, crédit de service.
@@ -263,7 +265,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
 - Commandes ✅ : START octet 0 bit 7, ITEM octet 1 bit 0, volant, accélérateur, pédale DRIFT ; partie complète :
   choix du mode, du pilote, du circuit, chargement, course (temps, tours, objets, turbo, retour en piste après
   une chute dans l'eau). Le sens du volant vu en course (+0,8 à gauche).
-- Crédits ✅ : option du jeu `FREE_PLAY` ([Game.ssasr], menu F10 « Options du jeu », « Jeu gratuit », cochée par
+- Crédits ✅ : option du jeu `FREE_PLAY` ([Game.ssasr], menu Tab « Options du jeu », « Jeu gratuit », cochée par
   défaut) : l'octet 0x0A de l'enregistrement AM_SYSDATA_CREDIT (offset 0x20, CRC32 sur les octets 4 à 0x1F,
   copie en 0x220), réglé au lancement ; le menu de test du jeu n'a pas les réglages de pièces (ils sont dans
   celui du système de la borne). Décochée : les pièces sont comptées (CREDIT(S) 1, 2, 3) et Start en prend une.
@@ -271,7 +273,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) est noté sans être joué. Sens pas
   vérifié au volant.
 - vJoy ✅ : course avec les manettes ouvertes, retour de force sur le joueur 1.
-- Menu F10 ✅ : toutes les pages, dont « Options du jeu ».
+- Menu Tab ✅ : toutes les pages, dont « Options du jeu ».
 - Affichage ✅ : fenêtre 1280×720 (`Settings.ini`), FPS et `[ssasr]` dans le titre ; vu à l'écran à 61 images/s
   avec la recopie GDI (noir à l'écran avant, 47 images/s).
 - Menu de service ✅ : `gametest.exe` : GAME TEST MENU, test d'entrées, réglages du jeu, comptabilité,
@@ -337,7 +339,7 @@ de côté. « Professional Edition » est une option de TeknoParrot (correctifs 
 
 Le même dossier et le même `game.exe` : la borne Pro est reconnue par le jeu lui-même, qui compte les cartes
 JVS du bus (+0x60cb37) ; deux cartes, c'est une borne « WIDE MONITOR & CLUTCH TYPE » (écran large,
-embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page « Options du jeu » du menu F10,
+embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page « Options du jeu » du menu Tab,
 `--set Game.CABINET=PRO`, ou à la main dans le fichier de réglages), qui met une seconde carte sur le bus JVS (nœud 2 ; `jvs.cpp` en accepte maintenant deux).
 
 - Lancement ✅ : au premier démarrage après un changement de `CABINET`, le jeu réécrit son `config.bin`
@@ -365,7 +367,7 @@ embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page �
 - La carte du nœud 1 reçoit en plus la commande Taito 0x66 (2 octets, sens inconnu, répondue).
 - Retour de force ⚠️ : le même qu'en Tuned (330 changements envoyés pendant une course AT).
 - Menu de service ✅ : test d'E/S (SHIFT LEFT/RIGHT, SEN1/SEN2, CLUTCH en plus), ADJUSTMENT avec l'embrayage.
-- Restent : vJoy et le menu F10 non refaits en Pro (le même code qu'en Tuned) ; l'identité de la seconde
+- Restent : vJoy et le menu Tab non refaits en Pro (le même code qu'en Tuned) ; l'identité de la seconde
   carte est celle de la première (celle de la vraie borne inconnue) ; le côté de chaque capteur de la grille
   est supposé (le jeu s'en accommode : il pousse dans les deux sens).
 
@@ -393,7 +395,7 @@ Direct3D 9, 800×600. Le module de Tuned (`taito.cpp`), qui reconnaît cette éd
 - vJoy ✅ : `--controllers`, course, 34 changements de force envoyés au joueur 1.
 - Retour de force ⚠️ : la même carte du volant que Tuned (COM1), commande 0x0D ; sens à confirmer au volant.
 - Affichage ✅ : 800×600 à 30 images/s (le jeu se règle à 30), recopie GDI.
-- Menu F10 ✅ : pause, pages Jeu (cartes : JVS sur COM2, carte du volant Taito sur COM1 ; pas de seconde carte, la
+- Menu Tab ✅ : pause, pages Jeu (cartes : JVS sur COM2, carte du volant Taito sur COM1 ; pas de seconde carte, la
   borne Pro n'existe que pour Tuned), Contrôles, Retour de force.
 - Menu de service ✅ : TEST MODE (bouton Test), SHIFT UP descend, SHIFT DOWN remonte, START choisit ; EXIT ferme le
   jeu (la borne redémarre).
@@ -467,7 +469,7 @@ Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe 
 | `<nom court>.ini` lu à la place de `windowsloader.ini` | ✅ | ✅ | ✅ |
 | `-c fichier.ini`, `--set SECTION.CLE=VALEUR` (répétable) | ✅ | ✅ | ✅ |
 
-- Menu F10, page Affichage : les sept choix de linuxloader, « Position du recadrage », « Courber les parties
+- Menu Tab, page Affichage : les sept choix de linuxloader, « Position du recadrage », « Courber les parties
   coupées sur les bords », « Milieu non déformé », « Rayon de courbure », appliqués à l'image suivante ; en bas
   du menu « Sauvegarder » (le fichier lu), « Sauvegarder pour ce jeu » (la première fois une copie du fichier lu
   en `<nom court>.ini`, puis ce fichier), « Fermer ». Le menu reste entier au-dessus d'une image recadrée ou
@@ -483,9 +485,9 @@ Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe 
   faisait `FULLSCREEN` jusque-là. F11 / Alt+Entrée : la fenêtre ou le plein écran choisi. Vérifié sur Battle Gear 4 :
   `BORDERLESS` (image entre bandes) et `BORDERLESS_STRETCH` ; `FULLSCREEN` pas essayé à l'écran de ce portable.
 
-## Les cartes de la borne dans F10
+## Les cartes de la borne dans le menu Tab
 
-La page « Jeu » du menu F10 dit, sous le nom du jeu, par où passent ses contrôles et quelle carte pilote le moteur
+La page « Jeu » du menu Tab dit, sous le nom du jeu, par où passent ses contrôles et quelle carte pilote le moteur
 du volant ; chaque module le déclare (`wl_game_set_boards`) :
 
 | Jeu | Contrôles | Carte moteur |
@@ -501,7 +503,7 @@ du volant ; chaque module le déclare (`wl_game_set_boards`) :
 | Wasteland Racers 2071 | SDC2 de Trio Tech | SDC2 (servo en position) |
 | Crazy Ride | E/S UNIS | volant UNIS |
 
-## Options propres à chaque jeu (menu F10, « Options du jeu »)
+## Options propres à chaque jeu (menu Tab, « Options du jeu »)
 
 Comme linuxloader (forme convenue avec sa session le 23/10) : section `[Game.<nom court>]` du fichier de réglages (le
 commun ou le `<nom court>.ini` du jeu), clés en majuscules, valeurs de liste en majuscules, `true`/`false`, nombres ;
@@ -529,7 +531,7 @@ sur COM11) :
   1 766 interrogations en 60 s sans reprise, attract normal.
 Pas encore essayé avec une vraie carte (ce PC n'en a pas).
 
-## Menu F10 sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
+## Menu Tab sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
 
 `f10_check.py` (bloc-notes) : menu ouvert par l'agent, pages Jeu, Contrôles, Affichage, Retour de force, À propos
 vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouvert (882 → 882, 903 → 903,
@@ -566,7 +568,7 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
   rien, 0x81 (le plus fort) à 0xFF d'un côté, 0x7F à 0x01 de l'autre ; rien en menu (+0x518e8e). Volant à gauche
   −0,65 en moyenne, à droite +0,67 (un ressort de centrage). vJoy ✅ : `--controllers`, course, forces envoyées au
   joueur 1. Sens à confirmer au volant.
-- Menu F10 ✅ : les cinq pages, jeu en pause.
+- Menu Tab ✅ : les cinq pages, jeu en pause.
 - Menu de service ✅ : bouton Test ; MAIN MENU, I/O CHECK (INPUT CHECK, CALIBRATION…), navigation SELECT UP /
   DOWN, START pour choisir. L'étalonnage du volant et des pédales y est marqué à faire (pas fait : le jeu tourne
   sans).
@@ -610,7 +612,7 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   position tenue (secousses : ±30 464 en alternance) ; joué comme un ressort : volant à gauche 0,4 → −0,39 (pousse
   à droite), à droite 0,8 → +0,78 ; en course 176 changements en 25 s (secousses ±0,91). vJoy ✅ (`--controllers` :
   le joueur 1 est vJoy, les forces lui sont envoyées).
-- Menu F10 ✅ : les cinq pages, jeu en pause (images 143 → 143), reprise à la fermeture.
+- Menu Tab ✅ : les cinq pages, jeu en pause (images 143 → 143), reprise à la fermeture.
 - Menu de service ✅ : MAINTENANCE (bouton Test) : étalonnage (BOOST, lance `CalibrationStarter.exe`, refusé, et
   quitte le jeu), prix de la partie (VIEW), jeu gratuit, statistiques.
 - Crédits ✅ : jeu gratuit (réglage de la copie) : le jeu met le prix d'une partie dans le compteur de la carte
@@ -647,11 +649,33 @@ vérification ensuite :
   OFF dans ses réglages (mis à ON dans la copie, « ステアリングチェック OK ») ; en course, visée au centre (0x200),
   raideur et amortissement jusqu'à 50, vibration sur un choc ; jouée en ressort vers la visée. Sens par le
   raisonnement (volant à gauche → poussé à droite), à vérifier au volant. vJoy pas essayé.
-- Menu F10 ✅ : dessiné par l'appareil Direct3D 10 du jeu (backend DX10 de Dear ImGui, de sm2-emu) ; les pages vues,
+- Menu Tab ✅ : dessiné par l'appareil Direct3D 10 du jeu (backend DX10 de Dear ImGui, de sm2-emu) ; les pages vues,
   jeu en pause.
 - Menu de service ✅ : menu de test, test des entrées-sorties, étalonnage, réglages du jeu ; enregistrés (le
   renommage de `F:\TestMode\…bin.tmp` passe maintenant par la redirection de F:\).
 - Crédits ✅ : la pièce compte (test des contacts) ; la copie est en jeu gratuit.
+
+## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
+
+`MK_AGP3_FINAL.exe` de 2015 (« MK3 Rev.1.10.22/JP »), traduit en français par un mod ; le même module que la 1.18,
+qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (16 497 fichiers, 5,8 Go, 76 min).
+
+- Lancement ✅ : la carte JVS, la carte moteur, le réseau des bornes comme pour la 1.18 ; les trois fonctions de la
+  1.18 retrouvées ailleurs dans cet exe (la clé de sécurité par le GUID de son interface, l'âge de l'authentification
+  par « last_auth.bin » qu'elle lit, la limite hors ligne par ses octets, identiques) ; le lecteur de cartes, que la
+  1.10 parle elle-même sur **COM4** (38400 bauds) : des trames NFC du PN532 de NXP (le RC-S956 de Sony des lecteurs
+  Banapass), chaque commande acquittée puis répondue (`D5` et la commande + 1), sans carte posée ; il a fallu un octet
+  d'état aux réponses d'écriture de registre, aucun à celles de lecture → « IC card R/W test OK ». Puis attraction en
+  français, partie (Mario, mode national, avatar), course (Château de Peach).
+- Commandes ✅ : pièce, Start, objet (valider), accélérateur, volant ; Test est un interrupteur à tenir levé.
+- Retour de force ⚠️ : « Reaction force » était OFF dans les réglages de la copie (« Game options » du menu de test) :
+  mis à ON (pris en compte à la sortie du menu) ; en course, raideur 22 à 28, amortissement 14 à 15 ; le volant
+  braqué à +0,6, la force le repousse (−0,19, −0,24). Sens à vérifier au volant.
+- vJoy ✅ : course avec les manettes ouvertes, forces sur le joueur 1.
+- Affichage ✅, menu Tab ✅ (jeu en pause, les pages, le lecteur de cartes listé sur COM4).
+- Menu de service ✅ : menu de test, réglages du jeu modifiés et enregistrés (« E05-11 ERROR DEVICE » en tête du menu,
+  sans effet vu).
+- Crédits ✅ : la pièce compte.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 
@@ -685,10 +709,29 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   de ces valeurs est supposé.
 - vJoy ✅ : `--controllers`, course, 512 changements de force envoyés au joueur 1.
 - Affichage ✅ : 2048×1280, recopie GDI.
-- Menu F10 ✅ : pause, pages Jeu, Retour de force.
+- Menu Tab ✅ : pause, pages Jeu, Retour de force.
 - Menu de service ✅ : bouton vert, Main Menu, Hardware Test, Input Test (pièce, Start, siège, étalonnage du volant et des
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
+
+## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
+
+`App\Todoroki\WindowsNoEditor\Todoroki\Binaries\Win64\Todoroki-Win64-Shipping.exe -launch=Cabinet -windowed` ; le
+lanceur démarre avant lui `AMDaemon\amdaemon.exe`, le service de la plateforme (programme compagnon). Module
+`src/hook/games/alls.cpp`, `src/hook/netenv.cpp`. Copie locale le 23/10 (12,5 Go, 95 min).
+
+- Lancement ⚠️ : amdaemon démarre sans erreur (registre `SystemProperty` inventé en mémoire, clé `\??\FddDriver`,
+  moniteur matériel, pilote d'affichage `$amvideo`, lecteurs `D:`/`E:`/`Y:` dans la copie, carte d'E/S USB « IO4 »,
+  lecteur de cartes Aime sur COM3, afficheur VFD sur COM4, carte réseau de borne 192.168.172.11) ; le jeu passe
+  « Core Setup », « Aime Setup », la carte d'E/S, le tableau de bord (838-15415, texte sur COM20 : `pr` → `ps` et
+  l'état de ses boutons ; commandes `:sp`, `:rp`, `:gr`, `:le`), puis le test réseau de démarrage en borne
+  principale (`config_LanServer.json` ; `Y:\SDDS\LanServer.dat` dans la copie). Il s'arrête vers 70 s sur « Error 8404 »
+  (serveur d'installation LAN introuvable ; amdaemon lit `E:\ICF1`, absent de la copie) ou « Error 4103 » sans
+  installation LAN, juste après une requête HTTP sans adresse (serveur de jeu donné par ALL.Net, coupé). Pour l'essai,
+  ALL.Net (authentification, comptabilité) et la monnaie électronique sont coupés par une config de plus passée à
+  amdaemon.
+- Affichage ⚠️ : seulement avec `-windowed` (sinon le jeu se réduit, notre refus du plein écran répondant S_OK).
+- Le reste pas encore vu.
 
 ## D1GP Arcade (Taito Type X2, 2009)
 
@@ -719,7 +762,7 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   volant ; amortisseur et frottement non joués (vitesse du volant inconnue).
 - vJoy ✅ : `--controllers`, course, 512 changements de force envoyés au joueur 1.
 - Affichage ✅ : 1360×768 à 30 images/s, recopie GDI.
-- Menu F10 ✅ : pause, pages Jeu (JVS sur COM2, volant DirectInput, retour de force Immersion), Affichage, Retour de
+- Menu Tab ✅ : pause, pages Jeu (JVS sur COM2, volant DirectInput, retour de force Immersion), Affichage, Retour de
   force.
 - Menu de service ✅ : TEST MODE (bouton Test), VIEW CHANGE descend, SHIFT DOWN remonte, START choisit ; test d'E/S.
 - Crédits ⚠️ : pièces JVS comptées ; le lecteur de cartes et le distributeur de cartes (« CARD VENDOR ») absents.
@@ -752,7 +795,7 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   inconnue) ; réservé à Valve Limit R, Battle Gear 4 inchangé. Sens et forces à confirmer au volant.
 - vJoy ✅ : `--controllers`, course, 362 changements de force envoyés au joueur 1.
 - Affichage ✅ : 640×480, recopie GDI.
-- Menu F10 ✅ : pause, pages Jeu (JVS sur COM2, carte du volant Taito sur COM1), Retour de force.
+- Menu Tab ✅ : pause, pages Jeu (JVS sur COM2, carte du volant Taito sur COM1), Retour de force.
 - Menu de service ✅ : TEST MODE, SHIFT UP descend, SHIFT DOWN remonte, START choisit ; I/O CHECK (entrées, lampes),
   étalonnage des pédales ; « TO EXIT = TEST+SERVICE ».
 - Crédits ✅ : pièce JVS.
@@ -765,5 +808,5 @@ windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8t
 version 255338f du 23/09/2026), compilé dans la DLL 32 bits (Direct3D 8 n'existe qu'en 32 bits). Seule
 modification : son point d'entrée reçoit l'IDirect3D9 que windowsloader crée, et n'affiche plus de boîte ni de page
 web quand `d3dx9_43.dll` manque (le journal le dit). L'appareil prend alors le chemin Direct3D 9 de windowsloader
-(recopie GDI, modes d'affichage, recadrage, F10, images de l'agent). `WINDOWSLOADER_D3D8=native` garde le Direct3D 8
+(recopie GDI, modes d'affichage, recadrage, menu Tab, images de l'agent). `WINDOWSLOADER_D3D8=native` garde le Direct3D 8
 de Windows (fenêtre gardée, images comptées, rien à l'écran sur ce PC).
