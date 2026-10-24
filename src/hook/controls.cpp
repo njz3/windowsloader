@@ -47,8 +47,8 @@ enum AxisPart
     PART_FULL,
     PART_POSITIVE,      // half an axis as a button
     PART_NEGATIVE,
-    PART_POSITIVE_HALF, // half an axis as a pedal
-    PART_NEGATIVE_HALF
+    PART_POSITIVE_HALF, // half an axis as a pedal: 0 at the axis' centre, 1 at its end, the other half at
+    PART_NEGATIVE_HALF  // rest (_POSITIVE_SIDE / _NEGATIVE_SIDE, linuxloader's names; _HALF also read)
 };
 
 struct Source
@@ -207,9 +207,9 @@ static int parse_source(const char *text, Source *s)
     p++;
 
     s->inverted = strip_suffix(p, "_INVERTED");
-    if (strip_suffix(p, "_POSITIVE_HALF"))
+    if (strip_suffix(p, "_POSITIVE_SIDE") || strip_suffix(p, "_POSITIVE_HALF"))
         s->part = PART_POSITIVE_HALF;
-    else if (strip_suffix(p, "_NEGATIVE_HALF"))
+    else if (strip_suffix(p, "_NEGATIVE_SIDE") || strip_suffix(p, "_NEGATIVE_HALF"))
         s->part = PART_NEGATIVE_HALF;
     else if (strip_suffix(p, "_POSITIVE"))
         s->part = PART_POSITIVE;
@@ -1019,7 +1019,7 @@ static void capture_step(void)
             if (in->type == WL_INPUT_AXIS && which == 0)
                 suffix = a1 < a0 ? "" : "_INVERTED"; // turned left: SDL's left is negative
             else if (in->type == WL_INPUT_ANALOG && which == 0)
-                suffix = fabs(a0) > 0.8 ? (a0 > 0 ? "_INVERTED" : "") : (a1 > a0 ? "_POSITIVE_HALF" : "_NEGATIVE_HALF");
+                suffix = fabs(a0) > 0.8 ? (a0 > 0 ? "_INVERTED" : "") : (a1 > a0 ? "_POSITIVE_SIDE" : "_NEGATIVE_SIDE");
             else
                 suffix = a1 > a0 ? "_POSITIVE" : "_NEGATIVE";
             snprintf(found, sizeof found, "JOY%d_AXIS_%d%s", p, a, suffix);
