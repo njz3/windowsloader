@@ -11,8 +11,11 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// Namco System ES3: Mario Kart Arcade GP DX (v1.18), MK_AGP3_FINAL.exe (x86, Direct3D 9Ex,
-// relocated: the offsets below are from its base). Being worked on:
+// Namco System ES3: Mario Kart Arcade GP DX, MK_AGP3_FINAL.exe (x86, Direct3D 9Ex, relocated: the
+// offsets below are from its base), v1.18 and v1.10 (2015; told by v1.18's bngrw.dll, absent).
+// v1.10 has the same key, authentication and offline functions at other places (found by the
+// key's interface GUID, the "last_auth.bin" they read, the same bytes) and its card reader on COM4
+// instead of bngrw.dll. Being worked on:
 // - ShareK, the cabinet's content distribution, is reached through a .NET COM class of ipccl.dll
 //   that the cabinet registers (RegAsm, project.ps1): windowsloader leaves the registry alone, the
 //   class is missing and the game's handler of that failure reads a null pointer: the ShareK
@@ -243,6 +246,131 @@ static DWORD com1_waiting(void)
 }
 
 static WlVirtualDevice g_com1 = {"COM1", NULL, com1_read, com1_write, com1_modem, com1_waiting};
+
+// v1.10's card reader on COM4, 38400 bauds (v1.18's goes through bngrw.dll): an NFC reader
+// speaking NXP's PN532 frames (Sony's RC-S956, Banapass's readers): 00 00 FF, the length (TFI,
+// command, data) and its complement, D4 then the command and its data, their sum's complement, 00.
+// Each command is acknowledged (00 00 FF 00 FF 00), then answered D5 and the command + 1. No card
+// is on it: a poll (4A) finds no target.
+static unsigned char g_nfcIn[300], g_nfcOut[1024];
+static int g_nfcInLength, g_nfcOutLength;
+static CRITICAL_SECTION g_nfcLock;
+
+static void nfc_put(const unsigned char *b, int n)
+{
+    if (g_nfcOutLength + n <= (int)sizeof g_nfcOut)
+    {
+        memcpy(g_nfcOut + g_nfcOutLength, b, n);
+        g_nfcOutLength += n;
+    }
+}
+
+static void nfc_answer(int cmd, const unsigned char *data, int n)
+{
+    static const unsigned char ack[6] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
+    nfc_put(ack, 6);
+    unsigned char f[64] = {0x00, 0x00, 0xFF, (unsigned char)(2 + n), (unsigned char)(0x100 - (2 + n)), 0xD5, (unsigned char)(cmd + 1)};
+    memcpy(f + 7, data, n);
+    unsigned char sum = 0;
+    for (int i = 5; i < 7 + n; i++)
+        sum += f[i];
+    f[7 + n] = (unsigned char)(0x100 - sum);
+    f[8 + n] = 0x00;
+    nfc_put(f, 9 + n);
+}
+
+static void nfc_command(const unsigned char *d, int n) // D4, the command, its data
+{
+    int cmd = d[1];
+    static unsigned logged[256];
+    if (logged[cmd]++ < 3)
+        wl_log_hex("namco: card reader, command", d + 1, n - 1 < 16 ? n - 1 : 16);
+    static const unsigned char firmware[4] = {0x32, 0x01, 0x06, 0x07}; // PN532 1.6
+    static const unsigned char zero[8] = {0};
+    switch (cmd)
+    {
+    case 0x02: // firmware version
+        nfc_answer(cmd, firmware, 4);
+        break;
+    case 0x4A: // poll for targets: none
+    case 0x52: // release
+    case 0x16: // power down
+        nfc_answer(cmd, zero, 1);
+        break;
+    case 0x06: // registers read: their values (0s)
+        nfc_answer(cmd, zero, n - 2 > 0 ? (n - 2) / 2 : 1);
+        break;
+    case 0x08: // registers written: a status
+        nfc_answer(cmd, zero, 1);
+        break;
+    case 0x40: // data exchange, communicate through: no target (error 01)
+    case 0x42:
+    {
+        static const unsigned char error = 0x01;
+        nfc_answer(cmd, &error, 1);
+        break;
+    }
+    default: // 18 serial speed, 12 parameters, 14 SAM, 32 RF settings, 08 registers written...
+        nfc_answer(cmd, NULL, 0);
+        break;
+    }
+}
+
+static BOOL com4_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    const unsigned char *b = (const unsigned char *)buffer;
+    *written = size;
+    EnterCriticalSection(&g_nfcLock);
+    for (DWORD i = 0; i < size; i++)
+    {
+        if (g_nfcInLength < (int)sizeof g_nfcIn)
+            g_nfcIn[g_nfcInLength++] = b[i];
+        // A frame: 00 00 FF LEN LCS data[LEN] DCS 00 (an ACK has LEN 0: the host's abort)
+        unsigned char *f = g_nfcIn;
+        int n = g_nfcInLength;
+        while (n >= 3 && !(f[0] == 0x00 && f[1] == 0x00 && f[2] == 0xFF))
+            f++, n--; // the wake-up's 55s and anything before a frame
+        if (f != g_nfcIn)
+        {
+            memmove(g_nfcIn, f, n);
+            g_nfcInLength = n;
+        }
+        if (n >= 5 && g_nfcIn[3] == 0 && g_nfcIn[4] == 0xFF)
+        {
+            g_nfcInLength = n > 6 ? n - 6 : 0; // an ACK
+            memmove(g_nfcIn, g_nfcIn + 6, g_nfcInLength);
+        }
+        else if (n >= 5 && n >= 5 + g_nfcIn[3] + 2)
+        {
+            if (g_nfcIn[3] >= 2 && g_nfcIn[5] == 0xD4)
+                nfc_command(g_nfcIn + 5, g_nfcIn[3]);
+            int used = 5 + g_nfcIn[3] + 2;
+            g_nfcInLength = n - used;
+            memmove(g_nfcIn, g_nfcIn + used, g_nfcInLength);
+        }
+    }
+    LeaveCriticalSection(&g_nfcLock);
+    return TRUE;
+}
+
+static BOOL com4_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
+{
+    EnterCriticalSection(&g_nfcLock);
+    DWORD n = (DWORD)g_nfcOutLength < size ? (DWORD)g_nfcOutLength : size;
+    memcpy(buffer, g_nfcOut, n);
+    memmove(g_nfcOut, g_nfcOut + n, g_nfcOutLength - n);
+    g_nfcOutLength -= n;
+    LeaveCriticalSection(&g_nfcLock);
+    *read = n;
+    return TRUE;
+}
+
+static DWORD com4_waiting(void)
+{
+    return (DWORD)g_nfcOutLength;
+}
+
+static WlVirtualDevice g_com4 = {"COM4", NULL, com4_read, com4_write, com1_modem, com4_waiting};
 
 // The Banapass card reader, through bngrw.dll (Namco's library for it, imported by the game): no
 // reader on this PC. The game's boot check attaches it (+0x202d5b, +0x201426) and waits for it to
@@ -535,11 +663,13 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     base = base ? base + 1 : exePath;
     wchar_t dir[MAX_PATH];
     wcsncpy_s(dir, MAX_PATH, exePath, base - exePath);
-    if (_wcsicmp(base, L"MK_AGP3_FINAL.exe") || !exists(dir, L"bngrw.dll"))
+    if (_wcsicmp(base, L"MK_AGP3_FINAL.exe"))
         return 0;
+    // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places
+    int v118 = exists(dir, L"bngrw.dll");
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    wl_log("game: %s (Namco System ES3)", *title);
+    wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : "v1.10");
     wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)",
                        "Motor board: Namco motor board (COM1, 19200 bauds: position servo with spring, damper, vibration)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
@@ -562,8 +692,11 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     // moves (ASLR): addresses from its base
     unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
     static const unsigned char je[2] = {0x0F, 0x84}, jmp[2] = {0x90, 0xE9};
-    wl_patch_code(exe + 0x7E80D, je, jmp, 2, "ShareK's client not started (its COM class is not registered)");
-    bngrw_patch();
+    if (v118)
+    {
+        wl_patch_code(exe + 0x7E80D, je, jmp, 2, "ShareK's client not started (its COM class is not registered)");
+        bngrw_patch();
+    }
     // The boot check's link step looks for the other cabinets by broadcast on UDP 20199: alone, the
     // cabinet hears itself (nothing leaves the PC)
     wl_system_loopback_broadcast(1);
@@ -574,8 +707,22 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     wl_patch_iat((HMODULE)exe, "IPHLPAPI.DLL", "DeleteIpForwardEntry", (void *)cabinet_route, &was);
     wl_patch_iat((HMODULE)exe, "IPHLPAPI.DLL", "SetIpForwardEntry", (void *)cabinet_route, &was);
     wl_patch_iat((HMODULE)exe, "IPHLPAPI.DLL", "IcmpSendEcho", (void *)cabinet_IcmpSendEcho, &was);
-    wl_hook_code(exe + 0x4B17B0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x4b17b0)");
-    wl_hook_code(exe + 0x62E60, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x62e60)");
-    wl_hook_code(exe + 0x68430, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x68430)");
+    if (v118)
+    {
+        wl_hook_code(exe + 0x4B17B0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x4b17b0)");
+        wl_hook_code(exe + 0x62E60, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x62e60)");
+        wl_hook_code(exe + 0x68430, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x68430)");
+    }
+    else // v1.10: the same key's function (found by the key's interface GUID it looks for)
+    {
+        wl_hook_code(exe + 0x43AEF0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x43aef0, v1.10)");
+        // The same two as v1.18's: the first use of "last_auth.bin" (v1.18's +0x62e60, the same
+        // start), the _time64 compared with the date it went offline (the same bytes)
+        wl_hook_code(exe + 0x5B060, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x5b060, v1.10)");
+        wl_hook_code(exe + 0x5F630, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x5f630, v1.10)");
+        InitializeCriticalSection(&g_nfcLock);
+        wl_vdev_register(&g_com4);
+        wl_vdev_label("COM4", "Lecteur de cartes");
+    }
     return 1;
 }
