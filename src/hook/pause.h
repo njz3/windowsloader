@@ -13,7 +13,7 @@
 
 #pragma once
 
-// The game paused under the F10 menu: its clocks stand still (QueryPerformanceCounter,
+// The game paused under the settings menu: its clocks stand still (QueryPerformanceCounter,
 // GetTickCount and timeGetTime of the game's exe, replaced in its import table) and its sound
 // is muted (its audio session). Its render thread itself is held by the menu.
 

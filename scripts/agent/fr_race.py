@@ -98,7 +98,7 @@ with WLAgent(LAUNCHER, GAME, log=os.path.join(OUT, "frrace.log"), extra_args=ext
     game.release("Accelerator")
     phase(game, "34-brake", 2, Brake=1)
     game.release()
-    # The F10 menu over the race: its Controls and Force feedback pages
+    # The settings menu over the race: its Controls and Force feedback pages
     print("menu", game.menu(True), flush=True)
     for tab, name in ((1, "40-menu-controls"), (3, "41-menu-ffb")):
         game.menu(tab=tab)

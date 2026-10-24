@@ -20,7 +20,7 @@ wheel: the controllers are opened too (launcher --controllers), the force feedba
 player 1 controller (vJoy on the test PC: warn its other users first).
 STEPS: S Start (menus: select), A accelerator held 1 s, H accelerator held 3 s, B brake 1 s,
 L / R the wheel left / right 1 s, V view, U / D gear up / down, X reset the car, O boost (Showdown),
-M the F10 menu
+M the settings menu
 (its pages Controls and Force feedback), w wait 3 s;
 the default is "SwSwSwSwSwwwHHH".
 """

@@ -372,7 +372,7 @@ static void update_haptic(void)
     SDL_UpdateHapticEffect(g_haptic, g_hapticEffect, &e);
 }
 
-static char g_playerNames[MAX_PLAYERS][64]; // for the F10 menu
+static char g_playerNames[MAX_PLAYERS][64]; // for the settings menu
 
 static void close_devices(void)
 {
@@ -732,7 +732,7 @@ static void load_bindings(void)
 // ------------------------------------------------------------------------------
 
 static volatile LONG g_running;
-static volatile LONG g_reload; // controls.ini changed by the F10 menu: reload the bindings
+static volatile LONG g_reload; // controls.ini changed by the settings menu: reload the bindings
 static void capture_step(void);
 
 static DWORD WINAPI controls_thread(LPVOID)
@@ -800,7 +800,7 @@ void wl_controls_start(const wchar_t *iniPath)
 }
 
 // ------------------------------------------------------------------------------
-// For the F10 menu (menu.cpp), which runs on the game's render thread: the bindings as text,
+// For the settings menu (menu.cpp), which runs on the game's render thread: the bindings as text,
 // their capture, the force feedback settings. What the controls thread owns (the bindings, SDL)
 // is changed by request and done in that thread.
 // ------------------------------------------------------------------------------
@@ -858,7 +858,7 @@ void wl_controls_set_binding(int input, int which, const char *value)
     MultiByteToWideChar(CP_UTF8, 0, key, -1, wk, 96);
     MultiByteToWideChar(CP_UTF8, 0, value, -1, wv, 1024);
     WritePrivateProfileStringW(ws, wk, wv, g_ini);
-    wl_log("controls: [%s] %s = %s (F10 menu)", section_of(in), key, value);
+    wl_log("controls: [%s] %s = %s (settings menu)", section_of(in), key, value);
     InterlockedExchange(&g_reload, 1);
 }
 
@@ -918,7 +918,7 @@ static int vk_name(int vk, char *out, size_t size)
         snprintf(out, size, "%c", vk);
         return 1;
     }
-    if (vk >= VK_F1 && vk <= VK_F24 && vk != VK_F10)
+    if (vk >= VK_F1 && vk <= VK_F24)
     {
         snprintf(out, size, "F%d", vk - VK_F1 + 1);
         return 1;
@@ -929,7 +929,7 @@ static int vk_name(int vk, char *out, size_t size)
         return 1;
     }
     for (int i = 0; i < (int)(sizeof g_keyNamesOut / sizeof g_keyNamesOut[0]); i++)
-        if (g_keyNamesOut[i].vk == vk)
+        if (g_keyNamesOut[i].vk == vk && vk != VK_TAB) // Tab is the menu's
         {
             snprintf(out, size, "%s", g_keyNamesOut[i].name);
             return 1;

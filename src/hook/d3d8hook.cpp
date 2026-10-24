@@ -162,7 +162,7 @@ static void *WINAPI hDirect3DCreate8(UINT sdk)
     static int hooked;
     char where[128];
     // By default the game's Direct3D 8 is played on Direct3D 9 (d3d8to9), whose device then takes
-    // windowsloader's Direct3D 9 path: the copy by GDI, the display modes, the F10 menu, the
+    // windowsloader's Direct3D 9 path: the copy by GDI, the display modes, the settings menu, the
     // agent's pictures. WINDOWSLOADER_D3D8=native keeps Windows' own Direct3D 8 (no picture on
     // this PC: a blt-model Present shows nothing here).
     wchar_t mode[16] = L"";

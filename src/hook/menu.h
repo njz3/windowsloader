@@ -16,12 +16,12 @@
 #include <windows.h>
 #include <d3d9.h>
 
-// The F10 settings menu, drawn over the game with Dear ImGui. While it is open the game is
+// The settings menu (Tab), drawn over the game with Dear ImGui. While it is open the game is
 // paused (pause.h): the render thread stays in the menu, drawing the game's last frame under it.
 
 typedef HRESULT(STDMETHODCALLTYPE *WlPresentFn)(IDirect3DDevice9 *, const RECT *, const RECT *, HWND, const RGNDATA *);
 
-// From the Present hook, before the game's frame is presented: opens the menu on F10 (or on the
+// From the Present hook, before the game's frame is presented: opens the menu on Tab (or on the
 // agent's request) and returns once it is closed
 void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present);
 

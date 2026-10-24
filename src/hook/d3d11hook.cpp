@@ -475,7 +475,7 @@ static void gdi_copy(IDXGISwapChain *sc)
 
 // The frame out: by GDI into the window, the swap chain presenting into its hidden child at no
 // pace of its own (one composition of the screen per interval asked), or the game's Present.
-// The F10 menu presents through it too.
+// The settings menu presents through it too.
 static HRESULT(STDMETHODCALLTYPE *oPresent)(IDXGISwapChain *, UINT, UINT);
 static HRESULT STDMETHODCALLTYPE present_out(IDXGISwapChain *sc, UINT sync, UINT flags)
 {
@@ -493,7 +493,7 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDXGISwapChain *sc, UINT sync, UINT fl
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
     if (is_d3d10(sc))
-        wl_menu_present10(sc, present_out); // F10: the menu runs here until it is closed
+        wl_menu_present10(sc, present_out); // Tab: the menu runs here until it is closed
     else
         wl_menu_present11(sc, present_out);
     wl_d3d11_take_pending_shot(sc);

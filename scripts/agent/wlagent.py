@@ -98,7 +98,7 @@ class WLAgent:
         return events
 
     def menu(self, state=None, tab=None):
-        """Open (True) or close (False) the F10 menu, or show its page tab; returns True when open."""
+        """Open (True) or close (False) the settings menu, or show its page tab; returns True when open."""
         if tab is not None:
             return self.command("menu tab %d" % tab).split()[1] == "open"
         if state is None:

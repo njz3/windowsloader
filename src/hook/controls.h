@@ -31,11 +31,11 @@
 // the controllers. Not called in agent mode: the agent alone drives the game.
 void wl_controls_start(const wchar_t *iniPath);
 
-// Reads controls.ini only, without the controllers: the agent mode, for the F10 menu's pages
+// Reads controls.ini only, without the controllers: the agent mode, for the settings menu's pages
 void wl_controls_load(const wchar_t *iniPath);
 int wl_controls_has_file(void);
 
-// For the F10 menu. which: 0 the action, 1 ACTION_Left (axis) or ACTION_Digital (pedal), 2 ACTION_Right
+// For the settings menu. which: 0 the action, 1 ACTION_Left (axis) or ACTION_Digital (pedal), 2 ACTION_Right
 int wl_controls_running(void);
 const char *wl_controls_player_name(int player);
 void wl_controls_binding(int input, int which, char *out, size_t size);

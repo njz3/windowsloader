@@ -11,7 +11,7 @@
 # Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 # its own project; such code is marked with its origin.
 
-"""The F10 menu over Sega Rally 3: opened during the attract mode, a picture of each page, then
+"""The settings menu over Sega Rally 3: opened during the attract mode, a picture of each page, then
 closed; the game must go on from where it stopped.
 
     python scripts/agent/sr3_menu.py

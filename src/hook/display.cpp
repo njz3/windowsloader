@@ -599,7 +599,7 @@ static void paint_bars(void)
 }
 
 // ------------------------------------------------------------------------------
-// The window procedure: the F10 menu's input, Alt+Enter, repainting the bars
+// The window procedure: the settings menu's input, Alt+Enter, repainting the bars
 // ------------------------------------------------------------------------------
 
 static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)

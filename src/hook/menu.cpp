@@ -11,7 +11,7 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// The F10 menu. It opens in the Present hook, on the game's render thread, and keeps that thread
+// The settings menu, on Tab (as linuxloader's, Flycast's and Supermodel's). It opens in the Present hook, on the game's render thread, and keeps that thread
 // until it is closed: the game's logic stands still, its clocks and its sound too (pause.cpp).
 // Each frame of the menu draws the game's last frame, then Dear ImGui over it, and presents.
 // Direct3D 9 (Sega Rally 3) and Direct3D 11 (Daytona Championship USA) each have their frame;
@@ -94,12 +94,12 @@ static int foreground_is_ours(void)
     return pid == GetCurrentProcessId();
 }
 
-// F10 pressed since the last call (the key is read directly: the game's message loop does not
-// run while the menu is open)
-static int f10_pressed(void)
+// Tab pressed since the last call (the key is read directly: the game's message loop does not
+// run while the menu is open); not Alt+Tab, the switch between windows
+static int menu_key_pressed(void)
 {
     static int was;
-    int down = foreground_is_ours() && (GetAsyncKeyState(VK_F10) & 0x8000);
+    int down = foreground_is_ours() && (GetAsyncKeyState(VK_TAB) & 0x8000) && !(GetAsyncKeyState(VK_MENU) & 0x8000);
     int pressed = down && !was;
     was = down;
     return pressed;
@@ -578,7 +578,7 @@ static void page_game(void)
             ImGui::TextWrapped("%s", boards[i]);
         }
     ImGui::Spacing();
-    if (ImGui::Button("Reprendre (F10)"))
+    if (ImGui::Button("Reprendre (Tab)"))
         InterlockedExchange(&g_open, 0);
     ImGui::Spacing();
     RECT rc = {};
@@ -754,7 +754,7 @@ static void page_about(void)
     ImGui::BulletText("MinHook, Tsuda Kageyu (BSD 2 clauses)");
     ImGui::BulletText("SDL3 (zlib)");
     ImGui::Spacing();
-    ImGui::TextDisabled("Conventions de linuxloader : controls.ini, menu F10, mode agent.");
+    ImGui::TextDisabled("Conventions de linuxloader : controls.ini, menu Tab, mode agent.");
 }
 
 static void draw_menu(void)
@@ -817,7 +817,7 @@ static void draw_menu(void)
 // The menu's frames
 // ------------------------------------------------------------------------------
 
-// While the menu is open: the window's messages, F10 or the agent to close it, a frame each time
+// While the menu is open: the window's messages, Tab or the agent to close it, a frame each time
 static void run_menu(void (*frame)(void *), void *arg)
 {
     wl_log("menu: open");
@@ -837,7 +837,7 @@ static void run_menu(void (*frame)(void *), void *arg)
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
-        if (f10_pressed() || InterlockedExchange(&g_request, -1) == 0)
+        if (menu_key_pressed() || InterlockedExchange(&g_request, -1) == 0)
             InterlockedExchange(&g_open, 0);
         if (g_open)
             frame(arg);
@@ -907,7 +907,7 @@ static void render_frame(void *arg)
 
 void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
 {
-    int want = f10_pressed();
+    int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)
@@ -1016,7 +1016,7 @@ static void render_frame11(void *arg)
 
 void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present)
 {
-    int want = f10_pressed();
+    int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)
@@ -1128,7 +1128,7 @@ static void render_frame10(void *arg)
 
 void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present)
 {
-    int want = f10_pressed();
+    int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)

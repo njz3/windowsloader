@@ -13,7 +13,7 @@
 
 // OpenGL games (Initial D 6 on a Sega RingEdge): each SwapBuffers counts a frame, takes the picture
 // the agent asked for from the back buffer, and puts the frames per second in the window's title.
-// The window stays as the game made it (no display modes yet, no F10 menu).
+// The window stays as the game made it (no display modes yet, no settings menu).
 // opengl32.dll is the game's: its functions are looked up once it is loaded.
 
 #include <windows.h>

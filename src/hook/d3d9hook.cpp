@@ -374,7 +374,7 @@ static int gdi_copy(IDirect3DDevice9 *dev)
 }
 
 // The frame out: by GDI into the window and the Present to the hidden window, or the game's
-// Present at the picture's place. The F10 menu presents through it too.
+// Present at the picture's place. The settings menu presents through it too.
 static HRESULT STDMETHODCALLTYPE present_out(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
 {
     if (wl_display_gdi())
@@ -408,7 +408,7 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     static ULONGLONG lastTick;
     if (dev != g_gameDev)
         return oPresent(dev, src, dst, wnd, dirty);
-    wl_menu_present(dev, present_out); // F10: the menu runs here until it is closed
+    wl_menu_present(dev, present_out); // Tab: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
     HRESULT hr = present_out(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty);

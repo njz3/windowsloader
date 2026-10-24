@@ -31,7 +31,7 @@
 //   get INPUT              "value RAW"
 //   ffb                    the force feedback since the last ffb: "ffb N", then N lines
 //                          "FRAME Steering constant FORCE", FORCE -1..1, > 0 pushing left
-//   menu [on|off]          open or close the F10 menu; "menu open" or "menu closed"
+//   menu [on|off]          open or close the settings menu; "menu open" or "menu closed"
 //   menu tab N             show its page N (0 game, 1 controls, 2 display, 3 force feedback, 4 about)
 //   menu save [game]       its button "Sauvegarder" (or "Sauvegarder pour ce jeu"): "ok MESSAGE" or
 //                          "err MESSAGE"
