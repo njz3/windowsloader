@@ -119,7 +119,7 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
             break;
         case 0x14: // features
             r[k++] = 0x01;
-            r[k++] = 0x01, r[k++] = (unsigned char)board->players, r[k++] = (unsigned char)(board->switchBytes * 8), r[k++] = 0;
+            r[k++] = 0x01, r[k++] = (unsigned char)board->players, r[k++] = (unsigned char)(board->switches ? board->switches : board->switchBytes * 8), r[k++] = 0;
             if (board->coinSlots)
                 r[k++] = 0x02, r[k++] = (unsigned char)board->coinSlots, r[k++] = 0, r[k++] = 0;
             if (board->analogChannels)

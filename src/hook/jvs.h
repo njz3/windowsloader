@@ -41,6 +41,7 @@ struct WlJvsBoard
     // request from the command on (n bytes left), it adds its reports to r and returns the bytes
     // the command takes, 0 when it is not one of its own. May be NULL.
     int (*vendor)(const unsigned char *p, int n, unsigned char *r, int *k);
+    int switches; // the switches per player announced, when not switchBytes * 8 (Let's Go Safari's 14)
 };
 
 void wl_jvs_register(const WlJvsBoard *board);

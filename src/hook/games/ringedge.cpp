@@ -32,6 +32,7 @@
 #include <wchar.h>
 
 #include "driveboard.h"
+#include "ffb.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
@@ -525,6 +526,45 @@ static WlInput g_kodInputs[KOD_COUNT] = {COMMON_INPUTS};
 
 static const int g_kodSwitches[][2] = {{IN_START, 9}, {IN_SERVICE, 14}};
 
+// Let's Go Safari (GameSampR_RingWide.exe, 2014): a jeep, its test mode (GameTestR_RingWide.exe)
+// shows the wheel (HANDLE), the four course buttons, a lever (up, down), firework, horn, wiper and
+// view change. The game wants the I/O board 837-14895 (6402 "JVS I/O board does not fulfill the
+// game spec" otherwise, +0x17100): one player, 14 switches, at least 16 outputs. Its test mode
+// reads three switch bytes: the course buttons byte 1 bits 7 to 4, view, wiper, horn and firework
+// bits 0 to 3; the lever byte 2 bits 2 (up) and 3 (down), the wheel's switches bits 6 (left) and
+// 7 (right). The wheel on channel 0
+enum
+{
+    LGS_COURSE1 = IN_COMMON,
+    LGS_COURSE2,
+    LGS_COURSE3,
+    LGS_COURSE4,
+    LGS_VIEW,
+    LGS_WIPER,
+    LGS_HORN,
+    LGS_FIREWORK,
+    LGS_LEVER_UP,
+    LGS_LEVER_DOWN,
+    LGS_COUNT
+};
+
+static WlInput g_lgsInputs[LGS_COUNT] = {
+    COMMON_INPUTS,
+    {"Course1", "Course1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course2", "Course2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course3", "Course3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course4", "Course4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ViewChange", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Wiper", "Wiper", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Horn", "Horn", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Firework", "Firework", WL_INPUT_SWITCH, 0, 1, 0},
+    {"LeverUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"LeverDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+};
+
+static const int g_lgsSwitches[][2] = {{IN_SERVICE, 14}, {LGS_COURSE1, 7}, {LGS_COURSE2, 6}, {LGS_COURSE3, 5}, {LGS_COURSE4, 4},
+                                       {LGS_VIEW, 0},    {LGS_WIPER, 1},   {LGS_HORN, 2},    {LGS_FIREWORK, 3}};
+
 static unsigned char pca9535_input(int port)
 {
     if (port == 0)
@@ -552,6 +592,131 @@ static WlInput g_ssrInputs[SSR_COUNT] = {
 
 static const int g_ssrSwitches[][2] = {{IN_START, 15}, {IN_SERVICE, 14}, {SSR_ITEM, 8}};
 
+// Sega Racing Classic (d1a.exe, 2009), as its test mode reads them (+0xdb690): player 1's byte 0
+// bit 7 Start, 6 Service, 5..2 the views VR SW1 to VR SW4; the 4-speed H shifter on player 2's
+// byte 0, bit 5 up, 4 down, 3 left: SHIFT1 left and up, SHIFT2 left and down, SHIFT3 up, SHIFT4
+// down. A real lever stays in its gear: the gear here is kept, chosen by Gear1..Gear4 or stepped
+// by GearUp / GearDown
+enum
+{
+    SRC_VIEW1 = IN_COMMON,
+    SRC_VIEW2,
+    SRC_VIEW3,
+    SRC_VIEW4,
+    SRC_GEAR1,
+    SRC_GEAR2,
+    SRC_GEAR3,
+    SRC_GEAR4,
+    SRC_GEAR_UP,
+    SRC_GEAR_DOWN,
+    SRC_COUNT
+};
+
+static WlInput g_srcInputs[SRC_COUNT] = {
+    COMMON_INPUTS,
+    {"View1", "View1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View2", "View2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View3", "View3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View4", "View4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"GearUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"GearDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+};
+
+static const int g_srcSwitches[][2] = {{IN_START, 15}, {IN_SERVICE, 14}, {SRC_VIEW1, 13},
+                                       {SRC_VIEW2, 12}, {SRC_VIEW3, 11}, {SRC_VIEW4, 10}};
+
+// The H shifter's gear (1..4), on player 2's switches
+static unsigned short src_shifter(void)
+{
+    static int gear = 1, was[6];
+    const WlInput *in = g_game->inputs;
+    for (int i = 0; i < 6; i++)
+    {
+        int now = wl_input_get(&in[SRC_GEAR1 + i]);
+        if (now && !was[i])
+        {
+            if (i < 4)
+                gear = i + 1;
+            else if (i == 4 && gear < 4)
+                gear++;
+            else if (i == 5 && gear > 1)
+                gear--;
+        }
+        was[i] = now;
+    }
+    // byte 0 in bits 15..8: up 0x2000, down 0x1000, left 0x0800
+    static const unsigned short bits[4] = {0x2800, 0x1800, 0x2000, 0x1000};
+    return bits[gear - 1];
+}
+
+// Sega Racing Classic's drive board: the game keeps its one-byte command, the Model 2 and 3
+// boards', in its data (VA 0x834C19, as FFBArcadePlugin's SegaRacingClassic.cpp reads it; the
+// executable has a fixed base); nothing sends it out here. The high nibble the effect, the low its
+// step (0 the strongest, 7 the weakest): 9x roll right, Ax roll left, Bx uncentering (a shake),
+// Cx centering (a spring), Dx clutch (a friction). Played as the constant force ffb.cpp takes,
+// from the wheel's position: > 0 pushes left.
+#define SRC_DRIVE_COMMAND 0x834C19
+
+static void src_drive_board(int steering)
+{
+    static int last = 128, logged;
+    static unsigned char was;
+    static DWORD start;
+    unsigned char c = *(volatile unsigned char *)SRC_DRIVE_COMMAND;
+    if (c != was && logged < 300)
+    {
+        logged++;
+        wl_log("driveboard: command %02x", c);
+    }
+    was = c;
+    double at = (steering - 128) / 128.0, speed = (steering - last) / 16.0; // > 0 turned / turning right
+    last = steering;
+    double step = (8 - (c & 0x0F)) / 8.0, force = 0;
+    if ((c & 0x0F) > 7)
+        step = 0;
+    switch (c >> 4)
+    {
+    case 0x9:
+        force = -step; // roll right
+        break;
+    case 0xA:
+        force = step; // roll left
+        break;
+    case 0xB:
+    {
+        if (!start)
+            start = GetTickCount();
+        double t = (GetTickCount() - start) / 1000.0;
+        force = step * 0.5 * (((int)(t * 20) & 1) ? 1 : -1); // a 10 Hz shake
+        break;
+    }
+    case 0xC:
+        force = step * at; // back to the centre
+        break;
+    case 0xD:
+        force = step * (speed > 1 ? 1 : speed < -1 ? -1 : speed); // against the wheel's motion
+        break;
+    }
+    wl_ffb_set(force);
+}
+
+// Let's Go Safari's outputs (its output test): byte 0 bit 7 the coin blocker (set: off), 2 the
+// vibration, 1 and 0 the course 1 and 2 lamps; byte 1 bits 7 to 2 the course 3 and 4, firework,
+// horn, wiper and view change lamps. The vibration stays on while the jeep drives.
+static volatile int g_lgsVibration;
+
+static void lgs_output(const unsigned char *data, int length)
+{
+    int on = length > 0 && (data[0] & 0x04);
+    if (on != g_lgsVibration)
+        wl_log("outputs: vibration %s", on ? "on" : "off");
+    g_lgsVibration = on;
+}
+
 static void jvs_state(WlJvsState *s)
 {
     WlInput *in = g_game->inputs;
@@ -566,10 +731,29 @@ static void jvs_state(WlJvsState *s)
     for (int i = 0; i < g_game->switchCount; i++)
         if (wl_input_get(&in[g_game->switches[i][0]]))
             s->player[0] |= (unsigned short)(1u << g_game->switches[i][1]);
+    if (g_game->inputs == g_srcInputs)
+        s->player[1] |= src_shifter();
     s->coins[0] = coins;
     int steering;
     if (!wl_driveboard_free_wheel(&steering))
         steering = wl_input_get(&in[IN_STEERING]);
+    if (g_game->inputs == g_lgsInputs)
+    {
+        if (wl_input_get(&in[LGS_LEVER_UP]))
+            s->player3[0] |= 0x04;
+        if (wl_input_get(&in[LGS_LEVER_DOWN]))
+            s->player3[0] |= 0x08;
+        // The wheel's switches, HANDLE L and R in its test mode: the game reads no analog channel,
+        // the wheel turned a quarter of the way closes one
+        if (steering <= 96)
+            s->player3[0] |= 0x40;
+        if (steering >= 160)
+            s->player3[0] |= 0x80;
+        // The vibration, played as a light shake at 10 Hz
+        wl_ffb_set(g_lgsVibration ? (((GetTickCount() / 50) & 1) ? 0.25 : -0.25) : 0);
+    }
+    if (g_game->inputs == g_srcInputs)
+        src_drive_board(steering);
     s->analog[0] = (unsigned short)(steering << 8);
     s->analog[1] = (unsigned short)(wl_input_get(&in[IN_GAS]) << 8);
     s->analog[2] = (unsigned short)(wl_input_get(&in[IN_BRAKE]) << 8);
@@ -800,6 +984,22 @@ static void use_toolmode(void)
     WideCharToMultiByte(CP_ACP, 0, g_game->table, -1, table, sizeof table, NULL, NULL);
     unsigned char *path = image_find(base, end, table, strlen(table) + 1);
     unsigned char *word = image_find(base, end, "toolmode", 9);
+    // Let's Go Safari builds the path, sprintf(path, "%s\\%s_Table.dat", folder, gameid): the
+    // format pushed is replaced by that word, which the call then copies as the path
+    static const char format[] = "%s\\%s_Table.dat";
+    unsigned char *fmt = path ? NULL : image_find(base, end, format, sizeof format);
+    if (fmt && word)
+    {
+        unsigned char push[5] = {0x68};
+        DWORD fmtVa = (DWORD)(ULONG_PTR)fmt, wordVa = (DWORD)(ULONG_PTR)word;
+        memcpy(push + 1, &fmtVa, 4);
+        unsigned char *at = image_find(base, end, push, 5);
+        if (at)
+        {
+            wl_patch_code(at + 1, &fmtVa, &wordVa, 4, "the keychip's table replaced by its toolmode");
+            return;
+        }
+    }
     if (!path || !word)
     {
         wl_log("keychip: no table, and the game has not the toolmode way: it will stop on error 0949");
@@ -831,11 +1031,24 @@ static const WlGameOption g_creditOptions[] = {
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
      L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
+    // Initial D 7 and 8: the same cabinet as 6; the decrypted executables first (dumped)
+    {{L"InitialD7_GLW_RE_SBYD_dumped_.exe", L"InitialD7_GLW_RE_SBYD.exe"}, NULL, L"SBYD_Table.dat", "initiald7", "Initial D Arcade Stage 7 AAX",
+     "SBYD", L"SBYD_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL,
+     0},
+    {{L"InitialD8_GLW_RE_SBZZ_dumped_.exe", L"InitialD8_GLW_RE_SBZZ_redumped_.exe", L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe"}, NULL,
+     L"SBZZ_Table.dat", "initiald8", "Initial D Arcade Stage 8 Infinity", "SBZZ", L"SBZZ_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL,
+     g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
     {{L"M-DriveR_RingWide.exe", L"M-DriveR_RingWide 1080P.exe", L"M-DriveR_RingWide original.exe"}, L"TestMode.exe", NULL, "kodrive", "K.O. Drive",
      "SBXA", L"..\\fs\\table\\SBXA_Table.dat", "AAM", "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_kodInputs, KOD_COUNT,
      g_kodSwitches, COUNT(g_kodSwitches), 1, 0, NULL, 0},
     {{L"game.exe"}, L"gametest.exe", L"SBVH_Table.dat", "ssasr", "Sonic & Sega All-Stars Racing", "SBVH", L"SBVH_Table.dat", "AAM",
      "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_ssrInputs, SSR_COUNT, g_ssrSwitches, COUNT(g_ssrSwitches), 1, 1, "Y:", 1},
+    // Its test mode is the same program with -t
+    {{L"d1a.exe"}, NULL, L"rom\\SBTN_Table.dat", "src", "Sega Racing Classic", "SBTN", L"rom\\SBTN_Table.dat", "AAL", "NEC",
+     "RingEdge", 0x100, "COM4", NULL, g_srcInputs, SRC_COUNT, g_srcSwitches, COUNT(g_srcSwitches), 0, 0, NULL, 0},
+    // No keychip table in its copies: the toolmode (use_toolmode)
+    {{L"GameSampR_RingWide.exe"}, L"GameTestR_RingWide.exe", NULL, "lgs", "Let's Go Safari", "SDAX", L"SDAX_Table.dat", "AAM",
+     "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_lgsInputs, LGS_COUNT, g_lgsSwitches, COUNT(g_lgsSwitches), 0, 0, NULL, 0},
 };
 
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title)
@@ -862,9 +1075,12 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     *title = g_game->title;
     wl_log("game: %s (Sega %s)", *title, g_game->board);
     static char controls[96];
-    snprintf(controls, sizeof controls, "Controls on JVS board, Sega 837-14572, JVS 3.0 (%s)",
+    int lgs = g_game->inputs == g_lgsInputs;
+    snprintf(controls, sizeof controls, "Controls on JVS board, Sega %s, JVS 3.0 (%s)", lgs ? "837-14895" : "837-14572",
              !strcmp(g_game->jvsPort, "\\\\.\\mxjvs") ? "mxjvs driver" : g_game->jvsPort);
-    wl_game_set_boards(controls, "Motor board: Sega-like servoboard (COM1)");
+    wl_game_set_boards(controls, g_game->inputs == g_srcInputs ? "Motor board: Sega drive board, Model 2/3 commands (read in the game's data)"
+                                 : lgs                         ? "Motor board: none, the JVS board's vibration output played as a shake"
+                                                               : "Motor board: Sega-like servoboard (COM1)");
     if (g_game->freePlayOption)
         wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));
 
@@ -886,6 +1102,15 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     build_bios();
     wl_inputs_set_table(g_game->inputs, g_game->inputCount);
     g_jvs.port = g_game->jvsPort;
+    if (lgs)
+    {
+        // Its board, 837-14895 in its "FE MODE" (the identity TeknoParrot gives it)
+        g_jvs.id = "SEGA CORPORATION;I/O BD JVS;837-14895;1;1;FE MODE;2005/10";
+        g_jvs.players = 1;
+        g_jvs.switches = 14;
+        g_jvs.outputs = 16;
+        g_jvs.output = lgs_output;
+    }
     wl_jvs_register(&g_jvs);
     if (g_game->jvsPort2)
         wl_jvs_add_port(g_game->jvsPort2);
@@ -897,9 +1122,10 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     wl_vdev_register(&g_smbus);
     wl_vdev_interface(&g_smbusInterface, g_smbus.name);
     wl_vdev_register(&g_columba);
-    static const unsigned short ports[] = {40100, 40102, 40104, 40106, 40108, 40110};
-    static const char *names[] = {"40100", "40102", "40104", "40106", "40108", "40110"};
-    for (int i = 0; i < 6; i++)
+    // 40114: Let's Go Safari asks it six times, 12 s each, before its test mode starts
+    static const unsigned short ports[] = {40100, 40102, 40104, 40106, 40108, 40110, 40112, 40114};
+    static const char *names[] = {"40100", "40102", "40104", "40106", "40108", "40110", "40112", "40114"};
+    for (int i = 0; i < 8; i++)
         wl_pcp_serve(ports[i], names[i], pcp_answer);
     return 1;
 }
