@@ -35,6 +35,10 @@ dans NOTES.md, « Jeux des bornes »).
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
+| Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
+| Wacky Races (Taito Type X2) | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ |
+| Let's Go Safari (RingWide) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 
 Fonctions :
 
@@ -279,6 +283,111 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
 - Menu de service ✅ : `gametest.exe` : GAME TEST MENU, test d'entrées, réglages du jeu, comptabilité,
   navigation par les boutons Test et Service de la carte.
 
+## Sega Racing Classic (Sega RingEdge, 2009)
+
+`d1a.exe` (`d1a.exe -t` : le menu de service), x86, Direct3D 9, 1280×720. Sur les bornes dans `C:\Sega Racing
+Classic`, hors du dossier des jeux. Dans la table RingEdge / RingWide de `ringedge.cpp` (gameid SBTN, la clé par
+`rom\SBTN_Table.dat`). Copie locale le 24/10 depuis racecab2 (0,67 Go) ; le crochet `dinput8.dll` de
+TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin FFB, OutputBlaster, SDL2 et
+`teknoparrot.ini` mis de côté. Sous TeknoParrot, sur les bornes, le jeu ne se lançait plus.
+
+- Lancement ✅ : JVS sur COM4, « SYSTEM STARTUP », initialisation de la carte moteur, logo Sega, démo.
+- Commandes ✅ : vues dans son test d'entrées (INPUT TEST) et lues dans le code (+0xdb690) :
+  - joueur 1, octet 0 : bit 7 START, 6 SERVICE, 5 à 2 les vues VR SW1 à VR SW4 ;
+  - le levier en H à 4 rapports sur le joueur 2, octet 0 : bit 5 haut, 4 bas, 3 gauche ; SHIFT1 gauche et haut,
+    SHIFT2 gauche et bas, SHIFT3 haut, SHIFT4 bas. Un vrai levier reste en place : le rapport est tenu par
+    windowsloader, choisi par `Gear1` à `Gear4` ou passé par `GearUp` / `GearDown` ;
+  - volant (00H à gauche), accélérateur, frein ; partie : pièces, choix du circuit et de la boîte (automatique
+    ou manuelle 4) à l'accélérateur (« STEP TO CHOOSE »), course.
+- Retour de force ⚠️ : la carte moteur des Model 2 et 3, une commande d'un octet que le jeu garde dans ses
+  données (VA 0x834C19, l'adresse que lit FFBArcadePlugin) et n'envoie nulle part ici (ni JVS, ni port série,
+  ni E/S). Lue à chaque échange JVS et jouée en force constante d'après la position du volant : 9x roulis à
+  droite, Ax à gauche, Bx secousse, Cx ressort de centrage, Dx frottement (le chiffre bas, 0 le plus fort).
+  En course : centrage C4, volant à 60 % à gauche → −0,30 (vers la droite), à droite → +0,30.
+- Menu Tab ✅ : la vraie touche Tab, la fenêtre au premier plan : ouvert, puis refermé.
+- Menu de service ✅ : `d1a.exe -t` : GAME TEST MODE, comptabilité, test d'entrées, navigation par Service et
+  Test. Au démarrage du menu, un premier appui sur Service peut se perdre.
+- vJoy ✅ : course avec les manettes ouvertes (vJoy en joueur 1), retour de force sur le joueur 1 (accord de
+  linuxloader).
+
+## Storm Racer G (Sega, « Arcade PC Based »)
+
+`bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
+Toute la borne passe par deux DLL que le jeu importe : `usb_io.dll` (une carte USB EasyUSB214x) et `usb_cam.dll` (la
+caméra des photos de joueurs). Leurs fonctions sont remplacées dans la table d'import, la carte n'est jamais ouverte.
+Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `teknoparrot.ini` mis de côté
+(`bin\_teknoparrot_off`).
+
+- Lancement ✅ : titre, démo. Le jeu est relogeable : les adresses sont relatives à sa base. Corrections :
+  - l'anticrénelage (MSAA) coupé (+0xA7412, +0xA7448) ;
+  - la fonction du tableau de bord des points de passage (+0x1BB20) sautée quand ses textures manquent (plantage
+    sinon) ;
+  - `NetDbSync.dll` (classement en ligne) répond « hors ligne » ;
+  - les `printf` de la console vont au journal, et `_getch` répond « c ».
+- Commandes ⚠️ : vérifiés jusqu'en course (pièce, Start, menus, l'étape photo sans caméra, course) :
+  - volant (centre 0x80), accélérateur, frein, levier de boost ;
+  - pièce, par le compteur de la carte ;
+  - Start, au bit 2 du second mot.
+
+  Les autres boutons gardent des noms provisoires (`Button1` à `Button200`), à identifier dans le menu de test du jeu.
+- Retour de force ⚠️ : le moteur est un servo de position (`SetSteeringStatu` : force, fenêtre 0..255, mode). Il est
+  joué en ressort vers le milieu de la fenêtre, et coupé quand la puissance du moteur est à 0. En course : volant à
+  gauche → −0,155, à droite → +0,19.
+- Affichage ⚠️ : les vidéos (WMV3 dans des AVI) restent noires, faute du décodeur Vidéo pour Windows `wmv9vcm`.
+  Il n'est pas installé ici, et l'installer serait un téléchargement à décider. Des images noires sont servies à la
+  place.
+- Menu Tab ✅ (mode agent). À voir : le menu de service, l'étalonnage du volant, vJoy.
+
+## Wacky Races (Taito Type X2)
+
+`Launcher.exe`, avec `wr.ini` à côté (copie `games\wacky`), x86, Direct3D 9, 1920×1080 d'après `wr.ini`. Dans
+`taito.cpp`, reconnu par `launcher.exe` + `wr.ini`. Le `d3d9.dll` et le dossier `OpenParrot`, le plugin FFB et
+`teknoparrot.ini` mis de côté (`_teknoparrot_off`).
+
+- Lancement ✅ : JVS sur COM2. `LINKID` (le numéro de la borne en réseau) manque dans `wr.ini` : il vaut 0 par
+  défaut, par un crochet sur la lecture des réglages (+0x3390), sans toucher au fichier.
+- Commandes ✅ : d'après son I/O CHECK :
+  - START bit 2, VIEW bit 3 (le SELECT du menu de test), SERVICE bit 14 ;
+  - le levier de la machine à sous (`Lever`, l'objet) bit 12 ;
+  - comme Chase H.Q. 2, le volant sur la voie 2, l'accélérateur et le frein sur 3 et 4.
+
+  Partie jouée : choix de la voiture et du circuit, course.
+- Retour de force ⚠️ : le moteur passe par les sorties générales de la carte JVS (couple 0..15 et sens, le décodeur
+  de Chase H.Q. 2). En course : volant à gauche → −0,93, à droite → +0,93.
+- Affichage ⚠️ : la course remplit l'image. Les fonds des écrans 2D (titre, choix de la voiture et du circuit) sont
+  des images de 800×600, dessinées à leur taille en haut à gauche, quelle que soit la résolution de `wr.ini` :
+  1360×768 donne la même chose, et 800×600 les remplit, mais en 4:3.
+- Menu de service ✅ (I/O CHECK). Le jeu affiche « STEERING HAS NOT CALIBRATED » : l'étalonnage du volant dans son
+  menu de test reste à faire.
+- Menu Tab ✅ (mode agent). À voir : vJoy, les pièces (le jeu est en FREE PLAY).
+
+## Let's Go Safari (Sega RingWide, 2014)
+
+`GameSampR_RingWide.exe` (copie `games\lgs`), x86, Direct3D 9, 1280×720. Son menu de service est un programme à part,
+`GameTestR_RingWide.exe`, lui aussi lancé par windowsloader. Dans la table RingEdge / RingWide de `ringedge.cpp`
+(gameid SDAX). `teknoparrot.ini` mis de côté.
+
+- Lancement ✅ :
+  - les copies n'ont pas de table de clé (`SDAX_Table.dat`). Le jeu construit son chemin (`%s\%s_Table.dat`) : ce
+    format est remplacé par le mot « toolmode », la voie de Sega pour tourner sans table (comme K.O. Drive) ;
+  - le service PCP du port 40114 (l'état des stockages) est servi ; sans lui, le démarrage attend une minute ;
+  - la carte JVS doit être une 837-14895 en « FE MODE » (l'identité que lui donne TeknoParrot), avec un joueur,
+    14 boutons et au moins 16 sorties. Sinon : erreur 6402 « JVS I/O board does not fulfill the game spec »
+    (+0x17100).
+- Commandes ✅ : vues dans son INPUT TEST. Le jeu lit trois octets de boutons :
+  - octet 1, bits 7 à 4 : les boutons de parcours 1 à 4 (`Course1` à `Course4`) ;
+  - octet 1, bits 0 à 3 : vue, essuie-glace, klaxon, feu d'artifice ;
+  - octet 2, bits 2 et 3 : le levier (haut, bas) ; bits 6 et 7 : les contacts du volant (HANDLE L, R).
+
+  Le jeu ne lit aucune voie analogique : le volant tourné d'un quart ferme un contact. Partie jouée : pièce, choix du
+  parcours, conduite, quiz, zone suivante.
+- Retour de force ⚠️ : pas de moteur. La sortie VIBRATION de la carte (octet 0 bit 2, allumée pendant la conduite)
+  est jouée en secousse légère à 10 Hz. Les autres sorties (son OUTPUT TEST) : le bloqueur de pièces et les lampes
+  des boutons.
+- Menu de service ✅ : GAME TEST MENU, INPUT TEST, OUTPUT TEST, navigation par Service et Test (le curseur part de
+  EXIT).
+- Menu Tab ✅ (mode agent). À voir : vJoy.
+
 ## Battle Gear 4 Tuned (Taito Type X+, 2006)
 
 `game.exe _MTS_FULL_SCREEN_` (la ligne de la borne), x86, Direct3D 9 (moteur RenderWare), 800×600. Nouveau
@@ -496,12 +605,16 @@ du volant ; chaque module le déclare (`wl_game_set_boards`) :
 | Daytona Championship USA, GRID, DiRT Showdown | DirectInput « SEGA IO Controller » | pilote sur port parallèle (Sega PC) |
 | Ford Racing Full Blown | USB HID, Happ UGCI | pilote sur port parallèle (Sega PC) |
 | Initial D 6 AA, K.O. Drive, Sonic & Sega All-Stars Racing | JVS, Sega 837-14572 | « Sega-like servoboard » sur COM1 |
+| Sega Racing Classic | JVS, Sega 837-14572 | carte moteur Model 2/3, sa commande lue dans les données du jeu |
+| Let's Go Safari | JVS, Sega 837-14895 (« FE MODE ») | aucune : la sortie « vibration » de la carte JVS, jouée en secousse |
 | Battle Gear 4 | JVS (identité Sega 837-14572), une seconde carte sur la borne Pro | volant Taito, protocole Battle Gear, COM1 |
 | Chase H.Q. 2 | JVS | sorties de la carte JVS |
 | GTI Club 3 | ACIO de Konami « HBHI » | ACIO « HBHI » |
 | Mario Kart Arcade GP DX | JVS, Namco NA-JV | carte moteur Namco, COM1 |
 | Wasteland Racers 2071 | SDC2 de Trio Tech | SDC2 (servo en position) |
 | Crazy Ride | E/S UNIS | volant UNIS |
+| Storm Racer G | carte USB, par `usb_io.dll` | la même carte (servo de position : force et fenêtre) |
+| Wacky Races | JVS (identité Sega 837-14572), COM2 | sorties de la carte JVS (couple 0..15, sens) |
 
 ## Options propres à chaque jeu (menu Tab, « Options du jeu »)
 
