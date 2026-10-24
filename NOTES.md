@@ -87,6 +87,7 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 76 | 24/10 | Continue avec SWDC | 🔄 3003 passée (le tableau de bord sur COM20) ; puis 8404 « serveur d'installation LAN introuvable » : la borne est la principale (`config_LanServer.json`, `Y:\SDDS\LanServer.dat`), et amdaemon veut le fichier `ICF1`, absent de la copie |
 | 77 | 24/10 | Passe la touche d'ouverture du menu paramètres à 'Tab' au lieu de F10, afin de rester homogène avec linuxloader et Supermodel | ✅ Tab ouvre et ferme le menu (pas Alt+Tab) ; Tab ne se capture plus comme commande, F10 si ; README, BILAN, commentaires. Pas essayé en jeu : l'écran du PC est déconnecté |
 | 78 | 24/10 | Fais un build et une archive release que tu mettras à côté des autres releases des autres émulateurs, puis reprends ton travail sur SWDC | ✅ `releases\windowsloader-0.1.0-20261024-njz3-windows.zip` (32 et 64 bits, RELEASE.txt : jeux, ligne de commande, SHA-256), les réponses à Image borne ; 🔄 SWDC |
+| 79 | 24/10 | Commit et pousse. Refais une release | ✅ 6 commits poussés (`f5c5104` et suivants : Mario Kart DX 1.10, touche Tab, SWDC en cours, docs, NOTES.md) ; release `windowsloader-0.1.0-20261024-2-njz3-windows.zip` tirée du commit poussé |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
