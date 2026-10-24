@@ -54,7 +54,8 @@ enum
     IN_SHIFT_NITRO,
     IN_CLUTCH, // Battle Gear 4 Pro's
     IN_GEAR1,  // Battle Gear 4 Pro's H shifter, 1 to 6
-    IN_COUNT = IN_GEAR1 + 6
+    IN_LEVER = IN_GEAR1 + 6, // Wacky Races' slot lever
+    IN_COUNT
 };
 
 static WlInput g_inputs[IN_COUNT] = {
@@ -80,6 +81,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Lever", "Item", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 enum
@@ -90,6 +92,7 @@ enum
 static int g_bg4; // the edition, 0 for Chase H.Q. 2 and D1GP
 static int g_d1gp;
 static int g_vlimitr;
+static int g_wacky;
 static void bg4_tick(void);
 static int g_pro;            // Battle Gear 4 Pro's cabinet ([Game] CABINET = PRO)
 static unsigned char g_lever; // its second board's inputs: the H shifter's columns
@@ -178,6 +181,20 @@ static void jvs_state(WlJvsState *s)
         s->analog[1] = (unsigned short)(wl_input_get(&g_inputs[IN_GAS]) << 8);
         s->analog[2] = (unsigned short)(wl_input_get(&g_inputs[IN_BRAKE]) << 8);
         s->analog[3] = s->analog[4] = 0;
+        return;
+    }
+    if (g_wacky)
+    {
+        // Wacky Races (its I/O check): START bit 2, VIEW 3 (the test menu's SELECT), the slot
+        // LEVER 12, SERVICE 14 (above); as Chase H.Q. 2, the wheel on channel 2, the accelerator
+        // and the brake on 3 and 4 (above)
+        if (wl_input_get(&g_inputs[IN_START]))
+            s->player[0] |= 1u << 2;
+        if (wl_input_get(&g_inputs[IN_VIEW]))
+            s->player[0] |= 1u << 3;
+        if (wl_input_get(&g_inputs[IN_LEVER]))
+            s->player[0] |= 1u << 12;
+        s->analog[2] = (unsigned short)(wl_input_get(&g_inputs[IN_STEERING]) << 8);
         return;
     }
     // Chase H.Q. 2: Start bit 3, the steering on channel 2, the two-position lever held where it
@@ -613,6 +630,20 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
+// Wacky Races' settings from wr.ini, by name (a number): LINKID, the cabinet's network ID less one,
+// is 0 when the file has none
+static int(__cdecl *oWackySetting)(const char *name, int *value);
+static int __cdecl wacky_setting(const char *name, int *value)
+{
+    int found = oWackySetting(name, value);
+    if (!found && !strcmp(name, "LINKID"))
+    {
+        *value = 0;
+        return 1;
+    }
+    return found;
+}
+
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -623,7 +654,8 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     int chq2 = !_wcsicmp(base, L"game.exe") && exists(dir, L"chq2.ini");
     int d1gp = !bg4 && !_wcsicmp(base, L"game.exe") && exists(dir, L"IFC23.dll") && exists(dir, L"game.inf");
     int vlimitr = !_wcsicmp(base, L"launcher.exe") && exists(dir, L"game.inf") && exists(dir, L"data\\bin2");
-    if (!bg4 && !chq2 && !d1gp && !vlimitr)
+    int wacky = !_wcsicmp(base, L"launcher.exe") && exists(dir, L"wr.ini");
+    if (!bg4 && !chq2 && !d1gp && !vlimitr && !wacky)
         return 0;
     // Battle Gear 4's two editions, told apart by their exe's time stamp: Tuned (2007, v2.08, its
     // Pro cabinet included) and the first one (2006, OpenParrot's "BG4_Eng"); anything else is
@@ -639,8 +671,13 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
             return 0;
         }
     }
-    *name = bg4 == BG4_TUNED ? "bg4" : bg4 ? "bg4eng" : d1gp ? "d1gp" : vlimitr ? "vlimitr" : "chasehq2";
-    *title = bg4 == BG4_TUNED ? "Battle Gear 4 Tuned" : bg4 ? "Battle Gear 4" : d1gp ? "D1GP Arcade" : vlimitr ? "Valve Limit R" : "Chase H.Q. 2";
+    *name = bg4 == BG4_TUNED ? "bg4" : bg4 ? "bg4eng" : d1gp ? "d1gp" : vlimitr ? "vlimitr" : wacky ? "wacky" : "chasehq2";
+    *title = bg4 == BG4_TUNED ? "Battle Gear 4 Tuned"
+             : bg4            ? "Battle Gear 4"
+             : d1gp           ? "D1GP Arcade"
+             : vlimitr        ? "Valve Limit R"
+             : wacky          ? "Wacky Races"
+                              : "Chase H.Q. 2";
     wl_log("game: %s (Taito Type X%s)", *title, bg4 ? "+" : vlimitr ? "" : "2");
     if (bg4 == BG4_TUNED)
         wl_game_set_boards("Controls on JVS board, answered as Sega 837-14572, JVS 3.0 (COM2); a second JVS board on the Pro cabinet "
@@ -685,6 +722,18 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     {
         wl_vdinput_register(&g_d1gpWheel);
         g_d1gp = 1;
+        return 1;
+    }
+    if (wacky)
+    {
+        // The cabinets are linked by DirectPlay: network ID 1 (LINKID 0) hosts the race, the
+        // others connect to it (192.168.66.110) and wait there, the game stuck at its second frame.
+        // Alone, it is the host, unless wr.ini says otherwise
+        static const unsigned char lookupWas[8] = {0x53, 0x8B, 0x5C, 0x24, 0x0C, 0x55, 0x8B, 0x6C};
+        void *lookup = (void *)0x403390;
+        if (!memcmp(lookup, lookupWas, sizeof lookupWas))
+            wl_hook_code(lookup, (void *)wacky_setting, (void **)&oWackySetting, "wr.ini's settings (Launcher.exe+0x3390): LINKID 0 by default");
+        g_wacky = 1;
         return 1;
     }
     if (vlimitr)
