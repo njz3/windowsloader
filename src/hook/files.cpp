@@ -428,6 +428,8 @@ static BOOL WINAPI hWriteFile(HANDLE h, LPCVOID buf, DWORD size, LPDWORD written
             *written = size;
         return TRUE;
     }
+    if (!nested && wl_vhid_is_handle(h))
+        return wl_vhid_write(h, buf, size, written, ov);
     int emulated = !nested && wl_vdev_of(h);
     wl_busy_enter();
     BOOL ok = emulated ? wl_vdev_write(h, buf, size, written, ov) : oWriteFile(h, buf, size, written, ov);
@@ -600,6 +602,24 @@ static BOOL WINAPI hCreateDirectoryW(LPCWSTR path, LPSECURITY_ATTRIBUTES sa)
     }
     SetLastError(err);
     return ok;
+}
+
+// The shell's, a path and all its folders: shell32 calls CreateDirectoryW itself, as a system
+// caller, so the path is redirected here (an ALLS's amdaemon makes Y:\SDDS so)
+static int(WINAPI *oSHCreateDirectoryExW)(HWND, LPCWSTR, const SECURITY_ATTRIBUTES *);
+static int WINAPI hSHCreateDirectoryExW(HWND wnd, LPCWSTR path, const SECURITY_ATTRIBUTES *sa)
+{
+    int nested = wl_busy();
+    wchar_t rbuf[MAX_PATH * 2];
+    if (!nested)
+        path = redirW(path, rbuf, MAX_PATH * 2);
+    int r = oSHCreateDirectoryExW(wnd, path, sa);
+    if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
+    {
+        char p[MAX_PATH * 2];
+        wl_log("SHCreateDirectoryEx \"%s\" -> %d", wl_u8(path, p, sizeof p), r);
+    }
+    return r;
 }
 
 // ------------------------------------------------------------------------------
@@ -871,6 +891,7 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", FindFirstFileW),
     WL_HOOK(L"kernel32.dll", CreateDirectoryA),
     WL_HOOK(L"kernel32.dll", CreateDirectoryW),
+    WL_HOOK(L"shell32.dll", SHCreateDirectoryExW),
     WL_HOOK(L"kernel32.dll", GetPrivateProfileStringA),
     WL_HOOK(L"kernel32.dll", GetPrivateProfileStringW),
     WL_HOOK(L"kernel32.dll", GetPrivateProfileIntA),

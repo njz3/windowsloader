@@ -440,6 +440,55 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
     return 1;
 }
 
+// A program the game needs beside it, started first under windowsloader too: an ALLS's
+// amdaemon.exe, the platform's service, which the cabinet's script (App\Todoroki\StartApp.bat)
+// starts from App\Todoroki 5 s before the game (Sega World Drivers Championship), with the main
+// cabinet's settings (config_LanServer.json, the LAN install server; the script's choice when
+// Y:\SDDS\LanServer.dat is there). The folders are the game's folder's parents.
+static const struct
+{
+    const wchar_t *game;    // the game's file name
+    int up;                 // its folder's parents up to the companion's folder (its working folder)
+    const wchar_t *exe;     // from there
+    const wchar_t *args;
+    DWORD waitMs;           // before the game starts
+} g_companions[] = {
+    {L"Todoroki-Win64-Shipping.exe", 4, L"WindowsNoEditor\\AMDaemon\\amdaemon.exe",
+     L"-c WindowsNoEditor\\AMDaemon\\config.json -c WindowsNoEditor\\AMDaemon\\config_LanServer.json -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
+     5000},
+};
+
+static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t *exe, wchar_t *dir, wchar_t *cmd, DWORD *waitMs)
+{
+    const wchar_t *base = wcsrchr(gamePath, L'\\');
+    base = base ? base + 1 : gamePath;
+    for (int i = 0; i < (int)(sizeof g_companions / sizeof g_companions[0]); i++)
+    {
+        if (_wcsicmp(base, g_companions[i].game))
+            continue;
+        wcsncpy_s(dir, MAX_PATH, gameDir, _TRUNCATE);
+        for (int k = 0; k < g_companions[i].up; k++)
+            parent_dir(dir);
+        swprintf(exe, MAX_PATH, L"%s\\%s", dir, g_companions[i].exe);
+        if (GetFileAttributesW(exe) == INVALID_FILE_ATTRIBUTES)
+            return 0;
+        cmd[0] = 0;
+        append_arg(cmd, CMDLINE_MAX, exe);
+        size_t n = wcslen(cmd);
+        swprintf(cmd + n, CMDLINE_MAX - n, L" %s", g_companions[i].args);
+        // WINDOWSLOADER_COMPANION_ARGS: more of them, for tests (another amdaemon config)
+        wchar_t more[1024];
+        if (GetEnvironmentVariableW(L"WINDOWSLOADER_COMPANION_ARGS", more, 1024) && more[0])
+        {
+            n = wcslen(cmd);
+            swprintf(cmd + n, CMDLINE_MAX - n, L" %s", more);
+        }
+        *waitMs = g_companions[i].waitMs;
+        return 1;
+    }
+    return 0;
+}
+
 // Copies what the DLL appended to the log since the last call to our console
 static void echo_log(HANDLE *log, const wchar_t *path)
 {
@@ -644,23 +693,92 @@ int wmain(int argc, wchar_t **argv)
     say("windowsloader " WL_VERSION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");
 
-    STARTUPINFOW si = {sizeof si};
-    PROCESS_INFORMATION pi;
-    if (!CreateProcessW(gamePath, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, gameDir, &si, &pi))
-    {
-        say_error("CreateProcess");
-        return 1;
-    }
-
     // Closing the launcher (Ctrl+C, agent stop) takes the game and its children down with it
     HANDLE job = CreateJobObjectW(NULL, NULL);
     if (job)
     {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION li = {0};
         li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &li, sizeof li) || !AssignProcessToJobObject(job, pi.hProcess))
-            say_error("putting the game in a job object (it will survive the launcher)");
+        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &li, sizeof li))
+        {
+            CloseHandle(job);
+            job = NULL;
+        }
     }
+
+    // The companion first (companion_of): its own log, neither controllers nor agent (the game's)
+    PROCESS_INFORMATION cpi = {0};
+    wchar_t compExe[MAX_PATH], compDir[MAX_PATH], compLog[MAX_PATH];
+    static wchar_t compCmd[CMDLINE_MAX];
+    DWORD compWait = 0;
+    if (companion_of(gamePath, gameDir, compExe, compDir, compCmd, &compWait))
+    {
+        wcsncpy_s(compLog, MAX_PATH, logPath, _TRUNCATE); // game.log: game-companion.log
+        wchar_t *dot = wcsrchr(compLog, L'.'), *slash = wcsrchr(compLog, L'\\');
+        if (dot && (!slash || dot > slash))
+            *dot = 0;
+        wcscat_s(compLog, MAX_PATH, L"-companion.log");
+        SetEnvironmentVariableW(WL_ENV_LOG, compLog);
+        SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
+        SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);
+        // Its console output to NUL, without a window: ours is the agent's protocol in agent
+        // mode (amdaemon prints its version). NUL is the only handle it inherits.
+        SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
+        HANDLE nul = CreateFileW(L"NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+        SIZE_T attrSize = 0;
+        InitializeProcThreadAttributeList(NULL, 1, 0, &attrSize);
+        LPPROC_THREAD_ATTRIBUTE_LIST attrs = (LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(), 0, attrSize);
+        STARTUPINFOEXW csi = {{sizeof csi}};
+        csi.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+        csi.StartupInfo.hStdInput = csi.StartupInfo.hStdOutput = csi.StartupInfo.hStdError = nul;
+        int listed = attrs && InitializeProcThreadAttributeList(attrs, 1, 0, &attrSize) &&
+                     UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &nul, sizeof nul, NULL, NULL);
+        csi.lpAttributeList = listed ? attrs : NULL;
+        BOOL created = nul != INVALID_HANDLE_VALUE && listed &&
+                       CreateProcessW(compExe, compCmd, NULL, NULL, TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, NULL,
+                                      compDir, &csi.StartupInfo, &cpi);
+        if (listed)
+            DeleteProcThreadAttributeList(attrs);
+        if (attrs)
+            HeapFree(GetProcessHeap(), 0, attrs);
+        if (nul != INVALID_HANDLE_VALUE)
+            CloseHandle(nul);
+        if (created)
+        {
+            if (job)
+                AssignProcessToJobObject(job, cpi.hProcess);
+            if (inject(&cpi, dllPath))
+            {
+                say("  with:   %s (pid %lu, log %s)\n", u8(compExe), cpi.dwProcessId, u8(compLog));
+                ResumeThread(cpi.hThread);
+                Sleep(compWait);
+            }
+            else
+            {
+                TerminateProcess(cpi.hProcess, 1);
+                CloseHandle(cpi.hProcess);
+                cpi.hProcess = NULL;
+            }
+            CloseHandle(cpi.hThread);
+        }
+        else
+            say_error("CreateProcess (the companion)");
+        SetEnvironmentVariableW(WL_ENV_LOG, logPath);
+        SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
+        SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
+    }
+
+    STARTUPINFOW si = {sizeof si};
+    PROCESS_INFORMATION pi;
+    if (!CreateProcessW(gamePath, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, gameDir, &si, &pi))
+    {
+        say_error("CreateProcess");
+        if (cpi.hProcess)
+            TerminateProcess(cpi.hProcess, 1);
+        return 1;
+    }
+    if (job && !AssignProcessToJobObject(job, pi.hProcess))
+        say_error("putting the game in a job object (it will survive the launcher)");
 
     redirect_imports(&pi, dllPath, gameDir);
     if (!inject(&pi, dllPath))
@@ -712,6 +830,12 @@ int wmain(int argc, wchar_t **argv)
     DWORD code = 0;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hProcess);
+    if (cpi.hProcess) // the companion ends with the game, as the cabinet's script ends it
+    {
+        TerminateProcess(cpi.hProcess, 0);
+        WaitForSingleObject(cpi.hProcess, 5000);
+        CloseHandle(cpi.hProcess);
+    }
     if (stopped)
     {
         say("windowsloader: game stopped after %d s (--timeout).\n", timeoutSec);

@@ -85,12 +85,51 @@ static int refused_dll(const char *path, const void *caller)
     return 1;
 }
 
+// A DLL the game's module plays itself (wl_system_virtual_dll): a handle of ours for it, its
+// functions given by GetProcAddress
+#define VIRTUAL_DLL ((HMODULE)(ULONG_PTR)0x5EF00000u)
+static char g_virtualDll[64];
+static const WlVirtualDllFunction *g_virtualFns;
+static int g_virtualCount;
+
+void wl_system_virtual_dll(const char *name, const WlVirtualDllFunction *fns, int count)
+{
+    snprintf(g_virtualDll, sizeof g_virtualDll, "%s", name);
+    g_virtualFns = fns;
+    g_virtualCount = count;
+}
+
+static HMODULE virtual_dll(const char *path, const void *caller)
+{
+    if (!g_virtualDll[0] || !path)
+        return NULL;
+    const char *base = strrchr(path, '\\');
+    base = base ? base + 1 : path;
+    if (_stricmp(base, g_virtualDll))
+        return NULL;
+    char where[128];
+    wl_log("LoadLibrary \"%s\": played by windowsloader [%s]", path, where_of(caller, where, sizeof where));
+    return VIRTUAL_DLL;
+}
+
+static FARPROC virtual_proc(LPCSTR name)
+{
+    for (int i = 0; i < g_virtualCount; i++)
+        if (IS_INTRESOURCE(name) ? g_virtualFns[i].ordinal == (unsigned)(ULONG_PTR)name : !strcmp(g_virtualFns[i].name, name))
+            return (FARPROC)g_virtualFns[i].fn;
+    SetLastError(ERROR_PROC_NOT_FOUND);
+    return NULL;
+}
+
 static HMODULE(WINAPI *oLoadLibraryA)(LPCSTR);
 static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
 {
     int nested = wl_busy();
     if (!nested && wl_ioports_is_driver_dll(name) && !wl_is_system_caller(WL_CALLER))
         return port_driver(name, WL_CALLER);
+    HMODULE v = nested ? NULL : virtual_dll(name, WL_CALLER);
+    if (v)
+        return v;
     if (!nested && refused_dll(name, WL_CALLER))
         return NULL;
     wl_busy_enter();
@@ -110,6 +149,9 @@ static HMODULE WINAPI hLoadLibraryW(LPCWSTR name)
     char n8[MAX_PATH * 2];
     if (!nested && name && wl_ioports_is_driver_dll(wl_u8(name, n8, sizeof n8)) && !wl_is_system_caller(WL_CALLER))
         return port_driver(n8, WL_CALLER);
+    HMODULE v = nested || !name ? NULL : virtual_dll(wl_u8(name, n8, sizeof n8), WL_CALLER);
+    if (v)
+        return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
     wl_busy_enter();
@@ -131,6 +173,9 @@ static HMODULE WINAPI hLoadLibraryExA(LPCSTR name, HANDLE file, DWORD flags)
     int nested = wl_busy();
     if (!nested && wl_ioports_is_driver_dll(name) && !wl_is_system_caller(WL_CALLER))
         return port_driver(name, WL_CALLER);
+    HMODULE v = nested ? NULL : virtual_dll(name, WL_CALLER);
+    if (v)
+        return v;
     if (!nested && refused_dll(name, WL_CALLER))
         return NULL;
     wl_busy_enter();
@@ -150,6 +195,9 @@ static HMODULE WINAPI hLoadLibraryExW(LPCWSTR name, HANDLE file, DWORD flags)
     char n8[MAX_PATH * 2];
     if (!nested && name && wl_ioports_is_driver_dll(wl_u8(name, n8, sizeof n8)) && !wl_is_system_caller(WL_CALLER))
         return port_driver(n8, WL_CALLER);
+    HMODULE v = nested || !name ? NULL : virtual_dll(wl_u8(name, n8, sizeof n8), WL_CALLER);
+    if (v)
+        return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
     wl_busy_enter();
@@ -194,6 +242,8 @@ static FARPROC(WINAPI *oGetProcAddress)(HMODULE, LPCSTR);
 static FARPROC WINAPI hGetProcAddress(HMODULE mod, LPCSTR name)
 {
     int nested = wl_busy();
+    if (mod == VIRTUAL_DLL && g_virtualCount)
+        return virtual_proc(name);
     FARPROC port = nested ? NULL : wl_ioports_proc(mod, name);
     if (port)
     {
@@ -463,6 +513,297 @@ static BOOL WINAPI hSetTimeZoneInformation(const TIME_ZONE_INFORMATION *tz)
 // a value under those roots too (Valve Limit R links ATL's registrar, RegDeleteKey and all).
 // ------------------------------------------------------------------------------
 
+// Keys a game's module makes up under HKEY_LOCAL_MACHINE (wl_registry_add_key): an ALLS cabinet's
+// SYSTEM\SEGA\SystemProperty. Opened by path from HKLM or from one of them, their handles are
+// ours (never the registry's); values read and written in memory, for this run only.
+#define VKEYS 16
+#define VVALUES 24
+
+struct VValue
+{
+    char name[48];
+    DWORD type;
+    unsigned char data[256];
+    DWORD size;
+};
+
+static struct
+{
+    char path[160];
+    VValue values[VVALUES];
+    int count;
+} g_vkeys[VKEYS];
+static int g_vkeyCount;
+static CRITICAL_SECTION g_vkeyLock;
+
+#define VKEY_BASE 0x5EE00000u
+
+void wl_registry_add_key(const char *path, const WlRegValue *values, int count)
+{
+    if (g_vkeyCount >= VKEYS)
+        return;
+    if (!g_vkeyCount)
+        InitializeCriticalSection(&g_vkeyLock);
+    snprintf(g_vkeys[g_vkeyCount].path, sizeof g_vkeys[0].path, "%s", path);
+    for (int i = 0; i < count && i < VVALUES; i++)
+    {
+        VValue *v = &g_vkeys[g_vkeyCount].values[i];
+        snprintf(v->name, sizeof v->name, "%s", values[i].name);
+        v->type = values[i].type;
+        v->size = values[i].type == REG_SZ ? (DWORD)strlen((const char *)values[i].data) + 1 : values[i].size;
+        if (v->size > sizeof v->data)
+            v->size = sizeof v->data;
+        memcpy(v->data, values[i].data, v->size);
+        g_vkeys[g_vkeyCount].count++;
+    }
+    wl_log("registry: HKLM\\%s made up (%d values)", path, count);
+    g_vkeyCount++;
+}
+
+static int vkey_of(HKEY key)
+{
+    ULONG_PTR k = (ULONG_PTR)key;
+    if ((k & 0xFFFF0000u) != VKEY_BASE || (k & 3) || (int)((k & 0xFFFF) >> 2) >= g_vkeyCount)
+        return -1;
+    return (int)((k & 0xFFFF) >> 2);
+}
+
+// The key at that path, from HKLM or from one of ours; -1 when not one of ours
+static int vkey_find(HKEY key, const char *sub)
+{
+    if (!g_vkeyCount || (key != HKEY_LOCAL_MACHINE && vkey_of(key) < 0))
+        return -1;
+    char path[256];
+    if (key == HKEY_LOCAL_MACHINE)
+        snprintf(path, sizeof path, "%s", sub ? sub : "");
+    else
+        snprintf(path, sizeof path, "%s%s%s", g_vkeys[vkey_of(key)].path, sub && *sub ? "\\" : "", sub ? sub : "");
+    size_t n = strlen(path);
+    while (n && path[n - 1] == '\\')
+        path[--n] = 0;
+    for (int i = 0; i < g_vkeyCount; i++)
+        if (!_stricmp(g_vkeys[i].path, path))
+            return i;
+    return -1;
+}
+
+static LSTATUS vkey_open(int i, PHKEY result, LPDWORD disposition)
+{
+    if (result)
+        *result = (HKEY)(ULONG_PTR)(VKEY_BASE | (unsigned)i << 2);
+    if (disposition)
+        *disposition = REG_OPENED_EXISTING_KEY;
+    return ERROR_SUCCESS;
+}
+
+// A value read: REG_SZ kept in 8 bits, given in 16 to the W functions
+static LSTATUS vkey_query(int k, const char *name, LPDWORD type, LPBYTE data, LPDWORD size, int wide)
+{
+    EnterCriticalSection(&g_vkeyLock);
+    const VValue *v = NULL;
+    for (int i = 0; i < g_vkeys[k].count; i++)
+        if (!_stricmp(g_vkeys[k].values[i].name, name ? name : ""))
+            v = &g_vkeys[k].values[i];
+    LSTATUS r = ERROR_FILE_NOT_FOUND;
+    if (v)
+    {
+        DWORD need = v->type == REG_SZ && wide ? v->size * 2 : v->size;
+        if (type)
+            *type = v->type;
+        r = ERROR_SUCCESS;
+        if (data && size && *size < need)
+            r = ERROR_MORE_DATA;
+        else if (data && v->type == REG_SZ && wide)
+            MultiByteToWideChar(CP_ACP, 0, (const char *)v->data, (int)v->size, (wchar_t *)data, (int)v->size);
+        else if (data)
+            memcpy(data, v->data, v->size);
+        if (size)
+            *size = need;
+    }
+    LeaveCriticalSection(&g_vkeyLock);
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 200)
+        wl_log("registry: HKLM\\%s %s read -> %s", g_vkeys[k].path, name ? name : "(default)", r == ERROR_SUCCESS ? "ok" : r == ERROR_MORE_DATA ? "more data" : "none");
+    return r;
+}
+
+static LSTATUS vkey_set(int k, const char *name, DWORD type, const BYTE *data, DWORD size, int wide)
+{
+    EnterCriticalSection(&g_vkeyLock);
+    VValue *v = NULL;
+    for (int i = 0; i < g_vkeys[k].count; i++)
+        if (!_stricmp(g_vkeys[k].values[i].name, name ? name : ""))
+            v = &g_vkeys[k].values[i];
+    if (!v && g_vkeys[k].count < VVALUES)
+    {
+        v = &g_vkeys[k].values[g_vkeys[k].count++];
+        snprintf(v->name, sizeof v->name, "%s", name ? name : "");
+    }
+    if (v)
+    {
+        v->type = type;
+        if (type == REG_SZ && wide)
+            v->size = (DWORD)WideCharToMultiByte(CP_ACP, 0, (const wchar_t *)data, (int)(size / 2), (char *)v->data, sizeof v->data, NULL, NULL);
+        else
+        {
+            v->size = size < sizeof v->data ? size : sizeof v->data;
+            memcpy(v->data, data, v->size);
+        }
+    }
+    LeaveCriticalSection(&g_vkeyLock);
+    wl_log("registry: HKLM\\%s %s written (type %lu, %lu bytes, kept for this run)", g_vkeys[k].path, name ? name : "(default)", type, size);
+    return ERROR_SUCCESS;
+}
+
+static LSTATUS(WINAPI *oRegQueryValueExA)(HKEY, LPCSTR, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+static LSTATUS WINAPI hRegQueryValueExA(HKEY key, LPCSTR name, LPDWORD reserved, LPDWORD type, LPBYTE data, LPDWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegQueryValueExA(key, name, reserved, type, data, size);
+    return vkey_query(k, name, type, data, size, 0);
+}
+
+static LSTATUS(WINAPI *oRegQueryValueExW)(HKEY, LPCWSTR, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+static LSTATUS WINAPI hRegQueryValueExW(HKEY key, LPCWSTR name, LPDWORD reserved, LPDWORD type, LPBYTE data, LPDWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegQueryValueExW(key, name, reserved, type, data, size);
+    char n[64];
+    return vkey_query(k, name ? wl_u8(name, n, sizeof n) : NULL, type, data, size, 1);
+}
+
+static LSTATUS(WINAPI *oRegSetValueExA)(HKEY, LPCSTR, DWORD, DWORD, const BYTE *, DWORD);
+static LSTATUS WINAPI hRegSetValueExA(HKEY key, LPCSTR name, DWORD reserved, DWORD type, const BYTE *data, DWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegSetValueExA(key, name, reserved, type, data, size);
+    return vkey_set(k, name, type, data, size, 0);
+}
+
+static LSTATUS(WINAPI *oRegSetValueExW)(HKEY, LPCWSTR, DWORD, DWORD, const BYTE *, DWORD);
+static LSTATUS WINAPI hRegSetValueExW(HKEY key, LPCWSTR name, DWORD reserved, DWORD type, const BYTE *data, DWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegSetValueExW(key, name, reserved, type, data, size);
+    char n[64];
+    return vkey_set(k, name ? wl_u8(name, n, sizeof n) : NULL, type, data, size, 1);
+}
+
+// The values one by one (the list of serial ports, SERIALCOMM, is read so)
+static LSTATUS vkey_enum(int k, DWORD index, void *name, LPDWORD nameLength, LPDWORD type, LPBYTE data, LPDWORD size, int wide)
+{
+    EnterCriticalSection(&g_vkeyLock);
+    LSTATUS r = ERROR_NO_MORE_ITEMS;
+    if ((int)index < g_vkeys[k].count)
+    {
+        const VValue *v = &g_vkeys[k].values[index];
+        DWORD n = (DWORD)strlen(v->name);
+        r = ERROR_SUCCESS;
+        if (!nameLength || *nameLength <= n)
+            r = ERROR_MORE_DATA;
+        else if (wide)
+            MultiByteToWideChar(CP_ACP, 0, v->name, -1, (wchar_t *)name, (int)*nameLength);
+        else
+            memcpy(name, v->name, n + 1);
+        if (nameLength)
+            *nameLength = n;
+        LeaveCriticalSection(&g_vkeyLock);
+        if (r == ERROR_SUCCESS)
+            r = vkey_query(k, v->name, type, data, size, wide);
+        return r;
+    }
+    LeaveCriticalSection(&g_vkeyLock);
+    return r;
+}
+
+// Its counts: no subkeys (none listed), its values, their longest name and data
+static LSTATUS vkey_info(int k, LPDWORD subkeys, LPDWORD maxSubkey, LPDWORD values, LPDWORD maxName, LPDWORD maxData, int wide)
+{
+    EnterCriticalSection(&g_vkeyLock);
+    DWORD longestName = 0, longestData = 0;
+    for (int i = 0; i < g_vkeys[k].count; i++)
+    {
+        const VValue *v = &g_vkeys[k].values[i];
+        DWORD n = (DWORD)strlen(v->name), size = v->type == REG_SZ && wide ? v->size * 2 : v->size;
+        longestName = n > longestName ? n : longestName;
+        longestData = size > longestData ? size : longestData;
+    }
+    if (subkeys)
+        *subkeys = 0;
+    if (maxSubkey)
+        *maxSubkey = 0;
+    if (values)
+        *values = (DWORD)g_vkeys[k].count;
+    if (maxName)
+        *maxName = longestName;
+    if (maxData)
+        *maxData = longestData;
+    LeaveCriticalSection(&g_vkeyLock);
+    return ERROR_SUCCESS;
+}
+
+static LSTATUS(WINAPI *oRegQueryInfoKeyA)(HKEY, LPSTR, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, PFILETIME);
+static LSTATUS WINAPI hRegQueryInfoKeyA(HKEY key, LPSTR cls, LPDWORD clsLength, LPDWORD reserved, LPDWORD subkeys, LPDWORD maxSubkey, LPDWORD maxClass,
+                                        LPDWORD values, LPDWORD maxName, LPDWORD maxData, LPDWORD security, PFILETIME written)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegQueryInfoKeyA(key, cls, clsLength, reserved, subkeys, maxSubkey, maxClass, values, maxName, maxData, security, written);
+    if (clsLength)
+        *clsLength = 0;
+    if (cls)
+        cls[0] = 0;
+    if (maxClass)
+        *maxClass = 0;
+    if (security)
+        *security = 0;
+    if (written)
+        GetSystemTimeAsFileTime(written);
+    return vkey_info(k, subkeys, maxSubkey, values, maxName, maxData, 0);
+}
+
+static LSTATUS(WINAPI *oRegQueryInfoKeyW)(HKEY, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, LPDWORD, PFILETIME);
+static LSTATUS WINAPI hRegQueryInfoKeyW(HKEY key, LPWSTR cls, LPDWORD clsLength, LPDWORD reserved, LPDWORD subkeys, LPDWORD maxSubkey, LPDWORD maxClass,
+                                        LPDWORD values, LPDWORD maxName, LPDWORD maxData, LPDWORD security, PFILETIME written)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegQueryInfoKeyW(key, cls, clsLength, reserved, subkeys, maxSubkey, maxClass, values, maxName, maxData, security, written);
+    if (clsLength)
+        *clsLength = 0;
+    if (cls)
+        cls[0] = 0;
+    if (maxClass)
+        *maxClass = 0;
+    if (security)
+        *security = 0;
+    if (written)
+        GetSystemTimeAsFileTime(written);
+    return vkey_info(k, subkeys, maxSubkey, values, maxName, maxData, 1);
+}
+
+static LSTATUS(WINAPI *oRegEnumValueA)(HKEY, DWORD, LPSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+static LSTATUS WINAPI hRegEnumValueA(HKEY key, DWORD index, LPSTR name, LPDWORD nameLength, LPDWORD reserved, LPDWORD type, LPBYTE data, LPDWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegEnumValueA(key, index, name, nameLength, reserved, type, data, size);
+    return vkey_enum(k, index, name, nameLength, type, data, size, 0);
+}
+
+static LSTATUS(WINAPI *oRegEnumValueW)(HKEY, DWORD, LPWSTR, LPDWORD, LPDWORD, LPDWORD, LPBYTE, LPDWORD);
+static LSTATUS WINAPI hRegEnumValueW(HKEY key, DWORD index, LPWSTR name, LPDWORD nameLength, LPDWORD reserved, LPDWORD type, LPBYTE data, LPDWORD size)
+{
+    int k = vkey_of(key);
+    if (k < 0)
+        return oRegEnumValueW(key, index, name, nameLength, reserved, type, data, size);
+    return vkey_enum(k, index, name, nameLength, type, data, size, 1);
+}
+
 #define KEY_WRITES (KEY_SET_VALUE | KEY_CREATE_SUB_KEY | KEY_CREATE_LINK | DELETE | WRITE_DAC | WRITE_OWNER)
 
 static HKEY g_hklmKeys[64];
@@ -497,6 +838,11 @@ static REGSAM hklm_rights(REGSAM sam, const char *fn, const char *sub, const voi
 static LSTATUS(WINAPI *oRegOpenKeyExA)(HKEY, LPCSTR, DWORD, REGSAM, PHKEY);
 static LSTATUS WINAPI hRegOpenKeyExA(HKEY key, LPCSTR sub, DWORD options, REGSAM sam, PHKEY result)
 {
+    int v = wl_busy() ? -1 : vkey_find(key, sub);
+    if (v >= 0)
+        return vkey_open(v, result, NULL);
+    if (vkey_of(key) >= 0)
+        return ERROR_FILE_NOT_FOUND;
     if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
         return oRegOpenKeyExA(key, sub, options, sam, result);
     LSTATUS r = oRegOpenKeyExA(key, sub, options, hklm_rights(sam, "RegOpenKeyEx", sub, WL_CALLER), result);
@@ -508,9 +854,14 @@ static LSTATUS WINAPI hRegOpenKeyExA(HKEY key, LPCSTR sub, DWORD options, REGSAM
 static LSTATUS(WINAPI *oRegOpenKeyExW)(HKEY, LPCWSTR, DWORD, REGSAM, PHKEY);
 static LSTATUS WINAPI hRegOpenKeyExW(HKEY key, LPCWSTR sub, DWORD options, REGSAM sam, PHKEY result)
 {
+    char s[512];
+    int v = wl_busy() ? -1 : vkey_find(key, sub ? wl_u8(sub, s, sizeof s) : NULL);
+    if (v >= 0)
+        return vkey_open(v, result, NULL);
+    if (vkey_of(key) >= 0)
+        return ERROR_FILE_NOT_FOUND;
     if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
         return oRegOpenKeyExW(key, sub, options, sam, result);
-    char s[512];
     LSTATUS r = oRegOpenKeyExW(key, sub, options, hklm_rights(sam, "RegOpenKeyEx", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER), result);
     if (r == ERROR_SUCCESS && result)
         hklm_add(*result);
@@ -522,6 +873,11 @@ static LSTATUS(WINAPI *oRegCreateKeyExA)(HKEY, LPCSTR, DWORD, LPSTR, DWORD, REGS
 static LSTATUS WINAPI hRegCreateKeyExA(HKEY key, LPCSTR sub, DWORD reserved, LPSTR cls, DWORD options, REGSAM sam, const LPSECURITY_ATTRIBUTES sa,
                                        PHKEY result, LPDWORD disposition)
 {
+    int v = wl_busy() ? -1 : vkey_find(key, sub);
+    if (v >= 0)
+        return vkey_open(v, result, disposition);
+    if (vkey_of(key) >= 0)
+        return ERROR_ACCESS_DENIED;
     if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
         return oRegCreateKeyExA(key, sub, reserved, cls, options, sam, sa, result, disposition);
     LSTATUS r = oRegOpenKeyExA(key, sub, 0, hklm_rights(sam | KEY_CREATE_SUB_KEY, "RegCreateKeyEx", sub, WL_CALLER), result);
@@ -536,9 +892,14 @@ static LSTATUS(WINAPI *oRegCreateKeyExW)(HKEY, LPCWSTR, DWORD, LPWSTR, DWORD, RE
 static LSTATUS WINAPI hRegCreateKeyExW(HKEY key, LPCWSTR sub, DWORD reserved, LPWSTR cls, DWORD options, REGSAM sam, const LPSECURITY_ATTRIBUTES sa,
                                        PHKEY result, LPDWORD disposition)
 {
+    char s[512];
+    int v = wl_busy() ? -1 : vkey_find(key, sub ? wl_u8(sub, s, sizeof s) : NULL);
+    if (v >= 0)
+        return vkey_open(v, result, disposition);
+    if (vkey_of(key) >= 0)
+        return ERROR_ACCESS_DENIED;
     if (wl_busy() || wl_is_system_caller(WL_CALLER) || !is_hklm(key))
         return oRegCreateKeyExW(key, sub, reserved, cls, options, sam, sa, result, disposition);
-    char s[512];
     LSTATUS r = oRegOpenKeyExW(key, sub, 0, hklm_rights(sam | KEY_CREATE_SUB_KEY, "RegCreateKeyEx", sub ? wl_u8(sub, s, sizeof s) : NULL, WL_CALLER),
                                result);
     if (r == ERROR_SUCCESS && result)
@@ -633,6 +994,8 @@ static LSTATUS WINAPI hRegDeleteValueW(HKEY key, LPCWSTR sub)
 static LSTATUS(WINAPI *oRegCloseKey)(HKEY);
 static LSTATUS WINAPI hRegCloseKey(HKEY key)
 {
+    if (vkey_of(key) >= 0)
+        return ERROR_SUCCESS;
     for (int i = 0; i < 64; i++)
         if (key && g_hklmKeys[i] == key)
             InterlockedCompareExchangePointer((PVOID *)&g_hklmKeys[i], NULL, key);
@@ -1236,20 +1599,145 @@ static DWORD WINAPI hDeleteIPAddress(ULONG context)
     return ERROR_ACCESS_DENIED;
 }
 
-// Network adapters: some games check a MAC address
-static ULONG(WINAPI *oGetAdaptersInfo)(void *, PULONG);
-static ULONG WINAPI hGetAdaptersInfo(void *info, PULONG size)
+// The PC's network connection, shared drives, services and event log: an ALLS cabinet's
+// amdaemon.exe (Sega World Drivers Championship) imports what releases or renews the PC's
+// address, joins or leaves a Wi-Fi network, maps or drops a network drive, stops a service and
+// clears the event log. Refused as for a program without the administrator's rights.
+static void pc_refused(const char *what, const void *caller)
 {
-    int nested = wl_busy();
-    wl_busy_enter();
-    ULONG r = oGetAdaptersInfo(info, size);
-    wl_busy_leave();
-    if (!nested && !wl_is_system_caller(WL_CALLER))
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 20)
     {
         char where[128];
-        wl_log("GetAdaptersInfo(%s) -> %lu, size %lu [%s]", info ? "buffer" : "size query", r, size ? *size : 0, where_of(WL_CALLER, where, sizeof where));
+        wl_log("%s refused: the PC's settings are left alone [%s]", what, where_of(caller, where, sizeof where));
     }
-    return r;
+}
+
+static DWORD(WINAPI *oIpReleaseAddress)(void *);
+static DWORD WINAPI hIpReleaseAddress(void *adapter)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oIpReleaseAddress(adapter);
+    pc_refused("IpReleaseAddress", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oIpRenewAddress)(void *);
+static DWORD WINAPI hIpRenewAddress(void *adapter)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oIpRenewAddress(adapter);
+    pc_refused("IpRenewAddress", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oWlanConnect)(HANDLE, const GUID *, const void *, void *);
+static DWORD WINAPI hWlanConnect(HANDLE client, const GUID *nic, const void *params, void *reserved)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oWlanConnect(client, nic, params, reserved);
+    pc_refused("WlanConnect", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oWlanDisconnect)(HANDLE, const GUID *, void *);
+static DWORD WINAPI hWlanDisconnect(HANDLE client, const GUID *nic, void *reserved)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oWlanDisconnect(client, nic, reserved);
+    pc_refused("WlanDisconnect", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oWlanSetProfile)(HANDLE, const GUID *, DWORD, LPCWSTR, LPCWSTR, BOOL, void *, DWORD *);
+static DWORD WINAPI hWlanSetProfile(HANDLE client, const GUID *nic, DWORD flags, LPCWSTR xml, LPCWSTR security, BOOL overwrite, void *reserved,
+                                    DWORD *reason)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oWlanSetProfile(client, nic, flags, xml, security, overwrite, reserved, reason);
+    pc_refused("WlanSetProfile", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oWNetAddConnection2W)(void *, LPCWSTR, LPCWSTR, DWORD);
+static DWORD WINAPI hWNetAddConnection2W(void *resource, LPCWSTR password, LPCWSTR user, DWORD flags)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oWNetAddConnection2W(resource, password, user, flags);
+    pc_refused("WNetAddConnection2W", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static DWORD(WINAPI *oWNetCancelConnection2W)(LPCWSTR, DWORD, BOOL);
+static DWORD WINAPI hWNetCancelConnection2W(LPCWSTR name, DWORD flags, BOOL force)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oWNetCancelConnection2W(name, flags, force);
+    pc_refused("WNetCancelConnection2W", WL_CALLER);
+    return ERROR_ACCESS_DENIED;
+}
+
+static BOOL(WINAPI *oControlService)(SC_HANDLE, DWORD, SERVICE_STATUS *);
+static BOOL WINAPI hControlService(SC_HANDLE service, DWORD control, SERVICE_STATUS *status)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oControlService(service, control, status);
+    pc_refused("ControlService", WL_CALLER);
+    SetLastError(ERROR_ACCESS_DENIED);
+    return FALSE;
+}
+
+static BOOL(WINAPI *oClearEventLogA)(HANDLE, LPCSTR);
+static BOOL WINAPI hClearEventLogA(HANDLE log, LPCSTR backup)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oClearEventLogA(log, backup);
+    pc_refused("ClearEventLogA", WL_CALLER);
+    SetLastError(ERROR_ACCESS_DENIED);
+    return FALSE;
+}
+
+static BOOL(WINAPI *oClearEventLogW)(HANDLE, LPCWSTR);
+static BOOL WINAPI hClearEventLogW(HANDLE log, LPCWSTR backup)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oClearEventLogW(log, backup);
+    pc_refused("ClearEventLogW", WL_CALLER);
+    SetLastError(ERROR_ACCESS_DENIED);
+    return FALSE;
+}
+
+// The shell's moves and deletes (a folder and all it holds) reach DeleteFile from Windows' own
+// DLLs, which the file hooks let through: allowed only inside the program's folder (amdaemon
+// cleans its logs up with it)
+static int in_own_folder(LPCWSTR list)
+{
+    wchar_t own[MAX_PATH], full[MAX_PATH];
+    DWORD n = GetModuleFileNameW(NULL, own, MAX_PATH);
+    while (n && own[n - 1] != L'\\')
+        n--;
+    own[n] = 0;
+    for (LPCWSTR p = list; p && *p; p += wcslen(p) + 1)
+    {
+        DWORD len = GetFullPathNameW(p, MAX_PATH, full, NULL);
+        if (!n || !len || len >= MAX_PATH || _wcsnicmp(full, own, n) || wcsstr(full + n, L".."))
+            return 0;
+    }
+    return 1;
+}
+
+static int(WINAPI *oSHFileOperationW)(SHFILEOPSTRUCTW *);
+static int WINAPI hSHFileOperationW(SHFILEOPSTRUCTW *op)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || !op || op->wFunc == FO_COPY ||
+        (in_own_folder(op->pFrom) && (op->wFunc == FO_DELETE || in_own_folder(op->pTo))))
+        return oSHFileOperationW(op);
+    char from[MAX_PATH];
+    char what[MAX_PATH + 48];
+    snprintf(what, sizeof what, "SHFileOperationW %s \"%s\"", op->wFunc == FO_DELETE ? "delete" : op->wFunc == FO_MOVE ? "move" : "rename",
+             op->pFrom ? wl_u8(op->pFrom, from, sizeof from) : "");
+    pc_refused(what, WL_CALLER);
+    return 0x78; // DE_ACCESSDENIEDSRC
 }
 
 // ------------------------------------------------------------------------------
@@ -1301,6 +1789,14 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"advapi32.dll", RegCreateKeyExA),
     WL_HOOK(L"advapi32.dll", RegCreateKeyExW),
     WL_HOOK(L"advapi32.dll", RegCloseKey),
+    WL_HOOK(L"advapi32.dll", RegQueryValueExA),
+    WL_HOOK(L"advapi32.dll", RegQueryValueExW),
+    WL_HOOK(L"advapi32.dll", RegSetValueExA),
+    WL_HOOK(L"advapi32.dll", RegSetValueExW),
+    WL_HOOK(L"advapi32.dll", RegEnumValueA),
+    WL_HOOK(L"advapi32.dll", RegEnumValueW),
+    WL_HOOK(L"advapi32.dll", RegQueryInfoKeyA),
+    WL_HOOK(L"advapi32.dll", RegQueryInfoKeyW),
     WL_HOOK(L"advapi32.dll", RegDeleteKeyA),
     WL_HOOK(L"advapi32.dll", RegDeleteKeyW),
     WL_HOOK(L"advapi32.dll", RegDeleteKeyExA),
@@ -1326,13 +1822,23 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"advapi32.dll", InitiateSystemShutdownExA),
     WL_HOOK(L"advapi32.dll", InitiateSystemShutdownExW),
     WL_HOOK(L"powrprof.dll", SetSuspendState),
-    WL_HOOK(L"iphlpapi.dll", GetAdaptersInfo),
     WL_HOOK(L"winhttp.dll", WinHttpConnect),
     WL_HOOK(L"iphlpapi.dll", CreateIpForwardEntry),
     WL_HOOK(L"iphlpapi.dll", SetIpForwardEntry),
     WL_HOOK(L"iphlpapi.dll", DeleteIpForwardEntry),
     WL_HOOK(L"iphlpapi.dll", AddIPAddress),
     WL_HOOK(L"iphlpapi.dll", DeleteIPAddress),
+    WL_HOOK(L"iphlpapi.dll", IpReleaseAddress),
+    WL_HOOK(L"iphlpapi.dll", IpRenewAddress),
+    WL_HOOK(L"wlanapi.dll", WlanConnect),
+    WL_HOOK(L"wlanapi.dll", WlanDisconnect),
+    WL_HOOK(L"wlanapi.dll", WlanSetProfile),
+    WL_HOOK(L"mpr.dll", WNetAddConnection2W),
+    WL_HOOK(L"mpr.dll", WNetCancelConnection2W),
+    WL_HOOK(L"advapi32.dll", ControlService),
+    WL_HOOK(L"advapi32.dll", ClearEventLogA),
+    WL_HOOK(L"advapi32.dll", ClearEventLogW),
+    WL_HOOK(L"shell32.dll", SHFileOperationW),
     WL_HOOK(L"avicap32.dll", capCreateCaptureWindowA),
     WL_HOOK(L"avicap32.dll", capCreateCaptureWindowW),
     WL_HOOK(L"avicap32.dll", capGetDriverDescriptionA),

@@ -23,6 +23,7 @@
 #include "log.h"
 #include "settings.h"
 #include "vdev.h"
+#include "vhid.h"
 
 static const WlVirtualDevice *g_devices[16];
 static int g_deviceCount;
@@ -519,6 +520,8 @@ static BOOL WINAPI hWriteFileEx(HANDLE h, LPCVOID buf, DWORD size, LPOVERLAPPED 
 static BOOL(WINAPI *oCancelIoEx)(HANDLE, LPOVERLAPPED);
 static BOOL WINAPI hCancelIoEx(HANDLE h, LPOVERLAPPED ov)
 {
+    if (!wl_busy() && wl_vhid_is_handle(h))
+        return wl_vhid_cancel(h, ov);
     if (!g_deviceCount || !wl_vdev_of(h))
         return oCancelIoEx(h, ov);
     int found = 0;

@@ -26,6 +26,7 @@ int wl_game_konami(const wchar_t *exePath, const char **name, const char **title
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX)
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)
+int wl_game_alls(const wchar_t *exePath, const char **name, const char **title);     // Sega ALLS (SWDC, x64: amdaemon and the game)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);

@@ -68,6 +68,7 @@ static void wl_init(void)
     wl_devices_hooks();
     wl_vdev_hooks();
     wl_system_hooks();
+    wl_netenv_hooks();
     wl_window_hooks();
     wl_d3d8_hooks();
     wl_d3d9_hooks();

@@ -79,6 +79,7 @@ add_library(wl_hook SHARED
     src/hook/files.cpp
     src/hook/devices.cpp
     src/hook/system.cpp
+    src/hook/netenv.cpp
     src/hook/window.cpp
     src/hook/d3d9hook.cpp
     src/hook/dinputhook.cpp
@@ -107,6 +108,7 @@ add_library(wl_hook SHARED
     src/hook/games/triotech.cpp
     src/hook/games/namco.cpp
     src/hook/games/unis.cpp
+    src/hook/games/alls.cpp
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp
     src/hook/jvs.cpp

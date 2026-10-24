@@ -703,6 +703,7 @@ static LONG WINAPI hHidP_GetCaps(void *preparsed, WlHidCaps *caps)
         caps->Usage = v->usage;
         caps->UsagePage = v->usagePage;
         caps->InputReportByteLength = v->inputReportLength;
+        caps->OutputReportByteLength = v->outputReportLength;
         caps->NumberLinkCollectionNodes = 1;
         return HIDP_STATUS_SUCCESS;
     }
@@ -720,7 +721,19 @@ static BOOLEAN hid_report(const char *what, BOOLEAN(WINAPI *orig)(HANDLE, PVOID,
 {
     if (wl_vhid_is_handle(h))
     {
-        // The emulated board has neither feature nor output reports
+        // The emulated board: its input reports, its output reports when it has some; no features
+        const WlVirtualHid *v = wl_vhid_device();
+        if (!strcmp(what, "HidD_GetInputReport") && buf && len >= v->inputReportLength)
+        {
+            memset(buf, 0, len);
+            v->fillInput((unsigned char *)buf, v->inputReportLength);
+            return TRUE;
+        }
+        if (!strcmp(what, "HidD_SetOutputReport") && v->output && buf)
+        {
+            v->output((const unsigned char *)buf, (int)len);
+            return TRUE;
+        }
         static volatile LONG logged;
         if (InterlockedIncrement(&logged) <= 10)
             wl_log("%s on the emulated board (%lu bytes): not supported", what, len);
@@ -765,6 +778,41 @@ static BOOLEAN WINAPI hHidD_SetOutputReport(HANDLE h, PVOID buf, ULONG len)
     return hid_report("HidD_SetOutputReport", oHidD_SetOutputReport, h, buf, len, 0);
 }
 
+// The emulated board's strings (an ALLS's IO4 board is told by its product string)
+static BOOLEAN hid_string(const wchar_t *s, PVOID buf, ULONG len)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 6)
+        wl_log("HID string of the emulated board (%lu bytes): %s", len, s ? "given" : "none");
+    if (!s || !buf || len < 2)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    size_t n = wcslen(s);
+    if (n >= len / 2)
+        n = len / 2 - 1;
+    memcpy(buf, s, n * 2);
+    ((wchar_t *)buf)[n] = 0;
+    return TRUE;
+}
+
+static BOOLEAN(WINAPI *oHidD_GetManufacturerString)(HANDLE, PVOID, ULONG);
+static BOOLEAN WINAPI hHidD_GetManufacturerString(HANDLE h, PVOID buf, ULONG len)
+{
+    if (!wl_busy() && wl_vhid_is_handle(h))
+        return hid_string(wl_vhid_device()->manufacturer, buf, len);
+    return oHidD_GetManufacturerString(h, buf, len);
+}
+
+static BOOLEAN(WINAPI *oHidD_GetProductString)(HANDLE, PVOID, ULONG);
+static BOOLEAN WINAPI hHidD_GetProductString(HANDLE h, PVOID buf, ULONG len)
+{
+    if (!wl_busy() && wl_vhid_is_handle(h))
+        return hid_string(wl_vhid_device()->product, buf, len);
+    return oHidD_GetProductString(h, buf, len);
+}
+
 static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", GetCommState),
     WL_HOOK(L"kernel32.dll", SetCommState),
@@ -791,6 +839,8 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"hid.dll", HidD_SetFeature),
     WL_HOOK(L"hid.dll", HidD_GetInputReport),
     WL_HOOK(L"hid.dll", HidD_SetOutputReport),
+    WL_HOOK(L"hid.dll", HidD_GetManufacturerString),
+    WL_HOOK(L"hid.dll", HidD_GetProductString),
 };
 
 void wl_devices_hooks(void)

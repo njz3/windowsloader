@@ -110,14 +110,42 @@ void wl_system_set_process_handler(WlProcessHandler fn);
 // PC's registry: the game's OpenAL then takes its generic DirectSound driver)
 void wl_system_refuse_dll(const char *name);
 
+// A DLL windowsloader plays itself, by its file name (an ALLS's display driver, "$amvideo" in
+// amdaemon's registry): LoadLibrary gives a handle of ours, GetProcAddress these functions, by
+// name or by ordinal
+struct WlVirtualDllFunction
+{
+    const char *name;
+    unsigned ordinal;
+    void *fn;
+};
+void wl_system_virtual_dll(const char *name, const WlVirtualDllFunction *functions, int count);
+
+// The cabinet's network card in place of the PC's (netenv.cpp): one Ethernet card at ip, 24-bit
+// subnet, its gateway its DNS server, pings answered (an ALLS's amdaemon checks the network so)
+void wl_netenv_fake(unsigned ip, unsigned gateway, const unsigned char mac[6]);
+
 // The game's broadcasts (x.x.x.255) sent to 127.0.0.1 instead, the same port: a game whose cabinets
 // elect a host by broadcast hears itself and becomes the host, nothing leaves the PC
 void wl_system_loopback_broadcast(int on);
+
+// A registry key of the cabinet's made up under HKEY_LOCAL_MACHINE (an ALLS's
+// "SYSTEM\SEGA\SystemProperty\static"): opened, read and written by the game in memory only.
+// REG_SZ data is an 8-bit string (size ignored); the others are size bytes.
+struct WlRegValue
+{
+    const char *name;
+    DWORD type;
+    const void *data;
+    DWORD size;
+};
+void wl_registry_add_key(const char *path, const WlRegValue *values, int count);
 
 // Per-module hook tables
 void wl_files_hooks(void);
 void wl_devices_hooks(void);
 void wl_system_hooks(void);
+void wl_netenv_hooks(void);
 void wl_window_hooks(void);
 void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
