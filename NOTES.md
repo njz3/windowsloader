@@ -92,9 +92,10 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 81 | 24/10 | Essaie d'ajouter tous les autres jeux sauf les Raw Thrills | 🔄 faits : Sega Racing Classic, Storm Racer G, Wacky Races, Let's Go Safari (une course chacun) ; Initial D 7 et 8 en copie depuis racecab1 (au signal d'Image borne), puis les Wangan Midnight une à une |
 | 82 | 24/10 | En particulier Sega Racing Classic et Storm Racer G | ✅ Sega Racing Classic (levier en H, carte moteur lue dans les données du jeu ; course, menu de service, vJoy, Tab) ; Storm Racer G joue une course (`stormracer.cpp` : `usb_io.dll` remplacée, MSAA coupé, vidéos noires sans le codec WMV) ; restent ses boutons à nommer |
 | 83 | 24/10 | Reprends | ✅ Storm Racer G jusqu'en course : pièce, Start, menus, l'étape photo, course ; le moteur en ressort ; Wacky Races commencé |
-| 84 | 24/10 | Fais les derniers jeux | 🔄 Wacky Races (course, moteur par les sorties JVS, `LINKID` à 0 par défaut) et Let's Go Safari (carte JVS 837-14895, clé en toolmode, course, vibration) faits ; Initial D 7 et 8, puis Wangan Midnight 5, 5DX+ et 6 : copies depuis racecab1 |
+| 84 | 24/10 | Fais les derniers jeux | ✅ Wacky Races (course, moteur par les sorties JVS, `LINKID` à 0 par défaut), Let's Go Safari (carte JVS 837-14895, clé en toolmode, course, vibration), Initial D 7 et 8 (JVS par `mxjvs`, lecteur de cartes émulé derrière `picodaemon.exe`, course) ; 🔄 Wangan Midnight 5, 5DX+ et 6 : copies depuis racecab1 après celles de Linuxloader |
 | 85 | 24/10 | Demande à la session « Image borne » de retirer les fichiers FFBPlugin des jeux parfaitement supportés par windowsloader | ✅ demandé : Sega Rally 3 (huit éditions), Daytona Championship USA et NSE, Ford Racing Full Blown, GRID, Wasteland Racers 2071 ; les fichiers rangés dans un sous-dossier, la DLL seulement si c'est bien le plugin |
 | 86 | 24/10 | En attendant, commit et pousse. Puis fais une release et préviens la session « Image borne » | ✅ 7 commits poussés (`bd122b8` et suivants : pédales `_SIDE`, Sega Racing Classic et Let's Go Safari, Storm Racer G, Wacky Races, BILAN.md, NOTES.md) ; release `windowsloader-0.1.0-20261024-4-njz3-windows.zip` tirée du commit poussé, Image borne prévenue |
+| 87 | 24/10 | Commit et pousse, mais ne fais pas encore de release | ✅ 3 commits poussés : Initial D 7 et 8 (`mxjvs`, `picodaemon.exe` et `cardrw.cpp`, défis de la clé hors table), BILAN.md, NOTES.md ; pas de release |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1264,3 +1265,26 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   et le son de démo, puis vidé la sauvegarde. Ce n'étaient que les fichiers émulés de la copie (`wl_sram.bin`,
   `wl_eeprom.bin`, créés le jour même) : mis à la corbeille, le jeu repart des valeurs d'usine.
 - Copies : racecab1 libéré par Image borne ; Initial D 7, puis 8, puis les Wangan une à une.
+
+### 24/10 — Initial D 7 et 8 (demande 84)
+
+- Copies depuis racecab1, au signal d'Image borne : Initial D 7 (4,9 Go), puis 8 (5,4 Go), sans échec. Ensuite,
+  le partage a été laissé à Linuxloader pour ses trois copies ; les Wangan attendent son « fini ».
+- Erreur 6401 : ces deux jeux cherchent la carte JVS par `\\.\mxjvs`, pas par COM4.
+- Erreur 5101 (le lecteur de cartes ne répond pas). L'option « CARD R/W USE » du menu de test n'y change rien.
+  Le lecteur est derrière `picodaemon.exe` : une mémoire partagée avec le jeu, le lecteur sur COM2.
+  - Lu dans picodaemon : une table de 40 commandes du jeu, et le protocole du lecteur (trames STX, ACK, ENQ ;
+    trois octets d'état). YACardEmu (GPL-2.0) a servi de repère pour le sens des octets d'état ; rien n'en est
+    repris.
+  - Le lanceur démarre picodaemon à côté du jeu, et `cardrw.cpp` y joue le lecteur.
+- Trois corrections, trouvées en journalisant la mémoire partagée :
+  - répondre à chaque ENQ (picodaemon redemande tant qu'une commande tourne : le nettoyage restait affiché) ;
+  - « pas de carte » vaut 0x20 dans l'octet R (0x30 signale une carte à la fente : « prenez votre permis »
+    sans fin) ;
+  - une lecture répond « en attente de carte », sinon le jeu lit une carte vide (erreur 5110, version
+    différente).
+- Initial D 8 : le `_dumped_` n'a pas de manifeste pour le runtime VC 2008 (0xC0000135). Le `redumped_`, celui
+  que lance TeknoParrot, marche.
+- Une erreur 0949 (« Keychip Not Found ») au bout de quelques minutes sur une partie d'Initial D 8. Le seul
+  défi de la clé de cette partie était absent de la table, et windowsloader y répondait par des zéros. Ces
+  défis reçoivent maintenant des octets non nuls tirés du défi ; la partie suivante a été jusqu'en course.
