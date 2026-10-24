@@ -19,6 +19,8 @@ dans NOTES.md, « Jeux des bornes »).
 | Daytona Championship USA NSE | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | Ford Racing Full Blown | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | — |
 | Initial D Arcade Stage 6 AA | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ✅ | ✅ |
+| Initial D Arcade Stage 7 AAX | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ❌ | ✅ | ✅ |
+| Initial D Arcade Stage 8 Infinity | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ❌ | ⏳ | ✅ |
 | GRID | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | DiRT Showdown | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ✅ |
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
@@ -150,6 +152,43 @@ Racing) :
 - Menu de service ✅ : le jeu lancé avec `-t` (comme `gametest.bat`) : GAME TEST MODE, tests d'entrées
   et de sorties, choix au bouton Service, validation au bouton Test (`id6_race.py test`).
 - Crédits ✅ : pièces comptées par la carte JVS.
+
+## Initial D Arcade Stage 7 AAX et 8 Infinity (Sega RingEdge, 2012 et 2014)
+
+La même borne qu'Initial D 6, dans la même table de `ringedge.cpp` (gameid SBYD et SBZZ, la clé par
+`SBYD_Table.dat` et `SBZZ_Table.dat`), x86, OpenGL.
+- Exécutables : `InitialD7_GLW_RE_SBYD_dumped_.exe` et `InitialD8_GLW_RE_SBZZ_redumped_.exe`, ceux que lance
+  TeknoParrot. Le `InitialD8_GLW_RE_SBZZ_dumped_.exe` n'a pas le manifeste du runtime VC 2008 : il s'arrête sur
+  0xC0000135 (DLL introuvable).
+- Copies locales le 24/10 depuis racecab1 (4,9 et 5,4 Go). Le crochet `dinput8.dll` de TeknoParrot (le plugin
+  FFB), OutputBlaster et `SDL2.dll` mis de côté (`_teknoparrot_off`).
+
+Ce qui diffère d'Initial D 6 :
+- la carte JVS passe par le pilote `\\.\mxjvs` (sinon erreur 6401 « JVS I/O board is not connected ») ;
+- le lecteur de cartes. `game.bat` lance `picodaemon.exe` juste avant le jeu ; le jeu lui parle par une
+  mémoire partagée (`zmShare00000532`). Sans lui : erreur 5101, « pas de réponse du lecteur-graveur de
+  cartes », après la pièce. windowsloader lance aussi `picodaemon.exe` (le lanceur, comme amdaemon pour SWDC).
+  Dans `picodaemon.exe`, `cardrw.cpp` joue le lecteur sur COM2 (son protocole lu dans picodaemon) :
+  - aucune carte n'est jamais insérée ; une lecture attend une carte jusqu'à ce que le jeu l'annule ;
+  - après une éjection, la carte reste 2 s à la fente, puis elle est retirée ;
+  - au démarrage, le jeu éjecte (« prenez votre permis ») puis fait un nettoyage du lecteur, qui se termine
+    tout seul.
+- une fois, un défi de la clé absent de la table, auquel windowsloader répondait par des zéros, a fini en
+  erreur 0949 « Keychip Not Found ». Ces défis reçoivent maintenant des octets non nuls tirés du défi ;
+  pas revu depuis.
+
+- Lancement ✅ : réglage du volant (START), « Network error 8301 » (hors ligne), démo.
+- Commandes ✅ : comme Initial D 6. Partie jouée :
+  - pièces, « permis : en avez-vous un ? », START pour jouer sans ;
+  - « faire un permis ? » (3 pièces) : ne pas en faire (volant puis START) ;
+  - Initial D 7 : achat de la voiture (AE86), boîte AT, mode, histoire, course (132 km/h) ;
+  - Initial D 8 : personnage, voiture, boîte, mode, course (98 km/h).
+- Retour de force ⚠️ : la carte de pilotage sur COM1, couple (0x84) envoyé en course (363 et 559 trames),
+  comme Initial D 6 ; sens à confirmer au volant.
+- Affichage ⚠️, Menu Tab ❌ : comme Initial D 6 (OpenGL).
+- Menu de service : Initial D 7 ✅ (`-t` : GAME TEST MODE, GAME ASSIGNMENTS, l'option « CARD R/W USE »).
+  Initial D 8 ⏳.
+- Crédits ✅ : pièces par la carte JVS.
 
 ## GRID (Codemasters pour Sega, 2008, Europa-R)
 
@@ -605,6 +644,7 @@ du volant ; chaque module le déclare (`wl_game_set_boards`) :
 | Daytona Championship USA, GRID, DiRT Showdown | DirectInput « SEGA IO Controller » | pilote sur port parallèle (Sega PC) |
 | Ford Racing Full Blown | USB HID, Happ UGCI | pilote sur port parallèle (Sega PC) |
 | Initial D 6 AA, K.O. Drive, Sonic & Sega All-Stars Racing | JVS, Sega 837-14572 | « Sega-like servoboard » sur COM1 |
+| Initial D 7 et 8 | JVS, Sega 837-14572 (pilote `mxjvs`) ; lecteur de cartes par `picodaemon.exe` | « Sega-like servoboard » sur COM1 |
 | Sega Racing Classic | JVS, Sega 837-14572 | carte moteur Model 2/3, sa commande lue dans les données du jeu |
 | Let's Go Safari | JVS, Sega 837-14895 (« FE MODE ») | aucune : la sortie « vibration » de la carte JVS, jouée en secousse |
 | Battle Gear 4 | JVS (identité Sega 837-14572), une seconde carte sur la borne Pro | volant Taito, protocole Battle Gear, COM1 |
