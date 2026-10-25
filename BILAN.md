@@ -38,6 +38,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 5 DX+ (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
+| Wangan Midnight Maximum Tune 6 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -818,7 +819,13 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   - le jeu écoute sur le réseau : une boîte du pare-feu s'ouvre, laissée à l'utilisateur ;
   - au démarrage, environ 90 s de vidéo d'introduction (DirectShow) avant la première image.
 - Affichage ✅ : recopie GDI de l'image Direct3D 9 que d3d8to9 fait, fenêtre 2042×1149 sur ce portable,
-  60 à 90 images/s. ⚠️ Les vidéos (DirectShow, son propre appareil Direct3D 9, laissé tel quel) ne se voient pas
+  60 à 90 images/s. Sur les bornes (Image borne, 25/10), « Get Ready To Race » durait 150 à 170 s : le jeu
+  charge une texture de la carte par image, sans attendre l'écran (intervalle IMMEDIATE), et la recopie de son
+  image (2560×1440 multiéchantillonnée, relue puis mise à l'échelle par GDI) le tenait à 60 images/s : 141 s de
+  chargement, 12 s avec `PRESENT = DIRECT` (938 images/s). Corrigé dans `d3d9hook.cpp` : pour un jeu qui
+  n'attend pas l'écran, l'image n'est recopiée qu'une fois par rafraîchissement, ses autres images présentées à la
+  fenêtre cachée seulement. Programme d'essai (même appareil) : 76 images/s avant, 3 387 après ; pas encore revu
+  sur borne. ⚠️ Les vidéos (DirectShow, son propre appareil Direct3D 9, laissé tel quel) ne se voient pas
   sur ce PC (un Present en mode blt n'y montre rien) : écran noir pendant l'attraction vidéo.
 - Commandes ✅ (mode agent, `crop`/`observe` du bloc-notes) : Boost à l'écran titre → « Finding Server » → choix de la
   voiture (Destroyer) → choix du circuit (Airport Mayhem) → « Get Ready To Race » (environ 60 s de chargement) →
@@ -1024,8 +1031,33 @@ terminal joué, dossier d'écriture), avec ce qui change (25/10) :
 - Retour de force ✅ : la même carte du volant (E00, C06/C01, « H » et la position) ; volant à gauche force
   −0,25, à droite force positive, vibrations (`wmmt5_play.py` avec `WL_GAME`).
 
-Reste : le lecteur de cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab ; pas encore dans
-une release.
+Reste : le lecteur de cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab. Dans la release
+20261025-6, posée sur les deux bornes (STEERING POWER à ON sur racecab1).
+
+## Wangan Midnight Maximum Tune 6 (Namco System ES3X, 64 bits, 2018)
+
+`wmn6r.exe` (copie `games\wmmt6`, 16,3 Go depuis racecab1). Le crochet FFB de TeknoParrot (`d3d11.dll`) et
+`SDL2.dll` mis de côté. Les mêmes cartes et le même terminal que le 5 ; le code des trois Wangan réuni dans une table
+de `namco.cpp` (ce qui change d'une version à l'autre). Ce qui est propre au 6 (25/10) :
+- la clé : `hasp_windows_x64_28756.dll`, identifiant `280813990002` (2808 comparé à +0x8bbbc2) ; le terminal
+  `280811990002` ;
+- les lecteurs F:/ et G:/ (`F:/BK_WM6_DriveOpe.bin`…) dans le dossier `TP\` de la copie, comme OpenParrot ;
+- le lecteur Banapass par `bngrw.dll`, comme Mario Kart DX 1.18 (sans carte), ses fonctions en 64 bits par leur nom,
+  plus `BngRwGetVersion` et `BngRwReqAction` ;
+- le démarrage : le saut du contrôle de la clé (+0x69e928) et du lien avec le terminal (+0x6a0c86 → +0x6a0d5c), comme
+  au 5 ; « CERTIFICATE CHECK » restait vide : l'état comparé à 2 par le lien terminal (+0x718) mis à 2 quand
+  l'authentification n'en a aucun (le NOP d'OpenParrot, +0x690876), avec son autre NOP de borne (+0xa131b3) ;
+- « GAME SERVER CONNECT CHECK » restait sur CHECKING : le 6 attend la réponse du serveur ALL.Net (Mucha, par le démon
+  `AMAuthd.exe` que TeknoParrot lance avant le jeu et que le jeu joint par COM, absent ici : E0516 « ALL.Net AUTH
+  ERROR » au journal) ; l'étape passe sans elle (+0x6a0df3) ;
+- E0552 « OFFLINE UPTIME ERROR » ensuite : 36 h depuis la dernière authentification, jamais faite ; la limite tenue
+  pour non atteinte (+0x6916bd), comme pour Mario Kart DX. Le jeu affiche « Please connect this unit to the network.
+  The Game will shutdown shortly. » en démonstration.
+- Course ✅ : les mêmes écrans que le 5 (pas de carte, Story, épisode 1, Yokohama).
+- Menu de service ✅ : en anglais ; GAME OPTIONS → STEERING POWER, OFF dans la copie, à mettre à ON.
+- Retour de force ✅ : la même carte du volant ; volant à gauche force −0,25, à droite force positive, vibrations.
+
+Reste : les cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab ; pas encore dans une release.
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
