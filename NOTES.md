@@ -96,6 +96,10 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 85 | 24/10 | Demande à la session « Image borne » de retirer les fichiers FFBPlugin des jeux parfaitement supportés par windowsloader | ✅ demandé : Sega Rally 3 (huit éditions), Daytona Championship USA et NSE, Ford Racing Full Blown, GRID, Wasteland Racers 2071 ; les fichiers rangés dans un sous-dossier, la DLL seulement si c'est bien le plugin |
 | 86 | 24/10 | En attendant, commit et pousse. Puis fais une release et préviens la session « Image borne » | ✅ 7 commits poussés (`bd122b8` et suivants : pédales `_SIDE`, Sega Racing Classic et Let's Go Safari, Storm Racer G, Wacky Races, BILAN.md, NOTES.md) ; release `windowsloader-0.1.0-20261024-4-njz3-windows.zip` tirée du commit poussé, Image borne prévenue |
 | 87 | 24/10 | Commit et pousse, mais ne fais pas encore de release | ✅ 3 commits poussés : Initial D 7 et 8 (`mxjvs`, `picodaemon.exe` et `cardrw.cpp`, défis de la clé hors table), BILAN.md, NOTES.md ; pas de release |
+| 88 | 24/10 | Où en est la copie ? | ✅ Wangan Midnight 5 : 36 155 fichiers sur 46 544 et 5,3 Go sur 18,5 à 21 h 07, environ 2 Mo/s, fin vers 23 h |
+| 89 | 24/10 | Où en est la copie ? | ✅ 13,8 Go sur 18,5 à 22 h 12 ; finie à 22 h 56 sans échec, Image borne prévenue ; Wangan Midnight 5 commencé (clé HASP, réseau, JVS), arrêté sur le terminal de salle |
+| 90 | 25/10 | Mets les jeux déjà faits à la corbeille | 🔄 la corbeille de C: ne prend que 48,5 Go pour 72 Go de copies : en deux fois. Faits : Showdown, Storm Racer G, Mario Kart DX 1.18 et 1.10, Initial D 7 et 8, Let's Go Safari, Sega Racing Classic (45,5 Go). Après que le propriétaire aura vidé la corbeille : les trois Battle Gear 4, Chase H.Q. 2, Crazy Ride, D1GP, GTI Club 3, Sonic, Valve Limit R, Wacky Races, Wasteland Racers (22,5 Go). Gardés : SWDC, Wangan Midnight 5 (en cours) |
+| 91 | 25/10 | Commit et pousse | ✅ 7 commits poussés : `--shots`, Daytona en borne 1 (CabinetID), les polices du jeu en FR_PRIVATE, Wangan Midnight 5 commencé (clé HASP, réseau de borne, sans terminal), BILAN.md, NOTES.md ; pas de release |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1288,3 +1292,52 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
 - Une erreur 0949 (« Keychip Not Found ») au bout de quelques minutes sur une partie d'Initial D 8. Le seul
   défi de la clé de cette partie était absent de la table, et windowsloader y répondait par des zéros. Ces
   défis reçoivent maintenant des octets non nuls tirés du défi ; la partie suivante a été jusqu'en course.
+
+### 24/10 au soir — Wangan Midnight 5 commencé ; les mesures d'Image borne (demandes 88 et 89)
+
+- Copies : Linuxloader a fait ses trois copies depuis racecab1, puis Image borne a rouvert le partage. Wangan
+  Midnight 5 (18,5 Go, 46 544 fichiers) en 4 h 06, à environ 1,4 Mo/s en moyenne. 5DX+ (15,2 Go) et 6 (16,3 Go)
+  attendent de la place : il reste 12 Go, et la corbeille ne se vide que par le propriétaire.
+- Wangan Midnight 5 : voir BILAN.md.
+  - `wl_patch_iat` sait maintenant remplacer une fonction importée par son numéro.
+  - Le module rangé dans `namco.cpp`, pour la carte JVS, la carte moteur et les lecteurs F: et G: de Mario Kart
+    DX.
+  - Trois étapes passées : la clé, la carte d'entrées, le réseau local. Arrêt sur le terminal de salle.
+- Image borne a mesuré les 32 jeux de la release 4 sur racecab2.
+  - Retour de force fort ou net : Sega Rally 3, Crazy Ride, GRID, Showdown, Wasteland Racers, K.O. Drive.
+  - Faible : Initial D 6, Wacky Races, Sonic.
+  - Zéro sur une quinzaine : son protocole (départ puis cinq coups de gaz) ne mène probablement pas en course
+    les jeux à nombreux écrans. Les séquences de mes essais lui ont été envoyées, jeu par jeu (relevées dans les
+    scripts d'essai par un agent).
+  - Six éditions de Sega Rally 3 se ferment d'elles-mêmes après environ 510 paquets : son journal demandé.
+
+### 25/10 — Les copies terminées à la corbeille (demande 90)
+
+- La corbeille de C: est limitée à 48,5 Go : au-delà, Windows effacerait définitivement les éléments les plus
+  anciens. Les copies vont donc à la corbeille en deux fois, la seconde après que le propriétaire l'a vidée.
+- Let's Go Safari refusait : une de ses polices (`dat\font\FOT-SeuratPro-EB.otf`) restait chargée par Windows,
+  le jeu l'ajoutant à toute la session (AddFontResource) à chaque lancement, 11 fois en tout, sans jamais la
+  retirer. Retirée de la session (RemoveFontResource), puis le dossier mis à la corbeille.
+- Correction dans `system.cpp` : une police que le jeu ajoute devient la sienne (FR_PRIVATE), retirée par Windows
+  à la fin du jeu. Pas essayée sur Let's Go Safari, sa copie étant à la corbeille.
+
+### 25/10, nuit — Les séquences rejouées sur la borne ; `--shots`
+
+- Image borne a rejoué mes séquences sur racecab2 (release -4) : toujours zéro paquet de retour de force. Ses captures
+  (PrintWindow) montrent :
+  - Daytona et NSE bloqués sur « NETWORK DISCOVERY » (chez moi, ils passent) : son --log demandé ;
+  - Mario Kart DX 1.18 en course : ce jeu n'envoie rien au moteur tant que son réglage « ハンドル反力の使用 » est
+    OFF (mis à ON dans ma copie) ;
+  - Storm Racer G sur l'écran photo, que Start passe ;
+  - les jeux en Direct3D 9 en blanc ou en noir : PrintWindow ne voit pas leur rendu.
+- `--shots <dossier>` ajouté au lanceur : l'image du jeu y est enregistrée toutes les 15 s (40 au plus), par la même
+  prise que le mode agent. Pas encore essayée : l'écran du PC est de nouveau déconnecté (plus aucune sortie
+  attachée, « Could not find any compatible Direct3D devices »).
+- Image borne passe windowsloader en fenêtre sans bordure sur les deux bornes (DISPLAY_MODE = BORDERLESS,
+  BORDERLESS_STRETCH pour les écrans de super-résolution).
+- Daytona bloqué sur « NETWORK DISCOVERY » sur racecab2 : son ShellData.ini dit CabinetID = 2 (l'identité de link
+  héritée de TeknoParrot), le jeu attend donc la borne 1 (trouvé par Image borne dans le --log). windowsloader fait
+  lire aussi CabinetID = 1, sans toucher au fichier : le même fichier sert au solo et au link. Pas essayé (écran
+  déconnecté, copie de Daytona plus ici).
+- Mario Kart DX 1.18 : « ハンドル反力の使用 » est un réglage de la borne ; Image borne attend l'accord du propriétaire
+  pour le changer.
