@@ -666,23 +666,45 @@ static void WINAPI bng_fin(void)
 {
 }
 
+// Wangan Midnight 6's (64 bits) two more: the library's version, an action (as LED and beep)
+static unsigned int WINAPI bng_get_version(void)
+{
+    return 0x1000000;
+}
+
+static int WINAPI bng_action(UINT number, UINT action, BngCallback callback, void *context)
+{
+    if (callback)
+        callback((int)number, 0, context);
+    return 1;
+}
+
+// Mario Kart DX 1.18 (32 bits) imports them decorated (__stdcall), Wangan 6 (64 bits) by their names
+#ifdef _WIN64
+#define BNG(name, bytes) #name
+#else
+#define BNG(name, bytes) "_" #name "@" #bytes
+#endif
+
 static void bngrw_patch(void)
 {
     static const struct
     {
         const char *name;
         void *fn;
-    } fns[] = {{"_BngRwInit@0", (void *)bng_init},
-               {"_BngRwAttach@24", (void *)bng_attach},
-               {"_BngRwIsCmdExec@4", (void *)bng_is_cmd_exec},
-               {"_BngRwReqWaitTouch@20", (void *)bng_wait_touch},
-               {"_BngRwReqCancel@4", (void *)bng_cancel},
-               {"_BngRwSetLedPower@12", (void *)bng_set_led_power},
-               {"_BngRwDevReset@12", (void *)bng_dev_reset},
-               {"_BngRwReqLed@16", (void *)bng_request},
-               {"_BngRwReqBeep@16", (void *)bng_request},
-               {"_BngRwReqSendUrlTo@32", (void *)bng_send_url},
-               {"_BngRwFin@0", (void *)bng_fin}};
+    } fns[] = {{BNG(BngRwInit, 0), (void *)bng_init},
+               {BNG(BngRwAttach, 24), (void *)bng_attach},
+               {BNG(BngRwIsCmdExec, 4), (void *)bng_is_cmd_exec},
+               {BNG(BngRwReqWaitTouch, 20), (void *)bng_wait_touch},
+               {BNG(BngRwReqCancel, 4), (void *)bng_cancel},
+               {BNG(BngRwSetLedPower, 12), (void *)bng_set_led_power},
+               {BNG(BngRwDevReset, 12), (void *)bng_dev_reset},
+               {BNG(BngRwReqLed, 16), (void *)bng_request},
+               {BNG(BngRwReqBeep, 16), (void *)bng_request},
+               {BNG(BngRwReqSendUrlTo, 32), (void *)bng_send_url},
+               {BNG(BngRwFin, 0), (void *)bng_fin},
+               {BNG(BngRwGetVersion, 0), (void *)bng_get_version},
+               {BNG(BngRwReqAction, 16), (void *)bng_action}};
     int n = 0;
     for (int i = 0; i < (int)(sizeof fns / sizeof fns[0]); i++)
     {
@@ -1276,31 +1298,79 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
+// The names the game looks up (its servers, its routers), each logged once
+static int(WSAAPI *ogetaddrinfo)(PCSTR, PCSTR, const ADDRINFOA *, PADDRINFOA *);
+static int WSAAPI wangan_getaddrinfo(PCSTR node, PCSTR service, const ADDRINFOA *hints, PADDRINFOA *result)
+{
+    int r = ogetaddrinfo(node, service, hints, result);
+    static char seen[16][64];
+    static int seenCount;
+    int known = 0;
+    for (int i = 0; i < seenCount; i++)
+        known |= node && !strcmp(seen[i], node);
+    if (!known && seenCount < 16)
+    {
+        snprintf(seen[seenCount++], sizeof seen[0], "%s", node ? node : "");
+        wl_log("namco: getaddrinfo \"%s\" \"%s\" -> %d", node ? node : "", service ? service : "", r);
+    }
+    return r;
+}
+
+// The Wangan Midnight Maximum Tune versions: what differs between them. Their boards, the key's
+// memory, the terminal's packets and the game's network are the same (above). The places were
+// found by OpenParrot's patterns and the 5's code around them; the IDs are OpenParrot's
+struct Wangan
+{
+    const char *name, *title;
+    const char *keyLibrary;     // the key's library the game imports
+    const char *cabinetId;      // in the key: its first four digits the game's (E1911 otherwise)
+    const char *terminalSerial; // in the terminal's packets (E2403, TERMINAL UNIT LINK NG otherwise)
+    DWORD keyCheck;             // mov r12b / sil, 1: the key's ID check's error flag (made 0)
+    unsigned char keySet[3];
+    DWORD terminalJump; // the terminal's link: its waiting step's jmp, sent to its complete step
+    unsigned char toEnd[5], toComplete[5];
+};
+
+static const Wangan g_wangans[] = {
+    // State +0x660: waiting +0x58e705, complete +0x58e694 (OpenParrot does it for WMMT6R, the same
+    // transition and offsets); the key's ID check compares with 2722 at +0x71ae4d
+    {"wmmt5", "Wangan Midnight Maximum Tune 5", "hasp_windows_x64_109906.dll", "272213990002", "272211990002", 0x58C6CA, {0x41, 0xB4, 0x01},
+     0x58E70F, {0xE9, 0x76, 0x06, 0x00, 0x00}, {0xE9, 0x80, 0xFF, 0xFF, 0xFF}},
+    // Its object's fields 0xf0 further (state +0x750): waiting +0x708685, complete +0x708809; 2783
+    // compared at +0x89db0d
+    {"wmmt5dxp", "Wangan Midnight Maximum Tune 5 DX+", "hasp_windows_x64_106482.dll", "278313042069", "278311042069", 0x706354,
+     {0x40, 0xB6, 0x01}, 0x708691, {0xE9, 0x9D, 0x0C, 0x00, 0x00}, {0xE9, 0x73, 0x01, 0x00, 0x00}},
+    // State +0x738: waiting +0x6a0c7c, complete +0x6a0d5c; 2808 compared at +0x8bbbc2
+    {"wmmt6", "Wangan Midnight Maximum Tune 6", "hasp_windows_x64_28756.dll", "280813990002", "280811990002", 0x69E928, {0x41, 0xB4, 0x01},
+     0x6A0C86, {0xE9, 0x4E, 0x0B, 0x00, 0x00}, {0xE9, 0xD1, 0x00, 0x00, 0x00}},
+};
+
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
     base = base ? base + 1 : exePath;
     wchar_t dir[MAX_PATH];
     wcsncpy_s(dir, MAX_PATH, exePath, base - exePath);
-    int wmmt5 = !_wcsicmp(base, L"wmn5r.exe");
-    if (!wmmt5 && _wcsicmp(base, L"MK_AGP3_FINAL.exe"))
+    int wmmt5 = !_wcsicmp(base, L"wmn5r.exe"), wmmt6 = !_wcsicmp(base, L"wmn6r.exe");
+    if (!wmmt5 && !wmmt6 && _wcsicmp(base, L"MK_AGP3_FINAL.exe"))
         return 0;
 
     // Its drives F:\ and G:\ (system, bookkeeping, dongle data, test mode settings) are the copy's
-    // F* and G* folders and files: F:\system\x is Fsystem\x, G:\boot_limit_N.bin Gboot_limit_N.bin
+    // F* and G* folders and files: F:\system\x is Fsystem\x, G:\boot_limit_N.bin Gboot_limit_N.bin.
+    // Wangan 6: both in its TP folder, as OpenParrot keeps them (the copies have them there)
     char folder[MAX_PATH], to[MAX_PATH];
     WideCharToMultiByte(CP_ACP, 0, dir, -1, folder, sizeof folder, NULL, NULL);
-    snprintf(to, sizeof to, "%sF", folder);
+    snprintf(to, sizeof to, wmmt6 ? "%sTP\\" : "%sF", folder);
     wl_files_redirect_prefix("F:\\", to);
-    snprintf(to, sizeof to, "%sG", folder);
+    snprintf(to, sizeof to, wmmt6 ? "%sTP\\" : "%sG", folder);
     wl_files_redirect_prefix("G:\\", to);
 
-    if (wmmt5)
+    if (wmmt5 || wmmt6)
     {
-        // 5 DX+ (2016) has the same program's name, its own key's library beside it
-        int dxplus = exists(dir, L"hasp_windows_x64_106482.dll");
-        *name = dxplus ? "wmmt5dxp" : "wmmt5";
-        *title = dxplus ? "Wangan Midnight Maximum Tune 5 DX+" : "Wangan Midnight Maximum Tune 5";
+        // 5 DX+ (2016) has the same program's name as the 5, its own key's library beside it
+        const Wangan *w = &g_wangans[wmmt6 ? 2 : exists(dir, L"hasp_windows_x64_106482.dll") ? 1 : 0];
+        *name = w->name;
+        *title = w->title;
         wl_log("game: %s (Namco System ES3X)", *title);
         wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)", "Motor board: Namco motor board (COM1)");
         char probe[4];
@@ -1313,10 +1383,9 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         InitializeCriticalSection(&g_motorLock);
         wl_vdev_register(&g_str3);
         wl_vdev_label("COM1", "Carte du moteur du volant");
-        if (dxplus)
-            wangan_dongle("hasp_windows_x64_106482.dll", "278313042069");
-        else
-            wangan_dongle("hasp_windows_x64_109906.dll", "272213990002");
+        wangan_dongle(w->keyLibrary, w->cabinetId);
+        if (wmmt6)
+            bngrw_patch();
         // E0505 "network: interface not found": the game looks for its card in the cabinets'
         // network, 192.168.92.0/24 (its addresses table, +0x18a7260: .254, .11, .20, .253)
         static const unsigned char mac[6] = {0x00, 0x18, 0xD8, 0x00, 0x00, 0x0B};
@@ -1324,21 +1393,15 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         // E1911 "USB DONGLE error2": the key's ID is compared with the cabinet's, given by its
         // "auth" COM class (not registered here: "auth: can't get instance(80040154)"); that one
         // empty is the error (+0x58c63a). The error's flag stays clear (mov r12b, 1 made 0, as
-        // OpenParrot's WMMT5.cpp does; 5 DX+: mov sil, 1, the place found by OpenParrot's pattern)
+        // OpenParrot's WMMT5.cpp does; 5 DX+: mov sil, 1, the places found by OpenParrot's pattern)
         unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
-        if (dxplus)
-        {
-            static const unsigned char set[3] = {0x40, 0xB6, 0x01}, clear[3] = {0x40, 0xB6, 0x00};
-            wl_patch_code(exe + 0x706354, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x706354)");
-        }
-        else
-        {
-            static const unsigned char set[3] = {0x41, 0xB4, 0x01}, clear[3] = {0x41, 0xB4, 0x00};
-            wl_patch_code(exe + 0x58C6CA, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x58c6ca)");
-        }
+        unsigned char clear[3];
+        memcpy(clear, w->keySet, 3);
+        clear[2] = 0;
+        wl_patch_code(exe + w->keyCheck, w->keySet, clear, 3, "the key's ID left unchecked");
         // The arcade's terminal (above): its packets on port 50765, shown from its address. Without
         // it, E0505 "Network disconnection error" (+0x5814cc: the link's state 4, 35 s after boot)
-        terminal_packets(dxplus ? "278311042069" : "272211990002");
+        terminal_packets(w->terminalSerial);
         CloseHandle(CreateThread(NULL, 0, terminal_thread, NULL, 0, NULL));
         if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSARecvFrom", (void *)terminal_WSARecvFrom, (void **)&oWSARecvFrom) ||
             !wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "GetQueuedCompletionStatus", (void *)terminal_GetQueuedCompletionStatus,
@@ -1346,22 +1409,30 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
             wl_log("namco: WSARecvFrom or GetQueuedCompletionStatus not in the import table: the terminal's address left as it is");
         if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSASendTo", (void *)cabinet_WSASendTo, (void **)&oWSASendTo))
             wl_log("namco: WSASendTo not in the import table: the game's packets may reach the network");
-        // The boot check's terminal link (state +0x660): heard, the terminal still answers nothing
-        // (TERMINAL UNIT LINK NG, the boot stopped at GAME SERVER CONNECT CHECK). Its "waiting" step
-        // (+0x58e705, state 1) goes on to the "complete" one (+0x58e694, state 2) instead of the
-        // state machine's end, which came back to waiting forever. OpenParrot's WMMT5.cpp does it
-        // for WMMT6R (the same transition and offsets)
-        // 5 DX+: the same steps, its object's fields 0xf0 further (state +0x750), waiting at +0x708685,
-        // complete at +0x708809
-        if (dxplus)
+        wl_patch_iat((HMODULE)exe, "WS2_32.dll", "getaddrinfo", (void *)wangan_getaddrinfo, (void **)&ogetaddrinfo);
+        // The boot check's terminal link: heard, the terminal still answers nothing (TERMINAL UNIT
+        // LINK NG, the boot stopped at GAME SERVER CONNECT CHECK). Its "waiting" step's jump goes to
+        // the "complete" step instead of the state machine's end, which came back to waiting forever
+        wl_patch_code(exe + w->terminalJump, w->toEnd, w->toComplete, 5, "the terminal's link taken as complete");
+        // Wangan 6 stopped on CERTIFICATE CHECK (its ALL.Net, Mucha, is not here): the state the
+        // terminal's complete step compares with 2 (+0x718) is set 2 instead of 0 when the auth's
+        // state is none of its three (jmp over that mov made nops, +0x690876, as OpenParrot does)
+        if (wmmt6)
         {
-            static const unsigned char toEnd[5] = {0xE9, 0x9D, 0x0C, 0x00, 0x00}, toComplete[5] = {0xE9, 0x73, 0x01, 0x00, 0x00};
-            wl_patch_code(exe + 0x708691, toEnd, toComplete, 5, "the terminal's link taken as complete (wmn5r.exe+0x708691)");
-        }
-        else
-        {
-            static const unsigned char toEnd[5] = {0xE9, 0x76, 0x06, 0x00, 0x00}, toComplete[5] = {0xE9, 0x80, 0xFF, 0xFF, 0xFF};
-            wl_patch_code(exe + 0x58E70F, toEnd, toComplete, 5, "the terminal's link taken as complete (wmn5r.exe+0x58e70f)");
+            static const unsigned char jump[2] = {0xEB, 0x22}, nops[2] = {0x90, 0x90};
+            wl_patch_code(exe + 0x690876, jump, nops, 2, "the certificate check taken as passed");
+            static const unsigned char je[2] = {0x74, 0x5C};
+            wl_patch_code(exe + 0xA131B3, je, nops, 2, "OpenParrot's cabinet nop (+0xa131b3)");
+            // Then GAME SERVER CONNECT CHECK (state +0x798): it waits for the game server's answer
+            // (message 0xe, 3 or 4) from the ALL.Net auth, which E0516 "ALL.Net AUTH ERROR" never
+            // sends, or for its object at +0x790 to be done: the step goes on (jne made jmp, +0x6a0df3)
+            static const unsigned char jne[2] = {0x75, 0x0D}, jmp[2] = {0xEB, 0x0D};
+            wl_patch_code(exe + 0x6A0DF3, jne, jmp, 2, "the game server's check left");
+            // E0552 "OFFLINE UPTIME ERROR": 36 h (0x1fa40 s) since the last authentication, which
+            // never comes: the limit taken as not reached (jl made jmp, +0x6916bd), as for Mario
+            // Kart DX's
+            static const unsigned char jl[2] = {0x7C, 0x41}, jmpUptime[2] = {0xEB, 0x41};
+            wl_patch_code(exe + 0x6916BD, jl, jmpUptime, 2, "the offline uptime's limit not reached");
         }
         return 1;
     }

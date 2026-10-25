@@ -71,6 +71,10 @@ const WlKnownGame g_wlKnownGames[] = {
      "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."},
     {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, NULL, "Sega ALLS (64 bits)", "", WL_GAME_WORK,
      "Plateforme ALLS (amdaemon) : ne se joue pas encore, bloqué sur le serveur de jeu."},
+    {"Wangan Midnight Maximum Tune 6", {L"wmn6r.exe"}, {NULL}, 0, NULL, "Namco System ES3X (64 bits)", "2018", WL_GAME_PARTLY,
+     "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans "
+     "ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON "
+     "dans le menu de test. Restent les cartes et la caméra."},
     {"Wangan Midnight Maximum Tune 5 DX+", {L"wmn5r.exe"}, {L"hasp_windows_x64_106482.dll"}, 0, NULL, "Namco System ES3X (64 bits)", "2016",
      WL_GAME_PARTLY,
      "Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de "
