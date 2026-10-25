@@ -99,7 +99,7 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 88 | 24/10 | Où en est la copie ? | ✅ Wangan Midnight 5 : 36 155 fichiers sur 46 544 et 5,3 Go sur 18,5 à 21 h 07, environ 2 Mo/s, fin vers 23 h |
 | 89 | 24/10 | Où en est la copie ? | ✅ 13,8 Go sur 18,5 à 22 h 12 ; finie à 22 h 56 sans échec, Image borne prévenue ; Wangan Midnight 5 commencé (clé HASP, réseau, JVS), arrêté sur le terminal de salle |
 | 90 | 25/10 | Mets les jeux déjà faits à la corbeille | 🔄 la corbeille de C: ne prend que 48,5 Go pour 72 Go de copies : en deux fois. Faits : Showdown, Storm Racer G, Mario Kart DX 1.18 et 1.10, Initial D 7 et 8, Let's Go Safari, Sega Racing Classic (45,5 Go). Après que le propriétaire aura vidé la corbeille : les trois Battle Gear 4, Chase H.Q. 2, Crazy Ride, D1GP, GTI Club 3, Sonic, Valve Limit R, Wacky Races, Wasteland Racers (22,5 Go). Gardés : SWDC, Wangan Midnight 5 (en cours) |
-| 91 | 25/10 | Commit et pousse | ✅ 7 commits poussés : `--shots`, Daytona en borne 1 (CabinetID), les polices du jeu en FR_PRIVATE, Wangan Midnight 5 commencé (clé HASP, réseau de borne, sans terminal), BILAN.md, NOTES.md ; pas de release |
+| 91 | 25/10 | Commit et pousse | ✅ 6 commits poussés (`5318018..d909119`) : `--shots`, Daytona en borne 1 (CabinetID), les polices du jeu en FR_PRIVATE, Wangan Midnight 5 commencé (clé HASP, réseau de borne, sans terminal), BILAN.md, NOTES.md ; pas de release |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
