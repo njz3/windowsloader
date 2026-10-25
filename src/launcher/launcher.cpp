@@ -98,8 +98,6 @@ static void usage(void)
         "  --fullscreen     let the game switch the display to full screen (default: kept in a window)\n"
         "  --timeout <s>    stop the game after <s> seconds (for tests)\n"
         "  --iolimit <n>    max reads/writes logged per device handle (default: 500)\n"
-        "  --shots <folder> the game's picture saved there every 15 s (shot-<seconds>.bmp, 40 at most), to see\n"
-        "                   where a game was without a screen capture of it\n"
         "  --quiet          do not echo the log on this console\n"
         "  --agent          drive the game over stdin/stdout (linuxloader's agent protocol); messages go to stderr\n"
         "  --controllers    with --agent: the controllers are read and get the force feedback too (opens vJoy)\n"
@@ -594,7 +592,6 @@ int wmain(int argc, wchar_t **argv)
     int agent = 0;
     int controllers = 0;
     const wchar_t *configArg = NULL;
-    const wchar_t *shotsArg = NULL;
     static wchar_t sets[8192]; // --set's, one per line
     size_t setsLen = 0;
 
@@ -616,8 +613,6 @@ int wmain(int argc, wchar_t **argv)
             timeoutSec = _wtoi(argv[++i]);
         else if (!wcscmp(a, L"--iolimit") && hasValue)
             ioLimit = _wtoi(argv[++i]);
-        else if (!wcscmp(a, L"--shots") && hasValue)
-            shotsArg = argv[++i];
         else if (!wcscmp(a, L"--quiet"))
             g_quiet = 1;
         else if (!wcscmp(a, L"--controllers"))
@@ -694,10 +689,6 @@ int wmain(int argc, wchar_t **argv)
     SetEnvironmentVariableW(WL_ENV_IOLIMIT, num);
     SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
     SetEnvironmentVariableW(WL_ENV_CONTROLLERS, controllers ? L"1" : NULL);
-    wchar_t shotsPath[MAX_PATH] = L"";
-    if (shotsArg && GetFullPathNameW(shotsArg, MAX_PATH, shotsPath, NULL))
-        CreateDirectoryW(shotsPath, NULL);
-    SetEnvironmentVariableW(WL_ENV_SHOTS, shotsPath[0] ? shotsPath : NULL);
     wchar_t controlsPath[MAX_PATH];
     swprintf(controlsPath, MAX_PATH, L"%s\\controls.ini", selfDir);
     SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
@@ -755,7 +746,6 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_LOG, compLog);
         SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);
-        SetEnvironmentVariableW(WL_ENV_SHOTS, NULL);
         // Its console output to NUL, without a window: ours is the agent's protocol in agent
         // mode (amdaemon prints its version). NUL is the only handle it inherits.
         SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
@@ -801,7 +791,6 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_LOG, logPath);
         SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
-        SetEnvironmentVariableW(WL_ENV_SHOTS, shotsPath[0] ? shotsPath : NULL);
     }
 
     // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the

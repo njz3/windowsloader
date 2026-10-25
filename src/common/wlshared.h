@@ -24,7 +24,6 @@
 #define WL_ENV_CONTROLS L"WINDOWSLOADER_CONTROLS" // controls.ini path (absolute), next to the launcher by default
 #define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher, or -c's file
 #define WL_ENV_SET      L"WINDOWSLOADER_SET"      // --set's SECTION.KEY=VALUE, one per line, over the file's values
-#define WL_ENV_SHOTS    L"WINDOWSLOADER_SHOTS"    // --shots' folder: the game's picture saved there every 15 s
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 
