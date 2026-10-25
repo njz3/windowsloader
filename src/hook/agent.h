@@ -24,6 +24,10 @@ void wl_agent_init(void);
 unsigned wl_d3d9_frames(void);
 void wl_d3d9_size(int *w, int *h);
 
+// A game rendering above its own resolution whose 2D (pretransformed vertices, scissor rectangles)
+// stays placed for a w x h screen: that 2D is scaled to the back buffer
+void wl_d3d9_scale_2d(int w, int h);
+
 // From the other renderers' Present hooks (Direct3D 11): the same frame counter and picture size
 void wl_frame_presented(void);
 void wl_frame_size(int w, int h);
