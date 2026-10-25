@@ -699,6 +699,41 @@ Vérifié (25/10) : dossier d'essai (deux éditions de Sega Rally 3, Chase H.Q. 
 jeu écarté), flèches, image, message d'erreur du lanceur, Échap ; puis le dossier `games` du dépôt, Wangan Midnight 5
 lancé depuis le sélecteur (windowsloader.exe → windowsloader64.exe → wmn5r.exe), le sélecteur revenu à l'arrêt du jeu.
 
+## Dossier d'écriture, sorties réseau, menu Tab désactivable (25/10)
+
+Les trois fonctions de linuxloader qui manquaient, avec ses clés :
+- `[Paths] WRITE_DIR` ou `--write-dir` : les dossiers du lanceur et des jeux ne sont plus que lus.
+  `windowsloader.ini`, `controls.ini` (copiés la première fois) et le journal vont à sa racine ; ce que le jeu
+  écrit va dans `WRITE_DIR\<jeu>\<lecteur>\<chemin complet>`, copié d'abord quand il est modifié ; une lecture
+  y prend le fichier s'il y est, sinon à sa place ; les listes de dossiers joignent les deux. Les dossiers du
+  système ont chacun le leur dans `WRITE_DIR\<jeu>` : `appdata` (Roaming, Local, LocalLow), `temp`,
+  `programdata`, `windows` ; un disque sous filtre d'écriture (UWF) sauf le dossier d'écriture garde ainsi tout
+  ce que le jeu écrit. Un seul réglage, `WRITE_DIR` : vide, tout s'écrit à sa place habituelle. Le sélecteur
+  suit.
+- `[Outputs] OUTPUTS_NETWORK` : serveur TCP (8000) au protocole de MAME pour BackForceFeeder, annonce UDP
+  (8001) ; les lampes de la carte JVS, `RawDrive` (les octets de la carte moteur Sega, ou pour les autres
+  cartes les trames de la carte servo Sega faites de la force), `mame_stop` à la fin.
+- `[Launcher] SETTINGS_MENU = false` : Tab n'ouvre plus le menu (borne publique) ; l'agent l'ouvre toujours.
+
+Vérifié (25/10) :
+- Wangan Midnight 5 avec les trois : le dossier du jeu intact, ses 20 fichiers écrits dans le dossier
+  d'écriture (chemins de plus de 260 caractères, forme `\\?\`), démonstration normale ; annonce UDP
+  `mame_start = wmmt5`, lampes `RawLamps`/`lamp0..15`, `mame_stop = 1` à la fin ; « menu : Tab n'ouvre pas »
+  au journal, `menu on` de l'agent toujours possible ;
+- un programme d'essai en 32 et 64 bits, appels A et W : lecture, fichier modifié (copié d'abord), créé,
+  `CREATE_NEW` sur un fichier existant, liste fusionnée, .ini écrit et relu, renommage, dossier, suppression
+  (16 contrôles chacun, tous bons, le dossier du « jeu » inchangé) ;
+- Wangan Midnight 5 sans dossier d'écriture : comme avant ;
+- les dossiers du système (25/10, après la demande sur UWF) : le programme d'essai écrit son rapport dans
+  `%TEMP%` et un fichier dans AppData\Local ; ils arrivent dans `temp` et `appdata\Local` du dossier d'écriture,
+  ni le vrai dossier temporaire ni le vrai AppData touchés (17 contrôles, 32 et 64 bits, A et W). Wangan
+  Midnight 5 : le fichier que le pilote NVIDIA écrit dans ProgramData pour le jeu rangé dans `programdata`,
+  démonstration normale.
+
+Pas encore vu : `RawDrive` en jeu (Wangan ne pilote pas son moteur en démonstration ; aucun autre jeu sur ce
+PC), la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
+`RemoveDirectory` à travers le dossier d'écriture.
+
 ## Menu Tab sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
 
 `f10_check.py` (bloc-notes) : menu ouvert par l'agent, pages Jeu, Contrôles, Affichage, Retour de force, À propos
