@@ -1090,6 +1090,8 @@ static void terminal_packets(const char *serial)
     }
 }
 
+#define SINK_PORT 50766 // the terminal's socket, where the game's sends to other machines go
+
 static DWORD WINAPI terminal_thread(LPVOID)
 {
     WSADATA wsa;
@@ -1102,6 +1104,16 @@ static DWORD WINAPI terminal_thread(LPVOID)
         wl_log("namco: the terminal's socket: error %d", WSAGetLastError());
         return 0;
     }
+    // On 127.0.0.1:50766, it is also where the game's sends to other machines go (cabinet_WSASendTo):
+    // it reads nothing, its small buffer once full drops them
+    sockaddr_in me = {};
+    me.sin_family = AF_INET;
+    me.sin_port = htons(SINK_PORT);
+    me.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    int small = 4096;
+    setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&small, sizeof small);
+    if (bind(s, (const sockaddr *)&me, sizeof me))
+        wl_log("namco: the terminal's socket on 127.0.0.1:%d: error %d", SINK_PORT, WSAGetLastError());
     sockaddr_in to = {};
     to.sin_family = AF_INET;
     to.sin_port = htons(50765);
@@ -1151,14 +1163,63 @@ static int terminal_socket(SOCKET s)
     return 1;
 }
 
-static void from_terminal(sockaddr_in *from)
+// The cabinet alone (25/10): its packets on port 50765 from another machine are not given to the
+// game (0 bytes, which it drops). Two Wangan on the same network with the same PCB ID saw each
+// other: E2403 "Duplicate Board ID error" here, "同一の基板IDの筐体が存在します" on racecab1.
+// 1: the packet is to be dropped
+static int from_terminal(sockaddr_in *from)
 {
-    if (from->sin_family != AF_INET || from->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
-        return;
+    if (from->sin_family != AF_INET || from->sin_addr.s_addr == TERMINAL_ADDRESS) // the terminal's, shown already
+        return 0;
+    if (from->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+    {
+        static unsigned seen[8];
+        static int seenCount;
+        int known = 0;
+        for (int i = 0; i < seenCount; i++)
+            known |= seen[i] == from->sin_addr.s_addr;
+        if (!known && seenCount < 8)
+        {
+            seen[seenCount++] = from->sin_addr.s_addr;
+            const unsigned char *a = (const unsigned char *)&from->sin_addr.s_addr;
+            wl_log("namco: a packet from %u.%u.%u.%u (another cabinet on the network) not given to the game", a[0], a[1], a[2], a[3]);
+        }
+        return 1;
+    }
     from->sin_addr.s_addr = TERMINAL_ADDRESS;
     static int logged;
     if (!logged++)
         wl_log("namco: the terminal's packets shown to the game from 192.168.92.20");
+    return 0;
+}
+
+// The game's own sends (boost::asio's WSASendTo, out of system.cpp's reach: its announcements to the
+// other cabinets, its answers to the terminal) left the PC. Those to another machine go to
+// 127.0.0.1:50766 instead, the terminal's socket, which reads nothing: they complete as sent, and no
+// ICMP comes back (a closed port would fail the socket's next receive on WSAECONNRESET)
+static int(WSAAPI *oWSASendTo)(SOCKET, LPWSABUF, DWORD, LPDWORD, DWORD, const sockaddr *, int, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
+static int WSAAPI cabinet_WSASendTo(SOCKET s, LPWSABUF buffers, DWORD count, LPDWORD sent, DWORD flags, const sockaddr *to, int toLen,
+                                    LPWSAOVERLAPPED ov, LPWSAOVERLAPPED_COMPLETION_ROUTINE cr)
+{
+    const sockaddr_in *in = (const sockaddr_in *)to;
+    if (!to || toLen < (int)sizeof(sockaddr_in) || in->sin_family != AF_INET || (ntohl(in->sin_addr.s_addr) >> 24) == 127)
+        return oWSASendTo(s, buffers, count, sent, flags, to, toLen, ov, cr);
+    static unsigned seen[8];
+    static int seenCount;
+    int known = 0;
+    for (int i = 0; i < seenCount; i++)
+        known |= seen[i] == in->sin_addr.s_addr;
+    if (!known && seenCount < 8)
+    {
+        seen[seenCount++] = in->sin_addr.s_addr;
+        const unsigned char *a = (const unsigned char *)&in->sin_addr.s_addr;
+        wl_log("namco: the game's packets to %u.%u.%u.%u:%u kept on this PC", a[0], a[1], a[2], a[3], ntohs(in->sin_port));
+    }
+    sockaddr_in sink = {};
+    sink.sin_family = AF_INET;
+    sink.sin_port = htons(SINK_PORT);
+    sink.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    return oWSASendTo(s, buffers, count, sent, flags, (const sockaddr *)&sink, sizeof sink, ov, cr);
 }
 
 static int(WSAAPI *oWSARecvFrom)(SOCKET, LPWSABUF, DWORD, LPDWORD, LPDWORD, sockaddr *, LPINT, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
@@ -1201,8 +1262,8 @@ static BOOL WINAPI terminal_GetQueuedCompletionStatus(HANDLE port, LPDWORD bytes
                 break;
             }
         ReleaseSRWLockExclusive(&g_recvLock);
-        if (from && r)
-            from_terminal(from);
+        if (from && r && from_terminal(from) && bytes)
+            *bytes = 0;
     }
     SetLastError(err);
     return r;
@@ -1283,6 +1344,8 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
             !wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "GetQueuedCompletionStatus", (void *)terminal_GetQueuedCompletionStatus,
                           (void **)&oGetQueuedCompletionStatus))
             wl_log("namco: WSARecvFrom or GetQueuedCompletionStatus not in the import table: the terminal's address left as it is");
+        if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSASendTo", (void *)cabinet_WSASendTo, (void **)&oWSASendTo))
+            wl_log("namco: WSASendTo not in the import table: the game's packets may reach the network");
         // The boot check's terminal link (state +0x660): heard, the terminal still answers nothing
         // (TERMINAL UNIT LINK NG, the boot stopped at GAME SERVER CONNECT CHECK). Its "waiting" step
         // (+0x58e705, state 1) goes on to the "complete" one (+0x58e694, state 2) instead of the
