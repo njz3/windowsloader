@@ -24,6 +24,7 @@
 #define WL_ENV_CONTROLS L"WINDOWSLOADER_CONTROLS" // controls.ini path (absolute), next to the launcher by default
 #define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher, or -c's file
 #define WL_ENV_SET      L"WINDOWSLOADER_SET"      // --set's SECTION.KEY=VALUE, one per line, over the file's values
+#define WL_ENV_WRITE_DIR L"WINDOWSLOADER_WRITE_DIR" // the write folder's root (absolute): the game writes in <it>\<game>, not in place
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 

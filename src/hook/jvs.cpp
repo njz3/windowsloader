@@ -16,6 +16,7 @@
 
 #include "jvs.h"
 #include "log.h"
+#include "outputs.h"
 #include "vdev.h"
 
 #define JVS_SYNC 0xE0
@@ -207,6 +208,8 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
             int bytes = p[i++];
             if (board->output)
                 board->output(p + i, bytes);
+            for (int o = 0; o < bytes; o++)
+                wl_outputs_gpo(o, p[i + o]); // the lamps, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
             i += bytes;
             r[k++] = 0x01;
             break;

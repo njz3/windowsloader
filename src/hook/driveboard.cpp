@@ -28,6 +28,7 @@
 #include "driveboard.h"
 #include "ffb.h"
 #include "log.h"
+#include "outputs.h"
 #include "vdev.h"
 
 #define BOARD_READY 0x00
@@ -110,6 +111,7 @@ static void frame(const unsigned char *f)
 static BOOL board_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
 {
     const unsigned char *b = (const unsigned char *)buffer;
+    wl_outputs_drive(b, size); // as they come, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
     for (DWORD i = 0; i < size; i++)
     {
         g_frame[g_used++] = b[i];

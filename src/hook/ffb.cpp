@@ -16,6 +16,7 @@
 #include "agent.h"
 #include "ffb.h"
 #include "log.h"
+#include "outputs.h"
 
 #define FFB_EVENTS 512
 
@@ -45,6 +46,7 @@ void wl_ffb_set(double force)
             g_first = (g_first + 1) % FFB_EVENTS;
     }
     ReleaseSRWLockExclusive(&g_lock);
+    wl_outputs_force(force); // as the servo board's frames, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
 }
 
 double wl_ffb_get(unsigned *serial)

@@ -111,7 +111,36 @@ static const char *g_defaults =
     "\r\n"
     "# Direct3D 9 and 11 games in a window. GDI: windowsloader copies the picture into the window itself;\r\n"
     "# DIRECT: the game's own Present, faster, but some PCs show nothing of it (Windows 11 on a laptop).\r\n"
-    "PRESENT = GDI\r\n";
+    "PRESENT = GDI\r\n"
+    "\r\n"
+    "[Paths]\r\n"
+    "# The folder everything is written to (or --write-dir); the launcher's and the games' folders are then\r\n"
+    "# only read. Its root holds windowsloader.ini and controls.ini (copied there the first time) and the log,\r\n"
+    "# WRITE_DIR\\<game> what the game writes: its own files under their drive's letter, AppData in appdata, the\r\n"
+    "# temporary folder in temp, ProgramData in programdata, Windows' in windows; for a write filter (UWF) on the\r\n"
+    "# whole disk but this folder, or games on a share. Once it is set, the windowsloader.ini and controls.ini\r\n"
+    "# read are the copies in that folder: change those, not the ones beside the launcher. Relative to the\r\n"
+    "# launcher's folder, or a full path. Empty: everything is written in its usual place.\r\n"
+    "# For Example: C:\\Racecab\\Saves\\windowsloader\r\n"
+    "WRITE_DIR = \"\"\r\n"
+    "\r\n"
+    "[Outputs]\r\n"
+    "# Set to true to send lamps and drive board data over the network, MAME style (BackForceFeeder, MAMEHooker...)\r\n"
+    "OUTPUTS_NETWORK = false\r\n"
+    "\r\n"
+    "# TCP port the outputs server listens on\r\n"
+    "OUTPUTS_NETWORK_PORT = 8000\r\n"
+    "\r\n"
+    "# UDP port on 127.0.0.1 that gets a start announcement (0 to disable)\r\n"
+    "OUTPUTS_NETWORK_UDP_PORT = 8001\r\n"
+    "\r\n"
+    "[Launcher]\r\n"
+    "# Folder the game picker lists when windowsloader starts without a game (empty: a games folder next to\r\n"
+    "# the program, or one or two levels up)\r\n"
+    "GAMES_DIR = \r\n"
+    "\r\n"
+    "# Set to false on a public cabinet: Tab no longer opens the settings over a running game (which pauses it)\r\n"
+    "SETTINGS_MENU = true\r\n";
 
 // The names without case, a space for the underscore ("4:3 crop", as linuxloader reads them)
 static int name_index(const char *const *names, int count, const char *value, int def)
@@ -1070,7 +1099,9 @@ int wl_display_screenshot(const char *path)
             ok = PrintWindow(g_wnd, mem, PW_CLIENTONLY | 0x2 /* PW_RENDERFULLCONTENT */) || ok;
         SelectObject(mem, old);
         GdiFlush();
+        wl_busy_enter(); // windowsloader's own file, where the agent asked: not the game's (no write folder)
         FILE *f = ok ? fopen(path, "wb") : NULL;
+        wl_busy_leave();
         if (f)
         {
             BITMAPFILEHEADER fh = {};

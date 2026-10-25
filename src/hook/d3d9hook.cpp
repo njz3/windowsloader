@@ -84,7 +84,9 @@ static HANDLE g_shotDone;
 // 32-bit BGRX (or RGBX) pixels to a 24-bit BMP (rows bottom-up, padded to 4 bytes)
 int wl_write_bmp(const char *path, const unsigned char *pixels, int pitch, int w, int h, int rgba)
 {
+    wl_busy_enter(); // windowsloader's own file, where the agent asked: not the game's (no write folder)
     FILE *f = fopen(path, "wb");
+    wl_busy_leave();
     if (!f)
         return 0;
     int row = (w * 3 + 3) & ~3;

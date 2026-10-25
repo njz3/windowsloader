@@ -16,7 +16,7 @@
 // pane, Enter to play. The game runs through windowsloader.exe again, in a process of its own, and
 // the picker comes back when it ends. Dear ImGui on Win32 and Direct3D 11.
 //
-// The games folder: [Picker] GAMES_DIR of windowsloader.ini, else a "games" folder beside this
+// The games folder: [Launcher] GAMES_DIR of windowsloader.ini, else a "games" folder beside this
 // program or one or two levels up (C:\Racecab\Games for C:\Racecab\Emulators\windowsloader). Each
 // folder of it is a game when a program of the table (gamelist.cpp) is found in it, six levels
 // down at most. A picture of the game, when its folder has one: snap, title, art or cover, or the
@@ -38,6 +38,7 @@
 #include "gamelist.h"
 #include "picker.h"
 #include "wlshared.h"
+#include "writedir.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -58,6 +59,7 @@ struct Entry
 static Entry *g_entries;
 static int g_count;
 static wchar_t g_selfDir[MAX_PATH], g_selfPath[MAX_PATH], g_ini[MAX_PATH], g_gamesDir[MAX_PATH];
+static wchar_t g_logDir[MAX_PATH]; // windowsloader.log's: this program's folder, or the write folder
 static int g_focusSelected = 1; // the keyboard's focus to put back on the chosen game
 static ULONGLONG g_keysFrom;     // the shortcuts wait until then: Escape still held from the game does not quit
 static char g_message[4096];     // shown over the picker until closed (a game that would not start)
@@ -85,8 +87,11 @@ static int is_dir(const wchar_t *path)
 
 static void find_games_dir(void)
 {
+    // [Launcher] GAMES_DIR, linuxloader's key; [Picker] GAMES_DIR, the release of 25/10/2026's
     wchar_t v[MAX_PATH] = L"";
-    GetPrivateProfileStringW(L"Picker", L"GAMES_DIR", L"", v, MAX_PATH, g_ini);
+    GetPrivateProfileStringW(L"Launcher", L"GAMES_DIR", L"", v, MAX_PATH, g_ini);
+    if (!v[0])
+        GetPrivateProfileStringW(L"Picker", L"GAMES_DIR", L"", v, MAX_PATH, g_ini);
     if (v[0])
     {
         wchar_t joined[MAX_PATH];
@@ -375,7 +380,7 @@ static void play(HWND wnd, const Entry *e)
     if (code && GetTickCount64() - start < 10000)
     {
         char dir[MAX_PATH * 3];
-        u8(g_selfDir, dir, sizeof dir);
+        u8(g_logDir, dir, sizeof dir);
         snprintf(g_message, sizeof g_message, "Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log.",
                  (long)code, tail.text, tail.len ? "\n" : "", dir);
     }
@@ -410,7 +415,8 @@ static void choose_games_dir(HWND wnd)
         if (SUCCEEDED(chosen->GetDisplayName(SIGDN_FILESYSPATH, &path)))
         {
             wcscpy_s(g_gamesDir, MAX_PATH, path);
-            WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", g_gamesDir, g_ini);
+            WritePrivateProfileStringW(L"Launcher", L"GAMES_DIR", g_gamesDir, g_ini);
+            WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", NULL, g_ini); // the old place, if any, gone
             CoTaskMemFree(path);
             scan_games();
         }
@@ -677,6 +683,15 @@ int wl_picker_run(void)
     if (slash)
         *slash = 0;
     swprintf(g_ini, MAX_PATH, L"%s\\windowsloader.ini", g_selfDir);
+    // With a write folder ([Paths] WRITE_DIR), its windowsloader.ini is the one read and written,
+    // the log there too
+    wcscpy_s(g_logDir, MAX_PATH, g_selfDir);
+    wchar_t root[MAX_PATH];
+    if (wl_write_dir_root(g_selfDir, NULL, g_ini, root, MAX_PATH) > 0)
+    {
+        wl_write_dir_file(root, L"windowsloader.ini", g_ini, MAX_PATH);
+        wcscpy_s(g_logDir, MAX_PATH, root);
+    }
 
     // Started from the Explorer, the console is ours alone: it goes away
     DWORD consoles[2];

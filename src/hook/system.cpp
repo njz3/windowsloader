@@ -27,6 +27,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 #include "hooks.h"
 #include "ioports.h"
 #include "log.h"
+#include "outputs.h"
 
 static const char *where_of(const void *caller, char *buf, size_t size)
 {
@@ -121,6 +122,19 @@ static FARPROC virtual_proc(LPCSTR name)
     return NULL;
 }
 
+static HMODULE(WINAPI *oLoadLibraryExW)(LPCWSTR, HANDLE, DWORD);
+
+// A DLL named with its folder, which the game wrote there with a write folder (WRITE_DIR): loaded
+// from the write folder (files.cpp). The ANSI calls go through the W one, the write folder's path
+// may be long (\\?\). NULL when it is not there
+static const wchar_t *written_dll(const char *name, wchar_t *w, wchar_t *buf)
+{
+    if (!name || (!strchr(name, '\\') && !strchr(name, '/')) || !MultiByteToWideChar(CP_ACP, 0, name, -1, w, MAX_PATH * 2))
+        return NULL;
+    const wchar_t *mapped = wl_files_read_path(w, buf, MAX_PATH * 2);
+    return mapped == w ? NULL : mapped;
+}
+
 static HMODULE(WINAPI *oLoadLibraryA)(LPCSTR);
 static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
 {
@@ -132,8 +146,10 @@ static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
         return v;
     if (!nested && refused_dll(name, WL_CALLER))
         return NULL;
+    wchar_t w[MAX_PATH * 2], wbuf[MAX_PATH * 2];
+    const wchar_t *written = nested ? NULL : written_dll(name, w, wbuf);
     wl_busy_enter();
-    HMODULE mod = oLoadLibraryA(name);
+    HMODULE mod = written ? oLoadLibraryExW(written, NULL, 0) : oLoadLibraryA(name);
     wl_busy_leave();
     DWORD err = GetLastError();
     if (!nested && name)
@@ -154,8 +170,10 @@ static HMODULE WINAPI hLoadLibraryW(LPCWSTR name)
         return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
+    wchar_t wbuf[MAX_PATH * 2];
+    const wchar_t *path = nested ? name : wl_files_read_path(name, wbuf, MAX_PATH * 2);
     wl_busy_enter();
-    HMODULE mod = oLoadLibraryW(name);
+    HMODULE mod = oLoadLibraryW(path);
     wl_busy_leave();
     DWORD err = GetLastError();
     if (!nested && name)
@@ -178,8 +196,10 @@ static HMODULE WINAPI hLoadLibraryExA(LPCSTR name, HANDLE file, DWORD flags)
         return v;
     if (!nested && refused_dll(name, WL_CALLER))
         return NULL;
+    wchar_t w[MAX_PATH * 2], wbuf[MAX_PATH * 2];
+    const wchar_t *written = nested ? NULL : written_dll(name, w, wbuf);
     wl_busy_enter();
-    HMODULE mod = oLoadLibraryExA(name, file, flags);
+    HMODULE mod = written ? oLoadLibraryExW(written, file, flags) : oLoadLibraryExA(name, file, flags);
     wl_busy_leave();
     DWORD err = GetLastError();
     if (!nested && name)
@@ -188,7 +208,6 @@ static HMODULE WINAPI hLoadLibraryExA(LPCSTR name, HANDLE file, DWORD flags)
     return mod;
 }
 
-static HMODULE(WINAPI *oLoadLibraryExW)(LPCWSTR, HANDLE, DWORD);
 static HMODULE WINAPI hLoadLibraryExW(LPCWSTR name, HANDLE file, DWORD flags)
 {
     int nested = wl_busy();
@@ -200,8 +219,10 @@ static HMODULE WINAPI hLoadLibraryExW(LPCWSTR name, HANDLE file, DWORD flags)
         return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
+    wchar_t wbuf[MAX_PATH * 2];
+    const wchar_t *path = nested ? name : wl_files_read_path(name, wbuf, MAX_PATH * 2);
     wl_busy_enter();
-    HMODULE mod = oLoadLibraryExW(name, file, flags);
+    HMODULE mod = oLoadLibraryExW(path, file, flags);
     wl_busy_leave();
     DWORD err = GetLastError();
     if (!nested && name)
@@ -1840,16 +1861,21 @@ static void WINAPI hExitProcess(UINT code)
 {
     char where[128];
     wl_log("ExitProcess(%u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
+    wl_outputs_stop(); // "mame_stop" to BackForceFeeder, while the server's thread still runs
     oExitProcess(code);
 }
 
 static BOOL(WINAPI *oTerminateProcess)(HANDLE, UINT);
 static BOOL WINAPI hTerminateProcess(HANDLE process, UINT code)
 {
-    if (!wl_busy() && (process == GetCurrentProcess() || GetProcessId(process) == GetCurrentProcessId()))
+    if (process == GetCurrentProcess() || GetProcessId(process) == GetCurrentProcessId())
     {
-        char where[128];
-        wl_log("TerminateProcess(self, %u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
+        if (!wl_busy())
+        {
+            char where[128];
+            wl_log("TerminateProcess(self, %u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
+        }
+        wl_outputs_stop(); // the agent's and the menu's "quit" too
     }
     return oTerminateProcess(process, code);
 }

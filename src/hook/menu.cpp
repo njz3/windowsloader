@@ -95,10 +95,20 @@ static int foreground_is_ours(void)
 }
 
 // Tab pressed since the last call (the key is read directly: the game's message loop does not
-// run while the menu is open); not Alt+Tab, the switch between windows
+// run while the menu is open); not Alt+Tab, the switch between windows. Never with [Launcher]
+// SETTINGS_MENU = false (linuxloader's key): on a public cabinet, Tab no longer pauses the game.
+// The agent's "menu on" still opens it
 static int menu_key_pressed(void)
 {
-    static int was;
+    static int was, allowed = -1;
+    if (allowed < 0)
+    {
+        allowed = wl_settings_get_bool("Launcher", "SETTINGS_MENU", 1);
+        if (!allowed)
+            wl_log("menu: Tab does not open the settings ([Launcher] SETTINGS_MENU = false)");
+    }
+    if (!allowed)
+        return 0;
     int down = foreground_is_ours() && (GetAsyncKeyState(VK_TAB) & 0x8000) && !(GetAsyncKeyState(VK_MENU) & 0x8000);
     int pressed = down && !was;
     was = down;

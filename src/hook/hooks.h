@@ -99,6 +99,13 @@ void wl_files_redirect_prefix(const char *from, const char *to);
 // The path under its redirected folder (written in buf), or the path itself: for the files Windows
 // opens for the game from its own DLLs, which the file hooks do not see (DirectShow's movies)
 const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t size);
+// The write folder (WINDOWSLOADER_WRITE_DIR, the launcher's --write-dir or [Paths] WRITE_DIR):
+// WRITE_DIR\<game> made, the game's writes sent there from now on. Once the game and the settings
+// are known
+void wl_files_write_dir(void);
+// A path with a folder as the write folder has it for reading: its copy there (in buf) when there
+// is one, else the path itself (LoadLibrary: a DLL the game wrote, in the temporary folder say)
+const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size);
 
 // A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
 // parallel port helper): returns 1 when the module took it over. The game is still told the

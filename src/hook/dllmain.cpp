@@ -24,6 +24,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
+#include "outputs.h"
 #include "pause.h"
 #include "settings.h"
 #include "vdev.h"
@@ -78,9 +79,11 @@ static void wl_init(void)
     wl_game_init();
     // The settings once the game is known: its own <short name>.ini is read instead when there is one
     wl_settings_init();
+    wl_files_write_dir(); // WRITE_DIR\<game>: its short name and the [Paths] keys known now
     wl_game_settings();
     wl_vdev_settings();
     wl_display_load();
+    wl_outputs_init();
     wl_pause_init();
     wl_hooks_install_pending();
     wl_agent_init();

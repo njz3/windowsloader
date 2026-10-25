@@ -83,6 +83,7 @@ add_executable(wl_launcher
     src/launcher/launcher.cpp
     src/launcher/gamelist.cpp
     src/launcher/picker.cpp
+    src/launcher/writedir.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -125,6 +126,7 @@ add_library(wl_hook SHARED
     src/hook/controls.cpp
     src/hook/ioports.cpp
     src/hook/ffb.cpp
+    src/hook/outputs.cpp
     src/hook/pause.cpp
     src/hook/menu.cpp
     src/hook/display.cpp

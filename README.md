@@ -64,13 +64,15 @@ windowsloader               (alone: the game picker)
                            game's <short name>.ini beside it when there is one)
   --set SECTION.KEY=VALUE  overrides one setting of the file (repeatable), e.g.
                            --set Display.ASPECT_RATIO=4:3_CROP
+  --write-dir <folder>     everything written goes there, the launcher's and the game's folders
+                           only read (default: [Paths] WRITE_DIR of the settings file)
 ```
 
 Started alone, without a game (a double click in the Explorer), `windowsloader.exe` opens the game
 picker, as linuxloader's: the games found in the games folder as a list, the chosen one's
 description beside it (platform, state, program, arguments, what is emulated), Enter or a double
 click to play. The game runs through `windowsloader.exe` again, its log in `windowsloader.log` next
-to the launcher, and the picker comes back when it ends. The games folder is `[Picker] GAMES_DIR` of
+to the launcher, and the picker comes back when it ends. The games folder is `[Launcher] GAMES_DIR` of
 `windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next
 to the launcher or one or two levels up (`C:\Racecab\Games` for
 `C:\Racecab\Emulators\windowsloader`); Tab or the "Dossier des jeux" button picks another and saves
@@ -115,7 +117,34 @@ controls reach it, which motor board drives its wheel), controls (bindings captu
 keyboard, a gamepad or a wheel, saved to `controls.ini`), the game's own options, display, force
 feedback strength and direction.
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
-own file (made from a copy of the file read the first time).
+own file (made from a copy of the file read the first time). `[Launcher] SETTINGS_MENU = false`, for
+a public cabinet: Tab no longer opens the menu over a running game (the agent's `menu on` still
+does).
+
+The write folder (`--write-dir`, or `[Paths] WRITE_DIR`, relative to the launcher's folder or a full
+path; linuxloader's key): the launcher's folder and the games' are then only read, for a write
+filter (UWF) or games on a share. Its root holds `windowsloader.ini` and `controls.ini` (copied there
+the first time: change those, not the ones beside the launcher) and `windowsloader.log`;
+`WRITE_DIR\<game>` what the game writes, under its full path (`C:\Racecab\Games\X\save.bin` is
+`WRITE_DIR\wmmt5\C\Racecab\Games\X\save.bin`), so a game writing above its program's folder or on a
+drive redirected into it is taken too. The system's folders have their own: the user's AppData in
+`WRITE_DIR\<game>\appdata` (Roaming, Local, LocalLow), the temporary folder in `temp`, ProgramData in
+`programdata`, Windows' in `windows`, so a disk under a write filter (UWF) on everything but the write
+folder keeps all the game writes, the graphics driver's and the libraries' too. A file opened to be
+modified is copied there first; a file read comes from there when it is there, else from its place; a
+folder's listing joins both; a DLL the game wrote there is loaded from there. A file removed that is
+only in its first place stays there. The picker reads and writes the write folder's
+`windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
+place.
+
+Network outputs (`[Outputs] OUTPUTS_NETWORK = true`, linuxloader's keys and protocol, MAME's, as in the
+njz3 forks of Supermodel and sm2-emu): a TCP server on `OUTPUTS_NETWORK_PORT` (8000) sends
+`name = value\r` lines to BackForceFeeder or MAMEHooker, `mame_start = <game>` and the known values
+to each client that connects, and `mame_stop = 1` when the game ends; a UDP datagram announces the
+start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `RawLamps`,
+`RawLamps1`... and `lamp0`... (the JVS board's general purpose outputs), `RawDrive` (the bytes the game
+sends to a Sega drive board; for the other boards, the Sega servo board's frames made from the force:
+80, 81, 83 once, then 84 the torque).
 
 ## License
 

@@ -24,6 +24,7 @@
 
 #include "picker.h"
 #include "wlshared.h"
+#include "writedir.h"
 
 #ifdef _WIN64
 #define WL_SELF_BITS   64
@@ -107,6 +108,8 @@ static void usage(void)
         "                   <short name>.ini beside it when there is one)\n"
         "  --set SECTION.KEY=VALUE  overrides one setting of the file, e.g. --set Display.ASPECT_RATIO=4:3_CROP\n"
         "                   (repeatable)\n"
+        "  --write-dir <folder>  everything written goes there, the launcher's and the game's folders only\n"
+        "                   read (default: [Paths] WRITE_DIR of the settings file, none when empty)\n"
         "  -h, --help       this help\n"
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
@@ -592,6 +595,8 @@ int wmain(int argc, wchar_t **argv)
     SetConsoleOutputCP(CP_UTF8);
 
     const wchar_t *logArg = L"windowsloader.log";
+    int logGiven = 0;
+    const wchar_t *writeArg = NULL;
     int windowed = 1;
     int timeoutSec = 0;
     int ioLimit = 500;
@@ -612,7 +617,12 @@ int wmain(int argc, wchar_t **argv)
             return 0;
         }
         else if (!wcscmp(a, L"--log") && hasValue)
+        {
             logArg = argv[++i];
+            logGiven = 1;
+        }
+        else if (!wcscmp(a, L"--write-dir") && hasValue)
+            writeArg = argv[++i];
         else if (!wcscmp(a, L"--fullscreen"))
             windowed = 0;
         else if (!wcscmp(a, L"--timeout") && hasValue)
@@ -689,15 +699,8 @@ int wmain(int argc, wchar_t **argv)
 
     // Settings for the DLL, inherited by the game
     wchar_t num[16];
-    SetEnvironmentVariableW(WL_ENV_LOG, logPath);
-    SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");
-    swprintf(num, 16, L"%d", ioLimit);
-    SetEnvironmentVariableW(WL_ENV_IOLIMIT, num);
-    SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
-    SetEnvironmentVariableW(WL_ENV_CONTROLLERS, controllers ? L"1" : NULL);
     wchar_t controlsPath[MAX_PATH];
     swprintf(controlsPath, MAX_PATH, L"%s\\controls.ini", selfDir);
-    SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
     wchar_t iniPath[MAX_PATH];
     swprintf(iniPath, MAX_PATH, L"%s\\windowsloader.ini", selfDir);
     if (configArg && !GetFullPathNameW(configArg, MAX_PATH, iniPath, NULL))
@@ -705,6 +708,27 @@ int wmain(int argc, wchar_t **argv)
         say_error("GetFullPathName");
         return 1;
     }
+    // The write folder (--write-dir, else [Paths] WRITE_DIR, writedir.h): the settings files and the
+    // log at its root, the game's writes in WRITE_DIR\<game> (the DLL's)
+    wchar_t writeDir[MAX_PATH] = L"";
+    int write = wl_write_dir_root(selfDir, writeArg, iniPath, writeDir, MAX_PATH);
+    if (write < 0)
+        say("windowsloader: the write folder %s cannot be made: the game's folder is written as before\n", u8(writeDir));
+    if (write > 0)
+    {
+        wl_write_dir_file(writeDir, L"windowsloader.ini", iniPath, MAX_PATH);
+        wl_write_dir_file(writeDir, L"controls.ini", controlsPath, MAX_PATH);
+        if (!logGiven)
+            swprintf(logPath, MAX_PATH, L"%s\\windowsloader.log", writeDir);
+    }
+    SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write > 0 ? writeDir : NULL);
+    SetEnvironmentVariableW(WL_ENV_LOG, logPath);
+    SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");
+    swprintf(num, 16, L"%d", ioLimit);
+    SetEnvironmentVariableW(WL_ENV_IOLIMIT, num);
+    SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
+    SetEnvironmentVariableW(WL_ENV_CONTROLLERS, controllers ? L"1" : NULL);
+    SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
     SetEnvironmentVariableW(WL_ENV_INI, iniPath);
     SetEnvironmentVariableW(WL_ENV_SET, setsLen ? sets : NULL);
     // On a laptop with two graphics cards, an OpenGL game gets the dedicated NVIDIA one through the
@@ -723,6 +747,8 @@ int wmain(int argc, wchar_t **argv)
 
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");
+    if (write > 0)
+        say("  writes: %s\\<game> (the game's folder only read)\n", u8(writeDir));
 
     // Closing the launcher (Ctrl+C, agent stop) takes the game and its children down with it
     HANDLE job = CreateJobObjectW(NULL, NULL);
