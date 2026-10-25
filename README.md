@@ -133,8 +133,9 @@ drive redirected into it is taken too. The system's folders have their own: the 
 folder keeps all the game writes, the graphics driver's and the libraries' too. A file opened to be
 modified is copied there first; a file read comes from there when it is there, else from its place; a
 folder's listing joins both; a DLL the game wrote there is loaded from there. A file removed that is
-only in its first place stays there. The picker reads and writes the write folder's
-`windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
+only in its first place stays there. A game's companion (Initial D 7 and 8's `picodaemon.exe`, SWDC's
+`amdaemon.exe`, which the launcher starts beside it) writes in its game's `WRITE_DIR\<game>`, so the
+files they share stay shared. The picker reads and writes the write folder's `windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
 place.
 
 Network outputs (`[Outputs] OUTPUTS_NETWORK = true`, linuxloader's keys and protocol, MAME's, as in the
@@ -144,7 +145,7 @@ to each client that connects, and `mame_stop = 1` when the game ends; a UDP data
 start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `RawLamps`,
 `RawLamps1`... and `lamp0`... (the JVS board's general purpose outputs), `RawDrive` (the bytes the game
 sends to a Sega drive board; for the other boards, the Sega servo board's frames made from the force:
-80, 81, 83 once, then 84 the torque).
+80, 81, 83 once, then 84 the torque). A game's companion opens no server: the port is the game's.
 
 ## License
 

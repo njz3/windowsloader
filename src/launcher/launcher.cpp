@@ -778,6 +778,7 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_LOG, compLog);
         SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);
+        SetEnvironmentVariableW(WL_ENV_COMPANION_OF, gamePath); // its game: the same write folder, no network outputs
         // Its console output to NUL, without a window: ours is the agent's protocol in agent
         // mode (amdaemon prints its version). NUL is the only handle it inherits.
         SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
@@ -823,6 +824,7 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_LOG, logPath);
         SetEnvironmentVariableW(WL_ENV_AGENT, agent ? L"1" : NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
+        SetEnvironmentVariableW(WL_ENV_COMPANION_OF, NULL);
     }
 
     // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the

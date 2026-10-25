@@ -148,6 +148,13 @@ int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title
     *name = "picodaemon";
     *title = "picodaemon (Initial D card reader-writer)";
     wl_log("game: the card reader-writer's daemon (picodaemon.exe), no card inserted");
+    // Its writes with the game's, in the write folder (WRITE_DIR\initiald7 or initiald8, ringedge.cpp's
+    // names): the game is told by the launcher, its program's gameid
+    const wchar_t *game = wl_game_companion_of();
+    if (game && wcsstr(game, L"SBYD"))
+        wl_game_set_write_name("initiald7");
+    else if (game && wcsstr(game, L"SBZZ"))
+        wl_game_set_write_name("initiald8");
     InitializeCriticalSection(&g_lock);
     wl_vdev_register(&g_unit2);
     wl_vdev_register(&g_unit1);

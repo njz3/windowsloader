@@ -336,6 +336,13 @@ void wl_outputs_init(void)
 {
     if (!wl_settings_get_bool("Outputs", "OUTPUTS_NETWORK", 0))
         return;
+    // A companion (picodaemon, amdaemon) starts before its game: its server would take the port,
+    // and BackForceFeeder would hear it, not the game
+    if (wl_game_companion_of())
+    {
+        wl_log("outputs: a companion, the network outputs left to its game");
+        return;
+    }
     g_tcpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_PORT", 8000);
     g_udpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_UDP_PORT", 8001);
     snprintf(g_game, sizeof g_game, "%s", wl_game_name());

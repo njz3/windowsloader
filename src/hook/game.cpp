@@ -19,6 +19,7 @@
 #include "game.h"
 #include "log.h"
 #include "settings.h"
+#include "wlshared.h"
 
 static const char *g_name = "unknown";
 static const char *g_title = "jeu inconnu";
@@ -33,6 +34,31 @@ const char *wl_game_name(void)
 const char *wl_game_title(void)
 {
     return g_title;
+}
+
+const wchar_t *wl_game_companion_of(void)
+{
+    static wchar_t of[MAX_PATH];
+    static int read;
+    if (!read)
+    {
+        read = 1;
+        if (!GetEnvironmentVariableW(WL_ENV_COMPANION_OF, of, MAX_PATH))
+            of[0] = 0;
+    }
+    return of[0] ? of : NULL;
+}
+
+static const char *g_writeName;
+
+const char *wl_game_write_name(void)
+{
+    return g_writeName ? g_writeName : g_name;
+}
+
+void wl_game_set_write_name(const char *name)
+{
+    g_writeName = name;
 }
 
 void wl_game_set_boards(const char *controls, const char *motor)

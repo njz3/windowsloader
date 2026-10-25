@@ -294,9 +294,10 @@ void wl_files_write_dir(void)
     wchar_t root[MAX_PATH];
     if (!GetEnvironmentVariableW(WL_ENV_WRITE_DIR, root, MAX_PATH) || !root[0])
         return;
-    // The game's short name as a folder's, the program's when the game is not known
+    // The game's short name as a folder's (a companion's: its game's), the program's when the game
+    // is not known
     char name[64];
-    snprintf(name, sizeof name, "%s", wl_game_name());
+    snprintf(name, sizeof name, "%s", wl_game_write_name());
     if (!strcmp(name, "unknown"))
     {
         wchar_t exe[MAX_PATH];

@@ -33,6 +33,13 @@ int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);
 const char *wl_game_title(void); // "Sega Rally 3", for the menu
+// A companion (the launcher's, started beside the game: picodaemon, amdaemon): the program of the
+// game it goes with (WINDOWSLOADER_COMPANION_OF), NULL for the game itself
+const wchar_t *wl_game_companion_of(void);
+// The name of the game's folder in the write folder (WRITE_DIR\<it>): the game's short name; a
+// companion's module gives its game's, so both write in the same place
+const char *wl_game_write_name(void);
+void wl_game_set_write_name(const char *name);
 void wl_game_init(void);
 
 // The cabinet's boards, for the menu's "Jeu" page, given by the game's module: how the controls
