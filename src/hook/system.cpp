@@ -1449,6 +1449,49 @@ static int lan_refused(const struct sockaddr *a, int len, const char *what, cons
     return 1;
 }
 
+// A font the game adds stays the game's (FR_PRIVATE): Windows removes it when the game ends. Added
+// for the whole session (Let's Go Safari's dat\font), it stayed loaded after the game, its file
+// locked until logoff
+#define WL_FR_PRIVATE 0x10
+
+static int(WINAPI *oAddFontResourceExA)(LPCSTR, DWORD, PVOID);
+static int WINAPI hAddFontResourceExA(LPCSTR name, DWORD flags, PVOID reserved)
+{
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER))
+        flags |= WL_FR_PRIVATE;
+    return oAddFontResourceExA(name, flags, reserved);
+}
+
+static int(WINAPI *oAddFontResourceExW)(LPCWSTR, DWORD, PVOID);
+static int WINAPI hAddFontResourceExW(LPCWSTR name, DWORD flags, PVOID reserved)
+{
+    if (!wl_busy() && !wl_is_system_caller(WL_CALLER))
+        flags |= WL_FR_PRIVATE;
+    return oAddFontResourceExW(name, flags, reserved);
+}
+
+static int(WINAPI *oAddFontResourceA)(LPCSTR);
+static int WINAPI hAddFontResourceA(LPCSTR name)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oAddFontResourceA(name);
+    static int logged;
+    if (logged++ < 5)
+        wl_log("AddFontResource \"%s\": kept the game's (FR_PRIVATE)", name ? name : "");
+    return oAddFontResourceExA(name, WL_FR_PRIVATE, NULL);
+}
+
+static int(WINAPI *oAddFontResourceW)(LPCWSTR);
+static int WINAPI hAddFontResourceW(LPCWSTR name)
+{
+    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+        return oAddFontResourceW(name);
+    static int logged;
+    if (logged++ < 5)
+        wl_log("AddFontResource \"%S\": kept the game's (FR_PRIVATE)", name ? name : L"");
+    return oAddFontResourceExW(name, WL_FR_PRIVATE, NULL);
+}
+
 static int(WINAPI *oconnect)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
 {
@@ -1848,6 +1891,10 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"ole32.dll", CoCreateInstance),
     WL_HOOK(L"ws2_32.dll", bind),
     WL_HOOK(L"ws2_32.dll", connect),
+    WL_HOOK(L"gdi32.dll", AddFontResourceExA),
+    WL_HOOK(L"gdi32.dll", AddFontResourceExW),
+    WL_HOOK(L"gdi32.dll", AddFontResourceA),
+    WL_HOOK(L"gdi32.dll", AddFontResourceW),
     WL_HOOK(L"ws2_32.dll", sendto),
 };
 
