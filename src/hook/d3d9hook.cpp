@@ -35,6 +35,12 @@ enum
     SLOT_D3D9EX_CREATEDEVICEEX = 20,
     SLOT_DEVICE_RESET = 16,
     SLOT_DEVICE_PRESENT = 17,
+    SLOT_DEVICE_SETTEXTURE = 65,
+    SLOT_DEVICE_SETSCISSORRECT = 75,
+    SLOT_DEVICE_DRAWPRIMITIVEUP = 83,
+    SLOT_DEVICE_DRAWINDEXEDPRIMITIVEUP = 84,
+    SLOT_DEVICE_SETVERTEXDECLARATION = 87,
+    SLOT_DEVICE_SETFVF = 89,
     SLOT_SWAPCHAIN_PRESENT = 3,
 };
 
@@ -506,6 +512,173 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     return hr;
 }
 
+// ------------------------------------------------------------------------------
+// 2D placed for a smaller screen (wl_d3d9_scale_2d): the pretransformed vertices (XYZRHW, drawn
+// from memory) and the scissor rectangles within that screen are scaled to the back buffer. What
+// lies beyond it was placed for the back buffer already and is left as it is.
+// ------------------------------------------------------------------------------
+
+static int g_2dW, g_2dH;
+static DWORD g_fvf;
+
+void wl_d3d9_scale_2d(int w, int h)
+{
+    g_2dW = w;
+    g_2dH = h;
+}
+
+static int scaling_2d(float *sx, float *sy)
+{
+    LONG bw = g_width, bh = g_height;
+    if (g_2dW <= 0 || g_2dH <= 0 || (bw == g_2dW && bh == g_2dH) || bw <= 0 || bh <= 0)
+        return 0;
+    *sx = (float)bw / (float)g_2dW;
+    *sy = (float)bh / (float)g_2dH;
+    return 1;
+}
+
+static UINT vertices_of(D3DPRIMITIVETYPE type, UINT prims)
+{
+    switch (type)
+    {
+    case D3DPT_POINTLIST:
+        return prims;
+    case D3DPT_LINELIST:
+        return prims * 2;
+    case D3DPT_LINESTRIP:
+        return prims + 1;
+    case D3DPT_TRIANGLELIST:
+        return prims * 3;
+    case D3DPT_TRIANGLESTRIP:
+    case D3DPT_TRIANGLEFAN:
+        return prims + 2;
+    default:
+        return 0;
+    }
+}
+
+static IDirect3DBaseTexture9 *g_tex0; // stage 0's texture, only looked at in the draws that follow
+
+// A sprite drawn larger than its texels samples half a texel beyond its edges, where its texture
+// wraps or its neighbour in the atlas starts: lines between the tiles. Its texture coordinates are
+// drawn in by half a texel, per quad (6 vertices of a list, or a whole strip or fan).
+static void inset_texels(unsigned char *verts, UINT count, UINT stride, D3DPRIMITIVETYPE type)
+{
+    if (!g_tex0 || g_tex0->GetType() != D3DRTYPE_TEXTURE || (g_fvf & D3DFVF_TEXCOUNT_MASK) == 0 || (g_fvf & 0x30000) != 0)
+        return;
+    D3DSURFACE_DESC d;
+    if (FAILED(((IDirect3DTexture9 *)g_tex0)->GetLevelDesc(0, &d)) || !d.Width || !d.Height)
+        return;
+    UINT uv = 16 + ((g_fvf & D3DFVF_PSIZE) ? 4 : 0) + ((g_fvf & D3DFVF_DIFFUSE) ? 4 : 0) + ((g_fvf & D3DFVF_SPECULAR) ? 4 : 0);
+    if (uv + 8 > stride)
+        return;
+    const float hu = 0.5f / (float)d.Width, hv = 0.5f / (float)d.Height;
+    UINT group = type == D3DPT_TRIANGLELIST ? (count % 6 == 0 ? 6 : 3) : type == D3DPT_FORCE_DWORD && count % 4 == 0 ? 4 : count;
+    for (UINT first = 0; first + group <= count; first += group)
+    {
+        float u0 = 1e30f, u1 = -1e30f, v0 = 1e30f, v1 = -1e30f;
+        for (UINT i = first; i < first + group; i++)
+        {
+            const float *t = (const float *)(verts + (size_t)i * stride + uv);
+            u0 = t[0] < u0 ? t[0] : u0, u1 = t[0] > u1 ? t[0] : u1;
+            v0 = t[1] < v0 ? t[1] : v0, v1 = t[1] > v1 ? t[1] : v1;
+        }
+        for (UINT i = first; i < first + group; i++)
+        {
+            float *t = (float *)(verts + (size_t)i * stride + uv);
+            if (u1 - u0 > 4 * hu)
+                t[0] = t[0] < u0 + hu ? u0 + hu : t[0] > u1 - hu ? u1 - hu : t[0];
+            if (v1 - v0 > 4 * hv)
+                t[1] = t[1] < v0 + hv ? v0 + hv : t[1] > v1 - hv ? v1 - hv : t[1];
+        }
+    }
+}
+
+// A copy of the vertices with x and y scaled; NULL when they are left as they are
+static const void *scaled_2d(const void *verts, UINT count, UINT stride, D3DPRIMITIVETYPE type)
+{
+    static unsigned char *copy;
+    static size_t size;
+    float sx, sy;
+    if (!verts || !count || stride < 16 || (g_fvf & D3DFVF_POSITION_MASK) != D3DFVF_XYZRHW || !scaling_2d(&sx, &sy))
+        return NULL;
+    float minX = 1e30f, minY = 1e30f;
+    for (UINT i = 0; i < count; i++)
+    {
+        const float *p = (const float *)((const unsigned char *)verts + (size_t)i * stride);
+        minX = p[0] < minX ? p[0] : minX;
+        minY = p[1] < minY ? p[1] : minY;
+    }
+    if (minX >= (float)g_2dW || minY >= (float)g_2dH)
+        return NULL;
+    size_t need = (size_t)count * stride;
+    if (need > size)
+    {
+        unsigned char *bigger = (unsigned char *)realloc(copy, need);
+        if (!bigger)
+            return NULL;
+        copy = bigger;
+        size = need;
+    }
+    memcpy(copy, verts, need);
+    for (UINT i = 0; i < count; i++)
+    {
+        float *p = (float *)(copy + (size_t)i * stride);
+        p[0] = (p[0] + 0.5f) * sx - 0.5f;
+        p[1] = (p[1] + 0.5f) * sy - 0.5f;
+    }
+    inset_texels(copy, count, stride, type);
+    return copy;
+}
+
+static HRESULT(STDMETHODCALLTYPE *oSetFVF)(IDirect3DDevice9 *, DWORD);
+static HRESULT STDMETHODCALLTYPE hSetFVF(IDirect3DDevice9 *dev, DWORD fvf)
+{
+    g_fvf = fvf;
+    return oSetFVF(dev, fvf);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oSetTexture)(IDirect3DDevice9 *, DWORD, IDirect3DBaseTexture9 *);
+static HRESULT STDMETHODCALLTYPE hSetTexture(IDirect3DDevice9 *dev, DWORD stage, IDirect3DBaseTexture9 *tex)
+{
+    if (stage == 0)
+        g_tex0 = tex;
+    return oSetTexture(dev, stage, tex);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oSetVertexDeclaration)(IDirect3DDevice9 *, IDirect3DVertexDeclaration9 *);
+static HRESULT STDMETHODCALLTYPE hSetVertexDeclaration(IDirect3DDevice9 *dev, IDirect3DVertexDeclaration9 *decl)
+{
+    g_fvf = 0; // a declaration in place of the FVF
+    return oSetVertexDeclaration(dev, decl);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oDrawPrimitiveUP)(IDirect3DDevice9 *, D3DPRIMITIVETYPE, UINT, const void *, UINT);
+static HRESULT STDMETHODCALLTYPE hDrawPrimitiveUP(IDirect3DDevice9 *dev, D3DPRIMITIVETYPE type, UINT prims, const void *verts, UINT stride)
+{
+    const void *scaled = scaled_2d(verts, vertices_of(type, prims), stride, type);
+    return oDrawPrimitiveUP(dev, type, prims, scaled ? scaled : verts, stride);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oDrawIndexedPrimitiveUP)(IDirect3DDevice9 *, D3DPRIMITIVETYPE, UINT, UINT, UINT, const void *, D3DFORMAT,
+                                                           const void *, UINT);
+static HRESULT STDMETHODCALLTYPE hDrawIndexedPrimitiveUP(IDirect3DDevice9 *dev, D3DPRIMITIVETYPE type, UINT minIndex, UINT count, UINT prims,
+                                                         const void *indices, D3DFORMAT format, const void *verts, UINT stride)
+{
+    const void *scaled = scaled_2d(verts, minIndex + count, stride, D3DPT_FORCE_DWORD); // indexed: one group
+    return oDrawIndexedPrimitiveUP(dev, type, minIndex, count, prims, indices, format, scaled ? scaled : verts, stride);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oSetScissorRect)(IDirect3DDevice9 *, const RECT *);
+static HRESULT STDMETHODCALLTYPE hSetScissorRect(IDirect3DDevice9 *dev, const RECT *r)
+{
+    float sx, sy;
+    if (!r || r->right > g_2dW || r->bottom > g_2dH || !scaling_2d(&sx, &sy))
+        return oSetScissorRect(dev, r);
+    RECT s = {(LONG)(r->left * sx), (LONG)(r->top * sy), (LONG)(r->right * sx + 0.5f), (LONG)(r->bottom * sy + 0.5f)};
+    return oSetScissorRect(dev, &s);
+}
+
 static void hook_device(IDirect3DDevice9 *dev)
 {
     static int done;
@@ -515,6 +688,17 @@ static void hook_device(IDirect3DDevice9 *dev)
     void **vt = vtable_of(dev);
     wl_hook_code(vt[SLOT_DEVICE_PRESENT], (void *)hPresent, (void **)&oPresent, "IDirect3DDevice9::Present");
     wl_hook_code(vt[SLOT_DEVICE_RESET], (void *)hReset, (void **)&oReset, "IDirect3DDevice9::Reset");
+    if (g_2dW > 0)
+    {
+        wl_hook_code(vt[SLOT_DEVICE_SETFVF], (void *)hSetFVF, (void **)&oSetFVF, "IDirect3DDevice9::SetFVF");
+        wl_hook_code(vt[SLOT_DEVICE_SETTEXTURE], (void *)hSetTexture, (void **)&oSetTexture, "IDirect3DDevice9::SetTexture");
+        wl_hook_code(vt[SLOT_DEVICE_SETVERTEXDECLARATION], (void *)hSetVertexDeclaration, (void **)&oSetVertexDeclaration,
+                     "IDirect3DDevice9::SetVertexDeclaration");
+        wl_hook_code(vt[SLOT_DEVICE_DRAWPRIMITIVEUP], (void *)hDrawPrimitiveUP, (void **)&oDrawPrimitiveUP, "IDirect3DDevice9::DrawPrimitiveUP");
+        wl_hook_code(vt[SLOT_DEVICE_DRAWINDEXEDPRIMITIVEUP], (void *)hDrawIndexedPrimitiveUP, (void **)&oDrawIndexedPrimitiveUP,
+                     "IDirect3DDevice9::DrawIndexedPrimitiveUP");
+        wl_hook_code(vt[SLOT_DEVICE_SETSCISSORRECT], (void *)hSetScissorRect, (void **)&oSetScissorRect, "IDirect3DDevice9::SetScissorRect");
+    }
     IDirect3DSwapChain9 *sc = NULL;
     if (SUCCEEDED(dev->GetSwapChain(0, &sc)) && sc)
     {

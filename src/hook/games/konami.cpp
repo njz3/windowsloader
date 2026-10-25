@@ -22,11 +22,14 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "agent.h"
+#include "display.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "settings.h"
 
 enum
 {
@@ -139,6 +142,59 @@ static char *__cdecl pass_check(void *a, char *state)
     return state;
 }
 
+// [Display] WIDTH x HEIGHT, read once the settings file is known (after the game is recognized).
+// AUTO leaves the cabinet's 1360x768. The two writes are the only immediates of that size: the
+// rest of the game reads the fields they fill (0x91F30C / 0x91F310 and the copies beside them),
+// its render targets and 3D then at that size. Its 2D stays placed on a 1360x768 screen.
+static void render_resolution(void)
+{
+    int w = wl_settings_get_int("Display", "WIDTH", 0);
+    int h = wl_settings_get_int("Display", "HEIGHT", 0);
+    if (w < 320 || h < 240)
+        return;
+    // +0x4d5a8: mov ecx, 1360 / mov eax, 768, then stored in every resolution field
+    unsigned char wasInit[10] = {0xB9, 0x50, 0x05, 0x00, 0x00, 0xB8, 0x00, 0x03, 0x00, 0x00};
+    unsigned char nowInit[10] = {0xB9, 0x00, 0x00, 0x00, 0x00, 0xB8, 0x00, 0x00, 0x00, 0x00};
+    memcpy(nowInit + 1, &w, 4);
+    memcpy(nowInit + 6, &h, 4);
+    // +0x28fc: mov [0x91F310], 768 / mov [0x91F30C], 1360, then copied into the device object
+    unsigned char wasDev[20] = {0xC7, 0x05, 0x10, 0xF3, 0x91, 0x00, 0x00, 0x03, 0x00, 0x00,
+                                0xC7, 0x05, 0x0C, 0xF3, 0x91, 0x00, 0x50, 0x05, 0x00, 0x00};
+    unsigned char nowDev[20];
+    memcpy(nowDev, wasDev, sizeof nowDev);
+    memcpy(nowDev + 6, &h, 4);
+    memcpy(nowDev + 16, &w, 4);
+    int ok = wl_patch_code((void *)0x44D5A8, wasInit, nowInit, sizeof nowInit, "render resolution");
+    ok &= wl_patch_code((void *)0x4028FC, wasDev, nowDev, sizeof nowDev, "render resolution on the device");
+    // The places converting the resolution to floats map the game's 1360x768 screen coordinates
+    // to the picture: they read the cabinet's own size (an unused pair, 0x8C0A24 / 0x8C0A28)
+    static const unsigned int widthAt[] = {0x40A87A, 0x4148B4, 0x414D7A, 0x41E0AE, 0x426A49, 0x426F19, 0x4275E4, 0x4284A8, 0x429503,
+                                           0x4428A6, 0x4475D6, 0x447B0F, 0x447B8F, 0x447C0F, 0x44F91B, 0x459BA0, 0x4FD424, 0x501151,
+                                           0x5050BB, 0x52801E, 0x52926A, 0x529F4B, 0x52A002, 0x52A0B9, 0x52A187, 0x54E326, 0x54EB33,
+                                           0x5CDE17};
+    static const unsigned int heightAt[] = {0x40A8B7, 0x413BD4, 0x413C34, 0x414046, 0x41479B, 0x41487F, 0x414D41, 0x4180F1, 0x41E0FA,
+                                            0x426A5C, 0x426F2C, 0x4275EC, 0x428484, 0x42950B, 0x42EF79, 0x4428BA, 0x444F59, 0x4475DE,
+                                            0x447B23, 0x447BA3, 0x447C23, 0x44CB00, 0x44F8F7, 0x459C99, 0x49212C, 0x4922CE, 0x4D8BF9,
+                                            0x4D985B, 0x4DA705, 0x4DAEA7, 0x4DB468, 0x4DB5A9, 0x4DB906, 0x4DBEC3, 0x4DF526, 0x4DFE1B,
+                                            0x4FD447, 0x505097, 0x528026, 0x529279, 0x529CA4, 0x529F5C, 0x52A013, 0x52A0CA, 0x52A195,
+                                            0x52AE37, 0x54F6F1, 0x54FF15, 0x550360, 0x5505A8, 0x551892, 0x5CDE1F, 0x5CE2A8, 0x5CE4EA,
+                                            0x5CF637, 0x5D094F};
+    const unsigned int realW = 0x91F30C, realH = 0x91F310, ownW = 0x8C0A24, ownH = 0x8C0A28;
+    int moved = 0;
+    for (int pass = 0; pass < 2; pass++)
+    {
+        const unsigned int *at = pass ? heightAt : widthAt;
+        int count = pass ? (int)(sizeof heightAt / sizeof heightAt[0]) : (int)(sizeof widthAt / sizeof widthAt[0]);
+        for (int i = 0; i < count; i++)
+            moved += wl_patch_code((void *)(ULONG_PTR)at[i], pass ? &realH : &realW, pass ? &ownH : &ownW, 4, "screen coordinates at 1360x768");
+    }
+    wl_log("  %d places keep the 1360x768 screen coordinates", moved);
+    // The 2D layers (+0xbb60) draw their sprites in pixels of that screen, within scissor rectangles
+    wl_d3d9_scale_2d(1360, 768);
+    if (ok)
+        wl_log("  render resolution %dx%d (the game's own is 1360x768)", w, h);
+}
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -167,6 +223,8 @@ int wl_game_konami(const wchar_t *exePath, const char **name, const char **title
     snprintf(to, sizeof to, "%sFUP", folder);
     wl_files_redirect("F:\\UP", to);
     wl_inputs_set_table(g_inputs, IN_COUNT);
+    wl_display_set_internal_supported(1);
+    wl_game_on_settings(render_resolution);
 
     static const unsigned int checks[] = {0x8C0E0C, 0x8C0E14, 0x8C0E1C, 0x8C0E3C};
     static const unsigned int was[] = {0x44B120, 0x44B1D0, 0x44B1E0, 0x44BA90};
