@@ -103,6 +103,13 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 92 | 25/10 | Est-ce que le mode agent ne permet pas de faire des captures à la demande ? | ✅ oui : `shot`, `screen`, et `ffb` pour les forces envoyées ; il faut lancer le jeu avec `--agent` (et `--controllers`) depuis un programme qui garde l'entrée et la sortie du lanceur ; `--shots` ne servait qu'à la ligne d'AttractPlus telle quelle |
 | 93 | 25/10 | Retire le --shots et dis à la session « Image borne » d'utiliser l'agent si besoin | ✅ `--shots` retiré (retour du commit 5318018, pas encore commité) ; le mode agent expliqué à Image borne (lancement, protocole, `shot`, `screen`, `ffb`, `scripts/agent/wlagent.py`) |
 | 94 | 25/10 | Commit et pousse | ✅ 2 commits poussés : le retrait de `--shots`, NOTES.md (demandes 92 à 94, la cause des plantages des éditions de Sega Rally 3) ; pas de release |
+| 95 | 25/10 | La corbeille est vidée. Étapes suivantes ? | ✅ la seconde moitié des copies à la corbeille (les trois Battle Gear 4, Chase H.Q. 2, Crazy Ride, D1GP, GTI Club 3, Sonic, Valve Limit R, Wacky Races, Wasteland Racers : 22,5 Go) ; restent dans `games\` SWDC et Wangan Midnight 5 ; proposé : Wangan Midnight 5, puis 5DX+ et 6 une fois copiés |
+| 96 | 25/10 | Reprends Wangan Midnight 5 en attendant les copies | 🔄 le lien avec le terminal de salle tenu pour établi (saut à wmn5r.exe+0x58e70f) ; E0505 « Disconnected from local network » levée : un terminal joué par windowsloader (paquets d'OpenParrot vers 127.0.0.1:50765, montrés depuis 192.168.92.20) ; le jeu arrive en démonstration « FREE PLAY ». Copies de 5DX+ (15,18 Go) et 6 (16,39 Go) faites pendant ce temps. Reste : lecteur de cartes, caméra, course, retour de force. Pas encore commité |
+| 97 | 25/10 | Si on lance windowsloader seul, sans argument, ne peut-on pas avoir une liste des jeux déjà configurés ? | ✅ oui : repris par la demande 99 (sélecteur de jeux) |
+| 98 | 25/10 | Dans l'archive release, enlève le fichier BILAN.md | ✅ `windowsloader-0.1.0-20261024-4-njz3-windows.zip` refaite sans BILAN.md (l'ancienne à la corbeille) ; RELEASE.txt renvoie à BILAN.md sur GitHub ; les prochaines releases suivront |
+| 99 | 25/10 | Pour le lancement de windowsloader seul, sans argument, fais comme linuxloader qui propose un sélecteur de jeu | ✅ `windowsloader.exe` sans argument ouvre un sélecteur (Dear ImGui, Direct3D 11) : les jeux du dossier des jeux reconnus par la table `src/launcher/gamelist.cpp`, leur fiche, Entrée pour jouer ; essayé sur un dossier d'essai et sur `games\` (Wangan Midnight 5 lancé, le sélecteur revenu à l'arrêt) ; pas encore commité |
+| 100 | 25/10 | Dans le titre de la fenêtre de l'émulateur, ajoute pour ma branche la version du build (comme le package) et « FFB Edition » | ✅ titre de la fenêtre du jeu : son titre suivi de « [wmmt5] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition » ; aussi le titre du sélecteur, la page « À propos » du menu, le journal et la console. La version est écrite à chaque build par `cmake/build_version.cmake` (jour du build ; numéro d'archive par `-DWL_BUILD_NUMBER` pour une release ; branche et édition par `WL_FORK` et `WL_EDITION`) ; vérifié sur Wangan Midnight 5 et le sélecteur ; pas encore commité |
+| 101 | 25/10 | Combien de jeux reste-t-il à faire ? | ✅ 4 dans le champ convenu (tous sauf les Raw Thrills) : Wangan Midnight 5 (en cours, en démonstration), 5DX+ et 6 (copiés), SWDC (bloqué au test réseau ALLS, reprise à décider) ; jamais classés sur racecab1 : Maximum Heat 3D, Nirin, Initial D Zero 1.31 et 2.30, Road Fighters 3D, Storm Rider, Frenzy Express, CrazySpeed, Sega Rally 3 Revo |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1357,3 +1364,49 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   suivi supprimerait les rallonges de temps.
 - Le minidump n'était pas dans C:\ : Rally.exe, programme 32 bits sans manifeste, voit ses écritures sous C:\
   virtualisées dans AppData\Local\VirtualStore.
+
+### 25/10 — Le sélecteur de jeux (demandes 97 à 99)
+
+- `windowsloader.exe` sans argument : `wl_picker_run()` (`src/launcher/picker.cpp`), Dear ImGui sur Win32 et
+  Direct3D 11 (les backends déjà dans `src/imgui`). Mise en page de linuxloader : liste à gauche, fiche à droite, aide
+  en bas. La console disparaît quand le lanceur est le seul à l'avoir (double clic dans l'Explorateur).
+- Les jeux : `src/launcher/gamelist.cpp`, 26 entrées reconnues comme le font les modules de la DLL (nom du programme,
+  fichiers à côté, date PE pour Battle Gear 4 et Tuned). Chaque dossier du dossier des jeux est fouillé sur six niveaux,
+  le programme le moins profond gagne ; deux dossiers du même jeu sont distingués par le nom du dossier.
+- Le lancement : `windowsloader.exe --quiet <jeu> [arguments de la borne]` dans le dossier du lanceur, sans console ;
+  sa sortie passe par un tube, et si le jeu s'arrête dans les 10 s avec un code non nul, sa fin est montrée dans le
+  sélecteur (le journal du jeu n'existe pas quand c'est le lanceur qui échoue).
+- Corrigés pendant l'essai : la relecture du dossier au milieu d'une image (elle libérait l'image du jeu encore à
+  dessiner), les boutons pris par la navigation au clavier (Entrée sur « Quitter » aurait aussi lancé le jeu), Tab
+  qui déplaçait la sélection, la boîte de message Windows qui laissait la fenêtre blanche (remplacée par une fenêtre
+  ImGui).
+- Essai : un premier envoi de touches par SendKeys est parti vers la fenêtre au premier plan, le visualiseur VNC de
+  racecab1 (deux flèches bas) ; ensuite les touches sont postées à la fenêtre du sélecteur seulement.
+
+### 25/10 — Wangan Midnight 5 : le terminal de salle, E0505 levée ; la version dans le titre (demandes 96, 100, 101)
+
+- E0505 « Network disconnection error / Disconnected from local network » vers 35 s : faite à +0x5814cc quand le
+  lien du terminal (objet de +0x8a6f70, état à +0x14) vaut 4. Trouvée en traçant les `error_code` fabriqués
+  (+0x1eba10, `make_error_code(505)`), et non dans `GetIfEntry` (sondé chaque seconde après l'erreur, il répond
+  « opérationnelle ») ni dans le gestionnaire de réception (+0x87b9b8, seulement sur une erreur de réception).
+- Le terminal : la borne écoute 0.0.0.0:50765 (boost::asio, port de complétion, multidiffusion 225.0.0.1 de sa
+  table d'adresses). Ses paquets : en-tête 01 04 et longueur, message protobuf (numéro de série 272211990002,
+  numéro du paquet à l'octet 33, réglages), CRC-32 MSB d'abord (0x04C11DB7, depuis 0xFFFFFFFF, gros-boutiste)
+  vérifié à +0x87bb42. Les six paquets « free play » viennent de `OpenParrot64.dll` de la copie locale de
+  TeknoParrot (GPL-3.0, l'origine notée dans `namco.cpp`) : rien de téléchargé. Les jeux de paquets 1 à 3 de la
+  DLL sont identiques (terminal 272211990002) ; 4 et 5 ont un autre terminal (280811401532, sans doute WMMT6).
+- Envoyés vers 127.0.0.1:50765 (rien ne sort du PC), ils arrivent (≈ 140 réceptions par seconde) mais E0505
+  reste : le jeu range ses terminaux par (octet 1, adresse de l'expéditeur), +0x87bc65. L'adresse de
+  l'expéditeur est réécrite en 192.168.92.20 : `WSARecvFrom` note où asio l'attend, `GetQueuedCompletionStatus`
+  la corrige au retour. E0505 levée, démonstration « FREE PLAY ».
+- Sans le saut +0x58e70f : « TERMINAL UNIT LINK NG » (le terminal entendu, numéro 272211-990002), arrêt sur
+  « GAME SERVER CONNECT CHECK » : gardé. Les trois NOP de la recherche de terminal (+0x87bd6e) ne servent plus
+  maintenant qu'un terminal parle : retirés. Il reste deux correctifs au jeu (identifiant de la clé, lien du
+  terminal).
+- Copies : WMMT5DX+ (52 870 fichiers, 15,18 Go) puis WMMT6 (33 715 fichiers, 16,39 Go) depuis racecab1, sans
+  échec, « fini » donné à Image borne après chacune.
+- Titre : « [wmmt5] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition » après le titre du jeu ; la version
+  écrite à chaque build (`cmake/build_version.cmake`, `wl_build.h` réécrit seulement quand il change : un second
+  build ne recompile rien). Aussi le titre du sélecteur, « À propos », le journal, la console.
+- Prudence : la suppression des captures d'essai par `Remove-Item` a été refusée (règle : corbeille seulement) ;
+  dossiers d'essai nouveaux à la place.
