@@ -100,6 +100,9 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 89 | 24/10 | Où en est la copie ? | ✅ 13,8 Go sur 18,5 à 22 h 12 ; finie à 22 h 56 sans échec, Image borne prévenue ; Wangan Midnight 5 commencé (clé HASP, réseau, JVS), arrêté sur le terminal de salle |
 | 90 | 25/10 | Mets les jeux déjà faits à la corbeille | 🔄 la corbeille de C: ne prend que 48,5 Go pour 72 Go de copies : en deux fois. Faits : Showdown, Storm Racer G, Mario Kart DX 1.18 et 1.10, Initial D 7 et 8, Let's Go Safari, Sega Racing Classic (45,5 Go). Après que le propriétaire aura vidé la corbeille : les trois Battle Gear 4, Chase H.Q. 2, Crazy Ride, D1GP, GTI Club 3, Sonic, Valve Limit R, Wacky Races, Wasteland Racers (22,5 Go). Gardés : SWDC, Wangan Midnight 5 (en cours) |
 | 91 | 25/10 | Commit et pousse | ✅ 6 commits poussés (`5318018..d909119`) : `--shots`, Daytona en borne 1 (CabinetID), les polices du jeu en FR_PRIVATE, Wangan Midnight 5 commencé (clé HASP, réseau de borne, sans terminal), BILAN.md, NOTES.md ; pas de release |
+| 92 | 25/10 | Est-ce que le mode agent ne permet pas de faire des captures à la demande ? | ✅ oui : `shot`, `screen`, et `ffb` pour les forces envoyées ; il faut lancer le jeu avec `--agent` (et `--controllers`) depuis un programme qui garde l'entrée et la sortie du lanceur ; `--shots` ne servait qu'à la ligne d'AttractPlus telle quelle |
+| 93 | 25/10 | Retire le --shots et dis à la session « Image borne » d'utiliser l'agent si besoin | ✅ `--shots` retiré (retour du commit 5318018, pas encore commité) ; le mode agent expliqué à Image borne (lancement, protocole, `shot`, `screen`, `ffb`, `scripts/agent/wlagent.py`) |
+| 94 | 25/10 | Commit et pousse | ✅ 2 commits poussés : le retrait de `--shots`, NOTES.md (demandes 92 à 94, la cause des plantages des éditions de Sega Rally 3) ; pas de release |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1341,3 +1344,16 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   déconnecté, copie de Daytona plus ici).
 - Mario Kart DX 1.18 : « ハンドル反力の使用 » est un réglage de la borne ; Image borne attend l'accord du propriétaire
   pour le changer.
+
+### 25/10 — Sega Rally 3 : les éditions qui plantent
+
+- Cinq éditions (Artic, Canyon, Master, Safari, Tropical) plantent 4 s après le départ, à Rally.exe+0x1ac4a5. Original,
+  Standard, Alpine et Tropical478 tiennent. Les neuf ont le même Rally.exe ; ce sont des modifications qui échangent
+  les circuits (`Main_release\tracks\repl par artic 1 2 3.txt`).
+- Le minidump (1,6 Go, rapatrié à la demande du propriétaire), lu avec cdb : le code fautif est le suivi des points
+  de passage (CSR_Checkpoint). Son objet (0x9df528) prévoit 22 points, mais leur tableau est vide et le n° du point
+  courant aberrant (460 391). Au premier point de la course, le jeu lit hors mémoire. La démo ne fait pas ce suivi.
+- Défaut des données de ces éditions sur l'emplacement Tropical4, pas de windowsloader. Pas de correctif : sauter ce
+  suivi supprimerait les rallonges de temps.
+- Le minidump n'était pas dans C:\ : Rally.exe, programme 32 bits sans manifeste, voit ses écritures sous C:\
+  virtualisées dans AppData\Local\VirtualStore.
