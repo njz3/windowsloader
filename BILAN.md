@@ -410,6 +410,9 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
 - Lancement ✅ :
   - les copies n'ont pas de table de clé (`SDAX_Table.dat`). Le jeu construit son chemin (`%s\%s_Table.dat`) : ce
     format est remplacé par le mot « toolmode », la voie de Sega pour tourner sans table (comme K.O. Drive) ;
+    tous les défis de la clé y sont hors table et reçoivent des zéros. Les releases 20261025 et 20261025-2 leur
+    donnaient des octets fabriqués (faits pour Initial D 8) : « Error 0949 / Keychip Not Found » sur racecab2,
+    corrigé dans la 20261025-3 ;
   - le service PCP du port 40114 (l'état des stockages) est servi ; sans lui, le démarrage attend une minute ;
   - la carte JVS doit être une 837-14895 en « FE MODE » (l'identité que lui donne TeknoParrot), avec un joueur,
     14 boutons et au moins 16 sorties. Sinon : erreur 6402 « JVS I/O board does not fulfill the game spec »
