@@ -37,6 +37,25 @@ static int env_int(const wchar_t *name, int def)
     return _wtoi(v);
 }
 
+// --shots: the game's picture saved every 15 s into the folder given, 40 at most, the way the
+// agent's "shot" takes it (at the game's next frame: Direct3D 8, 9, 11 or OpenGL)
+static wchar_t g_shotsDir[MAX_PATH];
+
+static DWORD WINAPI shots_thread(LPVOID)
+{
+    char dir[MAX_PATH * 2];
+    wl_u8(g_shotsDir, dir, sizeof dir);
+    for (int k = 1; k <= 40; k++)
+    {
+        Sleep(15000);
+        char path[MAX_PATH * 2 + 32];
+        snprintf(path, sizeof path, "%s\\shot-%03d.bmp", dir, k * 15);
+        int ok = wl_d3d9_shot(path, 5000);
+        wl_log("shots: %s %s", path, ok ? "saved" : "not taken (no frame drawn)");
+    }
+    return 0;
+}
+
 static void wl_init(void)
 {
     wchar_t logPath[MAX_PATH] = L"";
@@ -84,6 +103,8 @@ static void wl_init(void)
     wl_pause_init();
     wl_hooks_install_pending();
     wl_agent_init();
+    if (GetEnvironmentVariableW(WL_ENV_SHOTS, g_shotsDir, MAX_PATH) && g_shotsDir[0])
+        CreateThread(NULL, 0, shots_thread, NULL, 0, NULL);
 
     // The controllers, unless the agent drives the game alone (with --controllers it holds the inputs
     // it sets, the controllers the others, and the force feedback reaches the wheel)

@@ -49,6 +49,8 @@ windowsloader [options] <game.exe> [game arguments...]
   --fullscreen     let the game switch the display to full screen (default: kept in a window)
   --timeout <s>    stop the game after <s> seconds (for tests)
   --iolimit <n>    max reads/writes logged per device handle (default: 500)
+  --shots <folder> the game's picture saved there every 15 s (shot-<seconds>.bmp, 40 at most): where
+                   a game was, when a screen capture of its Direct3D window shows nothing
   --quiet          do not echo the log on the console
   --agent          drive the game over stdin/stdout (linuxloader's agent protocol)
   --controllers    with --agent: the controllers are read and get the force feedback too
