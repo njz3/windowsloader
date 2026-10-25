@@ -994,8 +994,13 @@ Reste :
 Sur les bornes (Image borne, 25/10) : la -4 puis la -5 posées, le réglage à ON sur les deux ; en course sur
 racecab2 le ressort ramène vers le centre (±0,24 à ±0,6 de braquage), pas d'E2212 en 5 minutes. Sur racecab1, la
 page des réglages affiche en rouge sous 基板ID = 1 « 同一の基板IDの筐体が存在します » (une borne de même
-identifiant existe) : le jeu entend une autre borne Wangan avec le même identifiant sur le réseau local (pas le
-terminal joué, qui n'envoie qu'à 127.0.0.1) ; cause à trouver (racecab2, ou racecab1 entendue deux fois).
+identifiant existe). La cause : le Wangan d'essai de ce PC, sur le même réseau local (192.168.1.134), avec le même
+identifiant, au même moment (20:28) ; il s'est arrêté lui-même sur E2403 « Duplicate Board ID error ». Le jeu
+annonce sa borne au groupe 225.0.0.1:50765 par `WSASendTo` (boost::asio), que les refus de `system.cpp` (`sendto`,
+`connect`) ne voient pas : ses envois sortaient du PC. Corrigé le 25/10 : ses envois vers une autre machine vont à
+127.0.0.1:50766 (le socket du terminal, qui ne lit rien), et ses paquets reçus d'une autre machine sur le port 50765
+lui arrivent vides (il les écarte). Vérifié : une « autre borne » simulée depuis 192.168.1.134 ignorée, le 5 et DX+
+en démonstration normalement.
 
 ## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
 
