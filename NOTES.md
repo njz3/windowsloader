@@ -110,6 +110,12 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 99 | 25/10 | Pour le lancement de windowsloader seul, sans argument, fais comme linuxloader qui propose un sélecteur de jeu | ✅ `windowsloader.exe` sans argument ouvre un sélecteur (Dear ImGui, Direct3D 11) : les jeux du dossier des jeux reconnus par la table `src/launcher/gamelist.cpp`, leur fiche, Entrée pour jouer ; essayé sur un dossier d'essai et sur `games\` (Wangan Midnight 5 lancé, le sélecteur revenu à l'arrêt) ; pas encore commité |
 | 100 | 25/10 | Dans le titre de la fenêtre de l'émulateur, ajoute pour ma branche la version du build (comme le package) et « FFB Edition » | ✅ titre de la fenêtre du jeu : son titre suivi de « [wmmt5] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition » ; aussi le titre du sélecteur, la page « À propos » du menu, le journal et la console. La version est écrite à chaque build par `cmake/build_version.cmake` (jour du build ; numéro d'archive par `-DWL_BUILD_NUMBER` pour une release ; branche et édition par `WL_FORK` et `WL_EDITION`) ; vérifié sur Wangan Midnight 5 et le sélecteur ; pas encore commité |
 | 101 | 25/10 | Combien de jeux reste-t-il à faire ? | ✅ 4 dans le champ convenu (tous sauf les Raw Thrills) : Wangan Midnight 5 (en cours, en démonstration), 5DX+ et 6 (copiés), SWDC (bloqué au test réseau ALLS, reprise à décider) ; jamais classés sur racecab1 : Maximum Heat 3D, Nirin, Initial D Zero 1.31 et 2.30, Road Fighters 3D, Storm Rider, Frenzy Express, CrazySpeed, Sega Rally 3 Revo |
+| 102 | 25/10 | Commit et pousse | ✅ 4 commits poussés (`67deef4..a0c2972`) : le sélecteur de jeux avec la version dans les titres (mêmes lignes de `launcher.cpp`, `CMakeLists.txt`, `README.md`), le terminal de Wangan Midnight 5, BILAN.md, NOTES.md |
+| 103 | 25/10 | Fais une release et notifie la session « Image borne » pour qu'elle mette à jour les deux bornes | ✅ `windowsloader-0.1.0-20261025-njz3-windows.zip` (1re du jour, commit `a0c2972`, 3 711 804 octets, SHA-256 2a09974c…c3c102) dans `emulateurs\releases` : les quatre binaires, LICENSE, README.md, RELEASE.txt (sans BILAN.md) ; vérifiée dépaquetée (« 0.1.0-20261025-njz3 FFB Edition ») ; Image borne prévenue (racecab1 et racecab2, garder les .ini) ; installée sur les deux bornes avec l'accord du propriétaire (« 0.1.0-20261025-njz3 FFB Edition », .ini gardés, anciens binaires dans `C:\Racecab\Emulators\_sauvegardes\windowsloader-avant-20261025`) ; Daytona avec CabinetID=2 vérifié sur racecab2 : écran d'attente FREE PLAY, plus de NETWORK DISCOVERY. Signalé par Image borne : sur les bornes, DirectInput voit les axes vJoy en tout ou rien (joy.cpl aussi) |
+| 104 | 25/10 | Étapes suivantes ? | ✅ proposées : Wangan Midnight 5 jusqu'en course, puis 5DX+ et 6 ; décisions au propriétaire (SWDC, dossiers jamais classés de racecab1, réglage du retour de force de Mario Kart DX 1.18) ; les trois fonctions manquantes (WRITE_DIR, sorties réseau, menu Tab désactivable) |
+| 105 | 25/10 | Fais d'abord les trois fonctions manquantes | ✅ `[Paths] WRITE_DIR` / `--write-dir` (superposition copie-sur-écriture dans `files.cpp`, réglages et journal à sa racine, sélecteur compris), `[Outputs] OUTPUTS_NETWORK` (`outputs.cpp`, protocole de MAME comme linuxloader : lampes JVS, `RawDrive`, `mame_start`/`mame_stop`, annonce UDP), `[Launcher] SETTINGS_MENU = false` ; `[Launcher] GAMES_DIR` pour le sélecteur, comme linuxloader (`[Picker]` encore lu) ; vérifiés sur Wangan Midnight 5 et un programme d'essai 32/64 bits ; pas encore commités |
+| 106 | 25/10 | Que veux-tu dire par « le dossier de Windows, ProgramData, AppData et le dossier temporaire ne passent pas par le dossier d'écriture » ? | ✅ expliqué : ce que le jeu et ses bibliothèques y écrivaient restait à sa place (caches, fichiers temporaires, sauvegardes de certains jeux), donc perdu sous UWF |
+| 107 | 25/10 | Je vais protéger avec UWF tout le disque sauf le dossier d'écriture : AppData et le dossier temporaire doivent être redirigeables ; tous sous la même clé WRITE_DIR, dans des sous-dossiers (appdata, temp, programdata, windows) ; pas plusieurs paramètres : WRITE_DIR vide, les dossiers du système normaux | ✅ un seul réglage, `WRITE_DIR` : `WRITE_DIR\<jeu>\appdata` (Roaming, Local, LocalLow), `temp`, `programdata`, `windows`, le reste sous la lettre de son lecteur ; `LoadLibrary` prend une DLL écrite par le jeu dans le dossier d'écriture ; les images de l'agent restent où il les demande ; vérifié (programme d'essai 32/64 bits, Wangan Midnight 5) ; pas encore commité |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1410,3 +1416,35 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   build ne recompile rien). Aussi le titre du sélecteur, « À propos », le journal, la console.
 - Prudence : la suppression des captures d'essai par `Remove-Item` a été refusée (règle : corbeille seulement) ;
   dossiers d'essai nouveaux à la place.
+
+### 25/10 — Dossier d'écriture, sorties réseau, menu Tab désactivable (demandes 102 à 105)
+
+- Repris de linuxloader (`writeDir.c`, `netOutputs.c`, `SETTINGS_MENU`), mêmes clés et même sens. Le sélecteur
+  lit maintenant `[Launcher] GAMES_DIR` comme celui de linuxloader (`[Picker]` de la release du 25/10 encore lu,
+  effacé quand Tab en choisit un autre).
+- Dossier d'écriture. Le lanceur le résout (`src/launcher/writedir.cpp`, partagé avec le sélecteur), copie
+  `windowsloader.ini` et `controls.ini` à sa racine, y met le journal, et le passe à la DLL
+  (`WINDOWSLOADER_WRITE_DIR`). La DLL, une fois le jeu connu, fait `WRITE_DIR\<jeu>` et superpose : chemin
+  complet du fichier (après les redirections D:, E:, F:...) recopié sous `WRITE_DIR\<jeu>\<lecteur>\...`, ce
+  qui prend aussi les jeux qui écrivent au-dessus de leur programme. Ajoutés aux crochets : `CopyFileW`,
+  `SetFileAttributesW`, `FindFirstFileExW`, `FindNextFileA/W`, `FindClose` (les listes fusionnées ont leur
+  propre poignée).
+- Trois corrections en essai : l'exclusion de tout le profil de l'utilisateur écartait les jeux du bureau
+  (réduite à AppData et au dossier temporaire) ; les chemins de plus de 260 caractères (dossiers et copies
+  ratés, le jeu bloqué) passent maintenant par la forme `\\?\` et des dossiers faits un à un, avec repli sur
+  place si le dossier ne peut être fait ; les appels .ini ANSI ne prennent pas la forme `\\?\` : ils passent
+  par les appels W quand le fichier est dans le dossier d'écriture.
+- Sorties réseau : `src/hook/outputs.cpp`, sockets ouverts dans le fil du serveur (pas dans DllMain), lampes
+  depuis la commande JVS 0x32, `RawDrive` depuis `driveboard.cpp` (octets tels quels) ou depuis `wl_ffb_set`
+  (trames 80/81/83 puis 84, comme linuxloader le fait pour Dead Heat et Gaelco), `mame_stop` dans les crochets
+  d'ExitProcess et de TerminateProcess (le « quitter » de l'agent et du menu compris).
+- Essais : Wangan Midnight 5 avec les trois réunis, un programme d'essai 32/64 bits pour les appels A et W
+  (16 contrôles), Wangan sans dossier d'écriture (inchangé). Les dossiers d'essai mis à la corbeille.
+- Ensuite (demande 107, disque sous UWF sauf le dossier d'écriture) : les dossiers du système ne sont plus
+  écartés mais rangés à part dans `WRITE_DIR\<jeu>` : `appdata`, `temp`, `programdata`, `windows` ; le dossier
+  le plus précis décide (le dossier temporaire est dans AppData\Local). Un seul réglage : pas de clé par
+  dossier (quatre clés `WRITE_DIR_*` essayées puis retirées à la demande du propriétaire). `LoadLibrary`
+  charge depuis le dossier d'écriture une DLL que le jeu y a écrite. Les images de l'agent écrites hors de la
+  superposition (elles étaient parties dans `temp`, le dossier d'essai étant dans le vrai dossier temporaire).
+  Vu : le pilote NVIDIA écrit `ProgramData\NVIDIA Corporation\Drs\nvAppTimestamps` pour le jeu, rangé dans
+  `programdata`.
