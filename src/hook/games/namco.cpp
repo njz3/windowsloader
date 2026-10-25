@@ -650,6 +650,93 @@ static int __cdecl cabinet_offline_limit(void)
     return 0;
 }
 
+// ------------------------------------------------------------------------------
+// System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014). Being worked on.
+// The cabinet's Sentinel HASP key is reached through hasp_windows_x64_109906.dll, imported by
+// number: login, logout, get_size, read and decrypt are windowsloader's (the import table's
+// entries). The key's memory: 0xD40 bytes, the cabinet's ID at 0xD00 with its sum after it, two
+// records at 0x10 and 0x20 (their values, the size and the places from OpenParrot's WMMT5.cpp;
+// decrypt leaves the data as it is, as there)
+// ------------------------------------------------------------------------------
+
+#define HASP_STATUS_OK 0
+#define DONGLE_SIZE 0xD40
+
+static unsigned char g_dongle[DONGLE_SIZE];
+
+static unsigned int __stdcall hasp_login(unsigned int feature, void *vendorCode, unsigned int *handle)
+{
+    wl_log("hasp: login, feature %u", feature);
+    if (handle)
+        *handle = 1;
+    return HASP_STATUS_OK;
+}
+
+static unsigned int __stdcall hasp_logout(unsigned int handle)
+{
+    wl_log("hasp: logout");
+    return HASP_STATUS_OK;
+}
+
+static unsigned int __stdcall hasp_get_size(unsigned int handle, unsigned int file, unsigned int *size)
+{
+    wl_log("hasp: get_size, file %u", file);
+    if (size)
+        *size = DONGLE_SIZE;
+    return HASP_STATUS_OK;
+}
+
+static unsigned int __stdcall hasp_read(unsigned int handle, unsigned int file, unsigned int offset, unsigned int length, void *buffer)
+{
+    static int logged;
+    if (logged++ < 50)
+        wl_log("hasp: read, file %u, offset 0x%x, %u bytes", file, offset, length);
+    if (!buffer)
+        return HASP_STATUS_OK;
+    memset(buffer, 0, length);
+    if (offset < DONGLE_SIZE)
+        memcpy(buffer, g_dongle + offset, offset + length <= DONGLE_SIZE ? length : DONGLE_SIZE - offset);
+    return HASP_STATUS_OK;
+}
+
+static unsigned int __stdcall hasp_decrypt(unsigned int handle, void *buffer, unsigned int length)
+{
+    static int logged;
+    if (logged++ < 20)
+        wl_log("hasp: decrypt, %u bytes (left as they are)", length);
+    return HASP_STATUS_OK;
+}
+
+static void wangan_dongle(void)
+{
+    static const unsigned char record[16] = {0, 0, 0, 0x01, 0, 0, 0, 0x0A, 0, 0, 0, 0x04, 0x3B, 0x6B, 0x40, 0x87};
+    g_dongle[0] = 0x01;
+    memcpy(g_dongle + 0x10, record, sizeof record);
+    memcpy(g_dongle + 0x20, record, sizeof record);
+    // The cabinet's ID (not a terminal: 13 at its 5th place, 11 for a terminal), its bytes' sum
+    // and that sum's complement at the memory's end
+    static const char id[] = "272213990002";
+    unsigned sum = 0;
+    for (int i = 0; i < 12; i++)
+        sum += (unsigned char)id[i];
+    memcpy(g_dongle + 0xD00, id, 12);
+    g_dongle[0xD3E] = (unsigned char)sum;
+    g_dongle[0xD3F] = (unsigned char)~sum;
+    static const struct
+    {
+        int ordinal;
+        void *function;
+        const char *name;
+    } hasp[] = {
+        {13, (void *)hasp_login, "hasp_login"}, {14, (void *)hasp_logout, "hasp_logout"}, {7, (void *)hasp_get_size, "hasp_get_size"},
+        {15, (void *)hasp_read, "hasp_read"},   {2, (void *)hasp_decrypt, "hasp_decrypt"},
+    };
+    HMODULE exe = GetModuleHandleW(NULL);
+    for (int i = 0; i < (int)(sizeof hasp / sizeof hasp[0]); i++)
+        if (!wl_patch_iat(exe, "hasp_windows_x64_109906.dll", MAKEINTRESOURCEA(hasp[i].ordinal), hasp[i].function, NULL))
+            wl_log("hasp: %s (#%d) not in the import table", hasp[i].name, hasp[i].ordinal);
+}
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -663,8 +750,52 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     base = base ? base + 1 : exePath;
     wchar_t dir[MAX_PATH];
     wcsncpy_s(dir, MAX_PATH, exePath, base - exePath);
-    if (_wcsicmp(base, L"MK_AGP3_FINAL.exe"))
+    int wmmt5 = !_wcsicmp(base, L"wmn5r.exe");
+    if (!wmmt5 && _wcsicmp(base, L"MK_AGP3_FINAL.exe"))
         return 0;
+
+    // Its drives F:\ and G:\ (system, bookkeeping, dongle data, test mode settings) are the copy's
+    // F* and G* folders and files: F:\system\x is Fsystem\x, G:\boot_limit_N.bin Gboot_limit_N.bin
+    char folder[MAX_PATH], to[MAX_PATH];
+    WideCharToMultiByte(CP_ACP, 0, dir, -1, folder, sizeof folder, NULL, NULL);
+    snprintf(to, sizeof to, "%sF", folder);
+    wl_files_redirect_prefix("F:\\", to);
+    snprintf(to, sizeof to, "%sG", folder);
+    wl_files_redirect_prefix("G:\\", to);
+
+    if (wmmt5)
+    {
+        *name = "wmmt5";
+        *title = "Wangan Midnight Maximum Tune 5";
+        wl_log("game: %s (Namco System ES3X)", *title);
+        wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)", "Motor board: Namco motor board (COM1)");
+        wl_inputs_set_table(g_inputs, IN_COUNT);
+        wl_jvs_register(&g_jvs);
+        InitializeCriticalSection(&g_motorLock);
+        wl_vdev_register(&g_com1);
+        wl_vdev_label("COM1", "Carte du moteur du volant");
+        wangan_dongle();
+        // E0505 "network: interface not found": the game looks for its card in the cabinets'
+        // network, 192.168.92.0/24 (its addresses table, +0x18a7260: .254, .11, .20, .253)
+        static const unsigned char mac[6] = {0x00, 0x18, 0xD8, 0x00, 0x00, 0x0B};
+        wl_netenv_fake(0xC0A85C0B, 0xC0A85CFE, mac);
+        // E1911 "USB DONGLE error2": the key's ID is compared with the cabinet's, given by its
+        // "auth" COM class (not registered here: "auth: can't get instance(80040154)"); that one
+        // empty is the error (+0x58c63a). The error's flag stays clear (mov r12b, 1 made 0, as
+        // OpenParrot's WMMT5.cpp does)
+        unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
+        static const unsigned char set[3] = {0x41, 0xB4, 0x01}, clear[3] = {0x41, 0xB4, 0x00};
+        wl_patch_code(exe + 0x58C6CA, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x58c6ca)");
+        // "Connecting to Wangan terminal": a cabinet alone has no terminal (the card machine of the
+        // arcade). The scanner's three jumps made NOPs (+0x87bd68, OpenParrot's "disregard
+        // terminal scanner stuff" for a cabinet that is not a terminal)
+        static const unsigned char je6[6] = {0x0F, 0x84, 0x88, 0x00, 0x00, 0x00}, nop6[6] = {0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+        static const unsigned char je2[2] = {0x74, 0x60}, jne2[2] = {0x75, 0x4F}, nop2[2] = {0x90, 0x90};
+        wl_patch_code(exe + 0x87BD6E, je6, nop6, 6, "no terminal (wmn5r.exe+0x87bd6e)");
+        wl_patch_code(exe + 0x87BD77, je2, nop2, 2, "no terminal (wmn5r.exe+0x87bd77)");
+        wl_patch_code(exe + 0x87BD7D, jne2, nop2, 2, "no terminal (wmn5r.exe+0x87bd7d)");
+        return 1;
+    }
     // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places
     int v118 = exists(dir, L"bngrw.dll");
     *name = "mkdx";
@@ -678,15 +809,6 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     InitializeCriticalSection(&g_motorLock);
     wl_vdev_register(&g_com1);
     wl_vdev_label("COM1", "Carte du moteur du volant");
-
-    // Its drives F:\ and G:\ (system, bookkeeping, dongle data, test mode settings) are the copy's
-    // F* and G* folders and files: F:\system\x is Fsystem\x, G:\boot_limit_N.bin Gboot_limit_N.bin
-    char folder[MAX_PATH], to[MAX_PATH];
-    WideCharToMultiByte(CP_ACP, 0, dir, -1, folder, sizeof folder, NULL, NULL);
-    snprintf(to, sizeof to, "%sF", folder);
-    wl_files_redirect_prefix("F:\\", to);
-    snprintf(to, sizeof to, "%sG", folder);
-    wl_files_redirect_prefix("G:\\", to);
 
     // ShareK's client not started: je to the function's end made a jmp (nop; jmp rel32). The exe
     // moves (ASLR): addresses from its base

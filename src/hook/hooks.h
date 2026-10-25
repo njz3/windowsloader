@@ -54,7 +54,8 @@ int wl_hook_code(void *target, void *detour, void **original, const char *what);
 
 // Replaces one entry of a module's import table: only that module's own calls change, unlike the
 // MinHook hooks (the clocks of the paused game, while Windows and windowsloader keep the real time).
-// Returns 1 when the import was found.
+// func may be an ordinal, MAKEINTRESOURCEA(n), for a function imported by its number (Wangan
+// Midnight's HASP library). Returns 1 when the import was found.
 int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replacement, void **original);
 
 // Bytes of the game's code replaced, only when they are the ones expected (the game's version the
@@ -124,6 +125,7 @@ void wl_system_virtual_dll(const char *name, const WlVirtualDllFunction *functio
 // The cabinet's network card in place of the PC's (netenv.cpp): one Ethernet card at ip, 24-bit
 // subnet, its gateway its DNS server, pings answered (an ALLS's amdaemon checks the network so)
 void wl_netenv_fake(unsigned ip, unsigned gateway, const unsigned char mac[6]);
+int wl_netenv_fake_ip(unsigned *ip); // that card's address (network order), 0 when it is the PC's
 
 // The game's broadcasts (x.x.x.255) sent to 127.0.0.1 instead, the same port: a game whose cabinets
 // elect a host by broadcast hears itself and becomes the host, nothing leaves the PC

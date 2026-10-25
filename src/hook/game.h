@@ -24,7 +24,7 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title);    // Taito Type X+ (Battle Gear 4)
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
-int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX)
+int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX), ES3X (Wangan Midnight 5, x64)
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title);     // Sega ALLS (SWDC, x64: amdaemon and the game)
 int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **title); // Storm Racer G (usb_io.dll)

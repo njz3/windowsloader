@@ -238,6 +238,83 @@ static DWORD WINAPI hGetBestRoute(DWORD dest, DWORD source, PMIB_IPFORWARDROW ro
     return NO_ERROR;
 }
 
+// The card's address, its interface and the default route (Wangan Midnight 5 looks for its
+// address in the cabinet's subnet)
+static DWORD(WINAPI *oGetIpAddrTable)(PMIB_IPADDRTABLE, PULONG, BOOL);
+static DWORD WINAPI hGetIpAddrTable(PMIB_IPADDRTABLE table, PULONG size, BOOL order)
+{
+    if (!g_fake.on || wl_busy())
+        return oGetIpAddrTable(table, size, order);
+    first_call("GetIpAddrTable");
+    if (!size)
+        return ERROR_INVALID_PARAMETER;
+    if (!table || *size < sizeof(MIB_IPADDRTABLE))
+    {
+        *size = sizeof(MIB_IPADDRTABLE);
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    memset(table, 0, sizeof(MIB_IPADDRTABLE));
+    table->dwNumEntries = 1;
+    MIB_IPADDRROW *row = &table->table[0];
+    row->dwAddr = g_fake.ip;
+    row->dwIndex = 1;
+    row->dwMask = _byteswap_ulong(0xFFFFFF00);
+    row->dwBCastAddr = 1;
+    row->dwReasmSize = 65535;
+    row->wType = MIB_IPADDR_PRIMARY;
+    return NO_ERROR;
+}
+
+static DWORD(WINAPI *oGetInterfaceInfo)(PIP_INTERFACE_INFO, PULONG);
+static DWORD WINAPI hGetInterfaceInfo(PIP_INTERFACE_INFO info, PULONG size)
+{
+    if (!g_fake.on || wl_busy())
+        return oGetInterfaceInfo(info, size);
+    first_call("GetInterfaceInfo");
+    if (!size)
+        return ERROR_INVALID_PARAMETER;
+    if (!info || *size < sizeof(IP_INTERFACE_INFO))
+    {
+        *size = sizeof(IP_INTERFACE_INFO);
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    memset(info, 0, sizeof(IP_INTERFACE_INFO));
+    info->NumAdapters = 1;
+    info->Adapter[0].Index = 1;
+    wcscpy_s(info->Adapter[0].Name, MAX_ADAPTER_NAME, L"\\DEVICE\\TCPIP_{57494E44-4F57-534C-4F41-444552000001}");
+    return NO_ERROR;
+}
+
+static DWORD(WINAPI *oGetIpForwardTable)(PMIB_IPFORWARDTABLE, PULONG, BOOL);
+static DWORD WINAPI hGetIpForwardTable(PMIB_IPFORWARDTABLE table, PULONG size, BOOL order)
+{
+    if (!g_fake.on || wl_busy())
+        return oGetIpForwardTable(table, size, order);
+    first_call("GetIpForwardTable");
+    if (!size)
+        return ERROR_INVALID_PARAMETER;
+    if (!table || *size < sizeof(MIB_IPFORWARDTABLE))
+    {
+        *size = sizeof(MIB_IPFORWARDTABLE);
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    memset(table, 0, sizeof(MIB_IPFORWARDTABLE));
+    table->dwNumEntries = 1;
+    MIB_IPFORWARDROW *route = &table->table[0];
+    route->dwForwardNextHop = g_fake.gateway;
+    route->dwForwardIfIndex = 1;
+    route->dwForwardType = MIB_IPROUTE_TYPE_INDIRECT;
+    route->dwForwardProto = MIB_IPPROTO_NETMGMT;
+    return NO_ERROR;
+}
+
+int wl_netenv_fake_ip(unsigned *ip)
+{
+    if (g_fake.on && ip)
+        *ip = g_fake.ip;
+    return g_fake.on;
+}
+
 // A ping: answered at once, as by every host of the cabinet's network; nothing is sent
 static int echo_reply(IPAddr dest, LPVOID reply, DWORD replySize)
 {
@@ -295,6 +372,9 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"iphlpapi.dll", GetIfTable),
     WL_HOOK(L"iphlpapi.dll", GetIfEntry),
     WL_HOOK(L"iphlpapi.dll", GetBestRoute),
+    WL_HOOK(L"iphlpapi.dll", GetIpAddrTable),
+    WL_HOOK(L"iphlpapi.dll", GetInterfaceInfo),
+    WL_HOOK(L"iphlpapi.dll", GetIpForwardTable),
     WL_HOOK(L"iphlpapi.dll", IcmpSendEcho2),
     WL_HOOK(L"iphlpapi.dll", IcmpSendEcho),
 };

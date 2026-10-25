@@ -1492,10 +1492,58 @@ static int WINAPI hAddFontResourceW(LPCWSTR name)
     return oAddFontResourceExW(name, WL_FR_PRIVATE, NULL);
 }
 
+// A UDP socket "connected" to an address out there sends nothing: the game asks it then its own
+// address (getsockname), the card it would leave by (Wangan Midnight 5, to 8.8.8.8). With the
+// cabinet's card in place of the PC's (netenv.cpp), it is answered so: that card's address
+static UINT_PTR g_probes[8];
+static volatile LONG g_probeCount;
+
+static int udp_probe(UINT_PTR s, const struct sockaddr *a, int len)
+{
+    // getsockopt(s, SOL_SOCKET, SO_TYPE): SOCK_DGRAM (winsock2.h is not included here)
+    typedef int(WINAPI * GetSockOpt)(UINT_PTR, int, int, char *, int *);
+    static GetSockOpt getsockopt_;
+    if (!getsockopt_)
+        getsockopt_ = (GetSockOpt)GetProcAddress(GetModuleHandleA("ws2_32.dll"), "getsockopt");
+    unsigned ip;
+    int type = 0, size = sizeof type;
+    if (!a || len < 8 || ((const unsigned short *)a)[0] != 2 || !wl_netenv_fake_ip(&ip) || !getsockopt_ ||
+        getsockopt_(s, 0xFFFF, 0x1008, (char *)&type, &size) || type != 2)
+        return 0;
+    LONG i = InterlockedIncrement(&g_probeCount) - 1;
+    g_probes[i % 8] = s;
+    static int logged;
+    if (!logged++)
+    {
+        char t[32];
+        wl_log("connect %s on a UDP socket: its address will be the cabinet's card's", sockaddr_text(a, len, t, sizeof t));
+    }
+    return 1;
+}
+
+static int(WINAPI *ogetsockname)(UINT_PTR, struct sockaddr *, int *);
+static int WINAPI hgetsockname(UINT_PTR s, struct sockaddr *a, int *len)
+{
+    unsigned ip;
+    for (int i = 0; i < 8 && i < g_probeCount; i++)
+        if (g_probes[i] == s && a && len && *len >= 16 && wl_netenv_fake_ip(&ip))
+        {
+            memset(a, 0, 16);
+            ((unsigned short *)a)[0] = 2;                      // AF_INET
+            ((unsigned short *)a)[1] = _byteswap_ushort(50000); // the port, network order
+            memcpy((char *)a + 4, &ip, 4);
+            *len = 16;
+            return 0;
+        }
+    return ogetsockname(s, a, len);
+}
+
 static int(WINAPI *oconnect)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
 {
     int game = !wl_busy() && !wl_is_system_caller(WL_CALLER);
+    if (game && udp_probe(s, a, len))
+        return 0;
     if (game && lan_refused(a, len, "connect", WL_CALLER))
         return -1; // SOCKET_ERROR
     int r = oconnect(s, a, len);
@@ -1891,6 +1939,7 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"ole32.dll", CoCreateInstance),
     WL_HOOK(L"ws2_32.dll", bind),
     WL_HOOK(L"ws2_32.dll", connect),
+    WL_HOOK(L"ws2_32.dll", getsockname),
     WL_HOOK(L"gdi32.dll", AddFontResourceExA),
     WL_HOOK(L"gdi32.dll", AddFontResourceExW),
     WL_HOOK(L"gdi32.dll", AddFontResourceA),

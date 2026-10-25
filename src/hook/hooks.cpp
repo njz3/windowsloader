@@ -161,6 +161,7 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
     // written the functions' addresses over the only table: the entry is the one holding the function
     HMODULE dllMod = GetModuleHandleA(dll);
     ULONG_PTR real = dllMod ? (ULONG_PTR)GetProcAddress(dllMod, func) : 0;
+    int byOrdinal = IS_INTRESOURCE(func);
     for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dir.VirtualAddress); d->Name; d++)
     {
         if (_stricmp((const char *)(base + d->Name), dll))
@@ -174,8 +175,9 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
                 if (!real || iat->u1.Function != real)
                     continue;
             }
-            else if (IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal) ||
-                     strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + names->u1.AddressOfData))->Name, func))
+            else if (byOrdinal ? !IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal) || IMAGE_ORDINAL(names->u1.Ordinal) != (ULONG_PTR)func
+                               : IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal) ||
+                                     strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + names->u1.AddressOfData))->Name, func))
                 continue;
             DWORD old;
             VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old);
