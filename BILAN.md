@@ -36,6 +36,7 @@ dans NOTES.md, « Jeux des bornes »).
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -866,6 +867,31 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
 - Menu de service ✅ : bouton vert, Main Menu, Hardware Test, Input Test (pièce, Start, siège, étalonnage du volant et des
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
+
+## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits) — en cours
+
+`wmn5r.exe` (copie `games\wmmt5`, 18,5 Go depuis racecab1), x64, Direct3D 11. Dans `namco.cpp`, à côté de Mario
+Kart DX. Les deux crochets de TeknoParrot (`d3d11.dll` et `dinput8.dll`, le plugin FFB), OutputBlaster et `SDL2.dll`
+mis de côté (`_teknoparrot_off`). Le jeu écrit ses erreurs dans le journal (« [WMN5Err] »).
+
+Fait :
+- la clé Sentinel HASP : ses cinq fonctions (login, logout, get_size, read, decrypt, importées par numéro)
+  remplacées dans la table d'import. Sa mémoire : 0xD40 octets, l'identifiant de la borne à 0xD00 suivi de sa
+  somme, deux enregistrements à 0x10 et 0x20 (valeurs d'OpenParrot) ;
+- E1911 « USB DONGLE error2 » : l'identifiant de la clé est comparé à celui que donne le composant COM « auth »
+  de la borne, absent ici (« auth: can't get instance(80040154) »). La comparaison est sautée, comme dans
+  OpenParrot ;
+- les lecteurs F: et G: : les fichiers `F*` et `G*` du dossier ;
+- le JVS sur COM3 et la carte moteur sur COM1, ceux de Mario Kart DX : « I/O CHECK OK » ;
+- E0505 « network: interface not found » : une carte réseau de borne, 192.168.92.11. Ajouts dans `netenv.cpp`
+  (`GetIpAddrTable`, `GetInterfaceInfo`, `GetIpForwardTable`) et `system.cpp` (un `connect` UDP vers 8.8.8.8
+  suivi de `getsockname` répond l'adresse de cette carte) : « LINK OK ».
+
+Reste :
+- « Connecting to Wangan terminal » : la borne attend le terminal de la salle. OpenParrot neutralise sa
+  recherche (trois sauts, faits ici) et simule en plus un terminal qui émet des paquets (multidiffusion
+  225.0.0.1:50765) ;
+- la caméra, les commandes propres au jeu, le retour de force.
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
