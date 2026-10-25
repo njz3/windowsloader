@@ -43,9 +43,9 @@
 //
 // The game's settings are left as they are; it only reads some of them differently: no
 // exclusive full screen ([FullHD] ENABLE_FULL_SCREEN of GameData\config.ini) and a single
-// cabinet ([Network] NumCabinets of ShellData.ini; the links with other cabinets would go out
-// on the local network, which system.cpp refuses anyway). The camera (the players' photos) is
-// refused by system.cpp too.
+// cabinet, the first ([Network] NumCabinets 1 and CabinetID 1 of ShellData.ini; the links with
+// other cabinets would go out on the local network, which system.cpp refuses anyway). The camera
+// (the players' photos) is refused by system.cpp too.
 
 #include <windows.h>
 #include <stdio.h>
@@ -298,6 +298,9 @@ static int ini_override(const char *file, const char *section, const char *key, 
     } table[] = {
         {"config.ini", "FullHD", "ENABLE_FULL_SCREEN", "0"},
         {"ShellData.ini", "Network", "NumCabinets", "1"},
+        // Alone, it is cabinet 1: a second cabinet's file (CabinetID = 2, the link's identity from
+        // TeknoParrot) made it wait for cabinet 1 on "network discovery" (racecab2)
+        {"ShellData.ini", "Network", "CabinetID", "1"},
     };
     for (int i = 0; i < (int)(sizeof table / sizeof table[0]); i++)
         if (ends_with(file, table[i].file) && !_stricmp(section, table[i].section) && !_stricmp(key, table[i].key))
