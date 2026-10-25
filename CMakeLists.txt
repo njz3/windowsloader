@@ -36,6 +36,25 @@ if(MSVC)
 endif()
 
 # ------------------------------------------------------------------------------
+# The build's version, shown in the game's window title, the menu, the picker and the log:
+# "<WL_VERSION of wlshared.h>-<the build's day>[-<WL_BUILD_NUMBER>]-<WL_FORK>", the release archives'
+# name, then WL_EDITION. A release sets WL_BUILD_NUMBER to the archive's number of the day.
+# ------------------------------------------------------------------------------
+set(WL_FORK "njz3" CACHE STRING "The branch's name in the version (njz3: Benjamin Maurin's)")
+set(WL_EDITION "FFB Edition" CACHE STRING "The branch's edition, after the version in the window's title")
+set(WL_BUILD_NUMBER "" CACHE STRING "The release archive's number of the day (empty for an ordinary build)")
+file(STRINGS ${PROJECT_SOURCE_DIR}/src/common/wlshared.h WL_VERSION_LINE REGEX "^#define WL_VERSION ")
+string(REGEX REPLACE "^#define WL_VERSION \"([^\"]*)\".*" "\\1" WL_VERSION_NUMBER "${WL_VERSION_LINE}")
+set(WL_GENERATED_DIR ${CMAKE_BINARY_DIR}/generated)
+set(WL_BUILD_VERSION_ARGS -DOUT=${WL_GENERATED_DIR}/wl_build.h -DVERSION=${WL_VERSION_NUMBER} -DFORK=${WL_FORK}
+    "-DEDITION=${WL_EDITION}" -DNUMBER=${WL_BUILD_NUMBER} -P ${PROJECT_SOURCE_DIR}/cmake/build_version.cmake)
+execute_process(COMMAND ${CMAKE_COMMAND} ${WL_BUILD_VERSION_ARGS})
+add_custom_target(wl_build_version
+    COMMAND ${CMAKE_COMMAND} ${WL_BUILD_VERSION_ARGS}
+    BYPRODUCTS ${WL_GENERATED_DIR}/wl_build.h
+    COMMENT "The build's version (wl_build.h)")
+
+# ------------------------------------------------------------------------------
 # MinHook (static), copied from linuxloader's src/minhook
 # ------------------------------------------------------------------------------
 file(GLOB_RECURSE MINHOOK_SRC src/minhook/src/*.c)
@@ -59,13 +78,25 @@ endif()
 # ------------------------------------------------------------------------------
 # windowsloader.exe / windowsloader64.exe: starts the game suspended and injects the DLL
 # ------------------------------------------------------------------------------
-add_executable(wl_launcher src/launcher/launcher.cpp)
+# Started alone, it shows the game picker (Dear ImGui on Direct3D 11)
+add_executable(wl_launcher
+    src/launcher/launcher.cpp
+    src/launcher/gamelist.cpp
+    src/launcher/picker.cpp
+    src/imgui/imgui.cpp
+    src/imgui/imgui_draw.cpp
+    src/imgui/imgui_tables.cpp
+    src/imgui/imgui_widgets.cpp
+    src/imgui/backends/imgui_impl_dx11.cpp
+    src/imgui/backends/imgui_impl_win32.cpp)
 set_target_properties(wl_launcher PROPERTIES
     OUTPUT_NAME ${WL_LAUNCHER_NAME}
     RUNTIME_OUTPUT_DIRECTORY ${WL_OUTPUT_DIR})
-target_include_directories(wl_launcher PRIVATE src/common)
+target_include_directories(wl_launcher PRIVATE src/common src/imgui ${WL_GENERATED_DIR})
+add_dependencies(wl_launcher wl_build_version)
 target_compile_definitions(wl_launcher PRIVATE ${WL_C_DEFINES} UNICODE _UNICODE)
 target_compile_options(wl_launcher PRIVATE ${WL_C_FLAGS})
+target_link_libraries(wl_launcher PRIVATE d3d11 dxgi d3dcompiler windowscodecs ole32 dwmapi imm32 shell32 uuid user32 gdi32)
 
 # ------------------------------------------------------------------------------
 # windowsloader32.dll / windowsloader64.dll: runs inside the game process
@@ -128,7 +159,8 @@ set_target_properties(wl_hook PROPERTIES
     OUTPUT_NAME ${WL_HOOK_NAME}
     PREFIX ""
     RUNTIME_OUTPUT_DIRECTORY ${WL_OUTPUT_DIR})
-target_include_directories(wl_hook PRIVATE src/common src/hook src/imgui)
+target_include_directories(wl_hook PRIVATE src/common src/hook src/imgui ${WL_GENERATED_DIR})
+add_dependencies(wl_hook wl_build_version)
 target_compile_definitions(wl_hook PRIVATE ${WL_C_DEFINES})
 target_compile_options(wl_hook PRIVATE ${WL_C_FLAGS})
 # SDL3 (vcpkg, static): the player's controllers, and later the force feedback

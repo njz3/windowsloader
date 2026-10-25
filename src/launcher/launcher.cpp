@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+#include "picker.h"
 #include "wlshared.h"
 
 #ifdef _WIN64
@@ -89,9 +90,10 @@ static void say_error(const char *what)
 
 static void usage(void)
 {
-    say("windowsloader " WL_VERSION " - runs Windows arcade games with emulated cabinet hardware\n"
+    say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " - runs Windows arcade games with emulated cabinet hardware\n"
         "\n"
         "Usage: %s [options] <game.exe> [game arguments...]\n"
+        "       %s alone opens the game picker (the games of the games folder, see README.md)\n"
         "\n"
         "Options:\n"
         "  --log <file>     log written by the game side (default: windowsloader.log in the current folder)\n"
@@ -109,7 +111,7 @@ static void usage(void)
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
         "windowsloader64.dll; each launcher hands the other kind of game to its sibling in the same folder.\n",
-        WL_SELF_BITS == 64 ? "windowsloader64" : "windowsloader");
+        WL_SELF_BITS == 64 ? "windowsloader64" : "windowsloader", WL_SELF_BITS == 64 ? "windowsloader64" : "windowsloader");
 }
 
 // ------------------------------------------------------------------------------
@@ -582,6 +584,10 @@ static void agent_to_stdout(HANDLE pipe)
 
 int wmain(int argc, wchar_t **argv)
 {
+    // Without a game: the picker, which runs the chosen game through this program again
+    if (argc == 1)
+        return wl_picker_run();
+
     UINT oldCP = GetConsoleOutputCP();
     SetConsoleOutputCP(CP_UTF8);
 
@@ -715,7 +721,7 @@ int wmain(int argc, wchar_t **argv)
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
 
-    say("windowsloader " WL_VERSION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
+    say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");
 
     // Closing the launcher (Ctrl+C, agent stop) takes the game and its children down with it

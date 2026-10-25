@@ -30,6 +30,7 @@
 #include "log.h"
 #include "menu.h"
 #include "settings.h"
+#include "wlshared.h"
 
 static volatile LONG g_aspect = WL_ASPECT_ORIGINAL;
 static volatile LONG g_mode = WL_MODE_WINDOW;
@@ -746,8 +747,9 @@ static int focus_is_ours(void)
     return pid == GetCurrentProcessId();
 }
 
-// The game's name between brackets and the frames per second in the window's title, once a second:
-// "<the game's title> [segarally3] - 60 fps" (the brackets let BackForceFeeder find the game)
+// The game's name between brackets, the frames per second and the build in the window's title, once
+// a second: "<the game's title> [segarally3] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB
+// Edition" (the brackets let BackForceFeeder find the game)
 static void title_fps(HWND wnd)
 {
     static wchar_t title[128];
@@ -765,11 +767,12 @@ static void title_fps(HWND wnd)
         got = 1;
         GetWindowTextW(wnd, title, 128);
     }
-    wchar_t text[200];
-    int n = swprintf(text, 200, L"%s", title);
+    wchar_t text[320]; // the title (128 at most) and the rest fit
+    int n = swprintf(text, 320, L"%s", title);
     if (strcmp(wl_game_name(), "unknown"))
-        n += swprintf(text + n, 200 - n, L"%s[%S]", n ? L" " : L"", wl_game_name());
-    swprintf(text + n, 200 - n, L"%s%.0f fps", n ? L" - " : L"", frames * 1000.0 / (double)(now - since));
+        n += swprintf(text + n, 320 - n, L"%s[%S]", n ? L" " : L"", wl_game_name());
+    swprintf(text + n, 320 - n, L"%s%.0f fps - windowsloader %S %S", n ? L" - " : L"", frames * 1000.0 / (double)(now - since), WL_BUILD_VERSION,
+             WL_EDITION);
     // The window's own thread may be another one: never wait long for it
     DWORD_PTR result;
     SendMessageTimeoutW(wnd, WM_SETTEXT, 0, (LPARAM)text, SMTO_ABORTIFHUNG, 50, &result);

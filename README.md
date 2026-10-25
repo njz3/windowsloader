@@ -35,6 +35,13 @@ cmake --build --preset msvc-x64-release
 The DLL must have the bitness of the game, so both presets are needed: everything lands in
 `bin/Release`, and each launcher hands a game of the other bitness to its sibling.
 
+The build's version is named as the release archives are, `<version>-<the build's day>-njz3`
+(`0.1.0-20261025-njz3`), followed by the branch's edition, "FFB Edition": in the game's window
+title (`<title> [wmmt5] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition`), the picker's,
+the menu's "À propos" page and the log. `cmake/build_version.cmake` writes it at each build. A
+release adds its archive's number of the day with `-DWL_BUILD_NUMBER=4` (`0.1.0-20261024-4-njz3`);
+`WL_FORK` and `WL_EDITION` are the branch's name and edition.
+
 | File | Built by | For |
 |---|---|---|
 | `windowsloader.exe`, `windowsloader32.dll` | `msvc-x86` | 32-bit games |
@@ -44,6 +51,7 @@ The DLL must have the bitness of the game, so both presets are needed: everythin
 
 ```
 windowsloader [options] <game.exe> [game arguments...]
+windowsloader               (alone: the game picker)
 
   --log <file>     log written by the game side (default: windowsloader.log)
   --fullscreen     let the game switch the display to full screen (default: kept in a window)
@@ -57,6 +65,19 @@ windowsloader [options] <game.exe> [game arguments...]
   --set SECTION.KEY=VALUE  overrides one setting of the file (repeatable), e.g.
                            --set Display.ASPECT_RATIO=4:3_CROP
 ```
+
+Started alone, without a game (a double click in the Explorer), `windowsloader.exe` opens the game
+picker, as linuxloader's: the games found in the games folder as a list, the chosen one's
+description beside it (platform, state, program, arguments, what is emulated), Enter or a double
+click to play. The game runs through `windowsloader.exe` again, its log in `windowsloader.log` next
+to the launcher, and the picker comes back when it ends. The games folder is `[Picker] GAMES_DIR` of
+`windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next
+to the launcher or one or two levels up (`C:\Racecab\Games` for
+`C:\Racecab\Emulators\windowsloader`); Tab or the "Dossier des jeux" button picks another and saves
+it there. Each of its folders is a game when a program windowsloader knows is found in it, six
+levels down at most (the table is `src/launcher/gamelist.cpp`). A picture shows when the folder has
+`snap`, `title`, `art`, `cover` or its own name as `.png` or `.jpg`. Arrows or a gamepad to choose,
+F5 to scan again, Escape or F9 to quit.
 
 In windowed mode the game also leaves the desktop alone: no display mode change, no cursor
 clipping, no global keyboard hook, no shutdown or program started on its behalf.

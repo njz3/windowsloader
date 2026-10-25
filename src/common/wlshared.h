@@ -28,3 +28,7 @@
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 
 #define WL_VERSION "0.1.0"
+
+// WL_BUILD_VERSION ("0.1.0-20261025-njz3", the release archives' name) and WL_EDITION ("FFB
+// Edition"), written at each build by cmake/build_version.cmake (CMakeLists.txt)
+#include "wl_build.h"

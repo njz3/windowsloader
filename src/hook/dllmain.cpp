@@ -57,7 +57,7 @@ static void wl_init(void)
     char u1[MAX_PATH * 2], u2[MAX_PATH * 2];
     GetModuleFileNameW(NULL, exe, MAX_PATH);
     GetCurrentDirectoryW(MAX_PATH, dir);
-    wl_log("windowsloader " WL_VERSION " (%d-bit) in %s (pid %lu)", (int)sizeof(void *) * 8, wl_u8(exe, u1, sizeof u1), GetCurrentProcessId());
+    wl_log("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit) in %s (pid %lu)", (int)sizeof(void *) * 8, wl_u8(exe, u1, sizeof u1), GetCurrentProcessId());
     wl_log("command line: %s", GetCommandLineA());
     wl_log("folder: %s", wl_u8(dir, u2, sizeof u2));
     wl_log("windowed: %s, device I/O logged: %d per handle", g_wl.windowed ? "yes" : "no", g_wl.ioLimit);

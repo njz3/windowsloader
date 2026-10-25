@@ -746,7 +746,7 @@ static void page_game_options(void)
 
 static void page_about(void)
 {
-    ImGui::Text("windowsloader %s (%d bits)", WL_VERSION, (int)sizeof(void *) * 8);
+    ImGui::Text("windowsloader %s %s (%d bits)", WL_BUILD_VERSION, WL_EDITION, (int)sizeof(void *) * 8);
     ImGui::TextUnformatted("Benjamin Maurin - njz3, licence GPL v3.");
     ImGui::Spacing();
     ImGui::TextUnformatted("Avec :");
