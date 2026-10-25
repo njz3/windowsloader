@@ -124,6 +124,8 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 113 | 25/10 | Étapes suivantes ? | ✅ proposées : les compagnons dans le sous-dossier de leur jeu, essai sur borne de la -3, une vérification de chaque jeu sur racecab2 avant de poser une release, Wangan Midnight 5 jusqu'en course, 5DX+ et 6, décisions au propriétaire |
 | 114 | 25/10 | Vas-y, commence par le point 1 (les compagnons et le dossier d'écriture) | ✅ le lanceur dit au compagnon quel jeu il accompagne (`WINDOWSLOADER_COMPANION_OF`) : picodaemon écrit dans `WRITE_DIR\initiald7` ou `initiald8` (son module d'après SBYD/SBZZ), amdaemon déjà dans `swdc` ; aucun compagnon n'ouvre le serveur des sorties réseau (amdaemon, démarré avant le jeu, prenait le port 8000). Vérifié avec SWDC ; picodaemon pas essayable ici ; pas encore commité |
 | 115 | 25/10 | (Le propriétaire) vjoyd a été corrigé par Image borne : vJoy peut donner des valeurs analogiques | ✅ noté : les essais de volant et de pédales par vJoy redeviennent possibles sur les bornes |
+| 116 | 25/10 | Commit et pousse. Regarde ensuite Wangan Midnight 5 | ✅ poussé (`884b357..2ce7e10`). Wangan Midnight 5 jouable : sa table de commandes (levier en H, vue, interruption, option « Garder le rapport »), une course en mode Story, le volant étalonné dans le menu de test ; le retour de force, réglage du jeu à mettre à ON, par la carte du volant « STR3 » sur COM1 (E00, C06/C01 suivant l'alimentation du moteur, « H » et la position après chaque commande) ; `vdev.cpp` accepte un port de complétion (boost::asio). `RawDrive` vu en course. Restent le lecteur de cartes et la caméra |
+| 117 | 25/10 | Commit et pousse, demande à Image borne d'activer l'option pour activer le FFB | ✅ poussé : `690ecc9` (le code), `0f7de59` (BILAN.md), NOTES.md. Image borne prévenue : le réglage du jeu « ステアリング反力の使用 » à ON dans le menu de test (ゲーム設定), le chemin donné ; mais seulement avec un windowsloader contenant `690ecc9`, absent de la release -3 (avec elle, E2212 « STR PCB Link error » vers 60 s) ; le réglage écrit dans les fichiers F*/G* du jeu, donc dans WRITE_DIR sous UWF. Pas de release faite |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
 
 ## Points ouverts
@@ -1456,3 +1458,32 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
   superposition (elles étaient parties dans `temp`, le dossier d'essai étant dans le vrai dossier temporaire).
   Vu : le pilote NVIDIA écrit `ProgramData\NVIDIA Corporation\Drs\nvAppTimestamps` pour le jeu, rangé dans
   `programdata`.
+
+### 25/10, soir — Wangan Midnight 5 jouable, son retour de force (demande 116)
+
+- Commandes : la table de Mario Kart DX ne convenait pas. Des contacts d'essai (Bit0..Bit15, sous
+  `WL_WMMT5_PROBE`) passés un à un dans le test des contacts (スイッチテスト) ont donné les bits : vue 0x0002,
+  interruption 0x0001, Service 0x4000, haut 0x2000, bas 0x1000, Entrée 0x0200 ; le levier en H sur quatre
+  contacts (0x80, 0x40, 0x20, 0x10), essayés seuls et par paires : 1 = A0, 2 = 60, 3 = 80, 4 = 40, 5 = 90,
+  6 = 50. Joué par Gear1..Gear6 ou par ShiftUp / ShiftDown, option `HOLD_GEAR`.
+- Course : l'accélérateur valide, le volant choisit ; la partie libre va jusqu'à la course de l'épisode 1
+  (Yokohama) en une quinzaine d'appuis. Rien n'est écrit dans la copie du jeu : les réglages vont dans le
+  dossier d'écriture d'essai.
+- Retour de force : « ステアリング反力の使用 » à ON (OFF dans la copie), le jeu ouvre COM1 et échoue
+  (« [STR3] initialize: open: Descripteur non valide ») : boost::asio rattache le port série à son port de
+  complétion, et notre handle émulé est un événement. `vdev.cpp` : crochet de `CreateIoCompletionPort` (le
+  port et la clé gardés), lectures et écritures en attente puis terminées par un paquet (`NtSetIoCompletion`,
+  état d'annulation compris), une lecture sans données gardée en attente jusqu'à ce que la carte réponde.
+- Le protocole lu dans `wmn5r.exe` (classe `FFBIo`, états Initial, InitialWait, PowerOff, Standby, PowerOn,
+  Idle) : réponses de 3 octets (+0x723e20). La carte parle d'abord (« E00 ») ; le jeu coupe alors le moteur par
+  la sortie JVS 0x80 du premier octet (`cMOTOR_BIT`) et attend « C06 », puis le rallume et attend « C01 » (au
+  démarrage, puis en début de partie). Il envoie ensuite les commandes de 10 octets de Mario Kart DX, une à la
+  fois : chacune attend « H » et la position du volant sur 10 bits (+0x72426a), sinon E20 puis E2212 « STR PCB
+  Link error » 3 s plus tard. Les essais l'ont montré dans l'ordre : sans E00 et sans C01, E2212 au bout de
+  60 s ; avec, une seule commande envoyée puis E2212.
+- Vérifié en course (agent) : raideur jusqu'à 67, amortissement 63, vibrations ; volant à +0,5 force −0,24,
+  à −0,5 force +0,26 (vers le centre), la voiture tourne du côté du volant. `RawDrive` sur le serveur réseau
+  (148 trames). L'agent prend le volant en −1..1 et les pédales en 0..1 : les premières valeurs passées en
+  unités brutes avaient mis le volant en butée.
+- Mario Kart DX n'est plus dans `games` : son chemin `ReadFileEx` (partagé avec ce changement) n'a pas été
+  rejoué, relu seulement.
