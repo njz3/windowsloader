@@ -37,6 +37,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
+| Wangan Midnight Maximum Tune 5 DX+ (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -989,6 +990,37 @@ Reste :
 - le lecteur de cartes (« BANAPASSPORT CARDs cannot currently be used »), la caméra ;
 - le mode avec pièces : les paquets « coin » du terminal, à proposer en option ;
 - vJoy, l'affichage, le menu Tab.
+
+Sur les bornes (Image borne, 25/10) : la -4 puis la -5 posées, le réglage à ON sur les deux ; en course sur
+racecab2 le ressort ramène vers le centre (±0,24 à ±0,6 de braquage), pas d'E2212 en 5 minutes. Sur racecab1, la
+page des réglages affiche en rouge sous 基板ID = 1 « 同一の基板IDの筐体が存在します » (une borne de même
+identifiant existe) : le jeu entend une autre borne Wangan avec le même identifiant sur le réseau local (pas le
+terminal joué, qui n'envoie qu'à 127.0.0.1) ; cause à trouver (racecab2, ou racecab1 entendue deux fois).
+
+## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
+
+`wmn5r.exe` comme le 5 (copie `games\wmmt5dxp`, 15,2 Go depuis racecab1), reconnu à sa bibliothèque de clé
+`hasp_windows_x64_106482.dll` ; ses fichiers `F*`/`G*` en `W5P`. Le crochet FFB de TeknoParrot (`d3d11.dll`) et
+`SDL2.dll` mis de côté (`_teknoparrot_off`). Tout le 5 repris (carte JVS et commandes, carte du volant « STR3 »,
+terminal joué, dossier d'écriture), avec ce qui change (25/10) :
+- la clé : `hasp_write` (n° 17) importé en plus ; l'identifiant de la borne doit commencer par 2783 (comparé à
+  0xadf, +0x89db0d : sinon E1911 « USB DONGLE error2 ») : `278313042069`, celui d'OpenParrot pour DX+ ;
+- E1911 aussi par la comparaison avec le composant « auth » : le même saut que pour le 5, `mov sil, 1` à
+  +0x706354 (la place trouvée par le motif d'OpenParrot) ;
+- le terminal : le numéro de série du 5 dans ses paquets donnait E2403 « Duplicate Board ID error » puis
+  « TERMINAL UNIT S/N » en rouge ; les six paquets sont maintenant faits au démarrage avec le numéro du jeu
+  (`278311042069` pour DX+), leur CRC recalculé ;
+- le lien avec le terminal : les champs de l'objet sont 0xf0 plus loin (état +0x750) ; l'étape d'attente
+  (+0x708685) passe à « complete » (+0x708809), comme au 5 ; démonstration « FREE PLAY ».
+- Course ✅ : les mêmes écrans que le 5 (pas de carte, marque, voiture, couleur, boîte, Story, épisode), course à
+  Yokohama, près de 200 km/h ; le volant tourne la voiture du bon côté.
+- Menu de service ✅ : en anglais (MENU (DRIVE UNIT)) ; GAME OPTIONS → STEERING POWER, OFF dans la copie, à mettre
+  à ON (« becomes usable when test switch is off »).
+- Retour de force ✅ : la même carte du volant (E00, C06/C01, « H » et la position) ; volant à gauche force
+  −0,25, à droite force positive, vibrations (`wmmt5_play.py` avec `WL_GAME`).
+
+Reste : le lecteur de cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab ; pas encore dans
+une release.
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
