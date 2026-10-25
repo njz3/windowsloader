@@ -36,7 +36,7 @@ dans NOTES.md, « Jeux des bornes »).
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
-| Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⚠️ |
+| Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -740,8 +740,10 @@ le port 8000 avant le jeu). Vérifié avec SWDC : le port 8000 au jeu, un seul s
 les fichiers d'amdaemon (AMFS, Y:\SDDS, son journal) copiés dedans, le dossier du jeu intact. picodaemon pas
 essayé ici (plus de copie d'Initial D 7 ou 8).
 
-Pas encore vu : `RawDrive` en jeu (Wangan ne pilote pas son moteur en démonstration ; aucun autre jeu sur ce
-PC), la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
+`RawDrive` vu en jeu le 25/10 : Wangan Midnight 5 en course, son retour de force mis à ON (148 trames de la
+carte servo Sega faites de la force, avec les lampes et `mame_start = wmmt5`).
+
+Pas encore vu : la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
 `RemoveDirectory` à travers le dossier d'écriture.
 
 ## Menu Tab sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
@@ -927,7 +929,7 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
 
-## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits) — en cours
+## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
 `wmn5r.exe` (copie `games\wmmt5`, 18,5 Go depuis racecab1), x64, Direct3D 11. Dans `namco.cpp`, à côté de Mario
 Kart DX. Les deux crochets de TeknoParrot (`d3d11.dll` et `dinput8.dll`, le plugin FFB), OutputBlaster et `SDL2.dll`
@@ -941,7 +943,8 @@ Fait :
   de la borne, absent ici (« auth: can't get instance(80040154) »). La comparaison est sautée, comme dans
   OpenParrot ;
 - les lecteurs F: et G: : les fichiers `F*` et `G*` du dossier ;
-- le JVS sur COM3 et la carte moteur sur COM1, ceux de Mario Kart DX : « I/O CHECK OK » ;
+- le JVS sur COM3, celui de Mario Kart DX : « I/O CHECK OK » (la carte du volant sur COM1 a son propre
+  protocole, voir le retour de force plus bas) ;
 - E0505 « network: interface not found » : une carte réseau de borne, 192.168.92.11. Ajouts dans `netenv.cpp`
   (`GetIpAddrTable`, `GetInterfaceInfo`, `GetIpForwardTable`) et `system.cpp` (un `connect` UDP vers 8.8.8.8
   suivi de `getsockname` répond l'adresse de cette carte) : « LINK OK » ;
@@ -954,10 +957,33 @@ Fait :
   sur « GAME SERVER CONNECT CHECK ». Les trois sauts de la recherche de terminal posés avant ne servent plus,
   retirés. Le jeu arrive en démonstration, « FREE PLAY ».
 
+- Commandes ✅ (25/10) : la table propre au jeu, relevée dans le test des contacts du menu de test
+  (スイッチテスト) : Test, Service, haut, bas, Entrée, vue (0x0002), interruption (0x0001) ; le levier en H sur
+  quatre contacts (0x80 haut, 0x40 bas, 0x20 gauche, 0x10 droite), rapports 1 à 6 par Gear1..Gear6, ou montés
+  et descendus par ShiftUp / ShiftDown ; l'option « Garder le rapport » (`HOLD_GEAR`) pour un levier dont les
+  positions ne tiennent pas ; volant, accélérateur et frein sur les voies 0, 1 et 2. Contacts d'essai Bit0..Bit15
+  si la variable `WL_WMMT5_PROBE` est définie (`wmmt5_named.py`, `wmmt5_shift.py`).
+- Course ✅ : pas de bouton Start, l'accélérateur valide et le volant choisit : « Do you have a BANAPASSPORT
+  CARD? » (non), marque, voiture, couleur, boîte AT ou MT, mode Story, épisode, puis la course à Yokohama
+  (Minato Mirai), 120 km/h et plus ; le volant tourne la voiture du bon côté (`wmmt5_play.py`).
+- Menu de service ✅ : test des contacts, étalonnage du volant (アナログボリュームの初期化, ハンドル 000 après
+  Entrée), réglages du jeu ; tout est enregistré dans le dossier d'écriture quand il y en a un.
+- Retour de force ✅ (25/10) : c'est un réglage du jeu, « ステアリング反力の使用 » dans ゲーム設定, à OFF dans la
+  copie ; à mettre à ON dans le menu de test. Le jeu ouvre alors COM1 à 115200 bauds par boost::asio et le rattache
+  à un port de complétion, ce qu'un handle émulé (un événement) ne permettait pas (« [STR3] initialize: open:
+  Descripteur non valide ») : `vdev.cpp` garde le port et sa clé, et chaque lecture ou écriture se termine par un
+  paquet posté (`NtSetIoCompletion`, pour qu'une lecture annulée échoue comme celle d'un fichier). La carte
+  « STR3 » (classe `FFBIo`) répond en 3 caractères : « E00 » à l'ouverture ; « C06 » ou « C01 » quand la sortie
+  JVS 0x80 du premier octet (l'alimentation du moteur) tombe ou monte, ce que le jeu fait au démarrage puis en
+  début de partie ; et à chaque commande de 10 octets (celles de Mario Kart DX : cible, raideur, amortissement,
+  vibration), « H » suivi de la position du volant sur 10 bits. Sans l'une de ces réponses : E2212 « STR PCB
+  Link error ». Le ressort pousse vers le centre (volant à gauche : force vers la droite, et l'inverse), la
+  vibration passe ; `RawDrive` sort sur le serveur réseau en course (148 trames).
+
 Reste :
-- le lecteur de cartes (« BANAPASSPORT CARDs cannot currently be used »), la caméra, les commandes propres au
-  jeu (vérifier une course), le retour de force ;
-- le mode avec pièces : les paquets « coin » du terminal, à proposer en option.
+- le lecteur de cartes (« BANAPASSPORT CARDs cannot currently be used »), la caméra ;
+- le mode avec pièces : les paquets « coin » du terminal, à proposer en option ;
+- vJoy, l'affichage, le menu Tab.
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
