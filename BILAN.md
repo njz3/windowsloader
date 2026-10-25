@@ -733,6 +733,13 @@ Vérifié (25/10) :
   Midnight 5 : le fichier que le pilote NVIDIA écrit dans ProgramData pour le jeu rangé dans `programdata`,
   démonstration normale.
 
+Les compagnons (25/10) : `picodaemon.exe` (Initial D 7 et 8) et `amdaemon.exe` (SWDC), que le lanceur démarre
+avant le jeu, écrivent dans le `WRITE_DIR\<jeu>` de leur jeu (le lanceur leur dit lequel ; picodaemon prend
+initiald7 ou initiald8 d'après le programme du jeu) et n'ouvrent pas le serveur des sorties réseau (il aurait pris
+le port 8000 avant le jeu). Vérifié avec SWDC : le port 8000 au jeu, un seul sous-dossier `swdc` pour les deux,
+les fichiers d'amdaemon (AMFS, Y:\SDDS, son journal) copiés dedans, le dossier du jeu intact. picodaemon pas
+essayé ici (plus de copie d'Initial D 7 ou 8).
+
 Pas encore vu : `RawDrive` en jeu (Wangan ne pilote pas son moteur en démonstration ; aucun autre jeu sur ce
 PC), la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
 `RemoveDirectory` à travers le dossier d'écriture.
