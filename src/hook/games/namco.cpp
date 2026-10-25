@@ -187,6 +187,146 @@ static int namco_vendor(const unsigned char *p, int n, unsigned char *r, int *k)
 
 static WlJvsBoard g_jvs = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.", 1, 2, 2, 8, 10, 16, jvs_state, jvs_output, 1, NULL, namco_vendor};
 
+// Wangan Midnight 5's controls, its own table: no Start nor item buttons (the accelerator confirms,
+// the steering chooses), the shift lever, the view and interruption buttons. The same NA-JV board
+// as Mario Kart's; the layout read in the game's switch test (スイッチテスト): the test switch in the
+// system byte, Service 0x4000, select up 0x2000 and down 0x1000, Enter 0x0200, the view button
+// (視点切替) 0x0002, the interruption button (乱入切替) 0x0001, steering, accelerator, brake on
+// channels 0 to 2. The shift lever (シフト) is an H read by four switches: 0x0080 up, 0x0040 down,
+// 0x0020 left, 0x0010 right; 1 up-left, 2 down-left, 3 up, 4 down, 5 up-right, 6 down-right, none
+// neutral. Its gears: held (Gear1..Gear6, an H shifter), or stepped (ShiftUp, ShiftDown, a
+// sequential shifter or keys), [Game.wmmt5] HOLD_GEAR keeping a held gear once let go.
+// WL_WMMT5_PROBE: one more input per bit of player 1's two switch bytes, for the switch test
+enum
+{
+    W_STEERING,
+    W_GAS,
+    W_BRAKE,
+    W_VIEW,
+    W_INTERRUPT,
+    W_SHIFT_UP,
+    W_SHIFT_DOWN,
+    W_GEAR1,
+    W_COIN = W_GEAR1 + 6,
+    W_TEST,
+    W_SERVICE,
+    W_UP,
+    W_DOWN,
+    W_ENTER,
+    W_PROBE,
+    W_COUNT = W_PROBE + 16
+};
+
+static WlInput g_wmmt5Inputs[W_COUNT] = {
+    {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 65535, 32768},
+    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 65535, 0},
+    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 65535, 0},
+    {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Interruption", "Action", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ShiftUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ShiftDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"MenuUp", "SelectUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"MenuDown", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Enter", "SelectEnter", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit0", "Probe0", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit1", "Probe1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit2", "Probe2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit3", "Probe3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit4", "Probe4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit5", "Probe5", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit6", "Probe6", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit7", "Probe7", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit8", "Probe8", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit9", "Probe9", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit10", "Probe10", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit11", "Probe11", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit12", "Probe12", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit13", "Probe13", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit14", "Probe14", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Bit15", "Probe15", WL_INPUT_SWITCH, 0, 1, 0},
+};
+static int g_wmmt5Probe;
+static volatile LONG g_holdGear; // [Game.wmmt5] HOLD_GEAR
+
+// The gear engaged, 0 for neutral: a held H position first; else the stepped gear, which ShiftUp
+// and ShiftDown move (1 to 6, down from 1 to neutral) and, with HOLD_GEAR, the last H position sets
+static int wmmt5_gear(void)
+{
+    static int stepped, upWas, downWas;
+    int held = 0;
+    for (int g = 0; g < 6; g++)
+        if (wl_input_get(&g_wmmt5Inputs[W_GEAR1 + g]))
+            held = g + 1;
+    int up = wl_input_get(&g_wmmt5Inputs[W_SHIFT_UP]) != 0, down = wl_input_get(&g_wmmt5Inputs[W_SHIFT_DOWN]) != 0;
+    if (up && !upWas && stepped < 6)
+        stepped++;
+    if (down && !downWas && stepped > 0)
+        stepped--;
+    upWas = up, downWas = down;
+    if (held && g_holdGear)
+        stepped = held;
+    return held ? held : stepped;
+}
+
+static void wmmt5_state(WlJvsState *s)
+{
+    static int coinWas;
+    static unsigned short coins;
+    int coin = wl_input_get(&g_wmmt5Inputs[W_COIN]);
+    if (coin && !coinWas)
+        coins++;
+    coinWas = coin;
+    s->system = wl_input_get(&g_wmmt5Inputs[W_TEST]) ? 0x80 : 0;
+    static const struct
+    {
+        int input;
+        unsigned short bit;
+    } bits[] = {{W_SERVICE, 0x4000}, {W_UP, 0x2000}, {W_DOWN, 0x1000}, {W_ENTER, 0x0200}, {W_VIEW, 0x0002}, {W_INTERRUPT, 0x0001}};
+    for (int i = 0; i < (int)(sizeof bits / sizeof bits[0]); i++)
+        if (wl_input_get(&g_wmmt5Inputs[bits[i].input]))
+            s->player[0] |= bits[i].bit;
+    // The H's four switches: up 0x80, down 0x40, left 0x20, right 0x10 (gears 1 to 6, neutral)
+    static const unsigned short shifts[7] = {0, 0x00A0, 0x0060, 0x0080, 0x0040, 0x0090, 0x0050};
+    s->player[0] |= shifts[wmmt5_gear()];
+    for (int b = 0; g_wmmt5Probe && b < 16; b++)
+        if (wl_input_get(&g_wmmt5Inputs[W_PROBE + b]))
+            s->player[0] |= (unsigned short)(1 << b);
+    s->coins[0] = coins;
+    s->analog[0] = (unsigned short)wl_input_get(&g_wmmt5Inputs[W_STEERING]);
+    s->analog[1] = (unsigned short)wl_input_get(&g_wmmt5Inputs[W_GAS]);
+    s->analog[2] = (unsigned short)wl_input_get(&g_wmmt5Inputs[W_BRAKE]);
+}
+
+static void hold_gear_apply(const char *value)
+{
+    InterlockedExchange(&g_holdGear, value && !_stricmp(value, "true"));
+}
+
+static void wmmt5_settings(void)
+{
+    hold_gear_apply(wl_game_option_bool("HOLD_GEAR") ? "true" : "false");
+}
+
+static const WlGameOption g_wmmt5Options[] = {
+    {"HOLD_GEAR", "Garder le rapport", "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas.",
+     WL_OPTION_BOOL, NULL, 0, 0, "false", 0, hold_gear_apply},
+};
+
+static void wmmt5_output(const unsigned char *data, int length);
+static WlJvsBoard g_jvsWmmt5 = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.", 1, 2, 2, 8, 10, 16, wmmt5_state, wmmt5_output, 1, NULL, namco_vendor};
+
+// The steering the motor board's spring is measured against: the game's own table's
+static WlInput *g_steering = &g_inputs[IN_STEERING];
+
 // The steering motor's board on COM1 at 19200 bauds (class clWaJvIo's Pimpl, its thread +0x1f57d0).
 // The board speaks in 3 characters, read 3 at a time (+0x1f5d00): "C01" its motor ready (the game
 // builds its commands only then, +0x1f64e5), "C06" stopped, "E00".."E20" its errors. Once the game
@@ -198,26 +338,32 @@ static WlJvsBoard g_jvs = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.",
 static CRITICAL_SECTION g_motorLock;
 static int g_motorReady; // "C01" given
 
-static BOOL com1_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+// A command of 10 bytes, FF FF first, played; 0 for another
+static int motor_command(const unsigned char *b, DWORD size)
 {
-    const unsigned char *b = (const unsigned char *)buffer;
-    *written = size;
     if (size < 10 || b[0] != 0xFF || b[1] != 0xFF)
     {
         static int logged;
         if (logged++ < 20)
-            wl_log_hex("namco: motor board, unknown command", buffer, size);
-        return TRUE;
+            wl_log_hex("namco: motor board, unknown command", b, size);
+        return 0;
     }
     int target = b[2] | (b[3] & 0x3F) << 8;
     int stiffness = b[4], damper = b[6], vibration = (signed char)b[8];
-    double wheel = (wl_input_get(&g_inputs[IN_STEERING]) - 32768) / 32768.0;
+    double wheel = (wl_input_get(g_steering) - 32768) / 32768.0;
     double force = stiffness / 127.0 * (wheel - (target - 0x200) / 512.0) + vibration / 128.0;
     wl_ffb_set(force < -1 ? -1 : force > 1 ? 1 : force);
     static int last[4] = {-1, -1, -1, -1}, logged;
     if ((target != last[0] || stiffness != last[1] || damper != last[2] || vibration != last[3]) && logged++ < 200)
         wl_log("namco: motor target %04x stiffness %d damper %d vibration %d (wheel %.2f)", target, stiffness, damper, vibration, wheel);
     last[0] = target, last[1] = stiffness, last[2] = damper, last[3] = vibration;
+    return 1;
+}
+
+static BOOL com1_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    *written = size;
+    motor_command((const unsigned char *)buffer, size);
     return TRUE;
 }
 
@@ -247,6 +393,83 @@ static DWORD com1_waiting(void)
 }
 
 static WlVirtualDevice g_com1 = {"COM1", NULL, com1_read, com1_write, com1_modem, com1_waiting};
+
+// Wangan Midnight Maximum Tune 5's steering board ("STR3", class device::FFBIo) on COM1 at 115200
+// bauds, a boost::asio serial port. Its answers are 3 characters (+0x723e20): "E00" ready after a
+// reset (the wait after the start, +0x727020, then the motor's centre 0x1ff), "C01" the motor on,
+// "C06" off, "E02".."E20" its errors. The motor's power is the JVS board's output 0x80 of the first
+// byte (m_JvioGOUT's cMOTOR_BIT): cut after E00 (State_PowerOff, +0x725fe0, then C06 awaited), given
+// for the game (State_PowerOn, +0x726e70, then C01 awaited); 60 s without, E2212 "STR PCB Link error".
+// The motor on, the game sends Mario Kart's commands of 10 bytes (+0x726a30), each answered by "H"
+// and the wheel's position on 10 bits, high byte first, 0x1ff the middle (+0x72426a): without, E20
+// and E2212 again 3 s later (+0x7260d0)
+static unsigned char g_strReply[64];
+static int g_strReplyLength;
+static int g_strMotor = -1; // the motor's power as the board last told it, -1 not yet
+
+static void str3_answer(const char *reply)
+{
+    EnterCriticalSection(&g_motorLock);
+    if (g_strReplyLength + 3 <= (int)sizeof g_strReply)
+    {
+        memcpy(g_strReply + g_strReplyLength, reply, 3);
+        g_strReplyLength += 3;
+    }
+    LeaveCriticalSection(&g_motorLock);
+}
+
+static BOOL str3_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    *written = size;
+    if (motor_command((const unsigned char *)buffer, size))
+    {
+        int position = wl_input_get(g_steering) >> 6;
+        char reply[3] = {'H', (char)(position >> 8), (char)position};
+        str3_answer(reply);
+    }
+    return TRUE;
+}
+
+static BOOL str3_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
+{
+    // The board speaks first, once the port is open (no command before, 60 s then E2212 "STR PCB
+    // Link error")
+    if (!g_motorReady)
+    {
+        g_motorReady = 1;
+        str3_answer("E00");
+    }
+    EnterCriticalSection(&g_motorLock);
+    DWORD n = size < (DWORD)g_strReplyLength ? size : (DWORD)g_strReplyLength;
+    memcpy(buffer, g_strReply, n);
+    memmove(g_strReply, g_strReply + n, g_strReplyLength - n);
+    g_strReplyLength -= n;
+    LeaveCriticalSection(&g_motorLock);
+    *read = n;
+    static int logged;
+    if (n && ((const char *)buffer)[0] != 'H' && logged++ < 40)
+        wl_log("namco: steering board answers %.*s", (int)n, (const char *)buffer);
+    return TRUE;
+}
+
+static DWORD str3_waiting(void)
+{
+    return (DWORD)g_strReplyLength;
+}
+
+// The JVS outputs: the motor's power told by the board once it changes
+static void wmmt5_output(const unsigned char *data, int length)
+{
+    jvs_output(data, length);
+    int motor = length > 0 && (data[0] & 0x80);
+    if (g_motorReady && motor != g_strMotor)
+    {
+        g_strMotor = motor;
+        str3_answer(motor ? "C01" : "C06");
+    }
+}
+
+static WlVirtualDevice g_str3 = {"COM1", NULL, str3_read, str3_write, com1_modem, str3_waiting};
 
 // v1.10's card reader on COM4, 38400 bauds (v1.18's goes through bngrw.dll): an NFC reader
 // speaking NXP's PN532 frames (Sony's RC-S956, Banapass's readers): 00 00 FF, the length (TFI,
@@ -964,10 +1187,15 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         *title = "Wangan Midnight Maximum Tune 5";
         wl_log("game: %s (Namco System ES3X)", *title);
         wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)", "Motor board: Namco motor board (COM1)");
-        wl_inputs_set_table(g_inputs, IN_COUNT);
-        wl_jvs_register(&g_jvs);
+        char probe[4];
+        g_wmmt5Probe = GetEnvironmentVariableA("WL_WMMT5_PROBE", probe, sizeof probe) != 0;
+        wl_inputs_set_table(g_wmmt5Inputs, g_wmmt5Probe ? W_COUNT : W_PROBE);
+        g_steering = &g_wmmt5Inputs[W_STEERING];
+        wl_jvs_register(&g_jvsWmmt5);
+        wl_game_set_options(g_wmmt5Options, (int)(sizeof g_wmmt5Options / sizeof g_wmmt5Options[0]));
+        wl_game_on_settings(wmmt5_settings);
         InitializeCriticalSection(&g_motorLock);
-        wl_vdev_register(&g_com1);
+        wl_vdev_register(&g_str3);
         wl_vdev_label("COM1", "Carte du moteur du volant");
         wangan_dongle();
         // E0505 "network: interface not found": the game looks for its card in the cabinets'

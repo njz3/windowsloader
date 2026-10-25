@@ -33,6 +33,8 @@ struct Open
     HANDLE h;
     const WlVirtualDevice *device;
     LONGLONG position;
+    HANDLE port; // the completion port the game tied the handle to, its key
+    ULONG_PTR key;
 };
 
 static Open g_open[32];
@@ -211,6 +213,8 @@ HANDLE wl_vdev_open(const WlVirtualDevice *device)
             g_open[i].h = h;
             g_open[i].device = device;
             g_open[i].position = 0;
+            g_open[i].port = NULL;
+            g_open[i].key = 0;
             break;
         }
     ReleaseSRWLockExclusive(&g_lock);
@@ -282,6 +286,43 @@ static BOOL complete(OVERLAPPED *ov, BOOL ok, DWORD n)
     return ok;
 }
 
+// The completion port a handle is tied to (CreateIoCompletionPort below), NULL when none
+static HANDLE port_of(HANDLE h, ULONG_PTR *key)
+{
+    AcquireSRWLockShared(&g_lock);
+    Open *o = find(h);
+    HANDLE port = o ? o->port : NULL;
+    *key = o ? o->key : 0;
+    ReleaseSRWLockShared(&g_lock);
+    return port;
+}
+
+// An overlapped call on a handle tied to a completion port ends in a packet posted to it, as a
+// file's does: its status in the packet (NtSetIoCompletion), so that GetQueuedCompletionStatus
+// fails on an error as it does for a file. An event whose low bit is set asks for no packet.
+typedef LONG(NTAPI *NtSetIoCompletionFn)(HANDLE, PVOID, PVOID, LONG, ULONG_PTR);
+
+static void post(HANDLE port, ULONG_PTR key, OVERLAPPED *ov, DWORD error, DWORD n)
+{
+    static NtSetIoCompletionFn set = (NtSetIoCompletionFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtSetIoCompletion");
+    // STATUS_SUCCESS, STATUS_CANCELLED, STATUS_UNSUCCESSFUL
+    LONG status = !error ? 0 : error == ERROR_OPERATION_ABORTED ? (LONG)0xC0000120 : (LONG)0xC0000001;
+    ov->Internal = (ULONG)status;
+    ov->InternalHigh = n;
+    HANDLE event = (HANDLE)((ULONG_PTR)ov->hEvent & ~(ULONG_PTR)1);
+    if (event)
+        SetEvent(event);
+    if ((ULONG_PTR)ov->hEvent & 1)
+        return;
+    if (set)
+        set(port, (PVOID)key, ov, status, n);
+    else
+        PostQueuedCompletionStatus(port, n, key, ov);
+}
+
+static int pend(HANDLE h, HANDLE thread, void *buf, DWORD size, OVERLAPPED *ov, LPOVERLAPPED_COMPLETION_ROUTINE fn, HANDLE port, ULONG_PTR key,
+                ULONGLONG deadline);
+
 BOOL wl_vdev_read(HANDLE h, void *buffer, DWORD size, DWORD *read, OVERLAPPED *ov)
 {
     const WlVirtualDevice *d = wl_vdev_of(h);
@@ -296,7 +337,16 @@ BOOL wl_vdev_read(HANDLE h, void *buffer, DWORD size, DWORD *read, OVERLAPPED *o
         advance(h, ov, n);
     if (read)
         *read = n;
-    return complete(ov, ok, n);
+    ULONG_PTR key;
+    HANDLE port = ov && ok ? port_of(h, &key) : NULL;
+    if (!port)
+        return complete(ov, ok, n);
+    // Tied to a completion port: pending, done by its packet; with nothing to read yet, once the
+    // device has something (a serial port whose timeouts wait for the first byte: boost::asio's)
+    if (n || !pend(h, NULL, buffer, size, ov, NULL, port, key, ~0ULL))
+        post(port, key, ov, 0, n);
+    SetLastError(ERROR_IO_PENDING);
+    return FALSE;
 }
 
 BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVERLAPPED *ov)
@@ -313,7 +363,13 @@ BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVE
         advance(h, ov, n);
     if (written)
         *written = n;
-    return complete(ov, ok, n);
+    ULONG_PTR key;
+    HANDLE port = ov && ok ? port_of(h, &key) : NULL;
+    if (!port)
+        return complete(ov, ok, n);
+    post(port, key, ov, 0, n);
+    SetLastError(ERROR_IO_PENDING);
+    return FALSE;
 }
 
 BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned, OVERLAPPED *ov)
@@ -414,16 +470,18 @@ static BOOL queue_completion(LPOVERLAPPED_COMPLETION_ROUTINE fn, BOOL ok, DWORD 
 }
 
 // A read with nothing to read yet stays pending, as on a serial port: done when the device has
-// data (its answer to the next write) or after the read timeout, by a service thread
+// data (its answer to the next write) or after the read timeout, by a service thread. Done by an
+// APC to the reading thread (ReadFileEx) or by a packet to the handle's completion port.
 #define PENDING_READS 8
 #define PENDING_TIMEOUT_MS 600 // Mario Kart Arcade GP DX's: read interval 600, total 2*n+600
 static struct
 {
-    HANDLE h, thread;
+    HANDLE h, thread, port;
     void *buf;
     DWORD size;
     OVERLAPPED *ov;
     LPOVERLAPPED_COMPLETION_ROUTINE fn;
+    ULONG_PTR key;
     ULONGLONG deadline;
     int aborted;
 } g_pending[PENDING_READS];
@@ -450,13 +508,52 @@ static DWORD WINAPI pending_reads(LPVOID)
                 continue;
             static volatile LONG logged;
             if (InterlockedIncrement(&logged) <= 8)
-                wl_log("ReadFileEx (emulated): done, %lu of %lu bytes, error %lu", n, g_pending[i].size, error);
-            queue_completion_to(g_pending[i].thread, g_pending[i].fn, error, n, g_pending[i].ov);
-            CloseHandle(g_pending[i].thread);
+                wl_log("read (emulated): done, %lu of %lu bytes, error %lu", n, g_pending[i].size, error);
+            if (g_pending[i].port)
+                post(g_pending[i].port, g_pending[i].key, g_pending[i].ov, error, n);
+            else
+            {
+                queue_completion_to(g_pending[i].thread, g_pending[i].fn, error, n, g_pending[i].ov);
+                CloseHandle(g_pending[i].thread);
+            }
             g_pending[i].h = NULL;
         }
         ReleaseSRWLockExclusive(&g_pendingLock);
     }
+}
+
+// A read left pending; 0 when there is no room
+static int pend(HANDLE h, HANDLE thread, void *buf, DWORD size, OVERLAPPED *ov, LPOVERLAPPED_COMPLETION_ROUTINE fn, HANDLE port, ULONG_PTR key,
+                ULONGLONG deadline)
+{
+    AcquireSRWLockExclusive(&g_pendingLock);
+    int slot = -1;
+    for (int i = 0; i < PENDING_READS && slot < 0; i++)
+        if (!g_pending[i].h)
+            slot = i;
+    if (slot >= 0)
+    {
+        g_pending[slot].h = h;
+        g_pending[slot].thread = thread;
+        g_pending[slot].port = port;
+        g_pending[slot].buf = buf;
+        g_pending[slot].size = size;
+        g_pending[slot].ov = ov;
+        g_pending[slot].fn = fn;
+        g_pending[slot].key = key;
+        g_pending[slot].deadline = deadline;
+        g_pending[slot].aborted = 0;
+        if (ov)
+            ov->Internal = (ULONG_PTR)0x103; // STATUS_PENDING
+        if (!g_pendingThread)
+        {
+            wl_busy_enter();
+            g_pendingThread = CreateThread(NULL, 0, pending_reads, NULL, 0, NULL);
+            wl_busy_leave();
+        }
+    }
+    ReleaseSRWLockExclusive(&g_pendingLock);
+    return slot >= 0;
 }
 
 static BOOL(WINAPI *oReadFileEx)(HANDLE, LPVOID, DWORD, LPOVERLAPPED, LPOVERLAPPED_COMPLETION_ROUTINE);
@@ -469,37 +566,12 @@ static BOOL WINAPI hReadFileEx(HANDLE h, LPVOID buf, DWORD size, LPOVERLAPPED ov
     if (!ok || n)
         return queue_completion(fn, ok, n, ov);
     HANDLE thread = OpenThread(THREAD_SET_CONTEXT, FALSE, GetCurrentThreadId());
-    AcquireSRWLockExclusive(&g_pendingLock);
-    int slot = -1;
-    for (int i = 0; i < PENDING_READS && slot < 0; i++)
-        if (!g_pending[i].h)
-            slot = i;
-    if (slot >= 0 && thread)
-    {
-        g_pending[slot].h = h;
-        g_pending[slot].thread = thread;
-        g_pending[slot].buf = buf;
-        g_pending[slot].size = size;
-        g_pending[slot].ov = ov;
-        g_pending[slot].fn = fn;
-        g_pending[slot].deadline = GetTickCount64() + PENDING_TIMEOUT_MS;
-        g_pending[slot].aborted = 0;
-        if (!g_pendingThread)
-        {
-            wl_busy_enter();
-            g_pendingThread = CreateThread(NULL, 0, pending_reads, NULL, 0, NULL);
-            wl_busy_leave();
-        }
-    }
-    ReleaseSRWLockExclusive(&g_pendingLock);
-    if (slot < 0 || !thread)
+    if (!thread || !pend(h, thread, buf, size, ov, fn, NULL, 0, GetTickCount64() + PENDING_TIMEOUT_MS))
     {
         if (thread)
             CloseHandle(thread);
         return queue_completion(fn, TRUE, 0, ov); // no room: a timed out read
     }
-    if (ov)
-        ov->Internal = (ULONG_PTR)0x103; // STATUS_PENDING
     return TRUE;
 }
 
@@ -538,6 +610,32 @@ static BOOL WINAPI hCancelIoEx(HANDLE h, LPOVERLAPPED ov)
     return found;
 }
 
+// A handle of ours tied to a completion port (boost::asio's serial_port: Wangan Midnight Maximum
+// Tune 5's steering board): an event cannot be, so the port and the key are kept; the handle's
+// overlapped reads and writes then end in a packet posted to it (post above)
+static HANDLE(WINAPI *oCreateIoCompletionPort)(HANDLE, HANDLE, ULONG_PTR, DWORD);
+static HANDLE WINAPI hCreateIoCompletionPort(HANDLE file, HANDLE port, ULONG_PTR key, DWORD threads)
+{
+    if (!g_deviceCount || file == INVALID_HANDLE_VALUE || wl_busy() || !wl_vdev_of(file))
+        return oCreateIoCompletionPort(file, port, key, threads);
+    if (!port)
+        port = oCreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threads);
+    if (!port)
+        return NULL;
+    const char *name = "?";
+    AcquireSRWLockExclusive(&g_lock);
+    Open *o = find(file);
+    if (o)
+    {
+        o->port = port;
+        o->key = key;
+        name = o->device->name;
+    }
+    ReleaseSRWLockExclusive(&g_lock);
+    wl_log("emulated device %s tied to a completion port", name);
+    return port;
+}
+
 static BOOL(WINAPI *oGetCommTimeouts)(HANDLE, LPCOMMTIMEOUTS);
 static BOOL WINAPI hGetCommTimeouts(HANDLE h, LPCOMMTIMEOUTS t)
 {
@@ -555,6 +653,7 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", ReadFileEx),
     WL_HOOK(L"kernel32.dll", WriteFileEx),
     WL_HOOK(L"kernel32.dll", CancelIoEx),
+    WL_HOOK(L"kernel32.dll", CreateIoCompletionPort),
 };
 
 void wl_vdev_hooks(void)

@@ -19,7 +19,7 @@
 // Sega RingEdge) and serial ports (a JVS bus on "COM4"). CreateFile on the name gives the game a
 // handle of ours (a real event, so that CloseHandle and waits stay valid); ReadFile, WriteFile,
 // SetFilePointer, DeviceIoControl and the serial port calls on it go to the device's functions.
-// Overlapped calls complete at once.
+// Overlapped calls complete at once, or by a packet to the completion port the handle is tied to.
 
 struct WlVirtualDevice
 {
@@ -46,7 +46,7 @@ BOOL wl_vdev_read(HANDLE h, void *buffer, DWORD size, DWORD *read, OVERLAPPED *o
 BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVERLAPPED *ov);
 BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned, OVERLAPPED *ov);
 void wl_vdev_forget(HANDLE h);
-void wl_vdev_hooks(void); // SetFilePointer(Ex), GetCommTimeouts
+void wl_vdev_hooks(void); // SetFilePointer(Ex), GetCommTimeouts, ReadFileEx, CreateIoCompletionPort...
 
 // Passthrough to a real board on one of the PC's serial ports (vdev.cpp: [Emulation] and [Paths],
 // as linuxloader's): the PC's port ("\\.\COM7") the game's goes to, NULL when emulated
