@@ -772,7 +772,12 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
     `regsvr32` sur la borne ; windowsloader ne touche pas au registre (à prévoir : activation COM sans
     registre si une borne ne l'a pas) ;
   - le jeu écoute sur le réseau (ports 50002 et 50006) : une boîte du pare-feu s'ouvre, laissée à l'utilisateur.
-- Affichage ✅ : fenêtre 1360×768 (recopie GDI), 30 images/s.
+- Affichage ✅ : fenêtre 1360×768 (recopie GDI), 30 images/s. Depuis le 25/10 (contribution de Legired, pull
+  request n° 1, `2fe629e`), `[Display] WIDTH x HEIGHT` donne la résolution de rendu : les deux valeurs
+  1360×768 du code remplacées, les 84 endroits qui en font des flottants gardant l'écran de 1360×768 pour la
+  vue et le 2D projeté, le 2D déjà transformé (XYZRHW) et les rectangles de découpe remis à l'échelle par
+  `wl_d3d9_scale_2d` ; `AUTO` laisse le jeu comme avant. Pas vérifié ici (plus de copie du jeu) : release
+  20261025-5.
 - Commandes ✅ (mode agent, `scripts/agent/race_check.py gticlub3`) : jeu gratuit, « Vous jouez ? YES », choix du
   mode (Race battle), départ rapide, course « Traffic jam escape race » (jusqu'à 131 km/h, la voiture suit la
   route). Bits du mot des boutons trouvés par l'INPUT CHECK du menu de service : SERVICE 0x1, TEST 0x2, COIN MECH
