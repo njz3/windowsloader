@@ -875,12 +875,13 @@ static int __cdecl cabinet_offline_limit(void)
 }
 
 // ------------------------------------------------------------------------------
-// System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014). Being worked on.
-// The cabinet's Sentinel HASP key is reached through hasp_windows_x64_109906.dll, imported by
-// number: login, logout, get_size, read and decrypt are windowsloader's (the import table's
-// entries). The key's memory: 0xD40 bytes, the cabinet's ID at 0xD00 with its sum after it, two
-// records at 0x10 and 0x20 (their values, the size and the places from OpenParrot's WMMT5.cpp;
-// decrypt leaves the data as it is, as there)
+// System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014) and 5 DX+ (the
+// same program's name, 2016). The cabinet's Sentinel HASP key is reached through
+// hasp_windows_x64_109906.dll (5 DX+: _106482), imported by number: login, logout, get_size, read,
+// decrypt and write (5 DX+) are windowsloader's (the import table's entries). The key's memory:
+// 0xD40 bytes, the cabinet's ID at 0xD00 with its sum after it, two records at 0x10 and 0x20 (their
+// values, the size and the places from OpenParrot's WMMT5.cpp; decrypt leaves the data as it is,
+// as there)
 // ------------------------------------------------------------------------------
 
 #define HASP_STATUS_OK 0
@@ -931,15 +932,28 @@ static unsigned int __stdcall hasp_decrypt(unsigned int handle, void *buffer, un
     return HASP_STATUS_OK;
 }
 
-static void wangan_dongle(void)
+// 5 DX+: written into the memory above (not kept once the game ends)
+static unsigned int __stdcall hasp_write(unsigned int handle, unsigned int file, unsigned int offset, unsigned int length, const void *buffer)
+{
+    static int logged;
+    if (logged++ < 50)
+        wl_log("hasp: write, file %u, offset 0x%x, %u bytes", file, offset, length);
+    if (buffer && offset < DONGLE_SIZE)
+        memcpy(g_dongle + offset, buffer, offset + length <= DONGLE_SIZE ? length : DONGLE_SIZE - offset);
+    return HASP_STATUS_OK;
+}
+
+// dll: the key's library the game imports, hasp_windows_x64_109906.dll (5) or _106482 (5 DX+); id:
+// the cabinet's, its first four digits the game's (2722 the 5's, 2783 5 DX+'s, compared with 0xadf
+// at +0x89db0d: E1911 otherwise)
+static void wangan_dongle(const char *dll, const char *id)
 {
     static const unsigned char record[16] = {0, 0, 0, 0x01, 0, 0, 0, 0x0A, 0, 0, 0, 0x04, 0x3B, 0x6B, 0x40, 0x87};
     g_dongle[0] = 0x01;
     memcpy(g_dongle + 0x10, record, sizeof record);
     memcpy(g_dongle + 0x20, record, sizeof record);
-    // The cabinet's ID (not a terminal: 13 at its 5th place, 11 for a terminal), its bytes' sum
-    // and that sum's complement at the memory's end
-    static const char id[] = "272213990002";
+    // The cabinet's ID (not a terminal: 13 at its 5th place, 11 for a terminal; OpenParrot's), its
+    // bytes' sum and that sum's complement at the memory's end
     unsigned sum = 0;
     for (int i = 0; i < 12; i++)
         sum += (unsigned char)id[i];
@@ -953,12 +967,12 @@ static void wangan_dongle(void)
         const char *name;
     } hasp[] = {
         {13, (void *)hasp_login, "hasp_login"}, {14, (void *)hasp_logout, "hasp_logout"}, {7, (void *)hasp_get_size, "hasp_get_size"},
-        {15, (void *)hasp_read, "hasp_read"},   {2, (void *)hasp_decrypt, "hasp_decrypt"},
+        {15, (void *)hasp_read, "hasp_read"},   {2, (void *)hasp_decrypt, "hasp_decrypt"},  {17, (void *)hasp_write, "hasp_write"},
     };
     HMODULE exe = GetModuleHandleW(NULL);
     for (int i = 0; i < (int)(sizeof hasp / sizeof hasp[0]); i++)
-        if (!wl_patch_iat(exe, "hasp_windows_x64_109906.dll", MAKEINTRESOURCEA(hasp[i].ordinal), hasp[i].function, NULL))
-            wl_log("hasp: %s (#%d) not in the import table", hasp[i].name, hasp[i].ordinal);
+        if (!wl_patch_iat(exe, dll, MAKEINTRESOURCEA(hasp[i].ordinal), hasp[i].function, NULL) && hasp[i].function != (void *)hasp_write)
+            wl_log("hasp: %s (#%d) not in the import table", hasp[i].name, hasp[i].ordinal); // write: 5 DX+'s only
 }
 
 // ------------------------------------------------------------------------------
@@ -1030,7 +1044,28 @@ static const unsigned char g_terminal6[139] = {
     0x0F, 0x18, 0x05, 0x20, 0x00, 0x28, 0x00, 0x26, 0xB7, 0x89, 0xD0,
 };
 
-static DWORD WINAPI terminal_thread(LPVOID)
+// The packets sent: the six above, with the terminal's serial of the game (bytes 36 to 47). 5 DX+
+// shows the 5's in red (TERMINAL UNIT S/N, then "TERMINAL UNIT LINK NG"): its terminals are 2783
+// ones, OpenParrot's 278311042069. The CRC made again over the packet but its last four bytes
+static struct
+{
+    unsigned char bytes[139];
+    int size;
+} g_terminalPackets[6];
+
+static unsigned terminal_crc(const unsigned char *data, int size)
+{
+    unsigned c = 0xFFFFFFFF;
+    for (int i = 0; i < size; i++)
+    {
+        c ^= (unsigned)data[i] << 24;
+        for (int k = 0; k < 8; k++)
+            c = c & 0x80000000 ? c << 1 ^ 0x04C11DB7 : c << 1;
+    }
+    return c;
+}
+
+static void terminal_packets(const char *serial)
 {
     static const struct
     {
@@ -1040,6 +1075,23 @@ static DWORD WINAPI terminal_thread(LPVOID)
         {g_terminal1, sizeof g_terminal1}, {g_terminal2, sizeof g_terminal2}, {g_terminal3, sizeof g_terminal3},
         {g_terminal4, sizeof g_terminal4}, {g_terminal5, sizeof g_terminal5}, {g_terminal6, sizeof g_terminal6},
     };
+    for (int i = 0; i < 6; i++)
+    {
+        unsigned char *b = g_terminalPackets[i].bytes;
+        int size = packets[i].size;
+        memcpy(b, packets[i].bytes, size);
+        memcpy(b + 36, serial, 12);
+        unsigned crc = terminal_crc(b, size - 4);
+        b[size - 4] = (unsigned char)(crc >> 24);
+        b[size - 3] = (unsigned char)(crc >> 16);
+        b[size - 2] = (unsigned char)(crc >> 8);
+        b[size - 1] = (unsigned char)crc;
+        g_terminalPackets[i].size = size;
+    }
+}
+
+static DWORD WINAPI terminal_thread(LPVOID)
+{
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa))
         return 0;
@@ -1059,7 +1111,8 @@ static DWORD WINAPI terminal_thread(LPVOID)
     for (unsigned n = 0;; n++)
     {
         int i = n % 6;
-        if (sendto(s, (const char *)packets[i].bytes, packets[i].size, 0, (const sockaddr *)&to, sizeof to) != packets[i].size && errors++ < 5)
+        const char *packet = (const char *)g_terminalPackets[i].bytes;
+        if (sendto(s, packet, g_terminalPackets[i].size, 0, (const sockaddr *)&to, sizeof to) != g_terminalPackets[i].size && errors++ < 5)
             wl_log("namco: the terminal's packet %d: error %d", i + 1, WSAGetLastError());
         Sleep(8);
     }
@@ -1183,8 +1236,10 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
 
     if (wmmt5)
     {
-        *name = "wmmt5";
-        *title = "Wangan Midnight Maximum Tune 5";
+        // 5 DX+ (2016) has the same program's name, its own key's library beside it
+        int dxplus = exists(dir, L"hasp_windows_x64_106482.dll");
+        *name = dxplus ? "wmmt5dxp" : "wmmt5";
+        *title = dxplus ? "Wangan Midnight Maximum Tune 5 DX+" : "Wangan Midnight Maximum Tune 5";
         wl_log("game: %s (Namco System ES3X)", *title);
         wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)", "Motor board: Namco motor board (COM1)");
         char probe[4];
@@ -1197,7 +1252,10 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         InitializeCriticalSection(&g_motorLock);
         wl_vdev_register(&g_str3);
         wl_vdev_label("COM1", "Carte du moteur du volant");
-        wangan_dongle();
+        if (dxplus)
+            wangan_dongle("hasp_windows_x64_106482.dll", "278313042069");
+        else
+            wangan_dongle("hasp_windows_x64_109906.dll", "272213990002");
         // E0505 "network: interface not found": the game looks for its card in the cabinets'
         // network, 192.168.92.0/24 (its addresses table, +0x18a7260: .254, .11, .20, .253)
         static const unsigned char mac[6] = {0x00, 0x18, 0xD8, 0x00, 0x00, 0x0B};
@@ -1205,12 +1263,21 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         // E1911 "USB DONGLE error2": the key's ID is compared with the cabinet's, given by its
         // "auth" COM class (not registered here: "auth: can't get instance(80040154)"); that one
         // empty is the error (+0x58c63a). The error's flag stays clear (mov r12b, 1 made 0, as
-        // OpenParrot's WMMT5.cpp does)
+        // OpenParrot's WMMT5.cpp does; 5 DX+: mov sil, 1, the place found by OpenParrot's pattern)
         unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
-        static const unsigned char set[3] = {0x41, 0xB4, 0x01}, clear[3] = {0x41, 0xB4, 0x00};
-        wl_patch_code(exe + 0x58C6CA, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x58c6ca)");
+        if (dxplus)
+        {
+            static const unsigned char set[3] = {0x40, 0xB6, 0x01}, clear[3] = {0x40, 0xB6, 0x00};
+            wl_patch_code(exe + 0x706354, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x706354)");
+        }
+        else
+        {
+            static const unsigned char set[3] = {0x41, 0xB4, 0x01}, clear[3] = {0x41, 0xB4, 0x00};
+            wl_patch_code(exe + 0x58C6CA, set, clear, 3, "the key's ID left unchecked (wmn5r.exe+0x58c6ca)");
+        }
         // The arcade's terminal (above): its packets on port 50765, shown from its address. Without
         // it, E0505 "Network disconnection error" (+0x5814cc: the link's state 4, 35 s after boot)
+        terminal_packets(dxplus ? "278311042069" : "272211990002");
         CloseHandle(CreateThread(NULL, 0, terminal_thread, NULL, 0, NULL));
         if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSARecvFrom", (void *)terminal_WSARecvFrom, (void **)&oWSARecvFrom) ||
             !wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "GetQueuedCompletionStatus", (void *)terminal_GetQueuedCompletionStatus,
@@ -1221,8 +1288,18 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         // (+0x58e705, state 1) goes on to the "complete" one (+0x58e694, state 2) instead of the
         // state machine's end, which came back to waiting forever. OpenParrot's WMMT5.cpp does it
         // for WMMT6R (the same transition and offsets)
-        static const unsigned char toEnd[5] = {0xE9, 0x76, 0x06, 0x00, 0x00}, toComplete[5] = {0xE9, 0x80, 0xFF, 0xFF, 0xFF};
-        wl_patch_code(exe + 0x58E70F, toEnd, toComplete, 5, "the terminal's link taken as complete (wmn5r.exe+0x58e70f)");
+        // 5 DX+: the same steps, its object's fields 0xf0 further (state +0x750), waiting at +0x708685,
+        // complete at +0x708809
+        if (dxplus)
+        {
+            static const unsigned char toEnd[5] = {0xE9, 0x9D, 0x0C, 0x00, 0x00}, toComplete[5] = {0xE9, 0x73, 0x01, 0x00, 0x00};
+            wl_patch_code(exe + 0x708691, toEnd, toComplete, 5, "the terminal's link taken as complete (wmn5r.exe+0x708691)");
+        }
+        else
+        {
+            static const unsigned char toEnd[5] = {0xE9, 0x76, 0x06, 0x00, 0x00}, toComplete[5] = {0xE9, 0x80, 0xFF, 0xFF, 0xFF};
+            wl_patch_code(exe + 0x58E70F, toEnd, toComplete, 5, "the terminal's link taken as complete (wmn5r.exe+0x58e70f)");
+        }
         return 1;
     }
     // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places
