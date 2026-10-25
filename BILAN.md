@@ -36,7 +36,7 @@ dans NOTES.md, « Jeux des bornes »).
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
-| Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⚠️ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -685,6 +685,20 @@ sur COM11) :
   1 766 interrogations en 60 s sans reprise, attract normal.
 Pas encore essayé avec une vraie carte (ce PC n'en a pas).
 
+## Sélecteur de jeux (windowsloader.exe sans argument)
+
+Comme celui de linuxloader : `windowsloader.exe` lancé seul (double clic) ouvre une fenêtre, à gauche la liste des
+jeux du dossier des jeux, à droite la fiche du jeu choisi (image si le dossier en a une, état, plateforme, programme,
+arguments, ce qui est émulé). Entrée, double clic ou la manette lancent le jeu par `windowsloader.exe` lui-même ; le
+sélecteur se cache pendant la partie et revient à la fin. Un jeu qui s'arrête aussitôt affiche ce que le lanceur a dit.
+Dossier des jeux : `[Picker] GAMES_DIR`, sinon `games` à côté du lanceur ou un ou deux niveaux au-dessus ; Tab en
+choisit un autre. Les jeux sont reconnus comme le fait la DLL (nom du programme, fichiers à côté, date du programme
+pour les deux Battle Gear 4) : la table est `src/launcher/gamelist.cpp`, à tenir à jour avec les modules.
+
+Vérifié (25/10) : dossier d'essai (deux éditions de Sega Rally 3, Chase H.Q. 2, Wangan Midnight 5, un dossier sans
+jeu écarté), flèches, image, message d'erreur du lanceur, Échap ; puis le dossier `games` du dépôt, Wangan Midnight 5
+lancé depuis le sélecteur (windowsloader.exe → windowsloader64.exe → wmn5r.exe), le sélecteur revenu à l'arrêt du jeu.
+
 ## Menu Tab sur Battle Gear 4, Chase H.Q. 2 et DiRT Showdown
 
 `f10_check.py` (bloc-notes) : menu ouvert par l'agent, pages Jeu, Contrôles, Affichage, Retour de force, À propos
@@ -885,13 +899,20 @@ Fait :
 - le JVS sur COM3 et la carte moteur sur COM1, ceux de Mario Kart DX : « I/O CHECK OK » ;
 - E0505 « network: interface not found » : une carte réseau de borne, 192.168.92.11. Ajouts dans `netenv.cpp`
   (`GetIpAddrTable`, `GetInterfaceInfo`, `GetIpForwardTable`) et `system.cpp` (un `connect` UDP vers 8.8.8.8
-  suivi de `getsockname` répond l'adresse de cette carte) : « LINK OK ».
+  suivi de `getsockname` répond l'adresse de cette carte) : « LINK OK » ;
+- le terminal de la salle (25/10) : la borne écoute sur le port UDP 50765 la machine des cartes, 192.168.92.20 ;
+  muet, il donne E0505 « Network disconnection error / Disconnected from local network » 35 s après le
+  démarrage. windowsloader en joue un : les six paquets « free play » de l'émulateur de terminal d'OpenParrot
+  (GPL-3.0), envoyés toutes les 8 ms vers 127.0.0.1:50765 seulement (rien ne sort du PC), et montrés au jeu
+  comme venant de 192.168.92.20 (l'adresse de l'expéditeur réécrite à la réception). Le lien avec le terminal
+  est tenu pour établi (un saut, comme OpenParrot pour WMMT6R) : sans lui, « TERMINAL UNIT LINK NG » et arrêt
+  sur « GAME SERVER CONNECT CHECK ». Les trois sauts de la recherche de terminal posés avant ne servent plus,
+  retirés. Le jeu arrive en démonstration, « FREE PLAY ».
 
 Reste :
-- « Connecting to Wangan terminal » : la borne attend le terminal de la salle. OpenParrot neutralise sa
-  recherche (trois sauts, faits ici) et simule en plus un terminal qui émet des paquets (multidiffusion
-  225.0.0.1:50765) ;
-- la caméra, les commandes propres au jeu, le retour de force.
+- le lecteur de cartes (« BANAPASSPORT CARDs cannot currently be used »), la caméra, les commandes propres au
+  jeu (vérifier une course), le retour de force ;
+- le mode avec pièces : les paquets « coin » du terminal, à proposer en option.
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
