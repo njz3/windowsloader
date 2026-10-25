@@ -867,10 +867,19 @@ static int ssd_proof(const char *challenge, char *answer, size_t size)
     return 0;
 }
 
+static int g_toolmode; // the keychip's toolmode (use_toolmode): no table
+
 // An answer to a challenge the table has not: bytes made from it, never all zero (Initial D 8 said
-// "Keychip Not Found", error 0949, once after a random challenge answered with zeros)
+// "Keychip Not Found", error 0949, once after a random challenge answered with zeros). In the
+// toolmode, zeros: every challenge is out of a table there, and the games running so want them
+// (Let's Go Safari and K.O. Drive stop on that same error 0949 with made-up bytes)
 static void made_up_answer(const char *challenge, int bytes, char *answer, size_t size)
 {
+    if (g_toolmode)
+    {
+        snprintf(answer, size, "%0*d", bytes * 2, 0);
+        return;
+    }
     unsigned x = 0x9E3779B9u;
     for (const char *c = challenge; *c; c++)
         x = (x ^ (unsigned char)*c) * 0x01000193u;
@@ -1104,7 +1113,10 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     wchar_t table[MAX_PATH];
     swprintf(table, MAX_PATH, L"%s%s", g_dir, g_game->table);
     if (GetFileAttributesW(table) == INVALID_FILE_ATTRIBUTES)
+    {
+        g_toolmode = 1;
         use_toolmode();
+    }
 
     if (g_game->saveDrive)
     {
