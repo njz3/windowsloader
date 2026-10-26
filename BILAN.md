@@ -38,7 +38,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Crazy Ride (UNIS PC, 64 bits) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 5 DX+ (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
-| Wangan Midnight Maximum Tune 6 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
+| Wangan Midnight Maximum Tune 6 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ✅ | ✅ | ⚠️ |
 | Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
@@ -155,6 +155,11 @@ Racing) :
 - Menu de service ✅ : le jeu lancé avec `-t` (comme `gametest.bat`) : GAME TEST MODE, tests d'entrées
   et de sorties, choix au bouton Service, validation au bouton Test (`id6_race.py test`).
 - Crédits ✅ : pièces comptées par la carte JVS.
+- Erreur 5101 (26/10, sur les bornes : « pas de réponse du lecteur-graveur de cartes » à « avez-vous une
+  licence ? ») : comme pour les 7 et 8, le `game.bat` du 6 lance `picodaemon.exe` avant le jeu ; windowsloader ne
+  le lançait que pour 7 et 8. Le lanceur le démarre maintenant aussi avec `id6_dump_.exe` et
+  `InitialD6_GLW_RE_SBUU.exe`, et `cardrw.cpp` met ses écritures dans `WRITE_DIR\initiald6`. Vérifié sur la copie
+  locale (reprise de racecab1 le 26/10) : nettoyage du lecteur, « licence ? » passé sans carte, achat de la voiture.
 
 ## Initial D Arcade Stage 7 AAX et 8 Infinity (Sega RingEdge, 2012 et 2014)
 
@@ -610,6 +615,13 @@ fenêtre cachée (D3D9) ou vers la fenêtre enfant, cachée (D3D11), et la caden
 intervalle demandé. `PRESENT = DIRECT` revient au Present du jeu. Vérifié à l'écran : DiRT Showdown (60 i/s),
 Sonic (61), Battle Gear 4 (55), Chase H.Q. 2 (60).
 
+Un jeu qui n'attend pas l'écran (D3D9 `D3DPRESENT_INTERVAL_IMMEDIATE`, D3D11/DXGI `Present(0, …)`) ne voit son
+image recopiée qu'une fois par rafraîchissement (`wl_display_gdi_due`, `display.cpp`, 3/4 de la période de
+l'écran au moins entre deux recopies) ; ses autres images vont à la fenêtre cachée seulement. Avant (26/10), chaque
+image était lue et dessinée, la recopie tenait le jeu à la cadence de GDI : Wasteland Racers chargeait sa course en
+141 s au lieu de 12. Programmes d'essai sur ce PC (avant → après) : D3D9 76 → 3 387 images/s ; D3D11 60 → 176
+(486 sans windowsloader) ; les jeux qui attendent l'écran ne changent pas.
+
 ## Rapport d'aspect, recadrage et courbure ; fichier de réglages par jeu
 
 Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe pareil aux deux) :
@@ -882,6 +894,25 @@ vérification ensuite :
 - Menu de service ✅ : menu de test, test des entrées-sorties, étalonnage, réglages du jeu ; enregistrés (le
   renommage de `F:\TestMode\…bin.tmp` passe maintenant par la redirection de F:\).
 - Crédits ✅ : la pièce compte (test des contacts) ; la copie est en jeu gratuit.
+- Link entre bornes 🔄 (26/10, `[Game.mkdx] LINK` et `CABINET`, voir le README) :
+  - le protocole, lu dans le jeu (+0x318c40) : chaque borne diffuse toutes les 10 s environ sur UDP 20199 huit
+    octets « MK3 » 0x12 0x10, son mode, son groupe et son PCB-ID − 1 ; une borne entendue depuis le réseau des
+    bornes (l'adresse de l'envoyeur) entre dans le link, ses paquets (155 octets, puis l'état de toutes) lui
+    sont envoyés sur UDP 20100 + groupe ; un seul sendto et un seul recvfrom dans le jeu pour tout cela ;
+  - le PCB-ID (1 à 4) est un réglage du jeu (menu de test, ゲーム設定 → 基板ID), pas l'adresse : deux bornes au
+    même, erreur E24-03 « 基板ID重複エラー » (vue avec deux jeux au PCB-ID 1). `NET_PCB_ID` de
+    `NetConfig.csv` n'est pas lu par la 1.18 ;
+  - windowsloader : la borne N a l'adresse 192.168.112.(10+N) pour le jeu, la clé 27101102000N ; ses envois aux
+    bornes (diffusion comprise) vont aux PC de `LINK`, ce qu'elle reçoit d'eux vient de leurs adresses de borne ;
+    un bind sur l'adresse d'une autre borne est refusé (comme sur borne) ; rien d'autre ne sort du PC. Ses
+    sockets sont liées à l'adresse de la borne dans `LINK` (pas à 0.0.0.0) et ce qui vient d'ailleurs n'est pas
+    entendu : l'adaptateur VPN de TeamViewer des bornes (7.x.x.x/8) n'y entre pas ;
+  - essai sur ce PC (deux jeux, 127.0.0.1 et 127.0.0.2, chacun son dossier d'écriture et son mutex) : PCB-ID 2
+    réglé dans le menu de test du second ; chacun entend l'autre, l'état de l'autre (310 octets) reçu toutes les
+    0,18 s ; pièce et Start sur les deux : choix du personnage et du circuit ensemble, puis une course à quatre
+    (les deux Mario des bornes, Yoshi et Luigi en COM), Kingdom Way, le même classement sur les deux écrans, le
+    kart de l'autre borne visible à côté ;
+  - reste : l'essai sur les deux bornes (leurs adresses dans `LINK`, PCB-ID 2 sur la seconde, le pare-feu).
 
 ## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
 
@@ -904,6 +935,12 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
 - Menu de service ✅ : menu de test, réglages du jeu modifiés et enregistrés (« E05-11 ERROR DEVICE » en tête du menu,
   sans effet vu).
 - Crédits ✅ : la pièce compte.
+- Link entre bornes 🔄 (26/10) : le même code que la 1.18 (mêmes imports de ws2_32 par numéro, mêmes ports) ; le
+  PCB-ID dans Game options → Board ID. Ses diffusions disent « MK3 » 0x00 0x01 (la 1.18 : 0x12 0x10) : une 1.10 et
+  une 1.18 ne se lient pas, les bornes du link doivent avoir la même version. Pas de mutex « une seule fois » dans
+  la 1.10. Essai sur ce PC comme pour la 1.18 (Board ID 2 réglé sur le second) : chacune entend l'autre, deux
+  pièces et Start sur les deux, « Deux Joueurs VERSUS / CO-OP » proposé, course ensemble au Château de Peach, le
+  même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Reste l'essai sur les bornes.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 
@@ -1051,13 +1088,17 @@ de `namco.cpp` (ce qui change d'une version à l'autre). Ce qui est propre au 6 
   `AMAuthd.exe` que TeknoParrot lance avant le jeu et que le jeu joint par COM, absent ici : E0516 « ALL.Net AUTH
   ERROR » au journal) ; l'étape passe sans elle (+0x6a0df3) ;
 - E0552 « OFFLINE UPTIME ERROR » ensuite : 36 h depuis la dernière authentification, jamais faite ; la limite tenue
-  pour non atteinte (+0x6916bd), comme pour Mario Kart DX. Le jeu affiche « Please connect this unit to the network.
-  The Game will shutdown shortly. » en démonstration.
+  pour non atteinte (+0x6916bd), comme pour Mario Kart DX. Son avertissement une heure avant (35 h, +0x68f6a0 :
+  « Please connect this unit to the network. The Game will shutdown shortly. » sur tout le jeu) n'est plus montré
+  (26/10).
+- Menu Tab ✅ (26/10) : les cinq pages, le jeu en pause (images 2403 → 2403), reprise à la fermeture.
 - Course ✅ : les mêmes écrans que le 5 (pas de carte, Story, épisode 1, Yokohama).
 - Menu de service ✅ : en anglais ; GAME OPTIONS → STEERING POWER, OFF dans la copie, à mettre à ON.
 - Retour de force ✅ : la même carte du volant ; volant à gauche force −0,25, à droite force positive, vibrations.
 
-Reste : les cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab ; pas encore dans une release.
+Reste : les cartes (le lecteur Banapass est joué sans carte : on joue sans), la caméra (refusée, le jeu s'en passe),
+le mode avec pièces (le terminal joué est en jeu gratuit) ; vJoy et l'affichage à voir sur borne. Dans la release
+20261025-7 (pas encore posée : Defender).
 
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
 
@@ -1077,6 +1118,23 @@ lanceur démarre avant lui `AMDaemon\amdaemon.exe`, le service de la plateforme 
   amdaemon.
 - Affichage ⚠️ : seulement avec `-windowed` (sinon le jeu se réduit, notre refus du plein écran répondant S_OK).
 - Le reste pas encore vu.
+
+Repris le 26/10 (« avec segatools ») :
+- Sans réglage de plus, amdaemon tente la livraison réseau et s'arrête (`amGfetcherInit(). ErrCode -1`) : le jeu
+  affiche Error 4105 après « Aime Setup ». Avec ALL.Net (authentification et comptabilité), la livraison réseau,
+  la monnaie électronique, les journaux ABAAS et l'installation LAN coupés par une config de plus
+  (`WINDOWSLOADER_COMPANION_ARGS=-c <fichier>` pour l'essai), il passe « Aime Setup », « Device Setup », le test
+  réseau (IP, passerelle bonnes ; DNS mauvais), « CONNECT MAIN CABINET », puis Error 4103.
+- 4103 : à la fin de sa séquence `InitializeTest`, le jeu interroge son serveur de jeu (`FDBAccessor::CheckServer`,
+  `/api/server/alive`) à l'adresse que l'ALL.Net lui donne (`gameServerUri`) ; coupé, l'adresse est vide
+  (« libcurl error: 1 (Unsupported protocol) »). Ce serveur est un serveur de jeu Sega « ABaaS » (API REST
+  `/api/user/load`, `/api/user/save`, `/api/ranking/...`, `/api/data/...`, réponses à `control.seq_id`).
+- segatools (`swdchook`, domaine public) émule la plateforme, comme windowsloader le fait déjà (IO4, Aime, VFD,
+  moteur, réseau de borne), et renvoie l'ALL.Net vers un serveur qu'on fait tourner soi-même ; il demande aussi les
+  ICF du jeu (absents de la copie). Aucun serveur libre connu ne sert SWDC (ARTEMiS : non) ; TeknoParrot le fait
+  tourner sur ses propres serveurs en ligne (`Offline Mode=0`, `OnlineID` dans sa config).
+- Reste : soit un serveur de jeu ABaaS minimal (son protocole à retrouver dans le jeu), soit un jeu hors ligne
+  obtenu en neutralisant ses contrôles réseau ; l'un comme l'autre est un chantier à part.
 
 ## D1GP Arcade (Taito Type X2, 2009)
 
