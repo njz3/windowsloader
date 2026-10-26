@@ -11,7 +11,7 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// The IC card reader-writer of Initial D 7 and 8 (RingEdge): a card unit with a printer and an
+// The IC card reader-writer of Initial D 6, 7 and 8 (RingEdge): a card unit with a printer and an
 // RFID reader, on a serial port of picodaemon.exe, the daemon the cabinet's game.bat starts beside
 // the game. The game reaches the daemon by shared memory (zmShare00000532); without it, error 5101
 // "no answer from the card reader-writer" after the coin. windowsloader starts picodaemon too
@@ -148,10 +148,13 @@ int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title
     *name = "picodaemon";
     *title = "picodaemon (Initial D card reader-writer)";
     wl_log("game: the card reader-writer's daemon (picodaemon.exe), no card inserted");
-    // Its writes with the game's, in the write folder (WRITE_DIR\initiald7 or initiald8, ringedge.cpp's
-    // names): the game is told by the launcher, its program's gameid
+    // Its writes with the game's, in the write folder (WRITE_DIR\initiald6, 7 or 8, ringedge.cpp's
+    // names): the game is told by the launcher, its program's gameid (Initial D 6's decrypted
+    // program, id6_dump_.exe, has none)
     const wchar_t *game = wl_game_companion_of();
-    if (game && wcsstr(game, L"SBYD"))
+    if (game && (wcsstr(game, L"SBUU") || wcsstr(game, L"id6_dump")))
+        wl_game_set_write_name("initiald6");
+    else if (game && wcsstr(game, L"SBYD"))
         wl_game_set_write_name("initiald7");
     else if (game && wcsstr(game, L"SBZZ"))
         wl_game_set_write_name("initiald8");
