@@ -114,6 +114,17 @@ must let in (`MK_AGP3_FINAL.exe`). As on the real cabinets, each one's PCB-ID mu
 test menu, ゲーム設定 → 基板ID, 1.10: Game options → Board ID; Enter, selector, Enter): E24-03
 « 基板ID重複エラー » otherwise.
 Without `LINK` the cabinet plays alone.
+Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone, as TeknoParrot has it:
+the launcher starts amdaemon (the ALLS platform's service) 5 s before the game, with the game's
+`config.json` and windowsloader's settings for a cabinet alone (written in the temporary folder:
+ALL.Net's accounting, the network delivery, the electronic money, ABaaS's logs and the LAN install
+off), and the game with `-launch=MiniCabinet` (unless its command line has a `-launch=`). The
+network services the cabinet reaches are played on the PC: ALL.Net (in amdaemon, port 40180), the
+Aime server (40182) and the game's title server (in the game, 40181: its season and event
+settings); the game shows ALL.Net, Aime and the user database online and plays as a guest (at the
+login screen: Start, Left for はい, Start). `LANGUAGE = ENGLISH` (the default), `JAPANESE` or
+`CHINESE`: the language of amdaemon's own messages (its errors and warnings); the game's texts are
+Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no network battles).
 
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,

@@ -466,21 +466,24 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
 
 // A program the game needs beside it, started first under windowsloader too: an ALLS's
 // amdaemon.exe, the platform's service, which the cabinet's script (App\Todoroki\StartApp.bat)
-// starts from App\Todoroki 5 s before the game (Sega World Drivers Championship), with the main
-// cabinet's settings (config_LanServer.json, the LAN install server; the script's choice when
-// Y:\SDDS\LanServer.dat is there). Initial D 6, 7 and 8's picodaemon.exe, the card reader-writer's
-// daemon, which game.bat starts just before the game. The folders are the game's folder's parents.
+// starts from App\Todoroki 5 s before the game (Sega World Drivers Championship). Here a cabinet
+// alone, as TeknoParrot runs it: the game with -launch=MiniCabinet, amdaemon with the game's
+// config.json and windowsloader's settings for a cabinet alone, which its module writes in the
+// temporary folder ({temp}: alls.cpp). Initial D 6, 7 and 8's picodaemon.exe, the card
+// reader-writer's daemon, which game.bat starts just before the game. The folders are the game's
+// folder's parents.
 static const struct
 {
-    const wchar_t *game;    // the game's file name
-    int up;                 // its folder's parents up to the companion's folder (its working folder)
-    const wchar_t *exe;     // from there
-    const wchar_t *args;
-    DWORD waitMs;           // before the game starts
+    const wchar_t *game;     // the game's file name
+    int up;                  // its folder's parents up to the companion's folder (its working folder)
+    const wchar_t *exe;      // from there
+    const wchar_t *args;     // {temp}: the temporary folder
+    DWORD waitMs;            // before the game starts
+    const wchar_t *gameArgs; // the game's too, unless its command line has one of that name
 } g_companions[] = {
     {L"Todoroki-Win64-Shipping.exe", 4, L"WindowsNoEditor\\AMDaemon\\amdaemon.exe",
-     L"-c WindowsNoEditor\\AMDaemon\\config.json -c WindowsNoEditor\\AMDaemon\\config_LanServer.json -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
-     5000},
+     L"-c WindowsNoEditor\\AMDaemon\\config.json -c \"{temp}windowsloader-swdc-amdaemon.json\" -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
+     5000, L"-launch=MiniCabinet"},
     // Initial D 6's game.bat starts it too: without it, error 5101 (417) at "do you have a licence?"
     {L"id6_dump_.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD6_GLW_RE_SBUU.exe", 0, L"picodaemon.exe", L"", 1000},
@@ -490,6 +493,27 @@ static const struct
     {L"InitialD8_GLW_RE_SBZZ_redumped_.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe", 0, L"picodaemon.exe", L"", 1000},
 };
+
+// The arguments a game with a companion takes (g_companions' gameArgs), added to its command line
+// unless it has one of that name (-launch= for -launch=MiniCabinet)
+static void companion_game_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first)
+{
+    const wchar_t *base = wcsrchr(gamePath, L'\\');
+    base = base ? base + 1 : gamePath;
+    for (int i = 0; i < (int)(sizeof g_companions / sizeof g_companions[0]); i++)
+    {
+        const wchar_t *arg = g_companions[i].gameArgs;
+        if (!arg || _wcsicmp(base, g_companions[i].game))
+            continue;
+        const wchar_t *eq = wcschr(arg, L'=');
+        size_t name = eq ? (size_t)(eq - arg) + 1 : wcslen(arg);
+        int given = 0;
+        for (int a = first; a < argc; a++)
+            given |= !_wcsnicmp(argv[a], arg, name);
+        if (!given)
+            append_arg(cmd, CMDLINE_MAX, arg);
+    }
+}
 
 static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t *exe, wchar_t *dir, wchar_t *cmd, DWORD *waitMs)
 {
@@ -508,7 +532,19 @@ static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t
         cmd[0] = 0;
         append_arg(cmd, CMDLINE_MAX, exe);
         size_t n = wcslen(cmd);
-        swprintf(cmd + n, CMDLINE_MAX - n, L" %s", g_companions[i].args);
+        cmd[n++] = L' ';
+        wchar_t temp[MAX_PATH] = L"";
+        GetTempPathW(MAX_PATH, temp);
+        for (const wchar_t *a = g_companions[i].args; *a && n + MAX_PATH < CMDLINE_MAX;)
+            if (!wcsncmp(a, L"{temp}", 6))
+            {
+                wcscpy_s(cmd + n, CMDLINE_MAX - n, temp);
+                n += wcslen(temp);
+                a += 6;
+            }
+            else
+                cmd[n++] = *a++;
+        cmd[n] = 0;
         // WINDOWSLOADER_COMPANION_ARGS: more of them, for tests (another amdaemon config)
         wchar_t more[1024];
         if (GetEnvironmentVariableW(L"WINDOWSLOADER_COMPANION_ARGS", more, 1024) && more[0])
@@ -747,6 +783,7 @@ int wmain(int argc, wchar_t **argv)
     append_arg(cmd, CMDLINE_MAX, gamePath);
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
+    companion_game_args(gamePath, cmd, argc, argv, i + 1);
 
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");

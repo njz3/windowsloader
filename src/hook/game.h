@@ -27,6 +27,8 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX), ES3X (Wangan Midnight 5, x64)
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title);     // Sega ALLS (SWDC, x64: amdaemon and the game)
+void wl_allnet_start(unsigned gateway); // allnet.cpp, in amdaemon: ALL.Net and the title server on this PC (gateway 0xC0A8AC01: 192.168.172.1)
+void wl_allnet_game(void);              // allnet.cpp, in the game: its title server's connections to that server
 int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **title); // Storm Racer G (usb_io.dll)
 int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title);     // Initial D 7 and 8's card unit (picodaemon.exe)
 

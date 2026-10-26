@@ -22,6 +22,9 @@
 // - the keychip's driver, \??\FddDriver, its requests by DeviceIoControl;
 // - the cabinet's drives: D: and Y: (the game's data, Y:\SDDS), E: (AMFS, the system's files),
 //   folders of the copy (D, Y and AMFS beside game.bat).
+// The network services the cabinet reaches, ALL.Net, Aime and the game's title server, are played
+// on this PC (allnet.cpp). The launcher starts the game with -launch=MiniCabinet and amdaemon with
+// its settings for a cabinet alone (launcher.cpp).
 
 #include <windows.h>
 #include <stdio.h>
@@ -882,6 +885,61 @@ static void drive(const char *letter, const wchar_t *folder)
     wl_files_redirect(letter, to);
 }
 
+// amdaemon's settings for a cabinet alone, beside the game's config.json: the services that need
+// Sega's network or other cabinets off (ALL.Net's accounting, the network delivery, the electronic
+// money, ABaaS's logs, the LAN install), and the language of its own messages (errors, warnings:
+// am_resources). The launcher gives amdaemon this file (-c); written here, in amdaemon, before it
+// reads its settings. The game's own texts are Japanese whatever the language.
+
+// amdaemon's languages, those of its resources (am_resources\error.<language>.dll), by their English names
+static const WlOptionChoice g_languages[] = {
+    {"ENGLISH", "English"},
+    {"JAPANESE", "Japanese"},
+    {"CHINESE", "Chinese"},
+    {NULL, NULL},
+};
+
+static const WlGameOption g_swdcOptions[] = {
+    {"LANGUAGE", "Langue des messages d'amdaemon",
+     "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais.",
+     WL_OPTION_CHOICE, g_languages, 0, 0, "ENGLISH", 1, NULL},
+};
+
+static void amdaemon_settings(void)
+{
+    char language[32];
+    wl_game_option("LANGUAGE", language, sizeof language);
+    const char *name = "english";
+    if (!_stricmp(language, "JAPANESE"))
+        name = "japanese";
+    else if (!_stricmp(language, "CHINESE"))
+        name = "chinese";
+    wchar_t path[MAX_PATH];
+    DWORD n = GetTempPathW(MAX_PATH, path);
+    if (!n || n + 32 > MAX_PATH)
+        return;
+    wcscat_s(path, MAX_PATH, L"windowsloader-swdc-amdaemon.json");
+    char json[512];
+    int len = snprintf(json, sizeof json,
+                       "{\r\n"
+                       "    \"common\" : { \"max_player\" : 1, \"language\" : \"%s\", \"custom_resource_id\" : [\"common\"] },\r\n"
+                       "    \"allnet_accounting\" : { \"enable\" : false },\r\n"
+                       "    \"net_delivery\" : { \"enable\" : false },\r\n"
+                       "    \"emoney\" : { \"enable\" : false },\r\n"
+                       "    \"abaas_log\" : { \"enable\" : false },\r\n"
+                       "    \"lan_install\" : { \"enable\" : false }\r\n"
+                       "}\r\n",
+                       name);
+    HANDLE f = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    DWORD written = 0;
+    if (f == INVALID_HANDLE_VALUE || !WriteFile(f, json, (DWORD)len, &written, NULL) || (int)written != len)
+        wl_log("alls: amdaemon's settings could not be written to the temporary folder");
+    else
+        wl_log("alls: amdaemon's settings for a cabinet alone (language: %s)", name);
+    if (f != INVALID_HANDLE_VALUE)
+        CloseHandle(f);
+}
+
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -893,12 +951,13 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     *title = "Sega World Drivers Championship";
     wl_log("game: %s (Sega ALLS), %s", *title, daemon ? "amdaemon.exe, the platform's service" : "the game");
     wl_game_set_boards("Controls on USB I/O board, Sega 837-15257 \"IO4\" (amdaemon)", "Motor board: (COM1, the game)");
+    wl_game_set_options(g_swdcOptions, (int)(sizeof g_swdcOptions / sizeof g_swdcOptions[0]));
+    if (daemon)
+        wl_game_on_settings(amdaemon_settings);
     drive("D:", L"D");
     drive("E:", L"AMFS");
     drive("Y:", L"Y");
-    // The main cabinet (the only one here): the game knows it by this empty file, and the
-    // launcher gives amdaemon the main cabinet's settings (config_LanServer.json), as the
-    // cabinet's script does when the file is there
+    // The main cabinet (the only one here): the game knows it by this empty file
     wchar_t lanServer[MAX_PATH];
     swprintf(lanServer, MAX_PATH, L"%s\\Y\\SDDS", g_root);
     CreateDirectoryW(lanServer, NULL);
@@ -912,6 +971,8 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     wl_netenv_fake(0xC0A8AC0B, 0xC0A8AC01, mac);
     if (daemon)
     {
+        // ALL.Net and the Aime server, on this PC (allnet.cpp)
+        wl_allnet_start(0xC0A8AC01);
         system_property();
         wl_system_virtual_dll("$amvideo", g_amvideo, 4);
         wl_vdev_register(&g_keychip);
@@ -947,6 +1008,11 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_inputs_set_table(g_inputs, IN_COUNT);
         wl_outputs_name_lamps("la carte d'E/S IO4 837-15257, via amdaemon", g_io4LampNames, IO4_LAMPS);
         CloseHandle(CreateThread(NULL, 0, inputs_writer, NULL, 0, NULL));
+        // The title server's connections to this PC's server, with its AES key (allnet.cpp)
+        wl_allnet_game();
+        // The main cabinet finds itself by its broadcast (UMainDetector, UDP 40257 to
+        // 192.168.172.255): alone, it hears its own ("CONNECT MAIN CABINET")
+        wl_system_loopback_broadcast(1);
     }
     return 1;
 }
