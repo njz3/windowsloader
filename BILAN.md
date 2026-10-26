@@ -757,6 +757,23 @@ essayé ici (plus de copie d'Initial D 7 ou 8).
 `RawDrive` vu en jeu le 25/10 : Wangan Midnight 5 en course, son retour de force mis à ON (148 trames de la
 carte servo Sega faites de la force, avec les lampes et `mame_start = wmmt5`).
 
+Le 26/10 (demandes 143 à 145) :
+- Onglet « Sorties et réseau » du menu (page 6 de l'agent) : l'état du serveur (port, clients), puis la liste
+  défilante de ce que le jeu peut envoyer, avec son type, sa dernière valeur et ce que c'est ; les cartes
+  déclarent leurs sorties en s'enregistrant, et les valeurs sont gardées même sans `OUTPUTS_NETWORK`. Vu dans
+  Mario Kart DX et SWDC.
+- Les lampes des cartes qui ne sont pas JVS, envoyées comme celles d'une carte JVS (`RawLamps`, `lamp<n>`), et
+  des valeurs nommées (« nom = valeur ») :
+  - SWDC ✅ : les 14 sorties de la carte IO4 (commande 04, dans amdaemon), passées au jeu par la mémoire
+    partagée des entrées ; `lamp0` (Start, semble-t-il) s'allume en attract et s'éteint à l'appui sur START,
+    vu par un client TCP.
+  - Mario Kart DX ✅ : les LED de la borne, commandes Namco 0x78, 0x79, 0x7A, 9 LED RVB chacune, 4 bits par
+    couleur → `led0_r` … `led26_b` (0-15, ordre des couleurs supposé) ; 81 valeurs vues dans le flux en attract.
+  - Wasteland Racers 2071 ⚠️ : `SetDigitalOut` → `lamp0..15` (le jeu n'est pas sur ce PC : pas essayé).
+  - Pas encore : Storm Racer G, Crazy Ride, GTI Club 3 (format des lampes dans leurs bibliothèques), la carte
+    LED 837-15070 de SWDC (une salve au démarrage en mode Cabinet seulement). Sega Rally 3, Daytona, GRID,
+    Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
+
 Pas encore vu : la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
 `RemoveDirectory` à travers le dossier d'écriture.
 
