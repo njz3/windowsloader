@@ -26,7 +26,11 @@
 //                              the window (0..255, the wheel's units) it holds the wheel in, s[5]
 //                              the mode (3 at start: 100, 0x7f..0x80, the centre)
 //   UsbIO_SetMoterVolt(v)      the motor's power, 0 (off) or 100
-// The lamps, the seat's shakes, the road and the collisions are logged only. usb_cam.dll (a camera
+//   UsbIO_SetLedLightStatu(s)  the 6 lamps, s[6] (bit n lamp n; usb_io.dll turns each on or off as
+//                              its bit changes, s[0]..s[5] are kept, not sent): the network outputs'
+//                              lamp0..lamp5
+//   UsbIO_SetPWMLightStatu(s)  the 6 PWM lights' brightness, s[0]..s[5] (0..255): pwm0..pwm5
+// The seat's shakes, the road and the collisions are logged only. usb_cam.dll (a camera
 // taking the players' pictures) is answered "not connected": the PC's own camera is never opened.
 // Which button is which is still to be seen in the game's test menu ("Button Testing").
 
@@ -42,6 +46,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "outputs.h"
 
 enum
 {
@@ -294,14 +299,21 @@ static void __cdecl io_SetRoadType(int type)
     first_call("UsbIO_SetRoadType");
 }
 
+#define SR_LAMPS 6
+static int g_pwmValue = -1; // pwm0's number in the network outputs
+
 static void __cdecl io_SetLedLightStatu(void *data)
 {
     first_call("UsbIO_SetLedLightStatu");
+    if (data)
+        wl_outputs_lamps(((const unsigned char *)data)[6], SR_LAMPS); // for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
 }
 
 static void __cdecl io_SetPWMLightStatu(void *data)
 {
     first_call("UsbIO_SetPWMLightStatu");
+    for (int i = 0; data && g_pwmValue >= 0 && i < SR_LAMPS; i++)
+        wl_outputs_value(g_pwmValue + i, ((const unsigned char *)data)[i]);
 }
 
 static int __cdecl io_SetLightState(void *data)
@@ -617,6 +629,16 @@ int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **t
     wl_log("game: %s", *title);
     wl_game_set_boards("Controls on USB I/O board (through usb_io.dll)", "Motor board: the same board (position servo: strength and window)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
+    wl_outputs_name_lamps("la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)", NULL, SR_LAMPS);
+    for (int i = 0; i < SR_LAMPS; i++)
+    {
+        char value[16], about[128];
+        snprintf(value, sizeof value, "pwm%d", i);
+        snprintf(about, sizeof about, "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255", i);
+        int v = wl_outputs_declare_value(value, "intensité (0-255)", about);
+        if (!i)
+            g_pwmValue = v;
+    }
     int n = 0;
     HMODULE exe = GetModuleHandleW(NULL);
     for (size_t i = 0; i < sizeof g_io / sizeof g_io[0]; i++)

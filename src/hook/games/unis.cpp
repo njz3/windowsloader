@@ -15,9 +15,10 @@
 // hardware is reached through Plugins\UsbPluginsDll_R.dll, whose BIND_* functions the game asks
 // one by one by GetProcAddress (its own import, +0x3abe90): the I/O board on a serial port (the
 // board's last frame, 17 bytes, BIND_GetIoData), a wheel of its own (angle, motor), coins,
-// lamps, a protection key ("SSNK"), and some that act on the PC itself (its clock, a restart,
-// deleting a folder, the sound volume, a ping). windowsloader gives the game its own functions
-// for those; the others (ini files, text conversions, the DLL's own state) stay the DLL's.
+// lights (to the network outputs too, below), a protection key ("SSNK"), and some that act on the PC
+// itself (its clock, a restart, deleting a folder, the sound volume, a ping). windowsloader gives
+// the game its own functions for those; the others (ini files, text conversions, the DLL's own
+// state) stay the DLL's.
 //
 // - The key: the game calls BIND_InitDongle, then BIND_IsDongleVerify with 8 fixed bytes
 //   (+0x1aa600; the DLL has the key compute on them and compares) and keeps only the answer:
@@ -39,6 +40,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "outputs.h"
 
 enum
 {
@@ -313,6 +315,117 @@ static int BIND_ICMPPing(const char *host, int *time)
     return -1;
 }
 
+// The cabinet's lights, read in UsbPluginsDll_R.dll: each function keeps its values and sends the
+// board's frame (+0xfc60): one bit a colour for SetBoxLight, SetEdgeLight, SetSideLight and
+// SetMachineSideLight (three each: red, green, blue, it seems), two bits for SetSpeedLight,
+// SetStopLight and SetBrakeLight, a byte's low bits for SetGameStateLight, and SetStartLightState.
+// They are kept here for the network outputs, then given to the DLL's own function
+enum
+{
+    LIGHT_BOX,
+    LIGHT_EDGE,
+    LIGHT_SIDE,
+    LIGHT_MACHINE_SIDE,
+    LIGHT_RGB_COUNT,
+    LIGHT_SPEED = 0,
+    LIGHT_STOP,
+    LIGHT_BRAKE,
+    LIGHT_GAME_STATE,
+    LIGHT_ONE_COUNT
+};
+static const char *const g_rgbLights[LIGHT_RGB_COUNT] = {"BoxLight", "EdgeLight", "SideLight", "MachineSideLight"};
+static const char *const g_oneLights[LIGHT_ONE_COUNT] = {"SpeedLight", "StopLight", "BrakeLight", "GameStateLight"};
+static int (*oRgbLight[LIGHT_RGB_COUNT])(int, int, int);
+static int (*oOneLight[LIGHT_ONE_COUNT])(int);
+static bool (*oStartLight)(bool);
+static int g_lightValue = -1; // BoxLight_r's number in the network outputs: the RGB lights, the others, Start
+
+static int rgb_light(int which, int r, int g, int b)
+{
+    if (g_lightValue >= 0)
+    {
+        wl_outputs_value(g_lightValue + which * 3, r);
+        wl_outputs_value(g_lightValue + which * 3 + 1, g);
+        wl_outputs_value(g_lightValue + which * 3 + 2, b);
+    }
+    return oRgbLight[which] ? oRgbLight[which](r, g, b) : 1;
+}
+
+static int one_light(int which, int value)
+{
+    if (g_lightValue >= 0)
+        wl_outputs_value(g_lightValue + LIGHT_RGB_COUNT * 3 + which, value);
+    return oOneLight[which] ? oOneLight[which](value) : 1;
+}
+
+static int BIND_SetBoxLight(int r, int g, int b)
+{
+    return rgb_light(LIGHT_BOX, r, g, b);
+}
+
+static int BIND_SetEdgeLight(int r, int g, int b)
+{
+    return rgb_light(LIGHT_EDGE, r, g, b);
+}
+
+static int BIND_SetSideLight(int r, int g, int b)
+{
+    return rgb_light(LIGHT_SIDE, r, g, b);
+}
+
+static int BIND_SetMachineSideLight(int r, int g, int b)
+{
+    return rgb_light(LIGHT_MACHINE_SIDE, r, g, b);
+}
+
+static int BIND_SetSpeedLight(int value)
+{
+    return one_light(LIGHT_SPEED, value);
+}
+
+static int BIND_SetStopLight(int value)
+{
+    return one_light(LIGHT_STOP, value);
+}
+
+static int BIND_SetBrakeLight(int value)
+{
+    return one_light(LIGHT_BRAKE, value);
+}
+
+static int BIND_SetGameStateLight(int value)
+{
+    return one_light(LIGHT_GAME_STATE, value);
+}
+
+static bool BIND_SetStartLightState(bool on)
+{
+    if (g_lightValue >= 0)
+        wl_outputs_value(g_lightValue + LIGHT_RGB_COUNT * 3 + LIGHT_ONE_COUNT, on);
+    return oStartLight ? oStartLight(on) : true;
+}
+
+static void lights_declare(void)
+{
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    char name[32], about[128];
+    for (int l = 0; l < LIGHT_RGB_COUNT; l++)
+        for (int c = 0; c < 3; c++)
+        {
+            snprintf(name, sizeof name, "%s_%s", g_rgbLights[l], colour[c]);
+            snprintf(about, sizeof about, "Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)", g_rgbLights[l], label[c]);
+            int v = wl_outputs_declare_value(name, "bit (0/1)", about);
+            if (!l && !c)
+                g_lightValue = v;
+        }
+    for (int l = 0; l < LIGHT_ONE_COUNT; l++)
+    {
+        snprintf(about, sizeof about, "Set%s (UsbPluginsDll_R.dll)%s", g_oneLights[l], l == LIGHT_GAME_STATE ? "" : ", deux bits");
+        wl_outputs_declare_value(g_oneLights[l], l == LIGHT_GAME_STATE ? "nombre" : "0 à 3", about);
+    }
+    wl_outputs_declare_value("StartLight", "bit (0/1)", "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)");
+}
+
 #define BIND(name) {#name, (void *)name}
 static const struct
 {
@@ -328,14 +441,37 @@ static const struct
     BIND(BIND_SHDeleteFolder),    BIND(BIND_SetSystemVolume),       BIND(BIND_ICMPPing),
 };
 
+// The lights: windowsloader's, the DLL's kept to be called after
+#define LIGHT(name, original) {#name, (void *)name, (void **)&original}
+static const struct
+{
+    const char *name;
+    void *fn;
+    void **original;
+} g_lights[] = {
+    LIGHT(BIND_SetBoxLight, oRgbLight[LIGHT_BOX]),     LIGHT(BIND_SetEdgeLight, oRgbLight[LIGHT_EDGE]),
+    LIGHT(BIND_SetSideLight, oRgbLight[LIGHT_SIDE]),   LIGHT(BIND_SetMachineSideLight, oRgbLight[LIGHT_MACHINE_SIDE]),
+    LIGHT(BIND_SetSpeedLight, oOneLight[LIGHT_SPEED]), LIGHT(BIND_SetStopLight, oOneLight[LIGHT_STOP]),
+    LIGHT(BIND_SetBrakeLight, oOneLight[LIGHT_BRAKE]), LIGHT(BIND_SetGameStateLight, oOneLight[LIGHT_GAME_STATE]),
+    LIGHT(BIND_SetStartLightState, oStartLight),
+};
+
 // The game's own GetProcAddress: UsbPluginsDll_R.dll's functions above are windowsloader's
 static FARPROC(WINAPI *oGetProcAddress)(HMODULE, LPCSTR);
 static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
 {
     if (mod && HIWORD((ULONG_PTR)name) && mod == GetModuleHandleA("UsbPluginsDll_R.dll"))
+    {
         for (size_t i = 0; i < sizeof g_binds / sizeof g_binds[0]; i++)
             if (!strcmp(name, g_binds[i].name))
                 return (FARPROC)g_binds[i].fn;
+        for (size_t i = 0; i < sizeof g_lights / sizeof g_lights[0]; i++)
+            if (!strcmp(name, g_lights[i].name))
+            {
+                *g_lights[i].original = (void *)oGetProcAddress(mod, name);
+                return (FARPROC)g_lights[i].fn;
+            }
+    }
     return oGetProcAddress(mod, name);
 }
 
@@ -351,6 +487,7 @@ int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
     wl_game_set_boards("Controls on UNIS I/O board (serial, through UsbPluginsDll_R.dll)",
                        "Motor board: UNIS wheel board (serial, 6-byte frames 55 a b c d sum, through UsbPluginsDll_R.dll)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
+    lights_declare();
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
         wl_log("game: UsbPluginsDll_R.dll's board, wheel, coins and key functions given by windowsloader");
     return 1;

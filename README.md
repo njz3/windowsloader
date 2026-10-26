@@ -157,12 +157,16 @@ start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `R
 sends to a Sega drive board; for the other boards, the Sega servo board's frames made from the force:
 80, 81, 83 once, then 84 the torque). A game's companion opens no server: the port is the game's.
 The lamps of boards that are not JVS ones go out the same way (`RawLamps`..., `lamp<n>`): Wasteland
-Racers 2071's SDC2 board (`SetDigitalOut`, `lamp0` to `lamp15`), SWDC's IO4 board (14 outputs,
-`lamp0` Start, passed on by amdaemon). Mario Kart Arcade GP DX's cabinet LEDs (Namco commands 0x78
-to 0x7A, 9 RGB LEDs each): `led0_r`, `led0_g`, `led0_b` ... `led26_b`, 0 to 15 (the colours' order
-supposed). Not yet: Storm Racer G, Crazy Ride and GTI Club 3 (their lamp data, in their libraries,
-not read yet), SWDC's LED board 837-15070 (only its start seen); the other games give their I/O
-board no lamps.
+Racers 2071's SDC2 board (`SetDigitalOut`, `lamp0` to `lamp15`, named after its `Inputs.xml`),
+SWDC's IO4 board (14 outputs, `lamp0` Start, passed on by amdaemon), Storm Racer G's USB board
+(`lamp0` to `lamp5`), GTI Club 3's HBHI board (`lamp0` to `lamp7`). Their other lights are values
+of their own: Storm Racer G's PWM lights `pwm0` to `pwm5` (0 to 255), GTI Club 3's brightness
+`bright0` to `bright7` (0 to 31), Crazy Ride's lights (`BoxLight_r`, `_g`, `_b`, `EdgeLight_...`,
+`SideLight_...`, `MachineSideLight_...`, 0 or 1; `SpeedLight`, `StopLight`, `BrakeLight`, 0 to 3;
+`GameStateLight`; `StartLight`), Mario Kart Arcade GP DX's cabinet LEDs (Namco commands 0x78 to
+0x7A, 9 RGB LEDs each): `led0_r`, `led0_g`, `led0_b` ... `led26_b`, 0 to 15 (the colours' order
+supposed, as Crazy Ride's). Not yet: SWDC's LED board 837-15070 (only its start seen); the other
+games give their I/O board no lamps.
 The menu's "Sorties et réseau" page lists the values the running game can send, with their type and
 their last value (kept even when `OUTPUTS_NETWORK` is off), and the server's state.
 

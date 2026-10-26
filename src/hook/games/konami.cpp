@@ -29,6 +29,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "outputs.h"
 #include "settings.h"
 
 enum
@@ -195,6 +196,75 @@ static void render_resolution(void)
         wl_log("  render resolution %dx%d (the game's own is 1360x768)", w, h);
 }
 
+// The lamps, read in libacio.dll: 8 lamps, a bit each. ac_io_hbhi_control_lamp_on and _off take a
+// mask (on and off kept only out of the brightness mode, ac_io_hbhi_control_lamp_mode 1; off puts
+// the lamps' brightness to 0 too), _bright a mask and a level 0..31 (more counts as 0). Kept here
+// for the network outputs (lamp0..lamp7, bright0..bright7), then given to libacio
+#define GTI_LAMPS 8
+static int(__cdecl *oLampOn)(int), (__cdecl *oLampOff)(int), (__cdecl *oLampMode)(int), (__cdecl *oLampBright)(int, int);
+static int g_lampMask, g_lampBrightMode, g_brightValue = -1;
+
+static void lamp_levels(int mask, int level)
+{
+    for (int i = 0; i < GTI_LAMPS && g_brightValue >= 0; i++)
+        if (mask >> i & 1)
+            wl_outputs_value(g_brightValue + i, level);
+}
+
+static int __cdecl lamp_on(int mask)
+{
+    if (!g_lampBrightMode)
+        g_lampMask |= mask & 0xFF;
+    wl_outputs_lamps((unsigned)g_lampMask, GTI_LAMPS); // for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
+    return oLampOn(mask);
+}
+
+static int __cdecl lamp_off(int mask)
+{
+    if (!g_lampBrightMode)
+        g_lampMask &= ~mask & 0xFF;
+    wl_outputs_lamps((unsigned)g_lampMask, GTI_LAMPS);
+    lamp_levels(mask, 0);
+    return oLampOff(mask);
+}
+
+static int __cdecl lamp_bright(int mask, int level)
+{
+    lamp_levels(mask, (unsigned char)level > 31 ? 0 : (unsigned char)level);
+    return oLampBright(mask, level);
+}
+
+static int __cdecl lamp_mode(int mode)
+{
+    if (mode == 0 || mode == 1)
+        g_lampBrightMode = mode;
+    return oLampMode(mode);
+}
+
+static void lamps_hook(void)
+{
+    HMODULE exe = GetModuleHandleW(NULL);
+    int n = (wl_patch_iat(exe, "libacio.dll", "ac_io_hbhi_control_lamp_on", (void *)lamp_on, (void **)&oLampOn) != 0) +
+            (wl_patch_iat(exe, "libacio.dll", "ac_io_hbhi_control_lamp_off", (void *)lamp_off, (void **)&oLampOff) != 0) +
+            (wl_patch_iat(exe, "libacio.dll", "ac_io_hbhi_control_lamp_bright", (void *)lamp_bright, (void **)&oLampBright) != 0) +
+            (wl_patch_iat(exe, "libacio.dll", "ac_io_hbhi_control_lamp_mode", (void *)lamp_mode, (void **)&oLampMode) != 0);
+    if (n != 4)
+    {
+        wl_log("gti club 3: %d of libacio's 4 lamp functions found, the lamps not sent", n);
+        return;
+    }
+    wl_outputs_name_lamps("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)", NULL, GTI_LAMPS);
+    for (int i = 0; i < GTI_LAMPS; i++)
+    {
+        char value[16], about[128];
+        snprintf(value, sizeof value, "bright%d", i);
+        snprintf(about, sizeof about, "Intensité de la lampe %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 à 31", i);
+        int v = wl_outputs_declare_value(value, "intensité (0-31)", about);
+        if (!i)
+            g_brightValue = v;
+    }
+}
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -223,6 +293,7 @@ int wl_game_konami(const wchar_t *exePath, const char **name, const char **title
     snprintf(to, sizeof to, "%sFUP", folder);
     wl_files_redirect("F:\\UP", to);
     wl_inputs_set_table(g_inputs, IN_COUNT);
+    lamps_hook();
     wl_display_set_internal_supported(1);
     wl_game_on_settings(render_resolution);
 

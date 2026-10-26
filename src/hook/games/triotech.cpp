@@ -214,6 +214,8 @@ static int __cdecl sdc_SetDGain(unsigned short gain)
     return 0;
 }
 
+#define TT_LAMPS 16 // SetDigitalOut's bits
+
 static int __cdecl sdc_SetDigitalOut(unsigned short lamps)
 {
     static unsigned short was = 0xFFFF;
@@ -224,7 +226,7 @@ static int __cdecl sdc_SetDigitalOut(unsigned short lamps)
             wl_log("trio tech: lamps 0x%04x", lamps);
         was = lamps;
     }
-    wl_outputs_lamps(lamps, 16); // lamp0..lamp15, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
+    wl_outputs_lamps(lamps, TT_LAMPS); // lamp0..lamp15, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
     return 0;
 }
 
@@ -302,6 +304,35 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
     return oGetProcAddress(mod, name);
 }
 
+// The lamps' names, for the menu: Inputs.xml's DigitalOutputs (<string name="Output1"
+// value="BOOST"/>: bit 1), those UNUSED left out. The copy on racecab1: 1 BOOST, 2 CAMERA, 3 CHEAT1,
+// 4 ACTIVEBOOST, 10 BRAKES
+static char g_lampText[TT_LAMPS][32];
+static const char *g_lampNames[TT_LAMPS];
+
+static void read_lamp_names(const wchar_t *file)
+{
+    FILE *f = NULL;
+    if (_wfopen_s(&f, file, L"rb") || !f)
+        return;
+    static char text[32768];
+    size_t n = fread(text, 1, sizeof text - 1, f);
+    fclose(f);
+    text[n] = 0;
+    const char *outputs = strstr(text, "\"DigitalOutputs\"");
+    for (int i = 0; outputs && i < TT_LAMPS; i++)
+    {
+        char key[24];
+        snprintf(key, sizeof key, "\"Output%d\"", i); // with its quotes: Output1 is not Output10
+        const char *p = strstr(outputs, key), *end;
+        if (!p || !(p = strstr(p, "value=\"")) || !(end = strchr(p += 7, '"')) || end == p || end - p >= 32)
+            continue;
+        snprintf(g_lampText[i], sizeof g_lampText[i], "%.*s", (int)(end - p), p);
+        if (_stricmp(g_lampText[i], "UNUSED"))
+            g_lampNames[i] = g_lampText[i];
+    }
+}
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -324,7 +355,10 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
                        "Motor board: Trio Tech SDC2 board (position servo: stiffness and target)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_joystick);
-    wl_outputs_name_lamps("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)", NULL, 16);
+    wchar_t inputs[MAX_PATH];
+    swprintf(inputs, MAX_PATH, L"%sInputs.xml", dir);
+    read_lamp_names(inputs);
+    wl_outputs_name_lamps("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)", g_lampNames, TT_LAMPS);
     // The cabinets elect a host by broadcast on UDP 2070 ("Finding Server..."): alone, it hears itself
     wl_system_loopback_broadcast(1);
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
