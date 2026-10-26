@@ -769,10 +769,18 @@ Le 26/10 (demandes 143 à 145) :
     vu par un client TCP.
   - Mario Kart DX ✅ : les LED de la borne, commandes Namco 0x78, 0x79, 0x7A, 9 LED RVB chacune, 4 bits par
     couleur → `led0_r` … `led26_b` (0-15, ordre des couleurs supposé) ; 81 valeurs vues dans le flux en attract.
-  - Wasteland Racers 2071 ⚠️ : `SetDigitalOut` → `lamp0..15` (le jeu n'est pas sur ce PC : pas essayé).
-  - Pas encore : Storm Racer G, Crazy Ride, GTI Club 3 (format des lampes dans leurs bibliothèques), la carte
-    LED 837-15070 de SWDC (une salve au démarrage en mode Cabinet seulement). Sega Rally 3, Daytona, GRID,
-    Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
+  - Wasteland Racers 2071 ⚠️ : `SetDigitalOut` → `lamp0..15`, nommées d'après l'`Inputs.xml` du jeu (1 BOOST,
+    2 CAMERA, 3 CHEAT1, 4 ACTIVEBOOST, 10 BRAKES sur la copie de racecab1).
+  - Storm Racer G ⚠️ (lu dans `usb_io.dll`) : `UsbIO_SetLedLightStatu`, octet 6 = 6 lampes → `lamp0..5` ;
+    `UsbIO_SetPWMLightStatu`, 6 intensités → `pwm0..5` (0-255).
+  - Crazy Ride ⚠️ (lu dans `UsbPluginsDll_R.dll`) : `BIND_SetBoxLight`, `SetEdgeLight`, `SetSideLight`,
+    `SetMachineSideLight` (3 bits chacune) → `…_r`, `_g`, `_b` ; `SetSpeedLight`, `SetStopLight`,
+    `SetBrakeLight` (0-3), `SetGameStateLight`, `SetStartLightState` ; la fonction de la DLL appelée ensuite.
+  - GTI Club 3 ⚠️ (lu dans `libacio.dll`) : `ac_io_hbhi_control_lamp_on` / `_off` (8 lampes) → `lamp0..7`,
+    `_bright` (0-31) → `bright0..7`, `_mode` suivi ; libacio appelée ensuite.
+  - ⚠️ = pas essayé en jeu : ces jeux ne sont pas sur ce PC (bibliothèques copiées de racecab1 pour les lire).
+  - Pas encore : la carte LED 837-15070 de SWDC (une salve au démarrage en mode Cabinet seulement). Sega Rally 3,
+    Daytona, GRID, Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
 
 Pas encore vu : la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
 `RemoveDirectory` à travers le dossier d'écriture.
