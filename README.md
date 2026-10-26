@@ -105,6 +105,16 @@ start it again), `HOLD_GEAR = true` to keep the gear engaged once the lever is l
 Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
 default; the game's test menu has no coin settings, the cabinet's system menu has them).
 
+Mario Kart Arcade GP DX (`[Game.mkdx]`, 1.18 and 1.10), cabinets linked over the PC's network:
+`LINK = 192.168.1.21,192.168.1.22` lists the cabinets' PCs (up to 4, cabinet 1 first), the same
+line on each; `CABINET = 0` finds each cabinet's number from its PC's address in that list (or
+`CABINET = 2`). The game sees the cabinets' network it knows (cabinet N at 192.168.112.(10+N)); its
+UDP packets (ports 20199 and 20100) go between the listed PCs only, which the Windows firewall
+must let in (`MK_AGP3_FINAL.exe`). As on the real cabinets, each one's PCB-ID must differ (1 to 4,
+test menu, ゲーム設定 → 基板ID, 1.10: Game options → Board ID; Enter, selector, Enter): E24-03
+« 基板ID重複エラー » otherwise.
+Without `LINK` the cabinet plays alone.
+
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,
 `EMULATE_DRIVEBOARD = false` with `SERIAL_<n>_PATH` for the game's other emulated ports (its

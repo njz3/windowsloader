@@ -719,25 +719,35 @@ static void bngrw_patch(void)
 // it, reads it and checks it, then fills the cabinet's information (0x628 bytes) the boot check's
 // "drive cabinet" step reads (+0x207c50): at +0x428 the key's 12 digits, "2710" the game, a digit,
 // a digit of 0..3, 4 or 9, "02", 4 digits. Answered as a present and verified key, as linuxloader
-// answers its games' keys: the information filled with such a number, nothing else.
+// answers its games' keys: the information filled with such a number, nothing else. Its last digit
+// is the cabinet's number in the link (below), each cabinet its own key.
+static int g_cabinet = 1; // the cabinet's number in the link, 1..4
+
 static int __cdecl cabinet_key(void *info)
 {
     memset(info, 0, 0x628);
-    wcscpy_s((wchar_t *)((char *)info + 0x428), 13, L"271011020001");
+    wchar_t id[13];
+    swprintf(id, 13, L"27101102000%d", g_cabinet);
+    wcscpy_s((wchar_t *)((char *)info + 0x428), 13, id);
     static int logged;
     if (!logged++)
-        wl_log("namco: the cabinet's security key, emulated: present, verified (271011020001)");
+        wl_log("namco: the cabinet's security key, emulated: present, verified (%S)", id);
     return 1;
 }
 
 // The cabinets' network: the boot check's link step (+0x31cb20) wants the cabinet's address in
 // 192.168.112.11..20 (errors 0x11, 0x13 otherwise) and a gateway (error 0x10); the address is the
 // last interface in 192.168. that WSAIoctl(SIO_GET_INTERFACE_LIST) gives (+0x31c3c0), the gateway
-// GetAdaptersInfo's. The game's own calls (its imports) see one interface, the first cabinet's
-// 192.168.112.11 behind 192.168.112.1; the PC's network is left as it is (the game's attempts to
-// change it, ipconfig and routes, are refused by system.cpp).
-#define CABINET_ADDRESS 0x0B70A8C0u // 192.168.112.11, in network order
-#define CABINET_MASK 0x00FFFFFFu    // 255.255.255.0
+// GetAdaptersInfo's. The game's own calls (its imports) see one interface, cabinet N's
+// 192.168.112.(10 + N) behind 192.168.112.1; the PC's network is left as it is (the game's attempts
+// to change it, ipconfig and routes, are refused by system.cpp).
+#define CABINET_NET 0x0070A8C0u  // 192.168.112.0, in network order
+#define CABINET_MASK 0x00FFFFFFu // 255.255.255.0
+
+static ULONG cabinet_address(int n)
+{
+    return CABINET_NET | (ULONG)(10 + n) << 24;
+}
 
 struct WlInterfaceInfo // INTERFACE_INFO, 76 bytes
 {
@@ -782,14 +792,14 @@ static int WINAPI cabinet_WSAIoctl(UINT_PTR s, DWORD code, void *in, DWORD inSiz
     WlInterfaceInfo *i = (WlInterfaceInfo *)out;
     i->flags = 1 | 2;
     i->address.family = i->broadcast.family = i->mask.family = 2; // AF_INET
-    i->address.address = CABINET_ADDRESS;
+    i->address.address = cabinet_address(g_cabinet);
     i->broadcast.address = 0xFFFFFFFFu;
     i->mask.address = CABINET_MASK;
     if (returned)
         *returned = sizeof(WlInterfaceInfo);
     static int logged;
     if (!logged++)
-        wl_log("namco: the cabinet's network interface given to the game: 192.168.112.11/24");
+        wl_log("namco: the cabinet's network interface given to the game: 192.168.112.%d/24", 10 + g_cabinet);
     return 0;
 }
 
@@ -806,12 +816,12 @@ static ULONG WINAPI cabinet_GetAdaptersInfo(void *info, ULONG *size)
     memset(a, 0, sizeof *a);
     strcpy_s(a->name, sizeof a->name, "{00000000-0000-0000-0000-000000000011}");
     strcpy_s(a->description, sizeof a->description, "Cabinet network (windowsloader)");
-    static const BYTE mac[6] = {0x00, 0xD0, 0xF1, 0x01, 0x02, 0x11};
+    const BYTE mac[6] = {0x00, 0xD0, 0xF1, 0x01, 0x02, (BYTE)(0x10 + g_cabinet)};
     a->addressLength = 6;
     memcpy(a->mac, mac, 6);
     a->index = 11;
     a->type = 6; // MIB_IF_TYPE_ETHERNET
-    strcpy_s(a->ipAddressList.address, 16, "192.168.112.11");
+    snprintf(a->ipAddressList.address, 16, "192.168.112.%d", 10 + g_cabinet);
     strcpy_s(a->ipAddressList.mask, 16, "255.255.255.0");
     strcpy_s(a->gatewayList.address, 16, "192.168.112.1");
     strcpy_s(a->gatewayList.mask, 16, "255.255.255.255");
@@ -831,8 +841,13 @@ static DWORD WINAPI cabinet_route(void *row)
 }
 
 // And pings the cabinets' router, 192.168.112.254 (+0x31c9c0, 4 tries of 100 ms), wanting its data
-// back: the router and the cabinet itself answer; any other address is a time-out, nothing is sent
+// back: the router, the cabinet itself and the other cabinets of the link answer; any other address
+// is a time-out, nothing is sent
 #define CABINET_ROUTER 0xFE70A8C0u // 192.168.112.254, in network order
+
+#define LINK_MAX 4
+static int g_linkCount;                // the cabinets of the link, 0: alone
+static ULONG g_linkAddress[LINK_MAX]; // their real addresses, cabinet 1's first, network order
 
 struct WlEchoReply // ICMP_ECHO_REPLY
 {
@@ -849,7 +864,9 @@ struct WlEchoReply // ICMP_ECHO_REPLY
 static DWORD WINAPI cabinet_IcmpSendEcho(HANDLE icmp, ULONG to, void *data, WORD size, void *options, void *reply, DWORD replySize, DWORD timeout)
 {
     static int logged;
-    if ((to != CABINET_ROUTER && to != CABINET_ADDRESS) || !reply || replySize < sizeof(WlEchoReply) + size) // the game gives no more
+    int cabinet = (to & CABINET_MASK) == CABINET_NET ? (int)(to >> 24) - 10 : 0;
+    int known = to == CABINET_ROUTER || cabinet == g_cabinet || (cabinet >= 1 && cabinet <= g_linkCount);
+    if (!known || !reply || replySize < sizeof(WlEchoReply) + size) // the game gives no more
     {
         if (logged++ < 10)
             wl_log("namco: ping %lu.%lu.%lu.%lu: no answer (the cabinets' network is the router and this cabinet)", to & 0xFF, to >> 8 & 0xFF,
@@ -895,6 +912,233 @@ static int __cdecl cabinet_offline_limit(void)
         wl_log("namco: the offline time limit taken as not reached");
     return 0;
 }
+
+// The link, up to 4 cabinets on UDP 20199 (+0x318c40, its sockets' only sendto and recvfrom): each
+// cabinet broadcasts "MK3" 0x12 0x10, its mode, its group and its PCB-ID - 1, about every 10 s
+// (+0x319280); one heard from the cabinets' network (the sender's address) is a cabinet of the link,
+// its packets sent to that address on UDP 20100 + its group. The PCB-ID (1..4) is the game's own
+// setting, in its test menu: two cabinets with the same, error E24-03 "PCB ID already in use" (as on
+// the cabinets). Its number for windowsloader is [Game.mkdx] CABINET, its address 192.168.112.(10 +
+// N); LINK lists the cabinets' real addresses (cabinet 1's first), the game's packets carried
+// between them:
+//   bind 0.0.0.0 or its own address       -> its real address, the same port
+//   bind another cabinet's address        -> refused, as on the cabinet (not its address)
+//   sendto 255.255.255.255, 192.168.112.255 -> each cabinet's real address, its own too
+//   sendto 192.168.112.(10 + N)           -> cabinet N's real address; the other .112 dropped
+//   recvfrom cabinet N's real address     -> from 192.168.112.(10 + N); any other not heard
+// Without LINK the cabinet is alone, as before: its broadcast heard from 127.0.0.1 (system.cpp).
+// A link on one PC (a test): LINK = 127.0.0.1,127.0.0.2, each game its CABINET.
+static int(WSAAPI *olink_bind)(SOCKET, const sockaddr *, int);
+static int(WSAAPI *olink_sendto)(SOCKET, const char *, int, int, const sockaddr *, int);
+static int(WSAAPI *olink_recvfrom)(SOCKET, char *, int, int, sockaddr *, int *);
+
+// A function of ws2_32's, imported by its number (the game's) or by its name
+static int patch_ws2(HMODULE exe, int ordinal, const char *name, void *fn, void **original)
+{
+    return wl_patch_iat(exe, "WS2_32.dll", (const char *)(ULONG_PTR)ordinal, fn, original) || wl_patch_iat(exe, "WS2_32.dll", name, fn, original);
+}
+
+static void link_log(const char *what, const sockaddr_in *a, const sockaddr_in *to, int r, DWORD err, const char *data = NULL)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) > 200)
+        return;
+    const unsigned char *b = (const unsigned char *)&a->sin_addr, *c = (const unsigned char *)&to->sin_addr;
+    char hex[3 * 8 + 1] = "";
+    for (int i = 0; data && i < r && i < 8; i++)
+        snprintf(hex + 3 * i, sizeof hex - 3 * i, "%02x ", (unsigned char)data[i]);
+    wl_log("namco: link %s %u.%u.%u.%u:%u -> %u.%u.%u.%u: %d (%lu) %s", what, b[0], b[1], b[2], b[3], ntohs(a->sin_port), c[0], c[1], c[2],
+           c[3], r, r < 0 ? err : 0, hex);
+}
+
+static int WSAAPI link_bind(SOCKET s, const sockaddr *a, int len)
+{
+    if (!g_linkCount || !a || len < (int)sizeof(sockaddr_in) || a->sa_family != AF_INET)
+        return olink_bind(s, a, len);
+    sockaddr_in to;
+    memcpy(&to, a, sizeof to);
+    ULONG ip = to.sin_addr.s_addr;
+    if (ip != INADDR_ANY && ip != cabinet_address(g_cabinet))
+    {
+        if ((ip & CABINET_MASK) != CABINET_NET)
+            return olink_bind(s, a, len);
+        link_log("bind refused", &to, &to, -1, WSAEADDRNOTAVAIL);
+        WSASetLastError(WSAEADDRNOTAVAIL);
+        return SOCKET_ERROR;
+    }
+    to.sin_addr.s_addr = g_linkAddress[g_cabinet - 1];
+    wl_busy_enter(); // the cabinet's real address: not refused by system.cpp
+    int r = olink_bind(s, (const sockaddr *)&to, sizeof to);
+    DWORD err = WSAGetLastError();
+    wl_busy_leave();
+    link_log("bind", (const sockaddr_in *)a, &to, r, err);
+    WSASetLastError(err);
+    return r;
+}
+
+static int WSAAPI link_sendto(SOCKET s, const char *buf, int n, int flags, const sockaddr *a, int len)
+{
+    if (!g_linkCount || !a || len < (int)sizeof(sockaddr_in) || a->sa_family != AF_INET)
+        return olink_sendto(s, buf, n, flags, a, len);
+    sockaddr_in to;
+    memcpy(&to, a, sizeof to);
+    ULONG ip = to.sin_addr.s_addr;
+    int first, last;
+    if (ip == INADDR_BROADCAST || ip == (CABINET_NET | ~CABINET_MASK))
+        first = 0, last = g_linkCount - 1;
+    else if ((ip & CABINET_MASK) == CABINET_NET)
+    {
+        int cabinet = (int)(ip >> 24) - 10;
+        if (cabinet < 1 || cabinet > g_linkCount)
+            return n; // no such cabinet
+        first = last = cabinet - 1;
+    }
+    else
+        return olink_sendto(s, buf, n, flags, a, len);
+    wl_busy_enter();
+    // Sent from the cabinet's real address (a socket not bound yet is bound to it): a link on one
+    // PC tells its games apart by it
+    sockaddr_in self;
+    int selfLen = sizeof self;
+    if (getsockname(s, (sockaddr *)&self, &selfLen) && WSAGetLastError() == WSAEINVAL)
+    {
+        memset(&self, 0, sizeof self);
+        self.sin_family = AF_INET;
+        self.sin_addr.s_addr = g_linkAddress[g_cabinet - 1];
+        bind(s, (const sockaddr *)&self, sizeof self);
+    }
+    int r = n;
+    DWORD err = 0;
+    for (int i = first; i <= last; i++)
+    {
+        to.sin_addr.s_addr = g_linkAddress[i];
+        int sent = olink_sendto(s, buf, n, flags, (const sockaddr *)&to, sizeof to);
+        if (sent < 0 && first == last)
+            r = sent, err = WSAGetLastError();
+        static volatile LONG logged[LINK_MAX];
+        if (InterlockedIncrement(&logged[i]) <= 20)
+            link_log("sendto", (const sockaddr_in *)a, &to, sent, WSAGetLastError(), buf);
+    }
+    wl_busy_leave();
+    WSASetLastError(err);
+    return r;
+}
+
+static int WSAAPI link_recvfrom(SOCKET s, char *buf, int n, int flags, sockaddr *from, int *fromLen)
+{
+    int r = olink_recvfrom(s, buf, n, flags, from, fromLen);
+    if (!g_linkCount || r < 0 || !from || !fromLen || *fromLen < (int)sizeof(sockaddr_in) || from->sa_family != AF_INET)
+        return r;
+    sockaddr_in *f = (sockaddr_in *)from;
+    for (int i = 0; i < g_linkCount; i++)
+        if (f->sin_addr.s_addr == g_linkAddress[i])
+        {
+            sockaddr_in real = *f;
+            f->sin_addr.s_addr = cabinet_address(i + 1);
+            static volatile LONG logged[LINK_MAX];
+            if (InterlockedIncrement(&logged[i]) <= 20)
+                link_log("recvfrom", &real, f, r, 0, buf);
+            return r;
+        }
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 10)
+        link_log("recvfrom, not a cabinet's: not heard", f, f, r, 0);
+    WSASetLastError(WSAEWOULDBLOCK);
+    return SOCKET_ERROR;
+}
+
+// A link on one PC: the game runs once per PC (its mutex "MKAGP3", +0x36f000); each cabinet's game
+// has its own then
+static int link_on_this_pc(void)
+{
+    return g_linkCount && (g_linkAddress[g_cabinet - 1] & 0xFF) == 127;
+}
+
+static HANDLE(WINAPI *olink_CreateMutexA)(LPSECURITY_ATTRIBUTES, BOOL, LPCSTR);
+static HANDLE WINAPI link_CreateMutexA(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPCSTR name)
+{
+    if (!link_on_this_pc() || !name || strcmp(name, "MKAGP3"))
+        return olink_CreateMutexA(sa, owner, name);
+    char own[16];
+    snprintf(own, sizeof own, "MKAGP3-%d", g_cabinet);
+    wl_log("namco: link on this PC: the game's mutex %s", own);
+    return olink_CreateMutexA(sa, owner, own);
+}
+
+static HANDLE(WINAPI *olink_CreateMutexW)(LPSECURITY_ATTRIBUTES, BOOL, LPCWSTR);
+static HANDLE WINAPI link_CreateMutexW(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPCWSTR name)
+{
+    if (!link_on_this_pc() || !name || wcscmp(name, L"MKAGP3"))
+        return olink_CreateMutexW(sa, owner, name);
+    wchar_t own[16];
+    swprintf(own, 16, L"MKAGP3-%d", g_cabinet);
+    wl_log("namco: link on this PC: the game's mutex %S", own);
+    return olink_CreateMutexW(sa, owner, own);
+}
+
+// The link's settings: LINK's addresses, CABINET the cabinet's number (0: the first of LINK's
+// addresses that is this PC's)
+static void mkdx_settings(void)
+{
+    char list[256];
+    wl_game_option("LINK", list, sizeof list);
+    g_cabinet = wl_game_option_int("CABINET");
+    for (char *p = strtok(list, ",; "); p && g_linkCount < LINK_MAX; p = strtok(NULL, ",; "))
+    {
+        unsigned b[4];
+        char end;
+        if (sscanf_s(p, "%u.%u.%u.%u%c", &b[0], &b[1], &b[2], &b[3], &end, 1) != 4 || b[0] > 255 || b[1] > 255 || b[2] > 255 || b[3] > 255 ||
+            !b[0])
+            wl_log("namco: link: \"%s\" is not an address, left out", p);
+        else
+            g_linkAddress[g_linkCount++] = b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24;
+    }
+    if (g_linkCount && g_cabinet < 1)
+    {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+        wl_busy_enter();
+        for (int i = 0; i < g_linkCount && g_cabinet < 1; i++)
+        {
+            SOCKET t = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+            sockaddr_in a = {};
+            a.sin_family = AF_INET;
+            a.sin_addr.s_addr = g_linkAddress[i];
+            if (t != INVALID_SOCKET && !bind(t, (const sockaddr *)&a, sizeof a))
+                g_cabinet = i + 1;
+            closesocket(t);
+        }
+        wl_busy_leave();
+        WSACleanup();
+        if (g_cabinet < 1)
+        {
+            wl_log("namco: link: none of LINK's addresses is this PC's (CABINET not set): the cabinet stays alone");
+            g_linkCount = 0;
+        }
+    }
+    if (g_cabinet < 1 || g_cabinet > LINK_MAX || (g_linkCount && g_cabinet > g_linkCount))
+    {
+        if (g_linkCount)
+            wl_log("namco: link: CABINET %d is not one of LINK's %d addresses: the cabinet stays alone", g_cabinet, g_linkCount);
+        g_cabinet = g_cabinet >= 1 && g_cabinet <= LINK_MAX ? g_cabinet : 1;
+        g_linkCount = 0;
+    }
+    if (g_linkCount)
+    {
+        ULONG ip = g_linkAddress[g_cabinet - 1];
+        wl_log("namco: link: cabinet %d of %d (192.168.112.%d), its real address %lu.%lu.%lu.%lu", g_cabinet, g_linkCount, 10 + g_cabinet,
+               ip & 0xFF, ip >> 8 & 0xFF, ip >> 16 & 0xFF, ip >> 24);
+    }
+    else
+        wl_log("namco: cabinet %d (192.168.112.%d), alone", g_cabinet, 10 + g_cabinet);
+}
+
+static const WlGameOption g_mkdxOptions[] = {
+    {"CABINET", "Numéro de la borne (link)",
+     "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+     "dans le fichier).",
+     WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL},
+};
 
 // ------------------------------------------------------------------------------
 // System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014) and 5 DX+ (the
@@ -1464,9 +1708,17 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         bngrw_patch();
     }
     // The boot check's link step looks for the other cabinets by broadcast on UDP 20199: alone, the
-    // cabinet hears itself (nothing leaves the PC)
+    // cabinet hears itself (nothing leaves the PC); linked, its packets go to the other cabinets
     wl_system_loopback_broadcast(1);
+    wl_game_set_options(g_mkdxOptions, (int)(sizeof g_mkdxOptions / sizeof g_mkdxOptions[0]));
+    wl_game_on_settings(mkdx_settings);
+    if (!patch_ws2((HMODULE)exe, 2, "bind", (void *)link_bind, (void **)&olink_bind) ||
+        !patch_ws2((HMODULE)exe, 20, "sendto", (void *)link_sendto, (void **)&olink_sendto) ||
+        !patch_ws2((HMODULE)exe, 17, "recvfrom", (void *)link_recvfrom, (void **)&olink_recvfrom))
+        wl_log("namco: bind, sendto or recvfrom not in the import table: no link");
     void *was;
+    wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "CreateMutexA", (void *)link_CreateMutexA, (void **)&olink_CreateMutexA);
+    wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "CreateMutexW", (void *)link_CreateMutexW, (void **)&olink_CreateMutexW);
     if (wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSAIoctl", (void *)cabinet_WSAIoctl, (void **)&oWSAIoctl) &&
         wl_patch_iat((HMODULE)exe, "IPHLPAPI.DLL", "GetAdaptersInfo", (void *)cabinet_GetAdaptersInfo, &was))
         wl_log("game: the cabinets' network shown to the game (192.168.112.11, gateway 192.168.112.1)");
