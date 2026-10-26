@@ -69,7 +69,7 @@ const WlKnownGame g_wlKnownGames[] = {
      "E/S et volant UNIS, clé de la borne."},
     {"Storm Racer G", {L"racing.exe"}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
      "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."},
-    {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, NULL, "Sega ALLS (64 bits)", "", WL_GAME_PARTLY,
+    {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, L"-windowed", "Sega ALLS (64 bits)", "", WL_GAME_PARTLY,
      "Plateforme ALLS (amdaemon), borne seule (-launch=MiniCabinet) ; ALL.Net, Aime et le serveur de titre joués sur ce "
      "PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Restent le "
      "serveur de matching (GAME SERVER BAD, pas de course en réseau) et la carte LED."},
