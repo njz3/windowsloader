@@ -29,7 +29,7 @@
 //                          stiffness and the position it holds the wheel at (FFBArcadePlugin's
 //                          WastelandRacers2071.cpp plays them as a spring of SetForce / 32768 and a
 //                          force of SetSteeringPos / 128000)
-//   SetDigitalOut(word)    the lamps (Inputs.xml's DigitalOutputs)
+//   SetDigitalOut(word)    the lamps (Inputs.xml's DigitalOutputs): bit n is the network outputs' lamp<n>
 
 #include <windows.h>
 #include <stdio.h>
@@ -41,6 +41,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "outputs.h"
 #include "vdinput.h"
 
 enum
@@ -223,6 +224,7 @@ static int __cdecl sdc_SetDigitalOut(unsigned short lamps)
             wl_log("trio tech: lamps 0x%04x", lamps);
         was = lamps;
     }
+    wl_outputs_lamps(lamps, 16); // lamp0..lamp15, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
     return 0;
 }
 
@@ -322,6 +324,7 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
                        "Motor board: Trio Tech SDC2 board (position servo: stiffness and target)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_joystick);
+    wl_outputs_name_lamps("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)", NULL, 16);
     // The cabinets elect a host by broadcast on UDP 2070 ("Finding Server..."): alone, it hears itself
     wl_system_loopback_broadcast(1);
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))

@@ -33,6 +33,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "outputs.h"
 #include "vdev.h"
 #include "vhid.h"
 
@@ -292,14 +293,21 @@ static void put16(unsigned char *p, unsigned v)
 
 // The inputs are the game's process's (its controllers, the agent, the settings menu): it copies them
 // every 2 ms into a shared memory that amdaemon's board reads; without the game there (amdaemon
-// alone), the board reads amdaemon's own table
+// alone), the board reads amdaemon's own table. The lamps go the other way: amdaemon's board writes
+// them there, the game's process sends them to the network outputs
 #define SHARED_INPUTS L"Local\\windowsloader-alls-inputs"
 
 struct SharedInputs
 {
     volatile LONG writer; // the game's process id, 0 before it writes
     volatile LONG raw[IN_COUNT];
+    volatile LONG lamps; // the board's general outputs, command 04's first 4 bytes (byte 0 in bits 0-7)
 };
+
+// The 14 general outputs ("GOUT=14"), as a JVS board's: lamp n is bit 7 - n % 8 of byte n / 8.
+// In the attract mode the game lights lamp 0 and puts it out as Start is pressed: Start's, it seems
+#define IO4_LAMPS 14
+static const char *const g_io4LampNames[IO4_LAMPS] = {"Start (semble-t-il)"};
 
 static SharedInputs *g_shared;
 
@@ -325,6 +333,9 @@ static DWORD WINAPI inputs_writer(void *unused)
     {
         for (int i = 0; i < IN_COUNT; i++)
             InterlockedExchange(&s->raw[i], (LONG)wl_input_get(&g_inputs[i]));
+        unsigned lamps = (unsigned)s->lamps;
+        for (int i = 0; i * 8 < IO4_LAMPS; i++)
+            wl_outputs_gpo(i, (unsigned char)(lamps >> 8 * i)); // for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
         Sleep(2);
     }
 }
@@ -373,7 +384,15 @@ static void io4_output(const unsigned char *r, int length)
     case 0x03: // board status cleared
         g_io4Status = 0x00;
         break;
-    default: // 04 lamps, 05 PWM, 41 unique outputs: not shown yet
+    case 0x04: // the general outputs (lamps), to the game's process
+        if (length >= 6)
+        {
+            SharedInputs *s = g_shared ? g_shared : shared_inputs();
+            if (s)
+                InterlockedExchange(&s->lamps, (LONG)(r[2] | r[3] << 8 | r[4] << 16 | (unsigned)r[5] << 24));
+        }
+        break;
+    default: // 05 PWM, 41 unique outputs: not shown yet
         break;
     }
 }
@@ -926,6 +945,7 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_registry_add_key("HARDWARE\\DEVICEMAP", NULL, 0);
         wl_registry_add_key("HARDWARE\\DEVICEMAP\\SERIALCOMM", ports, 3);
         wl_inputs_set_table(g_inputs, IN_COUNT);
+        wl_outputs_name_lamps("la carte d'E/S IO4 837-15257, via amdaemon", g_io4LampNames, IO4_LAMPS);
         CloseHandle(CreateThread(NULL, 0, inputs_writer, NULL, 0, NULL));
     }
     return 1;

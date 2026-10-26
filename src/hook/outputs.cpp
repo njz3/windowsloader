@@ -25,6 +25,8 @@
 // sent as the Sega servo board's frames, as linuxloader does for Dead Heat's and Gaelco's boards:
 // 80 00 01 (effects on), 81 7F 7F (no cap), 83 7F 00 (full gain) once, then 84 the torque, centred
 // on 0x80, on 14 bits.
+// The values are kept even when they are not sent: the menu's "Sorties et réseau" page lists those
+// the game can send (the boards declare them as they are registered) with their last value.
 
 #include <winsock2.h>
 #include <windows.h>
@@ -50,9 +52,28 @@ struct Client
     size_t used;
 };
 
-static volatile LONG g_on; // asked for: the values are kept and sent
+static volatile LONG g_on;        // asked for: the values are sent
+static volatile LONG g_lockReady; // the values are kept from the start, for the menu, sent or not
+static volatile LONG g_listening; // the server listens
+static volatile LONG g_clientCount;
 static HANDLE g_thread;
 static CRITICAL_SECTION g_lock;
+static int g_lampOutputs;  // declared: the JVS board's general purpose outputs
+static int g_driveDeclared; // declared: a Sega drive board's own bytes
+static const char *g_lampBoard = "la carte JVS";
+static const char *const *g_lampNames;
+
+// The game's own values (wl_outputs_declare_value)
+#define OUT_VALUES 160
+struct Value
+{
+    char name[32];
+    const char *type;
+    char about[128];
+    int value, known;
+};
+static Value g_values[OUT_VALUES];
+static volatile LONG g_valueCount;
 static char g_game[64];
 static int g_tcpPort, g_udpPort;
 static Client g_clients[OUT_CLIENTS]; // the server thread's
@@ -141,13 +162,23 @@ static size_t build_state(char *out, size_t size)
         if (n > 0)
             used += (size_t)n;
     }
+    for (int i = 0; i < g_valueCount && used < size; i++)
+        if (g_values[i].known)
+        {
+            n = snprintf(out + used, size - used, "%s = %d\r", g_values[i].name, g_values[i].value);
+            if (n > 0)
+                used += (size_t)n;
+        }
     return used < size ? used : size;
 }
 
 static void close_client(Client *c)
 {
     if (c->socket != INVALID_SOCKET)
+    {
         closesocket(c->socket);
+        InterlockedDecrement(&g_clientCount);
+    }
     c->socket = INVALID_SOCKET;
     c->used = 0;
 }
@@ -222,7 +253,8 @@ static void accept_clients(SOCKET listener)
         setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&noDelay, sizeof noDelay);
         c->socket = s;
         c->used = 0;
-        char state[2048];
+        InterlockedIncrement(&g_clientCount);
+        char state[8192];
         EnterCriticalSection(&g_lock);
         size_t length = build_state(state, sizeof state);
         LeaveCriticalSection(&g_lock);
@@ -288,6 +320,7 @@ static DWORD WINAPI server_thread(LPVOID)
     for (int i = 0; i < OUT_CLIENTS; i++)
         g_clients[i].socket = INVALID_SOCKET;
     announce_start();
+    InterlockedExchange(&g_listening, 1);
     wl_log("outputs: listening on TCP port %d (game \"%s\"), start announced to 127.0.0.1:%d", g_tcpPort, g_game, g_udpPort);
 
     char *batch = NULL;
@@ -325,6 +358,7 @@ static DWORD WINAPI server_thread(LPVOID)
             break;
         Sleep(10);
     }
+    InterlockedExchange(&g_listening, 0);
     for (int i = 0; i < OUT_CLIENTS; i++)
         close_client(&g_clients[i]);
     closesocket(listener);
@@ -334,6 +368,10 @@ static DWORD WINAPI server_thread(LPVOID)
 
 void wl_outputs_init(void)
 {
+    // The values are kept from now on, for the menu's page, whether they are sent or not
+    InitializeCriticalSection(&g_lock);
+    snprintf(g_game, sizeof g_game, "%s", wl_game_name());
+    InterlockedExchange(&g_lockReady, 1);
     if (!wl_settings_get_bool("Outputs", "OUTPUTS_NETWORK", 0))
         return;
     // A companion (picodaemon, amdaemon) starts before its game: its server would take the port,
@@ -345,8 +383,6 @@ void wl_outputs_init(void)
     }
     g_tcpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_PORT", 8000);
     g_udpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_UDP_PORT", 8001);
-    snprintf(g_game, sizeof g_game, "%s", wl_game_name());
-    InitializeCriticalSection(&g_lock);
     InterlockedExchange(&g_on, 1);
     // The sockets are made by the thread: here is DllMain, under the loader's lock
     g_thread = CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
@@ -375,7 +411,7 @@ void wl_outputs_stop(void)
 
 void wl_outputs_gpo(int byteIndex, unsigned char value)
 {
-    if (!g_on || byteIndex < 0 || byteIndex >= OUT_GPO_BYTES)
+    if (!g_lockReady || byteIndex < 0 || byteIndex >= OUT_GPO_BYTES)
         return;
     EnterCriticalSection(&g_lock);
     if (!g_gpoKnown[byteIndex] || g_gpo[byteIndex] != value)
@@ -398,7 +434,7 @@ void wl_outputs_gpo(int byteIndex, unsigned char value)
 
 void wl_outputs_drive(const unsigned char *bytes, size_t count)
 {
-    if (!g_on || !bytes)
+    if (!g_lockReady || !bytes)
         return;
     EnterCriticalSection(&g_lock);
     g_rawDrive = 1;
@@ -424,7 +460,7 @@ static void servo_frame(unsigned char command, int first, int second)
 
 void wl_outputs_force(double force)
 {
-    if (!g_on)
+    if (!g_lockReady)
         return;
     // The drive board's torque as driveboard.cpp reads it: 84's value - 0x80, > 0 pushing left
     int torque = (int)(force * 127 + (force < 0 ? -0.5 : 0.5));
@@ -443,4 +479,131 @@ void wl_outputs_force(double force)
         g_sentTorque = torque;
     }
     LeaveCriticalSection(&g_lock);
+}
+
+void wl_outputs_declare_lamps(int outputs)
+{
+    if (outputs > g_lampOutputs)
+        g_lampOutputs = outputs < OUT_GPO_BYTES * 8 ? outputs : OUT_GPO_BYTES * 8;
+}
+
+void wl_outputs_declare_drive(void)
+{
+    g_driveDeclared = 1;
+}
+
+void wl_outputs_name_lamps(const char *board, const char *const *names, int count)
+{
+    if (board)
+        g_lampBoard = board;
+    g_lampNames = names;
+    wl_outputs_declare_lamps(count);
+}
+
+void wl_outputs_lamps(unsigned bits, int count)
+{
+    // Lamp n is bit 7 - n % 8 of byte n / 8, as a JVS board's outputs
+    for (int i = 0; i * 8 < count && i < OUT_GPO_BYTES; i++)
+    {
+        unsigned char b = 0;
+        for (int k = 0; k < 8 && i * 8 + k < count; k++)
+            if (bits >> (i * 8 + k) & 1)
+                b |= (unsigned char)(0x80 >> k);
+        wl_outputs_gpo(i, b);
+    }
+}
+
+int wl_outputs_declare_value(const char *name, const char *type, const char *about)
+{
+    LONG i = InterlockedIncrement(&g_valueCount) - 1;
+    if (i >= OUT_VALUES)
+    {
+        InterlockedDecrement(&g_valueCount);
+        return -1;
+    }
+    Value *v = &g_values[i];
+    snprintf(v->name, sizeof v->name, "%s", name);
+    v->type = type;
+    snprintf(v->about, sizeof v->about, "%s", about);
+    return i;
+}
+
+void wl_outputs_value(int index, int value)
+{
+    if (!g_lockReady || index < 0 || index >= g_valueCount)
+        return;
+    EnterCriticalSection(&g_lock);
+    Value *v = &g_values[index];
+    if (!v->known || v->value != value)
+    {
+        v->value = value;
+        v->known = 1;
+        pending_line(v->name, value);
+    }
+    LeaveCriticalSection(&g_lock);
+}
+
+static void list_add(WlOutputInfo *out, int max, int *n, const char *name, const char *type, const char *about, int known, int value)
+{
+    if (*n >= max)
+        return;
+    WlOutputInfo *o = &out[(*n)++];
+    snprintf(o->name, sizeof o->name, "%s", name);
+    o->type = type;
+    snprintf(o->about, sizeof o->about, "%s", about);
+    o->known = known;
+    o->value = value;
+    o->text = NULL;
+}
+
+int wl_outputs_list(WlOutputInfo *out, int max)
+{
+    if (!g_lockReady || !out)
+        return 0;
+    int n = 0;
+    char name[32], about[128];
+    EnterCriticalSection(&g_lock);
+    list_add(out, max, &n, "mame_start", "texte", "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu", 1, 0);
+    out[n - 1].text = g_game;
+    // The lamps: each byte, then each output, as wl_outputs_gpo sends them
+    int bytes = (g_lampOutputs + 7) / 8;
+    for (int i = 0; i < bytes; i++)
+    {
+        gpo_name(i, name, sizeof name);
+        snprintf(about, sizeof about, "Lampes %d à %d de %s, la première sur le bit 7", i * 8, i * 8 + 7, g_lampBoard);
+        list_add(out, max, &n, name, "octet (0-255)", about, g_gpoKnown[i], g_gpo[i]);
+    }
+    for (int k = 0; k < g_lampOutputs; k++)
+    {
+        int i = k / 8, bit = 7 - k % 8;
+        lamp_name(i, bit, name, sizeof name);
+        if (g_lampNames && g_lampNames[k])
+            snprintf(about, sizeof about, "%s : sortie %d de %s", g_lampNames[k], k + 1, g_lampBoard);
+        else
+            snprintf(about, sizeof about, "Sortie %d de %s (une lampe)", k + 1, g_lampBoard);
+        list_add(out, max, &n, name, "bit (0/1)", about, g_gpoKnown[i], (g_gpo[i] >> bit) & 1);
+    }
+    // The drive board: the game's own bytes, or the servo board's frames made from the force
+    if (g_driveDeclared)
+        list_add(out, max, &n, "RawDrive", "octets (0-255), un par ligne",
+                 "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)", g_lastDrive >= 0, g_lastDrive);
+    else if (wl_game_motor())
+        list_add(out, max, &n, "RawDrive", "octets (0-255), un par ligne",
+                 "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple", g_lastDrive >= 0, g_lastDrive);
+    for (int i = 0; i < g_valueCount; i++)
+        list_add(out, max, &n, g_values[i].name, g_values[i].type, g_values[i].about, g_values[i].known, g_values[i].value);
+    list_add(out, max, &n, "mame_stop", "1", "Quand le jeu se termine", 0, 1);
+    LeaveCriticalSection(&g_lock);
+    return n;
+}
+
+int wl_outputs_server(int *tcpPort, int *udpPort, int *clients)
+{
+    if (tcpPort)
+        *tcpPort = g_tcpPort;
+    if (udpPort)
+        *udpPort = g_udpPort;
+    if (clients)
+        *clients = g_clientCount;
+    return g_listening != 0;
 }

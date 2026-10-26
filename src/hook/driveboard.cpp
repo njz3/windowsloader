@@ -168,5 +168,6 @@ void wl_driveboard_register(const char *port)
     InitializeCriticalSection(&g_lock);
     g_port.name = port;
     wl_vdev_register(&g_port);
+    wl_outputs_declare_drive(); // for the menu's "Sorties et réseau" page
     wl_log("emulated drive board on %s", port);
 }

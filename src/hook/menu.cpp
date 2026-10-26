@@ -46,6 +46,7 @@
 #include "inputs.h"
 #include "log.h"
 #include "menu.h"
+#include "outputs.h"
 #include "pause.h"
 #include "vdev.h"
 #include "settings.h"
@@ -754,6 +755,66 @@ static void page_game_options(void)
     }
 }
 
+// "Sorties et réseau": what the game can send to BackForceFeeder or MAMEHooker ([Outputs]
+// OUTPUTS_NETWORK, outputs.cpp), each value's type and its last one, in a list of its own that
+// scrolls
+static void page_outputs(void)
+{
+    int tcp = 0, udp = 0, clients = 0;
+    ImGui::PushTextWrapPos(0);
+    if (wl_outputs_server(&tcp, &udp, &clients))
+    {
+        if (udp > 0)
+            ImGui::Text("Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP).", tcp, clients, udp);
+        else
+            ImGui::Text("Sorties réseau actives : port TCP %d, %d client(s) connecté(s).", tcp, clients);
+    }
+    else
+        ImGui::TextUnformatted("Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les "
+                               "valeurs ci-dessous sont celles que le jeu donne.");
+    ImGui::TextDisabled("Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker).");
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+    static WlOutputInfo list[256];
+    int n = wl_outputs_list(list, 256);
+    float height = ImGui::GetContentRegionAvail().y - ImGui::GetTextLineHeightWithSpacing() * 2;
+    if (height < ImGui::GetTextLineHeightWithSpacing() * 8)
+        height = ImGui::GetTextLineHeightWithSpacing() * 8;
+    ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
+                            ImGuiTableFlags_Resizable;
+    if (ImGui::BeginTable("outputs", 4, flags, ImVec2(0, height)))
+    {
+        float em = ImGui::GetFontSize();
+        ImGui::TableSetupScrollFreeze(0, 1); // the titles stay
+        ImGui::TableSetupColumn("Nom", ImGuiTableColumnFlags_WidthFixed, em * 7);
+        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, em * 10);
+        ImGui::TableSetupColumn("Valeur", ImGuiTableColumnFlags_WidthFixed, em * 6);
+        ImGui::TableSetupColumn("Description", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableHeadersRow();
+        for (int i = 0; i < n; i++)
+        {
+            const WlOutputInfo *o = &list[i];
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(o->name);
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(o->type);
+            ImGui::TableNextColumn();
+            if (o->text)
+                ImGui::TextUnformatted(o->text);
+            else if (o->known)
+                ImGui::Text("%d", o->value);
+            else
+                ImGui::TextDisabled("—");
+            ImGui::TableNextColumn();
+            ImGui::TextWrapped("%s", o->about);
+        }
+        ImGui::EndTable();
+    }
+    if (n <= 2)
+        ImGui::TextDisabled("Ce jeu n'envoie ni lampes ni carte moteur pour l'instant.");
+}
+
 static void page_about(void)
 {
     ImGui::Text("windowsloader %s %s (%d bits)", WL_BUILD_VERSION, WL_EDITION, (int)sizeof(void *) * 8);
@@ -806,6 +867,11 @@ static void draw_menu(void)
             if (ImGui::BeginTabItem("Retour de force", NULL, tab == 3 ? ImGuiTabItemFlags_SetSelected : 0))
             {
                 page_ffb();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Sorties et réseau", NULL, tab == 6 ? ImGuiTabItemFlags_SetSelected : 0))
+            {
+                page_outputs();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("À propos", NULL, tab == 4 ? ImGuiTabItemFlags_SetSelected : 0))

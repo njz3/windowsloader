@@ -35,6 +35,7 @@
 #include "inputs.h"
 #include "jvs.h"
 #include "log.h"
+#include "outputs.h"
 #include "vdev.h"
 #include "vdinput.h"
 
@@ -138,8 +139,40 @@ static void jvs_output(const unsigned char *data, int length)
 //   count and the bytes sends (report 01, 01, then 00: sent), 0x70 0x15 and 2 bytes reads (report
 //   01, a count, the bytes; "70 15 00 FF", the first after 0x16, wants a count of 0). Nothing is on
 //   it here: count 0;
-// - 0x78, 0x79, 0x7A, 14 bytes each (12-bit values in threes: the lamps, it seems), 0x7F alone:
-//   report only.
+// - 0x78, 0x79, 0x7A, 14 bytes each: the cabinet's LEDs (below), 0x7F alone: report only.
+//
+// The LEDs (Mario Kart Arcade GP DX's, seen in its attract mode): 9 RGB LEDs a command, 4 bits a
+// colour, 27 nibbles from the first byte's high one, then 4 bits of padding (all lit: FF... F0);
+// the strip is symmetrical (LED 0 as LED 8), 0x78 and 0x79 the same. Sent to the network outputs
+// as led<n>_r, _g and _b (0-15), n 0 to 26 (0x78 LEDs 0 to 8...), the colours' order supposed
+#define NAMCO_LEDS 27
+static int g_ledValue = -1; // led0_r's number in the network outputs, -1 when the game has none
+
+static void namco_leds_declare(void)
+{
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    for (int led = 0; led < NAMCO_LEDS; led++)
+        for (int c = 0; c < 3; c++)
+        {
+            char name[32], about[128];
+            snprintf(name, sizeof name, "led%d_%s", led, colour[c]);
+            snprintf(about, sizeof about, "LED %d (commande JVS %02X, la %de), %s (ordre supposé), 0 éteint à 15", led, 0x78 + led / 9, led % 9 + 1,
+                     label[c]);
+            int i = wl_outputs_declare_value(name, "intensité (0-15)", about);
+            if (!led && !c)
+                g_ledValue = i;
+        }
+}
+
+static void namco_leds(const unsigned char *p)
+{
+    if (g_ledValue < 0)
+        return;
+    int first = (p[0] - 0x78) * 9 * 3;
+    for (int k = 0; k < 27; k++)
+        wl_outputs_value(g_ledValue + first + k, k % 2 ? p[1 + k / 2] & 0x0F : p[1 + k / 2] >> 4);
+}
+
 static int namco_vendor(const unsigned char *p, int n, unsigned char *r, int *k)
 {
     int used = 0, data = -1, data2 = -1;
@@ -160,7 +193,11 @@ static int namco_vendor(const unsigned char *p, int n, unsigned char *r, int *k)
             used = 3 + p[2], data = 0x01, data2 = 0x00;
     }
     else if (p[0] >= 0x78 && p[0] <= 0x7A)
+    {
         used = 15;
+        if (n >= 15)
+            namco_leds(p);
+    }
     else if (p[0] == 0x7F)
         used = 1;
     if (!used || used > n)
@@ -1694,6 +1731,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_wheel);
     wl_jvs_register(&g_jvs);
+    namco_leds_declare();
     InitializeCriticalSection(&g_motorLock);
     wl_vdev_register(&g_com1);
     wl_vdev_label("COM1", "Carte du moteur du volant");

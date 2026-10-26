@@ -434,6 +434,7 @@ void wl_jvs_register(const WlJvsBoard *board)
     InitializeCriticalSection(&g_lock);
     g_ports[0].name = board->port;
     wl_vdev_register(&g_ports[0]);
+    wl_outputs_declare_lamps(board->outputs); // for the menu's "Sorties et réseau" page
     wl_log("emulated JVS board on %s: %s, %d players, %d analog channels", board->port, board->id, board->players, board->analogChannels);
 }
 
@@ -457,5 +458,6 @@ void wl_jvs_add_node(const WlJvsBoard *board)
     if (g_nodes < 1 || g_nodes >= JVS_NODES)
         return;
     g_boards[g_nodes++] = board;
+    wl_outputs_declare_lamps(board->outputs); // its outputs are sent as the first board's
     wl_log("emulated JVS board, node %d on the same bus: %s", g_nodes, board->id);
 }
