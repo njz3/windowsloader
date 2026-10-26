@@ -1433,6 +1433,10 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
             // Kart DX's
             static const unsigned char jl[2] = {0x7C, 0x41}, jmpUptime[2] = {0xEB, 0x41};
             wl_patch_code(exe + 0x6916BD, jl, jmpUptime, 2, "the offline uptime's limit not reached");
+            // Its warning an hour before (35 h, +0x68f6a0): "Please connect this unit to the network.
+            // The Game will shutdown shortly." over the whole game; never due (setge al made xor al, al)
+            static const unsigned char setge[3] = {0x0F, 0x9D, 0xC0}, never[3] = {0x32, 0xC0, 0x90};
+            wl_patch_code(exe + 0x68F6D0, setge, never, 3, "the offline uptime's warning not shown");
         }
         return 1;
     }
