@@ -382,43 +382,13 @@ static int gdi_copy(IDirect3DDevice9 *dev)
     return 1;
 }
 
-// A game that does not wait for the screen (PresentationInterval IMMEDIATE) is not slowed down by
-// the copy: the picture is copied at most once per refresh of the screen (from 3/4 of its period,
-// so that a game at the screen's pace keeps every frame), its other frames only presented to the
-// hidden window. Wasteland Racers 2071 loads one texture per frame on its "Get Ready To Race"
-// screen: with a copy each frame (its 2560x1440 multisampled back buffer read back and stretched
-// by GDI, about 60 a second), its map took 141 s on the cabinets instead of 12 (938 frames a
-// second with PRESENT = DIRECT)
-static int gdi_due(void)
-{
-    if (g_interval != D3DPRESENT_INTERVAL_IMMEDIATE)
-        return 1;
-    static LONGLONG period, last;
-    LARGE_INTEGER now;
-    QueryPerformanceCounter(&now);
-    if (!period)
-    {
-        LARGE_INTEGER freq;
-        QueryPerformanceFrequency(&freq);
-        DEVMODEW dm = {};
-        dm.dmSize = sizeof dm;
-        DWORD hz = EnumDisplaySettingsW(NULL, ENUM_CURRENT_SETTINGS, &dm) && dm.dmDisplayFrequency > 1 ? dm.dmDisplayFrequency : 60;
-        period = freq.QuadPart * 3 / 4 / hz;
-        wl_log("display: the game does not wait for the screen: its picture copied about once per refresh (%lu Hz)", hz);
-    }
-    if (now.QuadPart - last < period)
-        return 0;
-    last = now.QuadPart;
-    return 1;
-}
-
 // The frame out: by GDI into the window and the Present to the hidden window, or the game's
 // Present at the picture's place. The settings menu presents through it too.
 static HRESULT STDMETHODCALLTYPE present_out(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
 {
     if (wl_display_gdi())
     {
-        if (gdi_due())
+        if (wl_display_gdi_due(g_interval == D3DPRESENT_INTERVAL_IMMEDIATE)) // Wasteland Racers' (display.cpp)
             gdi_copy(dev);
         HRESULT hr = oPresent(dev, NULL, NULL, gdi_hidden_window(), NULL);
         // The hidden window does not wait for the screen: one composition per interval asked

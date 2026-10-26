@@ -481,7 +481,8 @@ static HRESULT STDMETHODCALLTYPE present_out(IDXGISwapChain *sc, UINT sync, UINT
 {
     if (!wl_display_gdi() || (flags & DXGI_PRESENT_TEST))
         return oPresent(sc, sync, flags);
-    gdi_copy(sc);
+    if (wl_display_gdi_due(!sync)) // a game that does not wait for the screen: not slowed down by the copy
+        gdi_copy(sc);
     HRESULT hr = oPresent(sc, 0, flags);
     for (UINT i = 0; i < sync; i++)
         DwmFlush();

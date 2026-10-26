@@ -122,6 +122,9 @@ void wl_display_picture(RECT *r);
 int wl_display_gdi(void);
 // The picture (top-down rows: 32-bit BGRX, or 16-bit 565 when green6, else 555) drawn where it goes
 void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6);
+// Whether this frame is to be copied: always for a game that waits for the screen; for one that
+// does not (immediate: its Present asks no wait), at most once per refresh of the screen
+int wl_display_gdi_due(int immediate);
 HWND wl_display_hwnd(void);
 
 // What the window shows, as a 24-bit BMP (the agent's "screen")

@@ -998,6 +998,36 @@ static int draw_barrel(HDC dc, Dib *bi, const void *pixels, int pitch, int width
     return 1;
 }
 
+// A game that does not wait for the screen is not slowed down by the copy: its picture is copied
+// at most once per refresh of the screen (from 3/4 of its period, so that a game at the screen's
+// pace keeps every frame), its other frames only presented to the hidden window. Wasteland Racers
+// 2071 loads one texture per frame on its "Get Ready To Race" screen: with a copy each frame (its
+// 2560x1440 multisampled back buffer read back and stretched by GDI, about 60 a second), its map
+// took 141 s on the cabinets instead of 12 (938 frames a second with PRESENT = DIRECT)
+int wl_display_gdi_due(int immediate)
+{
+    if (!immediate)
+        return 1;
+    static LONGLONG period, last;
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (!period)
+    {
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        DEVMODEW dm;
+        memset(&dm, 0, sizeof dm);
+        dm.dmSize = sizeof dm;
+        DWORD hz = EnumDisplaySettingsW(NULL, ENUM_CURRENT_SETTINGS, &dm) && dm.dmDisplayFrequency > 1 ? dm.dmDisplayFrequency : 60;
+        period = freq.QuadPart * 3 / 4 / hz;
+        wl_log("display: the game does not wait for the screen: its picture copied about once per refresh (%lu Hz)", hz);
+    }
+    if (now.QuadPart - last < period)
+        return 0;
+    last = now.QuadPart;
+    return 1;
+}
+
 void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6)
 {
     Dib bi;
