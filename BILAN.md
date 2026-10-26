@@ -39,7 +39,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 5 DX+ (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 6 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ✅ | ✅ | ⚠️ |
-| Sega World Drivers Championship (ALLS, 64 bits) | ⚠️ | ⏳ | ⏳ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ |
+| Sega World Drivers Championship (ALLS, 64 bits) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ⏳ | ⏳ | ⚠️ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
 | Wacky Races (Taito Type X2) | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ |
@@ -1125,12 +1125,28 @@ Reste : les cartes (le lecteur Banapass est joué sans carte : on joue sans), la
 le mode avec pièces (le terminal joué est en jeu gratuit) ; vJoy et l'affichage à voir sur borne. Dans la release
 20261025-7 (pas encore posée : Defender).
 
-## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — en cours
+## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — jouable en invité
 
-`App\Todoroki\WindowsNoEditor\Todoroki\Binaries\Win64\Todoroki-Win64-Shipping.exe -launch=Cabinet -windowed` ; le
-lanceur démarre avant lui `AMDaemon\amdaemon.exe`, le service de la plateforme (programme compagnon). Module
-`src/hook/games/alls.cpp`, `src/hook/netenv.cpp`. Copie locale le 23/10 (12,5 Go, 95 min).
+`App\Todoroki\WindowsNoEditor\Todoroki\Binaries\Win64\Todoroki-Win64-Shipping.exe -windowed` ; le lanceur y ajoute
+`-launch=MiniCabinet` (borne seule, comme TeknoParrot) et démarre 5 s avant lui `AMDaemon\amdaemon.exe`, le service de
+la plateforme (programme compagnon), avec le `config.json` du jeu et les réglages de borne seule de windowsloader
+(`%TEMP%\windowsloader-swdc-amdaemon.json`, écrit par le module dans amdaemon). Modules `src/hook/games/alls.cpp`,
+`src/hook/games/allnet.cpp` (les services réseau), `src/hook/netenv.cpp`. Copie locale le 23/10 (12,5 Go, 95 min).
 
+État au 26/10 (deux parties invité en mode agent sur ce PC, avec les réglages par défaut du lanceur) :
+- Lancement ✅ : test de démarrage, ALL.Net, Aime, UserDB et NetBattle « Online », avertissement, attract.
+- Commandes ⚠️ (agent) : pièce, Start, gauche (はい de la connexion invité), accélérateur, volant.
+- Retour de force ⚠️ (agent, sans volant physique) : commandes 84 (couple) de la carte du volant sur COM1, 5944
+  changements de force en une course, de −0,96 à +0,96 ; volant à −0,5 force moyenne +0,16, à +0,5 −0,18, au centre
+  +0,02 : vers le centre, comme Wangan 6 ; 0 aux résultats.
+- Crédits ⚠️ : pièces comptées (« CREDIT(S) »), la partie invité en prend une.
+- Langue : `[Game.swdc] LANGUAGE` (`ENGLISH` par défaut, `JAPANESE`, `CHINESE`, les noms anglais dans le menu) pour
+  les messages d'amdaemon seulement ; les textes du jeu restent en japonais (son pak n'a que la locale « en » du moteur).
+- Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), la carte LED
+  837-15070, le mode Cabinet (8404 : installation LAN, `ICF1` absent), un essai au vrai volant, vJoy, menus Tab et de
+  service.
+
+Avant (23/10) :
 - Lancement ⚠️ : amdaemon démarre sans erreur (registre `SystemProperty` inventé en mémoire, clé `\??\FddDriver`,
   moniteur matériel, pilote d'affichage `$amvideo`, lecteurs `D:`/`E:`/`Y:` dans la copie, carte d'E/S USB « IO4 »,
   lecteur de cartes Aime sur COM3, afficheur VFD sur COM4, carte réseau de borne 192.168.172.11) ; le jeu passe
@@ -1160,6 +1176,19 @@ Repris le 26/10 (« avec segatools ») :
   tourner sur ses propres serveurs en ligne (`Offline Mode=0`, `OnlineID` dans sa config).
 - Reste : soit un serveur de jeu ABaaS minimal (son protocole à retrouver dans le jeu), soit un jeu hors ligne
   obtenu en neutralisant ses contrôles réseau ; l'un comme l'autre est un chantier à part.
+
+Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
+- ALL.Net, dans amdaemon : les noms de naominet.jp → 192.0.2.1 (la bibliothèque refuse 127/8), ses connexions
+  (port 80) → un serveur sur 127.0.0.1:40180 ; PowerOn et DownloadOrder répondus.
+- Aime (AiMeDB, port 22345 → 40182, dans amdaemon) : en-tête de 32 octets, AES-128-ECB ; chaque commande reçoit
+  la suivante (statut 1), la recherche d'un joueur -1, « au revoir » (66) ferme. Le jeu le voit « Online » ; la
+  partie invité n'en demande pas plus.
+- Le serveur de titre (ABaaS GS, dans le jeu, 127.0.0.1:40181) : réponses = en-tête de 16 octets (01 01, statut, CRC32
+  et longueur du JSON, 4 octets) puis AES-256-CBC(zlib(JSON)), la clé prise à `BCryptGenerateSymmetricKey` du jeu ;
+  free_buckets : réglages de saison, titre de saison, réglages recommandés (`update_time`, sinon division par zéro
+  dans DecideTimeSale), événement (manches), en chaînes JSON aux valeurs en chaînes, heures en secondes Unix.
+- Le mode MiniCabinet sans 8404 ni 4103 ; « CONNECT MAIN CABINET » passé par la diffusion UDP en boucle locale
+  (40257 vers 192.168.172.255).
 
 ## D1GP Arcade (Taito Type X2, 2009)
 
