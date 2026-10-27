@@ -467,23 +467,22 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
 // A program the game needs beside it, started first under windowsloader too: an ALLS's
 // amdaemon.exe, the platform's service, which the cabinet's script (App\Todoroki\StartApp.bat)
 // starts from App\Todoroki 5 s before the game (Sega World Drivers Championship). Here a cabinet
-// alone, as TeknoParrot runs it: the game with -launch=MiniCabinet, amdaemon with the game's
-// config.json and windowsloader's settings for a cabinet alone, which its module writes in the
-// temporary folder ({temp}: alls.cpp). Initial D 6, 7 and 8's picodaemon.exe, the card
+// alone: amdaemon with the game's config.json and windowsloader's settings for a cabinet alone,
+// which its module writes in the temporary folder ({temp}: alls.cpp); the game's -launch= from
+// its option CABINET (g_gameOptionArgs). Initial D 6, 7 and 8's picodaemon.exe, the card
 // reader-writer's daemon, which game.bat starts just before the game. The folders are the game's
 // folder's parents.
 static const struct
 {
-    const wchar_t *game;     // the game's file name
-    int up;                  // its folder's parents up to the companion's folder (its working folder)
-    const wchar_t *exe;      // from there
-    const wchar_t *args;     // {temp}: the temporary folder
-    DWORD waitMs;            // before the game starts
-    const wchar_t *gameArgs; // the game's too, unless its command line has one of that name
+    const wchar_t *game; // the game's file name
+    int up;              // its folder's parents up to the companion's folder (its working folder)
+    const wchar_t *exe;  // from there
+    const wchar_t *args; // {temp}: the temporary folder
+    DWORD waitMs;        // before the game starts
 } g_companions[] = {
     {L"Todoroki-Win64-Shipping.exe", 4, L"WindowsNoEditor\\AMDaemon\\amdaemon.exe",
      L"-c WindowsNoEditor\\AMDaemon\\config.json -c \"{temp}windowsloader-swdc-amdaemon.json\" -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
-     5000, L"-launch=MiniCabinet"},
+     5000},
     // Initial D 6's game.bat starts it too: without it, error 5101 (417) at "do you have a licence?"
     {L"id6_dump_.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD6_GLW_RE_SBUU.exe", 0, L"picodaemon.exe", L"", 1000},
@@ -494,22 +493,75 @@ static const struct
     {L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe", 0, L"picodaemon.exe", L"", 1000},
 };
 
-// The arguments a game with a companion takes (g_companions' gameArgs), added to its command line
-// unless it has one of that name (-launch= for -launch=MiniCabinet)
-static void companion_game_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first)
+// A game's option that gives it an argument, taken as the game starts: [Game.<short name>] KEY of
+// the settings file (or of <short name>.ini beside windowsloader.ini, as the DLL reads it), or
+// --set Game.KEY=VALUE; the game's module declares it for the settings menu. Each value its
+// argument, the first one the default; nothing added when the command line has an argument of
+// that name already (-launch= for -launch=Cabinet)
+static const struct
+{
+    const wchar_t *game;         // the game's file name
+    const wchar_t *name, *key;   // its short name, the option
+    const wchar_t *value, *arg;  // a value and its argument
+} g_gameOptionArgs[] = {
+    // Sega World Drivers Championship (alls.cpp): the full cabinet, its dashboard (the wheel's
+    // buttons, the speed) and its LED board; or the mini cabinet, as TeknoParrot runs it
+    {L"Todoroki-Win64-Shipping.exe", L"swdc", L"CABINET", L"CABINET", L"-launch=Cabinet"},
+    {L"Todoroki-Win64-Shipping.exe", L"swdc", L"CABINET", L"MINI", L"-launch=MiniCabinet"},
+};
+
+// The option's value: --set's last, else the file's, else def
+static void game_option(const wchar_t *name, const wchar_t *key, const wchar_t *def, const wchar_t *iniPath, const wchar_t *sets,
+                        wchar_t *out, size_t size)
+{
+    wcsncpy_s(out, size, def, _TRUNCATE);
+    wchar_t file[MAX_PATH], section[64];
+    wcsncpy_s(file, MAX_PATH, iniPath, _TRUNCATE);
+    wchar_t *base = wcsrchr(file, L'\\');
+    if (base && !_wcsicmp(base + 1, L"windowsloader.ini"))
+    {
+        swprintf(base + 1, MAX_PATH - (base + 1 - file), L"%s.ini", name);
+        if (GetFileAttributesW(file) == INVALID_FILE_ATTRIBUTES)
+            wcsncpy_s(file, MAX_PATH, iniPath, _TRUNCATE);
+    }
+    swprintf(section, 64, L"Game.%s", name);
+    GetPrivateProfileStringW(section, key, def, out, (DWORD)size, file);
+    for (const wchar_t *line = sets; line && *line;)
+    {
+        const wchar_t *end = wcschr(line, L'\n');
+        size_t n = end ? (size_t)(end - line) : wcslen(line);
+        size_t k = wcslen(key);
+        if (n > 5 + k && !_wcsnicmp(line, L"Game.", 5) && !_wcsnicmp(line + 5, key, k) && line[5 + k] == L'=')
+            swprintf(out, size, L"%.*s", (int)(n - 6 - k), line + 6 + k);
+        line = end ? end + 1 : NULL;
+    }
+}
+
+// The arguments the game's options give it (g_gameOptionArgs), added to its command line
+static void game_option_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first, const wchar_t *iniPath,
+                             const wchar_t *sets)
 {
     const wchar_t *base = wcsrchr(gamePath, L'\\');
     base = base ? base + 1 : gamePath;
-    for (int i = 0; i < (int)(sizeof g_companions / sizeof g_companions[0]); i++)
+    for (int i = 0; i < (int)(sizeof g_gameOptionArgs / sizeof g_gameOptionArgs[0]); i++)
     {
-        const wchar_t *arg = g_companions[i].gameArgs;
-        if (!arg || _wcsicmp(base, g_companions[i].game))
+        // an option's first line only: its value, then its argument among its lines
+        if (_wcsicmp(base, g_gameOptionArgs[i].game) || (i && !_wcsicmp(g_gameOptionArgs[i - 1].game, base) &&
+                                                         !_wcsicmp(g_gameOptionArgs[i - 1].key, g_gameOptionArgs[i].key)))
             continue;
+        wchar_t value[64];
+        game_option(g_gameOptionArgs[i].name, g_gameOptionArgs[i].key, g_gameOptionArgs[i].value, iniPath, sets, value, 64);
+        const wchar_t *arg = g_gameOptionArgs[i].arg;
+        for (int j = i; j < (int)(sizeof g_gameOptionArgs / sizeof g_gameOptionArgs[0]) && !_wcsicmp(g_gameOptionArgs[j].game, base) &&
+                        !_wcsicmp(g_gameOptionArgs[j].key, g_gameOptionArgs[i].key);
+             j++)
+            if (!_wcsicmp(value, g_gameOptionArgs[j].value))
+                arg = g_gameOptionArgs[j].arg;
         const wchar_t *eq = wcschr(arg, L'=');
-        size_t name = eq ? (size_t)(eq - arg) + 1 : wcslen(arg);
+        size_t named = eq ? (size_t)(eq - arg) + 1 : wcslen(arg);
         int given = 0;
         for (int a = first; a < argc; a++)
-            given |= !_wcsnicmp(argv[a], arg, name);
+            given |= !_wcsnicmp(argv[a], arg, named);
         if (!given)
             append_arg(cmd, CMDLINE_MAX, arg);
     }
@@ -783,7 +835,7 @@ int wmain(int argc, wchar_t **argv)
     append_arg(cmd, CMDLINE_MAX, gamePath);
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
-    companion_game_args(gamePath, cmd, argc, argv, i + 1);
+    game_option_args(gamePath, cmd, argc, argv, i + 1, iniPath, setsLen ? sets : NULL);
 
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");

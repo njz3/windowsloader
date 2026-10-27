@@ -625,7 +625,7 @@ static WlVirtualDevice g_aime = {"COM3", NULL, aime_read, aime_write, vfd_modem,
 // The game's LED board, Sega 837-15070 on COM2 (segatools' board/led15070.c, led15070-frame.c):
 // frames E0, destination, source (the host 01, the board 00 for SWDC), the length, the data, an 8-bit sum
 // (after E0); the same escaping as the reader's. An answer: status 01, the command, report 01,
-// its data. After a reset (10) every command is answered; the lamps themselves are not shown yet.
+// its data. After a reset (10) every command is answered. Used in Cabinet mode only.
 // ------------------------------------------------------------------------------
 
 static unsigned char g_ledIn[300], g_ledOut[512];
@@ -661,6 +661,58 @@ static void led_answer(int cmd, const unsigned char *data, int n)
     g_ledOut[g_ledOutLength++] = sum;
 }
 
+// The lamps, sent to the network outputs as each update (3C) shows them: led0_r to led8_b, the 9 RGB
+// LEDs SWDC lights (0-255), and fet0 to fet2 its 3 power outputs (39). The colours: 31 one LED
+// (index, R, G, B), 32 flashing and 33 fading ones (first, count, step, R, G, B, speed), the
+// flashing and the fading not played: their colour shown as it is set
+#define LED_BOARD_LEDS 32
+#define LED_SWDC_LEDS 9
+static unsigned char g_ledColour[LED_BOARD_LEDS][3], g_ledFet[3];
+static int g_ledValue = -1; // led0_r's number in the network outputs, -1 when not declared
+
+static void led_declare(void)
+{
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    for (int led = 0; led < LED_SWDC_LEDS; led++)
+        for (int c = 0; c < 3; c++)
+        {
+            char name[32], about[128];
+            snprintf(name, sizeof name, "led%d_%s", led, colour[c]);
+            snprintf(about, sizeof about, "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255", led + 1, label[c]);
+            int i = wl_outputs_declare_value(name, "intensité (0-255)", about);
+            if (!led && !c)
+                g_ledValue = i;
+        }
+    for (int f = 0; f < 3; f++)
+    {
+        char name[32], about[128];
+        snprintf(name, sizeof name, "fet%d", f);
+        snprintf(about, sizeof about, "Carte LED 837-15070 (mode Cabinet) : sortie de puissance %d (commande 39), 0 à 255", f + 1);
+        wl_outputs_declare_value(name, "intensité (0-255)", about);
+    }
+}
+
+static void led_lamps(int cmd, const unsigned char *p, int n)
+{
+    if (cmd == 0x31 && n >= 4 && p[0] < LED_BOARD_LEDS)
+        memcpy(g_ledColour[p[0]], p + 1, 3);
+    else if ((cmd == 0x32 || cmd == 0x33) && n >= 6)
+    {
+        int step = p[2] ? p[2] : 1;
+        for (int i = p[0]; i < p[0] + p[1] && i < LED_BOARD_LEDS; i += step)
+            memcpy(g_ledColour[i], p + 3, 3);
+    }
+    else if (cmd == 0x39 && n >= 3)
+        memcpy(g_ledFet, p, 3);
+    else if (cmd == 0x3C && g_ledValue >= 0)
+    {
+        for (int i = 0; i < LED_SWDC_LEDS * 3; i++)
+            wl_outputs_value(g_ledValue + i, g_ledColour[i / 3][i % 3]);
+        for (int f = 0; f < 3; f++)
+            wl_outputs_value(g_ledValue + LED_SWDC_LEDS * 3 + f, g_ledFet[f]);
+    }
+}
+
 // destination, source, length, command, payload
 static void led_request(const unsigned char *r, int length)
 {
@@ -670,6 +722,7 @@ static void led_request(const unsigned char *r, int length)
     static unsigned logged[256];
     if (logged[cmd]++ < 3)
         wl_log("led: command %02x (%d bytes)", cmd, r[2]);
+    led_lamps(cmd, r + 4, length - 4);
     static const unsigned char info[10] = {'1', '5', '0', '7', '0', '-', '0', '4', 0xFF, 0x90}; // board 15070-04, firmware 90
     static const unsigned char status[4] = {0}, sum[2] = {0xAD, 0xF7}, protocol[3] = {1, 1, 4};
     switch (cmd)
@@ -773,13 +826,69 @@ static WlVirtualDevice g_led = {"COM2", NULL, led_read, led_write, vfd_modem, le
 
 // ------------------------------------------------------------------------------
 // The dashboard, Sega 838-15415 "Indicator BD" on a USB serial port (COM20 to COM29, the first
-// found in Windows' list): text commands (BP_DashBoard: ":sp" speed, ":rp" revs, ":gr" gear,
-// ":le" lamps) and its answer, "ps" and its buttons' states, a line ended by \r\n
+// found in Windows' list), used in Cabinet mode only: a text line ended by \r\n, its fields
+// separated by ':' (BP_DashBoard), "pr" alone about every 17 ms, the values with it about every
+// 35 ms in a race: "sp1*0*2*" the speed (three digits, each followed by '*'; '*' for a blank
+// digit), "gr2" the gear, "le11110000" 8 lamps (a bar filled from the left with the revs, it
+// seems), "rp******" the revs (blank in a race). Each line is answered "ps" and the wheel's six
+// buttons, '0' or '1' (yellow, red, green, blue, right paddle, left paddle: the input test's).
+// The values go to the network outputs: speed, gear, rpm, dash_lamp0 to dash_lamp7
 // ------------------------------------------------------------------------------
 
 static char g_dashLine[256], g_dashOut[256];
 static int g_dashLineLength, g_dashOutLength;
 static CRITICAL_SECTION g_dashLock;
+static int g_dashValue = -1; // speed's number in the network outputs, then gear, rpm and the lamps
+
+#define DASH_LAMPS 8
+
+static void dash_declare(void)
+{
+    g_dashValue = wl_outputs_declare_value("speed", "nombre (0-999)", "Tableau de bord (mode Cabinet) : la vitesse affichée, km/h");
+    wl_outputs_declare_value("gear", "nombre", "Tableau de bord (mode Cabinet) : le rapport affiché");
+    wl_outputs_declare_value("rpm", "nombre", "Tableau de bord (mode Cabinet) : le régime affiché (vide en course : 0)");
+    for (int i = 0; i < DASH_LAMPS; i++)
+    {
+        char name[32], about[128];
+        snprintf(name, sizeof name, "dash_lamp%d", i);
+        snprintf(about, sizeof about, "Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)",
+                 i + 1);
+        wl_outputs_declare_value(name, "bit (0/1)", about);
+    }
+}
+
+// A field's digits, the blanks ('*') left out: "1*0*2*" 102, "**9*7*" 97, "******" 0
+static int dash_number(const char *p, int n)
+{
+    int v = 0;
+    for (int i = 0; i < n && p[i] && p[i] != ':' && p[i] != '\r'; i++)
+        if (p[i] >= '0' && p[i] <= '9')
+            v = v * 10 + p[i] - '0';
+    return v;
+}
+
+static void dash_line(const char *line, int length)
+{
+    if (g_dashValue < 0)
+        return;
+    for (const char *p = line; p < line + length;)
+    {
+        const char *end = (const char *)memchr(p, ':', line + length - p);
+        int n = (int)((end ? end : line + length) - p);
+        if (n > 2 && !memcmp(p, "sp", 2))
+            wl_outputs_value(g_dashValue, dash_number(p + 2, n - 2));
+        else if (n > 2 && !memcmp(p, "gr", 2))
+            wl_outputs_value(g_dashValue + 1, dash_number(p + 2, n - 2));
+        else if (n > 2 && !memcmp(p, "rp", 2))
+            wl_outputs_value(g_dashValue + 2, dash_number(p + 2, n - 2));
+        else if (n > 2 && !memcmp(p, "le", 2))
+            for (int i = 0; i < DASH_LAMPS && i < n - 2; i++)
+                wl_outputs_value(g_dashValue + 3 + i, p[2 + i] == '1');
+        if (!end)
+            break;
+        p = end + 1;
+    }
+}
 
 static BOOL dash_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
 {
@@ -787,7 +896,7 @@ static BOOL dash_write(const void *buffer, DWORD size, DWORD *written, LONGLONG 
     *written = size;
     EnterCriticalSection(&g_dashLock);
     static int logged;
-    if (logged++ < 40)
+    if (logged++ < 5)
         wl_log("dashboard: \"%.*s\"", (int)size, b);
     for (DWORD i = 0; i < size; i++)
     {
@@ -795,12 +904,17 @@ static BOOL dash_write(const void *buffer, DWORD size, DWORD *written, LONGLONG 
             g_dashLine[g_dashLineLength++] = b[i];
         if (b[i] != '\n')
             continue;
+        dash_line(g_dashLine, g_dashLineLength - 2 > 0 ? g_dashLineLength - 2 : 0);
         g_dashLineLength = 0;
-        static const char status[] = "ps000000\r\n";
-        if (g_dashOutLength + (int)sizeof status - 1 <= (int)sizeof g_dashOut)
+        static const int buttons[6] = {IN_YELLOW, IN_RED, IN_GREEN, IN_BLUE, IN_PADDLE_RIGHT, IN_PADDLE_LEFT};
+        char status[11] = "ps";
+        for (int k = 0; k < 6; k++)
+            status[2 + k] = input_raw(buttons[k]) ? '1' : '0';
+        memcpy(status + 8, "\r\n", 3);
+        if (g_dashOutLength + 10 <= (int)sizeof g_dashOut)
         {
-            memcpy(g_dashOut + g_dashOutLength, status, sizeof status - 1);
-            g_dashOutLength += sizeof status - 1;
+            memcpy(g_dashOut + g_dashOutLength, status, 10);
+            g_dashOutLength += 10;
         }
     }
     LeaveCriticalSection(&g_dashLock);
@@ -982,7 +1096,18 @@ static const WlOptionChoice g_languages[] = {
     {NULL, NULL},
 };
 
+// The cabinet the game plays: the launcher gives it -launch= (launcher.cpp, g_gameOptionArgs)
+static const WlOptionChoice g_cabinets[] = {
+    {"CABINET", "Cabinet"},
+    {"MINI", "MiniCabinet"},
+    {NULL, NULL},
+};
+
 static const WlGameOption g_swdcOptions[] = {
+    {"CABINET", "Type de borne",
+     "Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties "
+     "réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu.",
+     WL_OPTION_CHOICE, g_cabinets, 0, 0, "CABINET", 1, NULL},
     {"LANGUAGE", "Langue des messages d'amdaemon",
      "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais.",
      WL_OPTION_CHOICE, g_languages, 0, 0, "ENGLISH", 1, NULL},
@@ -1091,6 +1216,17 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_registry_add_key("HARDWARE\\DEVICEMAP\\SERIALCOMM", ports, 3);
         wl_inputs_set_table(g_inputs, IN_COUNT);
         wl_outputs_name_lamps("la carte d'E/S IO4 837-15257, via amdaemon", g_io4LampNames, IO4_LAMPS);
+        // The cabinet the game plays, as its command line says (the launcher's -launch= from the
+        // option CABINET, or one given by hand): the full cabinet's dashboard and LED board send
+        // their own outputs too
+        const wchar_t *cmdLine = GetCommandLineW();
+        int mini = cmdLine && wcsstr(cmdLine, L"-launch=MiniCabinet") != NULL;
+        wl_log("alls: the game plays %s", mini ? "a mini cabinet (-launch=MiniCabinet)" : "a full cabinet: its dashboard's and LED board's outputs");
+        if (!mini)
+        {
+            dash_declare();
+            led_declare();
+        }
         CloseHandle(CreateThread(NULL, 0, inputs_writer, NULL, 0, NULL));
         // The title server's connections to this PC's server, with its AES key (allnet.cpp)
         wl_allnet_game();

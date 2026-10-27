@@ -70,9 +70,10 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Storm Racer G", {L"racing.exe"}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
      "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."},
     {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, L"-windowed", "Sega ALLS (64 bits)", "", WL_GAME_PARTLY,
-     "Plateforme ALLS (amdaemon), borne seule (-launch=MiniCabinet) ; ALL.Net, Aime et le serveur de titre joués sur ce "
-     "PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Restent le "
-     "serveur de matching (GAME SERVER BAD, pas de course en réseau) et la carte LED."},
+     "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini "
+     "(option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game "
+     "over), retour de force par la carte du volant sur COM1. Reste le serveur de matching (GAME SERVER BAD, pas de "
+     "course en réseau)."},
     {"Wangan Midnight Maximum Tune 6", {L"wmn6r.exe"}, {NULL}, 0, NULL, "Namco System ES3X (64 bits)", "2018", WL_GAME_PARTLY,
      "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans "
      "ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON "

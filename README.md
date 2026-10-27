@@ -114,11 +114,18 @@ must let in (`MK_AGP3_FINAL.exe`). As on the real cabinets, each one's PCB-ID mu
 test menu, ゲーム設定 → 基板ID, 1.10: Game options → Board ID; Enter, selector, Enter): E24-03
 « 基板ID重複エラー » otherwise.
 Without `LINK` the cabinet plays alone.
-Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone, as TeknoParrot has it:
-the launcher starts amdaemon (the ALLS platform's service) 5 s before the game, with the game's
-`config.json` and windowsloader's settings for a cabinet alone (written in the temporary folder:
-ALL.Net's accounting, the network delivery, the electronic money, ABaaS's logs and the LAN install
-off), and the game with `-launch=MiniCabinet` (unless its command line has a `-launch=`). The
+Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
+amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
+windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's
+accounting, the network delivery, the electronic money, ABaaS's logs and the LAN install off).
+`CABINET`, taken as the game starts (the launcher gives it `-launch=`, unless its command line has
+one): `CABINET` (the default) the full cabinet, `-launch=Cabinet`, with its dashboard (838-15415 on
+COM20: the wheel's four buttons and two paddles, the speed, gear and rev lamps it shows) and its
+LED board (837-15070 on COM2: 9 RGB LEDs, 3 power outputs); `MINI` the mini cabinet,
+`-launch=MiniCabinet`, as TeknoParrot runs it, without them (the wheel's buttons do nothing
+there). In a full cabinet the network outputs have `speed`, `gear`, `rpm`, `dash_lamp0` to
+`dash_lamp7` (the dashboard's) and `led0_r` to `led8_b` (0-255), `fet0` to `fet2` (the LED
+board's), besides the I/O board's lamps. The
 PC's CD/DVD drives and removable disks are hidden from both (amdaemon stops on "Error 0919 DVD
 Drive Remain Error" when it finds a DVD drive, 0917 for a USB key); `D:`, `E:` and `Y:` are the
 copy's folders, fixed disks, whatever the PC has under these letters. The
@@ -179,8 +186,8 @@ of their own: Storm Racer G's PWM lights `pwm0` to `pwm5` (0 to 255), GTI Club 3
 `SideLight_...`, `MachineSideLight_...`, 0 or 1; `SpeedLight`, `StopLight`, `BrakeLight`, 0 to 3;
 `GameStateLight`; `StartLight`), Mario Kart Arcade GP DX's cabinet LEDs (Namco commands 0x78 to
 0x7A, 9 RGB LEDs each): `led0_r`, `led0_g`, `led0_b` ... `led26_b`, 0 to 15 (the colours' order
-supposed, as Crazy Ride's). Not yet: SWDC's LED board 837-15070 (only its start seen); the other
-games give their I/O board no lamps.
+supposed, as Crazy Ride's), SWDC's in a full cabinet (its LED board and dashboard, see above); the
+other games give their I/O board no lamps.
 The menu's "Sorties et réseau" page lists the values the running game can send, with their type and
 their last value (kept even when `OUTPUTS_NETWORK` is off), and the server's state.
 
