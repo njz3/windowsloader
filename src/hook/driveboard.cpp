@@ -18,13 +18,17 @@
 // - FF reset, 80 effects on/off, 81 maximum force, 83 gain, 84 constant torque, 85 sine, 86 damper,
 //   87/88/8B spring, 9D/9E parameters, FA the answers' mode, FB play a page, FC the wheel's bounds
 //   test and the encoder's index (busy once);
-// - 84: torque = ((v1 << 7) | v2) - 0x80, -128..127, > 0 to the left.
-// The torque and the sine (85, its amplitude) go to the force feedback (ffb.cpp); the other
-// effects are logged only. K.O. Drive (RingWide) reads 4 bytes as its answer: the status, zeros.
+// - 84: torque = ((v1 << 7) | v2) - 0x80, -128..127, > 0 to the left;
+// - 85: a sine, v1 its frequency in half hertz, v2 its amplitude.
+// The torque and the sine, under the gain and 80's on/off, go to the force feedback (ffb.cpp); the
+// other effects are logged only (below). K.O. Drive (RingWide) reads 4 bytes as its answer.
+// The same emulation for every Sega game with this board: Initial D 6, 7 and 8, K.O. Drive, Sonic
+// (ringedge.cpp), SWDC and Initial D Zero (alls.cpp).
 // Sonic & Sega All-Stars Racing checks the status byte: 3 bits, repeated in the high nibble; it
 // wants 1 (0x11) after the 81 and 82 settings, 0 after a status asked (FD).
 
 #include <windows.h>
+#include <math.h>
 
 #include "driveboard.h"
 #include "ffb.h"
@@ -92,6 +96,82 @@ int wl_driveboard_free_wheel(int *steering)
     return 1;
 }
 
+// The effects (DRIVEBOARD.md's operation codes): 84 the torque, 85 a sine (its frequency in half
+// hertz, its amplitude; either at 0 stops it), scaled by the gain 83 (00..7F, full until the game
+// sets one), played while 80 has them on (80 a 01; on after a reset too, for a game that never
+// sends 80). 80's short mode (80 01 b): the board drops the force about 240 ms after the last
+// frame, any frame. 81 (a maximum force, which DRIVEBOARD.md reads two ways), 86 the damper and
+// 87, 88, 8B the spring are logged only: the force feedback here is one constant force. A thread
+// plays the sine between the frames and the short mode's drop.
+#define SHORT_MODE_MS 240
+
+static CRITICAL_SECTION g_fxLock;
+static int g_torque, g_sineFrequency, g_sineAmplitude;
+static int g_gain = 0x7F, g_enabled = 1, g_shortMode;
+static ULONGLONG g_lastFrame;
+static double g_qpcPerSecond;
+
+static void play(void) // under g_fxLock
+{
+    double force = 0;
+    if (g_enabled && !(g_shortMode && GetTickCount64() - g_lastFrame > SHORT_MODE_MS))
+    {
+        double sine = 0;
+        if (g_sineFrequency && g_sineAmplitude)
+        {
+            LARGE_INTEGER now;
+            QueryPerformanceCounter(&now);
+            sine = g_sineAmplitude * sin(6.283185307179586 * (g_sineFrequency / 2.0) * ((double)now.QuadPart / g_qpcPerSecond));
+        }
+        force = (g_torque + sine) * g_gain / 127.0 / 127.0;
+    }
+    wl_ffb_set(force);
+}
+
+static DWORD WINAPI effects_thread(LPVOID unused)
+{
+    for (;;)
+    {
+        Sleep(10);
+        EnterCriticalSection(&g_fxLock);
+        if ((g_sineFrequency && g_sineAmplitude) || g_shortMode)
+            play();
+        LeaveCriticalSection(&g_fxLock);
+    }
+}
+
+static void effects(const unsigned char *f, int value)
+{
+    EnterCriticalSection(&g_fxLock);
+    g_lastFrame = GetTickCount64();
+    switch (f[0])
+    {
+    case 0x80:
+        g_shortMode = f[1] == 0x01;
+        g_enabled = f[2] != 0;
+        break;
+    case 0x83:
+        g_gain = f[1] & 0x7F;
+        break;
+    case 0x84:
+        g_torque = value;
+        break;
+    case 0x85:
+        g_sineFrequency = f[1] & 0x7F;
+        g_sineAmplitude = f[2] & 0x7F;
+        break;
+    case 0xFF: // the defaults
+        g_torque = g_sineFrequency = g_sineAmplitude = g_shortMode = 0;
+        g_gain = 0x7F;
+        g_enabled = 1;
+        break;
+    default:
+        break;
+    }
+    play();
+    LeaveCriticalSection(&g_fxLock);
+}
+
 static void frame(const unsigned char *f)
 {
     int value = ((f[1] & 0x7F) << 7 | (f[2] & 0x7F)) - 0x80;
@@ -107,19 +187,12 @@ static void frame(const unsigned char *f)
     if (f[0] != 0xFD && last[f[0]] != values && g_logged++ < 1000)
         wl_log("driveboard: %02x %02x %02x %02x", f[0], f[1], f[2], f[3]);
     last[f[0]] = values;
-    // The force: the torque, and the sine's amplitude turned each way at every frame (the game
-    // sends one at each of its frames, 30 a second): K.O. Drive's shocks are 85 1E 0A for a frame
-    // or two
-    static int torque, sine, side;
+    effects(f, value);
     switch (f[0])
     {
     case 0x84:
         if (g_freeRunning && value)
             g_freeSteering = value > 0 ? 0x20 : 0xE0;
-        torque = value;
-        break;
-    case 0x85:
-        sine = f[1] & 0x7F;
         break;
     case 0xFF: // reset: the short answers, the board to set up again
         g_longMode = 0;
@@ -142,11 +215,6 @@ static void frame(const unsigned char *f)
         return;
     default:
         break;
-    }
-    if (f[0] == 0x84 || f[0] == 0x85 || sine)
-    {
-        int force = torque + (sine ? (side ^= 1) ? sine : -sine : 0);
-        wl_ffb_set((force > 127 ? 127 : force < -127 ? -127 : force) / 127.0);
     }
     g_status = BOARD_READY;
 }
@@ -238,6 +306,11 @@ static WlVirtualDevice g_port = {NULL, NULL, board_read, board_write, board_mode
 void wl_driveboard_register(const char *port)
 {
     InitializeCriticalSection(&g_lock);
+    InitializeCriticalSection(&g_fxLock);
+    LARGE_INTEGER f;
+    QueryPerformanceFrequency(&f);
+    g_qpcPerSecond = (double)f.QuadPart;
+    CloseHandle(CreateThread(NULL, 0, effects_thread, NULL, 0, NULL));
     g_port.name = port;
     wl_vdev_register(&g_port);
     wl_outputs_declare_drive(); // for the menu's "Sorties et réseau" page
