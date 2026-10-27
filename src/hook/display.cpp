@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "agent.h"
 #include "display.h"
 #include "game.h"
 #include "hooks.h"
@@ -68,7 +69,7 @@ static RECT g_dest, g_client;      // what shows the picture in the client area,
 static RECT g_pic;                 // the whole picture's place (beyond g_dest when it is cropped)
 static RECT g_src;                 // the back buffer's part shown (Direct3D 9's Present, cropped)
 static int g_full = 1;             // the picture is the whole client area
-static int g_glPicture;            // an OpenGL game whose viewports windowsloader moves (wl_display_gl_window)
+static int g_glPicture;            // an OpenGL game whose picture windowsloader copies into its window (glhook.cpp)
 static int g_hidden;               // a program of the cabinet's that shows nothing (wl_display_hidden)
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
@@ -370,8 +371,9 @@ static int view_kind(void)
     if (g_gdi)
         return g_cropBarrel ? VIEW_BARREL : VIEW_CROP;
     // The game's own Present: Direct3D 9 shows a part of its back buffer (no bend); Direct3D 11's
-    // fills the child window: the whole picture between bars
-    return g_copy ? VIEW_CROP : VIEW_FIT;
+    // fills the child window: the whole picture between bars. OpenGL's copy is cut to the frame (no
+    // bend)
+    return g_copy || g_glPicture ? VIEW_CROP : VIEW_FIT;
 }
 
 // The part of a w x h picture a crop keeps, CROP_POSITION's (the middle's when centred)
@@ -609,7 +611,7 @@ static void apply_mode(void)
     InterlockedExchange(&g_repaint, 1);
     wl_log("display: %s %s, window %dx%d at %d,%d, picture %ldx%ld at %ld,%ld%s", g_modeNames[mode], g_aspectNames[g_aspect], w, h, x, y,
            g_dest.right - g_dest.left, g_dest.bottom - g_dest.top, g_dest.left, g_dest.top,
-           placed() || g_full ? "" : " (multisampled back buffer: the picture fills the window)");
+           placed() || g_glPicture || g_full ? "" : " (multisampled back buffer: the picture fills the window)");
 }
 
 static void paint_bars(void)
@@ -653,6 +655,18 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_PAINT || msg == WM_SIZE || msg == WM_ERASEBKGND)
         InterlockedExchange(&g_repaint, 1);
+    // The window's size is windowsloader's: a game that limits it (Frenzy Express: 640x480 at most,
+    // its cabinet's screen) gets Windows' own limits back
+    if (msg == WM_GETMINMAXINFO && lp)
+    {
+        LRESULT r = g_unicode ? CallWindowProcW(g_proc, h, msg, wp, lp) : CallWindowProcA(g_proc, h, msg, wp, lp);
+        MINMAXINFO *mm = (MINMAXINFO *)lp;
+        mm->ptMaxTrackSize.x = GetSystemMetrics(SM_CXMAXTRACK);
+        mm->ptMaxTrackSize.y = GetSystemMetrics(SM_CYMAXTRACK);
+        mm->ptMaxSize.x = GetSystemMetrics(SM_CXMAXIMIZED);
+        mm->ptMaxSize.y = GetSystemMetrics(SM_CYMAXIMIZED);
+        return r;
+    }
     // The game sees its window at its picture's size (as by GetClientRect above)
     if (msg == WM_SIZE && wp != SIZE_MINIMIZED && g_bbW > 0 && g_bbH > 0)
         lp = MAKELPARAM(g_bbW, g_bbH);
@@ -1114,6 +1128,14 @@ void wl_display_picture(RECT *r)
         GetClientRect(g_wnd, r);
 }
 
+int wl_display_frame(RECT *r)
+{
+    if (!g_wnd)
+        return 0;
+    *r = g_dest;
+    return 1;
+}
+
 // ------------------------------------------------------------------------------
 // What the window shows
 // ------------------------------------------------------------------------------
@@ -1122,6 +1144,10 @@ int wl_display_screenshot(const char *path)
 {
     if (!g_wnd)
         return 0;
+    // An OpenGL game's window is read back by OpenGL (glhook.cpp): the screen's copy misses it on a
+    // screen scaled for a game not aware of it
+    if (g_glPicture)
+        return wl_window_shot(path, 5000);
     RECT c;
     GetClientRect(g_wnd, &c);
     POINT o = {0, 0};

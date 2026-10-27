@@ -37,6 +37,10 @@ int wl_d3d9_shot(const char *path, DWORD timeoutMs);
 // then wl_shot_done with 1 when the file is written. Pixels are 32-bit, BGRX or RGBX (rgba set).
 const char *wl_shot_pending(void);
 void wl_shot_done(int ok);
+// The same for the whole window, black bars included (an OpenGL game drawing in windowsloader's
+// framebuffer: its window read back after the copy); wl_shot_window 1 while it is the one asked
+int wl_window_shot(const char *path, DWORD timeoutMs);
+int wl_shot_window(void);
 int wl_write_bmp(const char *path, const unsigned char *pixels, int pitch, int w, int h, int rgba);
 
 // Takes the picture the agent asked for, from the back buffer about to be presented

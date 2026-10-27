@@ -1284,10 +1284,12 @@ void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present)
 
 // ------------------------------------------------------------------------------
 // OpenGL (legacy, the fixed pipeline: Frenzy Express, Initial D 6 to 8), from SwapBuffers on the
-// game's thread with its context current. The game's frame is read back into a texture, drawn
-// under the menu at each of its frames and once more as the menu closes, for the game's own swap.
-// windowsloader's own GL calls go past its viewport hooks (glhook.cpp: wl_busy). A window the
-// display leaves alone has its procedure taken here for the menu's keys.
+// game's thread with its context current. A game drawing in windowsloader's framebuffer
+// (glhook.cpp) keeps its last picture there: it is drawn under the menu at each of its frames, where
+// the display puts it now. Otherwise the game's frame is read back into a texture, drawn under the
+// menu at each of its frames and once more as the menu closes, for the game's own swap.
+// windowsloader's own GL calls go past its hooks (glhook.cpp: wl_busy). A window the display
+// leaves alone has its procedure taken here for the menu's keys.
 // ------------------------------------------------------------------------------
 
 #ifndef GL_BGRA
@@ -1299,6 +1301,7 @@ struct FrameGl
     HDC dc;
     GLuint frozen; // 0: none, the menu over black
     WlSwapFn swap;
+    int framebuffer; // the game's picture in windowsloader's framebuffer (wl_gl_present)
 };
 
 static WNDPROC g_glProc;
@@ -1555,9 +1558,18 @@ static void render_frame_gl(void *arg)
 {
     FrameGl *f = (FrameGl *)arg;
     GlSaved saved;
+    RECT client;
+    if (f->framebuffer && GetClientRect(g_wnd, &client) && client.right > 0 && client.bottom > 0)
+    {
+        g_bbW = client.right; // the window as the display has it now (F11, the Affichage page)
+        g_bbH = client.bottom;
+    }
     wl_busy_enter();
     gl_enter(&saved);
-    draw_frozen(f->frozen);
+    if (f->framebuffer)
+        wl_gl_present();
+    else
+        draw_frozen(f->frozen);
     ImGui_ImplOpenGL2_NewFrame();
     ImGui_ImplWin32_NewFrame();
     feed_mouse();
@@ -1591,9 +1603,14 @@ void wl_menu_swap_gl(HDC dc, WlSwapFn swap)
     if (g_ready < 0 || g_backend != 2)
         return;
 
-    // The game's frame, its back buffer as it is about to be swapped
-    FrameGl f = {dc, 0, swap};
+    // The game's frame, its back buffer as it is about to be swapped (or windowsloader's framebuffer)
+    FrameGl f = {dc, 0, swap, wl_gl_redirected()};
     GlSaved saved;
+    if (f.framebuffer)
+    {
+        run_menu(render_frame_gl, &f);
+        return;
+    }
     unsigned char *pixels = (unsigned char *)malloc((size_t)g_bbW * g_bbH * 4);
     wl_busy_enter();
     if (pixels)

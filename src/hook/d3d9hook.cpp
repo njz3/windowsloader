@@ -267,6 +267,21 @@ int wl_d3d9_shot(const char *path, DWORD timeoutMs)
     return g_shotOk;
 }
 
+static volatile LONG g_shotWindow; // the picture asked is the whole window's (wl_window_shot)
+
+int wl_window_shot(const char *path, DWORD timeoutMs)
+{
+    InterlockedExchange(&g_shotWindow, 1);
+    int ok = wl_d3d9_shot(path, timeoutMs);
+    InterlockedExchange(&g_shotWindow, 0);
+    return ok;
+}
+
+int wl_shot_window(void)
+{
+    return g_shotWindow;
+}
+
 const char *wl_shot_pending(void)
 {
     return g_shotPending ? g_shotPath : NULL;

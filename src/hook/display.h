@@ -30,7 +30,7 @@
 //       shown undistorted, in % of the frame (60); BARREL_RADIUS the cylinder's radius in % of the
 //       frame (50): small bends hard at the edge, large compresses evenly. Only when windowsloader
 //       copies the picture (PRESENT = GDI); with PRESENT = DIRECT, Direct3D 9 crops without the
-//       bend and Direct3D 11 shows the whole picture between bars
+//       bend and Direct3D 11 shows the whole picture between bars; OpenGL crops without the bend
 //   DISPLAY_MODE = WINDOW | WINDOW_STRETCH | FULLSCREEN | FULLSCREEN_STRETCH | BORDERLESS |
 //       BORDERLESS_STRETCH: a window at the aspect ratio (square pixels), a window the frame fills,
 //       the whole screen with the frame at the aspect ratio between black bars or the whole screen
@@ -109,18 +109,21 @@ void wl_display_window(HWND wnd, int width, int height);
 // window hidden once its swap chain exists, left alone after (no child, no copy, no mode)
 void wl_display_hidden(void);
 
-// OpenGL games (their window as they made it): the frames per second and the game's name in the
-// window's title, at each SwapBuffers
+// OpenGL games left as they are (without framebuffer objects, glhook.cpp): the frames per second
+// and the game's name in the window's title, at each SwapBuffers
 void wl_display_title(HWND wnd);
-// An OpenGL game whose module gave its picture's size (wl_gl_picture: Frenzy Express, 640x480 drawn
-// in a window the size of the screen): its window set for the mode as a Direct3D 11 game's, then
-// wl_display_dest at each SwapBuffers, and wl_display_picture where its viewports are moved
+// An OpenGL game drawing in windowsloader's framebuffer (glhook.cpp), its picture width x height:
+// its window set for the mode as a Direct3D 11 game's, then wl_display_dest at each SwapBuffers;
+// the picture copied to wl_display_picture, cut to wl_display_frame
 void wl_display_gl_window(HWND wnd, int width, int height);
 
 // The part of the window's client area showing the picture (for the menu's mouse); a cropped
 // picture's goes beyond the frame (the whole picture at the crop's scale, centred on the frame: the
 // menu is shown that way over a cropped or bent picture)
 void wl_display_picture(RECT *r);
+// The part of the client area the picture is shown in (a cropped picture cut to it): 0 before the
+// window is the game's
+int wl_display_frame(RECT *r);
 
 // The picture shown by GDI ([Display] PRESENT = GDI, the default): windowsloader copies it into the
 // window (at wl_display_picture); the game's Present goes to a hidden window (Direct3D 9) or a
