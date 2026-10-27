@@ -470,8 +470,8 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
 // alone: amdaemon with the game's config.json and windowsloader's settings for a cabinet alone,
 // which its module writes in the temporary folder ({temp}: alls.cpp); the game's -launch= from
 // its option CABINET (g_gameOptionArgs). Initial D 6, 7 and 8's picodaemon.exe, the card
-// reader-writer's daemon, which game.bat starts just before the game. The folders are the game's
-// folder's parents.
+// reader-writer's daemon, which game.bat starts just before the game. Initial D Zero's two, in the
+// table's order: amdaemon, then the shop's server box. The folders are the game's folder's parents.
 static const struct
 {
     const wchar_t *game; // the game's file name
@@ -483,6 +483,13 @@ static const struct
     {L"Todoroki-Win64-Shipping.exe", 4, L"WindowsNoEditor\\AMDaemon\\amdaemon.exe",
      L"-c WindowsNoEditor\\AMDaemon\\config.json -c \"{temp}windowsloader-swdc-amdaemon.json\" -l WindowsNoEditor\\AMDaemon\\amdaemon.log",
      5000},
+    // Initial D Arcade Stage Zero (Sega Nu): the export cabinet's settings, the first cabinet's
+    // (the DIP switch alls.cpp gives), then windowsloader's for a cabinet alone
+    {L"InitialD0_DX11_Nu.exe", 0, L"amdaemon.exe",
+     L"-c configDHCP_Final_Common.json configDHCP_Final_EX.json configDHCP_Final_EX_ST1.json -c \"{temp}windowsloader-idz-amdaemon.json\"", 5000},
+    // and the shop's server box, the cabinets' link to the game's online server (alls.cpp plays
+    // that server on this PC)
+    {L"InitialD0_DX11_Nu.exe", 0, L"ServerBoxD8_Nu_x64.exe", L"", 3000},
     // Initial D 6's game.bat starts it too: without it, error 5101 (417) at "do you have a licence?"
     {L"id6_dump_.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD6_GLW_RE_SBUU.exe", 0, L"picodaemon.exe", L"", 1000},
@@ -567,11 +574,14 @@ static void game_option_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wc
     }
 }
 
-static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t *exe, wchar_t *dir, wchar_t *cmd, DWORD *waitMs)
+// The game's next companion from the table's entry *next on, in the table's order (*next then
+// past it); 0 when there are no more
+#define COMPANIONS 2
+static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, int *next, wchar_t *exe, wchar_t *dir, wchar_t *cmd, DWORD *waitMs)
 {
     const wchar_t *base = wcsrchr(gamePath, L'\\');
     base = base ? base + 1 : gamePath;
-    for (int i = 0; i < (int)(sizeof g_companions / sizeof g_companions[0]); i++)
+    for (int i = *next; i < (int)(sizeof g_companions / sizeof g_companions[0]); i++)
     {
         if (_wcsicmp(base, g_companions[i].game))
             continue;
@@ -580,7 +590,8 @@ static int companion_of(const wchar_t *gamePath, const wchar_t *gameDir, wchar_t
             parent_dir(dir);
         swprintf(exe, MAX_PATH, L"%s\\%s", dir, g_companions[i].exe);
         if (GetFileAttributesW(exe) == INVALID_FILE_ATTRIBUTES)
-            return 0;
+            continue;
+        *next = i + 1;
         cmd[0] = 0;
         append_arg(cmd, CMDLINE_MAX, exe);
         size_t n = wcslen(cmd);
@@ -855,18 +866,18 @@ int wmain(int argc, wchar_t **argv)
         }
     }
 
-    // The companion first (companion_of): its own log, neither controllers nor agent (the game's)
-    PROCESS_INFORMATION cpi = {0};
+    // The companions first (companion_of): their own logs, neither controllers nor agent (the game's)
+    PROCESS_INFORMATION cpi[COMPANIONS] = {};
     wchar_t compExe[MAX_PATH], compDir[MAX_PATH], compLog[MAX_PATH];
     static wchar_t compCmd[CMDLINE_MAX];
     DWORD compWait = 0;
-    if (companion_of(gamePath, gameDir, compExe, compDir, compCmd, &compWait))
+    for (int c = 0, next = 0; c < COMPANIONS && companion_of(gamePath, gameDir, &next, compExe, compDir, compCmd, &compWait); c++)
     {
-        wcsncpy_s(compLog, MAX_PATH, logPath, _TRUNCATE); // game.log: game-companion.log
+        wcsncpy_s(compLog, MAX_PATH, logPath, _TRUNCATE); // game.log: game-companion.log, game-companion2.log
         wchar_t *dot = wcsrchr(compLog, L'.'), *slash = wcsrchr(compLog, L'\\');
         if (dot && (!slash || dot > slash))
             *dot = 0;
-        wcscat_s(compLog, MAX_PATH, L"-companion.log");
+        wcscat_s(compLog, MAX_PATH, c ? L"-companion2.log" : L"-companion.log");
         SetEnvironmentVariableW(WL_ENV_LOG, compLog);
         SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);
@@ -886,7 +897,7 @@ int wmain(int argc, wchar_t **argv)
         csi.lpAttributeList = listed ? attrs : NULL;
         BOOL created = nul != INVALID_HANDLE_VALUE && listed &&
                        CreateProcessW(compExe, compCmd, NULL, NULL, TRUE, CREATE_SUSPENDED | CREATE_NO_WINDOW | EXTENDED_STARTUPINFO_PRESENT, NULL,
-                                      compDir, &csi.StartupInfo, &cpi);
+                                      compDir, &csi.StartupInfo, &cpi[c]);
         if (listed)
             DeleteProcThreadAttributeList(attrs);
         if (attrs)
@@ -896,20 +907,20 @@ int wmain(int argc, wchar_t **argv)
         if (created)
         {
             if (job)
-                AssignProcessToJobObject(job, cpi.hProcess);
-            if (inject(&cpi, dllPath))
+                AssignProcessToJobObject(job, cpi[c].hProcess);
+            if (inject(&cpi[c], dllPath))
             {
-                say("  with:   %s (pid %lu, log %s)\n", u8(compExe), cpi.dwProcessId, u8(compLog));
-                ResumeThread(cpi.hThread);
+                say("  with:   %s (pid %lu, log %s)\n", u8(compExe), cpi[c].dwProcessId, u8(compLog));
+                ResumeThread(cpi[c].hThread);
                 Sleep(compWait);
             }
             else
             {
-                TerminateProcess(cpi.hProcess, 1);
-                CloseHandle(cpi.hProcess);
-                cpi.hProcess = NULL;
+                TerminateProcess(cpi[c].hProcess, 1);
+                CloseHandle(cpi[c].hProcess);
+                cpi[c].hProcess = NULL;
             }
-            CloseHandle(cpi.hThread);
+            CloseHandle(cpi[c].hThread);
         }
         else
             say_error("CreateProcess (the companion)");
@@ -952,8 +963,9 @@ int wmain(int argc, wchar_t **argv)
     if (!started)
     {
         say_error("CreateProcess");
-        if (cpi.hProcess)
-            TerminateProcess(cpi.hProcess, 1);
+        for (int c = 0; c < COMPANIONS; c++)
+            if (cpi[c].hProcess)
+                TerminateProcess(cpi[c].hProcess, 1);
         return 1;
     }
     if (job && !AssignProcessToJobObject(job, pi.hProcess))
@@ -1009,12 +1021,13 @@ int wmain(int argc, wchar_t **argv)
     DWORD code = 0;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hProcess);
-    if (cpi.hProcess) // the companion ends with the game, as the cabinet's script ends it
-    {
-        TerminateProcess(cpi.hProcess, 0);
-        WaitForSingleObject(cpi.hProcess, 5000);
-        CloseHandle(cpi.hProcess);
-    }
+    for (int c = COMPANIONS - 1; c >= 0; c--)
+        if (cpi[c].hProcess) // the companions end with the game, as the cabinet's script ends them
+        {
+            TerminateProcess(cpi[c].hProcess, 0);
+            WaitForSingleObject(cpi[c].hProcess, 5000);
+            CloseHandle(cpi[c].hProcess);
+        }
     if (stopped)
     {
         say("windowsloader: game stopped after %d s (--timeout).\n", timeoutSec);
