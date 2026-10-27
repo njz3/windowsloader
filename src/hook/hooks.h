@@ -163,4 +163,5 @@ void wl_dinput_hide_controllers(void); // the PC's game controllers kept from th
 void wl_dinput_legacy(void *directInputA); // DirectInput 7 (ANSI) made through COM: its devices handled the same way
 void wl_d3d11_hooks(void);
 void wl_gl_hooks(void);
+void wl_gl_picture(int width, int height); // from a game's module: its OpenGL picture's size, its window then placed (glhook.cpp)
 void wl_crash_init(void);

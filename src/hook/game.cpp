@@ -96,7 +96,7 @@ void wl_game_init(void)
              !wl_game_triotech(exe, &g_name, &g_title) && !wl_game_namco(exe, &g_name, &g_title) &&
              !wl_game_unis(exe, &g_name, &g_title) && !wl_game_alls(exe, &g_name, &g_title) &&
              !wl_game_stormracer(exe, &g_name, &g_title) && !wl_game_cardrw(exe, &g_name, &g_title) &&
-             !wl_game_wahlap(exe, &g_name, &g_title))
+             !wl_game_wahlap(exe, &g_name, &g_title) && !wl_game_uniana(exe, &g_name, &g_title))
         wl_log("game not recognized: observing only");
 }
 

@@ -145,6 +145,7 @@ add_library(wl_hook SHARED
     src/hook/games/allnet.cpp
     src/hook/games/stormracer.cpp
     src/hook/games/wahlap.cpp
+    src/hook/games/uniana.cpp
     src/hook/games/cardrw.cpp
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp

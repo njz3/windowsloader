@@ -109,6 +109,10 @@ void wl_display_window(HWND wnd, int width, int height);
 // OpenGL games (their window as they made it): the frames per second and the game's name in the
 // window's title, at each SwapBuffers
 void wl_display_title(HWND wnd);
+// An OpenGL game whose module gave its picture's size (wl_gl_picture: Frenzy Express, 640x480 drawn
+// in a window the size of the screen): its window set for the mode as a Direct3D 11 game's, then
+// wl_display_dest at each SwapBuffers, and wl_display_picture where its viewports are moved
+void wl_display_gl_window(HWND wnd, int width, int height);
 
 // The part of the window's client area showing the picture (for the menu's mouse); a cropped
 // picture's goes beyond the frame (the whole picture at the crop's scale, centred on the frame: the

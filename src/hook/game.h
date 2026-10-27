@@ -32,6 +32,7 @@ void wl_allnet_game(void);              // allnet.cpp, in the game: its title se
 int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **title); // Storm Racer G (usb_io.dll)
 int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title);     // Initial D 7 and 8's card unit (picodaemon.exe)
 int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title);     // Storm Rider (motobikeio.dll)
+int wl_game_uniana(const wchar_t *exePath, const char **name, const char **title);     // Frenzy Express (xio.dll)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs
 const char *wl_game_name(void);

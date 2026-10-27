@@ -68,6 +68,7 @@ static RECT g_dest, g_client;      // what shows the picture in the client area,
 static RECT g_pic;                 // the whole picture's place (beyond g_dest when it is cropped)
 static RECT g_src;                 // the back buffer's part shown (Direct3D 9's Present, cropped)
 static int g_full = 1;             // the picture is the whole client area
+static int g_glPicture;            // an OpenGL game whose viewports windowsloader moves (wl_display_gl_window)
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
 static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"};
@@ -769,6 +770,12 @@ void wl_display_window(HWND wnd, int width, int height)
     apply_mode();
 }
 
+void wl_display_gl_window(HWND wnd, int width, int height)
+{
+    g_glPicture = 1;
+    wl_display_window(wnd, width, height);
+}
+
 static int focus_is_ours(void)
 {
     DWORD pid = 0;
@@ -1089,7 +1096,7 @@ HWND wl_display_hwnd(void)
 
 void wl_display_picture(RECT *r)
 {
-    if (placed())
+    if (placed() || g_glPicture)
         *r = g_pic;
     else
         GetClientRect(g_wnd, r);
