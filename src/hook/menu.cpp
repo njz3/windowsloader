@@ -31,10 +31,13 @@
 #include <wctype.h>
 #include <string.h>
 
+#include <GL/gl.h>
+
 #include "imgui.h"
 #include "backends/imgui_impl_dx10.h"
 #include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_dx9.h"
+#include "backends/imgui_impl_opengl2.h"
 #include "backends/imgui_impl_win32.h"
 
 #include "agent.h"
@@ -230,8 +233,11 @@ static void feed_mouse(void)
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)g_bbW, (float)g_bbH);
     POINT pt;
-    RECT pic;
-    wl_display_picture(&pic);
+    RECT pic = {0, 0, 0, 0};
+    if (wl_display_hwnd())
+        wl_display_picture(&pic);
+    else
+        GetClientRect(g_wnd, &pic); // a window the display leaves as it is (OpenGL): the picture fills it
     int pw = pic.right - pic.left, ph = pic.bottom - pic.top;
     if (GetCursorPos(&pt) && ScreenToClient(g_wnd, &pt) && pw > 0 && ph > 0)
         io.AddMousePosEvent((pt.x - pic.left) * (float)g_bbW / pw, (pt.y - pic.top) * (float)g_bbH / ph);
@@ -1274,4 +1280,344 @@ void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present)
     if (bb)
         bb->Release();
     f.dev->Release();
+}
+
+// ------------------------------------------------------------------------------
+// OpenGL (legacy, the fixed pipeline: Frenzy Express, Initial D 6 to 8), from SwapBuffers on the
+// game's thread with its context current. The game's frame is read back into a texture, drawn
+// under the menu at each of its frames and once more as the menu closes, for the game's own swap.
+// windowsloader's own GL calls go past its viewport hooks (glhook.cpp: wl_busy). A window the
+// display leaves alone has its procedure taken here for the menu's keys.
+// ------------------------------------------------------------------------------
+
+#ifndef GL_BGRA
+#define GL_BGRA 0x80E1
+#endif
+
+struct FrameGl
+{
+    HDC dc;
+    GLuint frozen; // 0: none, the menu over black
+    WlSwapFn swap;
+};
+
+static WNDPROC g_glProc;
+static int g_glUnicode;
+
+static LRESULT CALLBACK gl_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    LRESULT result;
+    if (wl_menu_wndproc(h, msg, wp, lp, &result))
+        return result;
+    return g_glUnicode ? CallWindowProcW(g_glProc, h, msg, wp, lp) : CallWindowProcA(g_glProc, h, msg, wp, lp);
+}
+
+// The fixed pipeline for the menu, whatever the game left at SwapBuffers (Initial D 6: Cg programs,
+// buffers, a framebuffer object): what glPushAttrib keeps (the enables, the textures) is turned off
+// under it; what it does not keep (the GLSL program, the buffers, the framebuffers, the active
+// texture unit) is saved here, set to none, and put back. The functions past OpenGL 1.1 are the
+// driver's (wglGetProcAddress), each one used only when there is one.
+#define GL_ACTIVE_TEXTURE_ 0x84E0
+#define GL_CLIENT_ACTIVE_TEXTURE_ 0x84E1
+#define GL_TEXTURE0_ 0x84C0
+#define GL_ARRAY_BUFFER_ 0x8892
+#define GL_ELEMENT_ARRAY_BUFFER_ 0x8893
+#define GL_ARRAY_BUFFER_BINDING_ 0x8894
+#define GL_ELEMENT_ARRAY_BUFFER_BINDING_ 0x8895
+#define GL_PIXEL_PACK_BUFFER_ 0x88EB
+#define GL_PIXEL_UNPACK_BUFFER_ 0x88EC
+#define GL_PIXEL_PACK_BUFFER_BINDING_ 0x88ED
+#define GL_PIXEL_UNPACK_BUFFER_BINDING_ 0x88EF
+#define GL_CURRENT_PROGRAM_ 0x8B8D
+#define GL_DRAW_FRAMEBUFFER_ 0x8CA9
+#define GL_READ_FRAMEBUFFER_ 0x8CA8
+#define GL_DRAW_FRAMEBUFFER_BINDING_ 0x8CA6
+#define GL_READ_FRAMEBUFFER_BINDING_ 0x8CAA
+#define GL_VERTEX_PROGRAM_ARB_ 0x8620
+#define GL_FRAGMENT_PROGRAM_ARB_ 0x8804
+#define GL_TEXTURE_CUBE_MAP_ 0x8513
+#define GL_TEXTURE_3D_ 0x806F
+#define GL_TEXTURE_RECTANGLE_ 0x84F5
+#define GL_FRAMEBUFFER_SRGB_ 0x8DB9
+
+typedef void(APIENTRY *GlUintFn)(GLenum);
+typedef void(APIENTRY *GlBindFn)(GLenum, GLuint);
+typedef void(APIENTRY *GlProgramFn)(GLuint);
+
+static struct
+{
+    int looked;
+    GlUintFn activeTexture, clientActiveTexture;
+    GlBindFn bindBuffer, bindFramebuffer;
+    GlProgramFn useProgram;
+} g_glx;
+
+struct GlSaved
+{
+    GLint activeTexture, clientActiveTexture, arrayBuffer, elementBuffer, packBuffer, unpackBuffer, program, drawFb, readFb;
+};
+
+static void gl_functions(void)
+{
+    if (g_glx.looked)
+        return;
+    g_glx.looked = 1;
+    g_glx.activeTexture = (GlUintFn)wglGetProcAddress("glActiveTexture");
+    g_glx.clientActiveTexture = (GlUintFn)wglGetProcAddress("glClientActiveTexture");
+    g_glx.bindBuffer = (GlBindFn)wglGetProcAddress("glBindBuffer");
+    g_glx.bindFramebuffer = (GlBindFn)wglGetProcAddress("glBindFramebuffer");
+    if (!g_glx.bindFramebuffer)
+        g_glx.bindFramebuffer = (GlBindFn)wglGetProcAddress("glBindFramebufferEXT");
+    g_glx.useProgram = (GlProgramFn)wglGetProcAddress("glUseProgram");
+}
+
+// After glPushAttrib(GL_ALL_ATTRIB_BITS) and glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS)
+static void gl_neutral(GlSaved *s)
+{
+    gl_functions();
+    memset(s, 0, sizeof *s);
+    glGetError(); // a parameter the driver does not know only sets an error, read and dropped below
+    if (g_glx.activeTexture)
+    {
+        glGetIntegerv(GL_ACTIVE_TEXTURE_, &s->activeTexture);
+        for (int unit = 1; unit < 4; unit++)
+        {
+            g_glx.activeTexture(GL_TEXTURE0_ + unit);
+            glDisable(GL_TEXTURE_2D);
+        }
+        g_glx.activeTexture(GL_TEXTURE0_);
+    }
+    if (g_glx.clientActiveTexture)
+    {
+        glGetIntegerv(GL_CLIENT_ACTIVE_TEXTURE_, &s->clientActiveTexture);
+        g_glx.clientActiveTexture(GL_TEXTURE0_);
+    }
+    if (g_glx.bindBuffer)
+    {
+        glGetIntegerv(GL_ARRAY_BUFFER_BINDING_, &s->arrayBuffer);
+        glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING_, &s->elementBuffer);
+        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING_, &s->packBuffer);
+        glGetIntegerv(GL_PIXEL_UNPACK_BUFFER_BINDING_, &s->unpackBuffer);
+        g_glx.bindBuffer(GL_ARRAY_BUFFER_, 0);
+        g_glx.bindBuffer(GL_ELEMENT_ARRAY_BUFFER_, 0);
+        g_glx.bindBuffer(GL_PIXEL_PACK_BUFFER_, 0);
+        g_glx.bindBuffer(GL_PIXEL_UNPACK_BUFFER_, 0);
+    }
+    if (g_glx.useProgram)
+    {
+        glGetIntegerv(GL_CURRENT_PROGRAM_, &s->program);
+        g_glx.useProgram(0);
+    }
+    if (g_glx.bindFramebuffer)
+    {
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING_, &s->drawFb);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING_, &s->readFb);
+        g_glx.bindFramebuffer(GL_DRAW_FRAMEBUFFER_, 0);
+        g_glx.bindFramebuffer(GL_READ_FRAMEBUFFER_, 0);
+    }
+    glDisable(GL_VERTEX_PROGRAM_ARB_); // Cg's ARB programs
+    glDisable(GL_FRAGMENT_PROGRAM_ARB_);
+    glDisable(GL_TEXTURE_CUBE_MAP_); // above GL_TEXTURE_2D on unit 0
+    glDisable(GL_TEXTURE_3D_);
+    glDisable(GL_TEXTURE_RECTANGLE_);
+    glDisable(GL_TEXTURE_GEN_S);
+    glDisable(GL_TEXTURE_GEN_T);
+    glDisable(GL_TEXTURE_GEN_R);
+    glDisable(GL_TEXTURE_GEN_Q);
+    for (int plane = 0; plane < 6; plane++)
+        glDisable(GL_CLIP_PLANE0 + plane);
+    glDisable(GL_FRAMEBUFFER_SRGB_);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_COLOR_LOGIC_OP);
+    glDisable(GL_POLYGON_STIPPLE);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glDrawBuffer(GL_BACK);
+    glReadBuffer(GL_BACK);
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_PACK_SKIP_ROWS, 0);
+    glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glGetError();
+}
+
+// Before glPopClientAttrib and glPopAttrib
+static void gl_restore(const GlSaved *s)
+{
+    if (g_glx.bindFramebuffer)
+    {
+        g_glx.bindFramebuffer(GL_DRAW_FRAMEBUFFER_, (GLuint)s->drawFb);
+        g_glx.bindFramebuffer(GL_READ_FRAMEBUFFER_, (GLuint)s->readFb);
+    }
+    if (g_glx.useProgram)
+        g_glx.useProgram((GLuint)s->program);
+    if (g_glx.bindBuffer)
+    {
+        g_glx.bindBuffer(GL_ARRAY_BUFFER_, (GLuint)s->arrayBuffer);
+        g_glx.bindBuffer(GL_ELEMENT_ARRAY_BUFFER_, (GLuint)s->elementBuffer);
+        g_glx.bindBuffer(GL_PIXEL_PACK_BUFFER_, (GLuint)s->packBuffer);
+        g_glx.bindBuffer(GL_PIXEL_UNPACK_BUFFER_, (GLuint)s->unpackBuffer);
+    }
+    if (g_glx.clientActiveTexture && s->clientActiveTexture)
+        g_glx.clientActiveTexture((GLenum)s->clientActiveTexture);
+    if (g_glx.activeTexture && s->activeTexture)
+        g_glx.activeTexture((GLenum)s->activeTexture);
+    glGetError();
+}
+
+// Around each of windowsloader's drawings: the game's state kept, the fixed pipeline set, the
+// matrices pushed (the texture matrix as identity)
+static void gl_enter(GlSaved *s)
+{
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS);
+    gl_neutral(s);
+    glMatrixMode(GL_TEXTURE);
+    glPushMatrix();
+    glLoadIdentity();
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+}
+
+static void gl_leave(const GlSaved *s)
+{
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_TEXTURE);
+    glPopMatrix();
+    gl_restore(s);
+    glPopClientAttrib();
+    glPopAttrib();
+}
+
+static int setup_gl(HWND wnd)
+{
+    if (!setup_imgui(wnd) || !ImGui_ImplOpenGL2_Init())
+    {
+        wl_log("menu: ImGui could not start on this OpenGL context");
+        return 0;
+    }
+    if (wl_display_hwnd() != g_wnd)
+    {
+        g_glUnicode = IsWindowUnicode(g_wnd);
+        g_glProc = (WNDPROC)(g_glUnicode ? SetWindowLongPtrW(g_wnd, GWLP_WNDPROC, (LONG_PTR)gl_wndproc)
+                                         : SetWindowLongPtrA(g_wnd, GWLP_WNDPROC, (LONG_PTR)gl_wndproc));
+    }
+    g_backend = 2;
+    wl_log("menu: ready (OpenGL, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
+    return 1;
+}
+
+// The frozen frame over the whole window, or black
+static void draw_frozen(GLuint frozen)
+{
+    glViewport(0, 0, g_bbW, g_bbH);
+    glClearColor(0, 0, 0, 1);
+    glClear(GL_COLOR_BUFFER_BIT);
+    if (!frozen)
+        return;
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, 1, 0, 1, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_BLEND);
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_SCISSOR_TEST);
+    glDisable(GL_FOG);
+    glDisable(GL_ALPHA_TEST);
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, frozen);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    glColor4f(1, 1, 1, 1);
+    glBegin(GL_QUADS);
+    glTexCoord2f(0, 0);
+    glVertex2f(0, 0);
+    glTexCoord2f(1, 0);
+    glVertex2f(1, 0);
+    glTexCoord2f(1, 1);
+    glVertex2f(1, 1);
+    glTexCoord2f(0, 1);
+    glVertex2f(0, 1);
+    glEnd();
+}
+
+static void render_frame_gl(void *arg)
+{
+    FrameGl *f = (FrameGl *)arg;
+    GlSaved saved;
+    wl_busy_enter();
+    gl_enter(&saved);
+    draw_frozen(f->frozen);
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    feed_mouse();
+    ImGui::NewFrame();
+    draw_menu();
+    ImGui::Render();
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    wl_gl_take_pending_shot(g_bbW, g_bbH); // the agent's pictures show the menu too
+    gl_leave(&saved);
+    wl_busy_leave();
+    wl_display_dest(); // F11 and Alt+Enter work in the menu too
+    if (!f->swap(f->dc))
+        Sleep(16);
+}
+
+void wl_menu_swap_gl(HDC dc, WlSwapFn swap)
+{
+    int want = menu_key_pressed();
+    if (InterlockedExchange(&g_request, -1) == 1)
+        want = 1;
+    if (!want)
+        return;
+    HWND wnd = WindowFromDC(dc);
+    RECT r;
+    if (!wnd || !GetClientRect(wnd, &r) || r.right <= 0 || r.bottom <= 0)
+        return;
+    g_bbW = r.right;
+    g_bbH = r.bottom;
+    if (!g_ready)
+        g_ready = setup_gl(wnd) ? 1 : -1;
+    if (g_ready < 0 || g_backend != 2)
+        return;
+
+    // The game's frame, its back buffer as it is about to be swapped
+    FrameGl f = {dc, 0, swap};
+    GlSaved saved;
+    unsigned char *pixels = (unsigned char *)malloc((size_t)g_bbW * g_bbH * 4);
+    wl_busy_enter();
+    if (pixels)
+    {
+        gl_enter(&saved);
+        glReadPixels(0, 0, g_bbW, g_bbH, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+        glGenTextures(1, &f.frozen);
+        glBindTexture(GL_TEXTURE_2D, f.frozen);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, g_bbW, g_bbH, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
+        gl_leave(&saved);
+        free(pixels);
+    }
+    wl_busy_leave();
+
+    run_menu(render_frame_gl, &f);
+
+    // The game's frame back in the back buffer, for its own swap
+    wl_busy_enter();
+    gl_enter(&saved);
+    draw_frozen(f.frozen);
+    gl_leave(&saved);
+    if (f.frozen)
+        glDeleteTextures(1, &f.frozen);
+    wl_busy_leave();
 }

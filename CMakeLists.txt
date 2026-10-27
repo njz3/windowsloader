@@ -159,6 +159,7 @@ add_library(wl_hook SHARED
     src/imgui/backends/imgui_impl_dx10.cpp
     src/imgui/backends/imgui_impl_dx11.cpp
     src/imgui/backends/imgui_impl_dx9.cpp
+    src/imgui/backends/imgui_impl_opengl2.cpp
     src/imgui/backends/imgui_impl_win32.cpp)
 set_target_properties(wl_hook PROPERTIES
     OUTPUT_NAME ${WL_HOOK_NAME}
@@ -173,4 +174,8 @@ find_package(SDL3 CONFIG REQUIRED)
 if(WL_D3D8TO9)
     target_compile_definitions(wl_hook PRIVATE WL_D3D8TO9)
 endif()
-target_link_libraries(wl_hook PRIVATE minhook ${WL_D3D8TO9} SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi dwmapi)
+target_link_libraries(wl_hook PRIVATE minhook ${WL_D3D8TO9} SDL3::SDL3-static dxguid user32 advapi32 gdi32 winmm ole32 oleaut32 imm32 version setupapi hid shell32 uuid ws2_32 dxgi dwmapi opengl32 delayimp)
+# The settings menu's OpenGL (menu.cpp): opengl32.dll loaded only by a game that uses it
+if(MSVC)
+    target_link_options(wl_hook PRIVATE /DELAYLOAD:opengl32.dll)
+endif()

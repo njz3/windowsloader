@@ -31,6 +31,11 @@ typedef HRESULT(STDMETHODCALLTYPE *WlPresent11Fn)(IDXGISwapChain *, UINT, UINT);
 void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present);
 void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present); // a Direct3D 10 game's swap chain
 
+// The same from an OpenGL game's SwapBuffers (legacy OpenGL, its context current: Frenzy Express,
+// Initial D 6 to 8), before the game's frame is swapped
+typedef BOOL(WINAPI *WlSwapFn)(HDC);
+void wl_menu_swap_gl(HDC dc, WlSwapFn swap);
+
 // Before IDirect3DDevice9::Reset: the menu's device objects are released
 void wl_menu_device_reset(void);
 

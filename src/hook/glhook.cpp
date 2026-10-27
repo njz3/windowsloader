@@ -11,12 +11,13 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// OpenGL games (Initial D 6 on a Sega RingEdge): each SwapBuffers counts a frame, takes the picture
-// the agent asked for from the back buffer, and puts the frames per second in the window's title.
-// The window stays as the game made it (no display modes yet, no settings menu), unless the game's
-// module gave its picture's size (wl_gl_picture): its window is then set for the display mode, and
-// its viewports moved to where the picture goes.
-// opengl32.dll is the game's: its functions are looked up once it is loaded.
+// OpenGL games (Initial D 6 on a Sega RingEdge): each SwapBuffers opens the settings menu on Tab
+// (menu.cpp), counts a frame, takes the picture the agent asked for from the back buffer, and puts
+// the frames per second in the window's title. The window stays as the game made it (no display
+// modes), unless the game's module gave its picture's size (wl_gl_picture): its window is then set
+// for the display mode, and its viewports moved to where the picture goes.
+// opengl32.dll is the game's: its functions are looked up once it is loaded (the menu's are
+// linked delay-loaded, so that only an OpenGL game loads it).
 
 #include <windows.h>
 #include <stdlib.h>
@@ -25,6 +26,7 @@
 #include "display.h"
 #include "hooks.h"
 #include "log.h"
+#include "menu.h"
 
 #define GL_BACK 0x0405
 #define GL_PACK_ALIGNMENT 0x0D05
@@ -74,6 +76,11 @@ static void take_pending_shot(int w, int h)
     }
     free(pixels);
     wl_shot_done(ok);
+}
+
+void wl_gl_take_pending_shot(int w, int h)
+{
+    take_pending_shot(w, h);
 }
 
 // ------------------------------------------------------------------------------
@@ -181,6 +188,7 @@ static BOOL WINAPI hSwapBuffers(HDC dc)
     static unsigned lastFrames;
     if (wl_busy())
         return oSwapBuffers(dc);
+    wl_menu_swap_gl(dc, oSwapBuffers); // Tab: the settings menu, the game held until it closes
     HWND wnd = WindowFromDC(dc);
     if (g_picW && wnd)
         place_picture(wnd);

@@ -44,3 +44,4 @@ struct IDirect3DDevice9;
 void wl_d3d9_take_pending_shot(IDirect3DDevice9 *dev);
 struct IDXGISwapChain;
 void wl_d3d11_take_pending_shot(IDXGISwapChain *sc);
+void wl_gl_take_pending_shot(int w, int h); // an OpenGL game's back buffer, w x h (its context current)
