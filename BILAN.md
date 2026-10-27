@@ -18,9 +18,9 @@ dans NOTES.md, « Jeux des bornes »).
 | Daytona Championship USA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | Daytona Championship USA NSE | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | Ford Racing Full Blown | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | — |
-| Initial D Arcade Stage 6 AA | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ❌ | ✅ | ✅ |
-| Initial D Arcade Stage 7 AAX | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ❌ | ✅ | ✅ |
-| Initial D Arcade Stage 8 Infinity | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ❌ | ⏳ | ✅ |
+| Initial D Arcade Stage 6 AA | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
+| Initial D Arcade Stage 7 AAX | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ⏳ | ✅ | ✅ |
+| Initial D Arcade Stage 8 Infinity | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
 | GRID | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | DiRT Showdown | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ✅ |
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
@@ -151,7 +151,11 @@ Racing) :
 - Affichage ⚠️ : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus (noir
   sur l'Intel) ; FPS et `[initiald6]` dans le titre ; captures pour l'agent. La fenêtre reste celle du
   jeu (1920×1080 sans cadre) : `[Display]` pas encore appliqué en OpenGL.
-- Menu Tab ❌ : pas encore en OpenGL.
+- Menu Tab ✅ (27/10) : dessiné dans `SwapBuffers` avec le backend OpenGL 2 de Dear ImGui (le pipeline fixe),
+  l'image du jeu relue dans une texture et redessinée dessous. Le jeu laisse ses programmes Cg, ses tampons et
+  d'autres états actifs : sans un état neutre, le menu sortait noir, retourné et décalé. windowsloader garde
+  l'état du jeu (`glPushAttrib`, et ce que la pile ne garde pas : programme GLSL, tampons, framebuffers, unité de
+  texture active), pose le sien, puis rend celui du jeu. Vérifié en mode agent : pages, reprise du jeu.
 - Menu de service ✅ : le jeu lancé avec `-t` (comme `gametest.bat`) : GAME TEST MODE, tests d'entrées
   et de sorties, choix au bouton Service, validation au bouton Test (`id6_race.py test`).
 - Crédits ✅ : pièces comptées par la carte JVS.
@@ -193,7 +197,8 @@ Ce qui diffère d'Initial D 6 :
   - Initial D 8 : personnage, voiture, boîte, mode, course (98 km/h).
 - Retour de force ⚠️ : la carte de pilotage sur COM1, couple (0x84) envoyé en course (363 et 559 trames),
   comme Initial D 6 ; sens à confirmer au volant.
-- Affichage ⚠️, Menu Tab ❌ : comme Initial D 6 (OpenGL).
+- Affichage ⚠️ : comme Initial D 6 (OpenGL). Menu Tab ⏳ : le même qu'Initial D 6, pas essayé (pas de copie sur
+  ce PC).
 - Menu de service : Initial D 7 ✅ (`-t` : GAME TEST MODE, GAME ASSIGNMENTS, l'option « CARD R/W USE »).
   Initial D 8 ⏳.
 - Crédits ✅ : pièces par la carte JVS.
@@ -1225,7 +1230,7 @@ Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
 - Le mode MiniCabinet sans 8404 ni 4103 ; « CONNECT MAIN CABINET » passé par la diffusion UDP en boucle locale
   (40257 vers 192.168.172.255).
 
-## Initial D Arcade Stage Zero Ver.2 (Sega Nu, 64 bits, 2017)
+## Initial D Arcade Stage Zero Ver.2 et Ver.1.31 (Sega Nu, 64 bits, 2017)
 
 `InitialD0_DX11_Nu.exe` (copie `games/idz230`, 14,1 Go depuis racecab1), Direct3D 11, 2560x1440 (son
 `initialD.ini`). Module `alls.cpp`, ouvert à une seconde plateforme d'amdaemon : la Nu. Trois programmes
@@ -1235,7 +1240,7 @@ magasin `ServerBoxD8_Nu_x64.exe` (sa fenêtre cachée), puis le jeu. Ce que la p
 leurs clés et valeurs) :
 - le registre `SystemProperty` (jeu SDDF, plateforme AAV2), la clé `FddDriver`, le moniteur ;
 - la carte AMEX par ses interfaces de périphérique : la SRAM (512 Ko, `wl_sram.bin`), l'EEPROM (8 Ko,
-  `wl_eeprom.bin`), la puce DS (l'identité de la carte, région export), le GPIO (DIP 1 : la première borne),
+  `wl_eeprom.bin` ; les deux dans le dossier d'écriture quand il y en a un, depuis le 27/10), la puce DS (l'identité de la carte, région export), le GPIO (DIP 1 : la première borne),
   le pilote JVS (salut, ligne de détection, échange : `jvs.cpp`) ;
 - la carte d'E/S JVS 837-14572 : boutons des menus et de vue, levier en H à 6 vitesses (Gear1 à Gear6,
   GearUp/GearDown), volant, accélérateur, frein ; le lecteur Aime 837-15286 sur COM10 ;
@@ -1243,16 +1248,33 @@ leurs clés et valeurs) :
 
 - Lancement ✅ : réglage du volant (Start), « Initializing », attract (ALL.Net, Xeen, titre, démo). Sans le
   server box : ERROR 8306 ; avec lui (diffusions UDP en boucle locale), l'attract.
-- Commandes ✅ (agent, INPUT TEST) : volant −128 à 127, accélérateur 0 à 255, boutons, levier N, 1 à 6. Le
-  frein atteint 255 à mi-course : l'étalonnage du jeu, à voir.
+- Commandes ✅ (agent, INPUT TEST) : volant −128 à 127, accélérateur 0 à 255, boutons, levier N, 1 à 6. Les
+  pédales sur 0 à 0x3000 (27/10) : le jeu montre 0 à 255 sur cette course et reste à 255 au-delà (les
+  potentiomètres d'une borne ne tournent pas plus loin) ; avant, elles saturaient à 19 % de la course.
 - Partie invité ✅ : deux pièces, Start, « sans données », choix de la voiture, AT/MT, Story, STAGE 0,
   course (100 à 145 km/h).
 - Retour de force ✅ : la carte du moteur Sega sur COM1 (`driveboard.cpp`), en statut long après FA 00 10
   (DRIVEBOARD.md de BackForceFeeder) ; FORCE FEEDBACK TEST : LEFT +0,19, RIGHT −0,19 ; en course, couple et
   sinus (environ 580 changements par segment). Le même changement sert Initial D 6 à 8.
+  Vérifiée au protocole (27/10, DRIVEBOARD.md) : 80 (mode court : la force retombe 240 ms après la dernière
+  trame ; l'activation), 83 (gain), 84 (couple), 85 (sinus : l'octet 1 la fréquence en demi-hertz, l'octet 2
+  l'amplitude, joué par un fil toutes les 10 ms), FF (valeurs par défaut). Une seule émulation dans
+  `driveboard.cpp` pour les jeux Sega à servoboard série : Initial D 6 à 8, K.O. Drive, Sonic, SWDC,
+  Initial D Zero. Les jeux à carte moteur sur port parallèle (Sega Rally 3, Daytona, Ford Racing, GRID, DiRT)
+  gardent leur décodeur. Revérifié en course : Initial D 6 (forces comme avant), Initial D Zero (vibration
+  ±0,03, couples −0,23 et +0,25), SWDC (80 00 01 avant la course, couples envoyés).
 - Lampes : la carte 837-15070 sur COM11 (comme celle de SWDC).
+- Ver.1.31 ✅ (27/10, copie `games/idz131` de racecab1, 12,3 Go, le jeu dans `app\package`) : le même module.
+  Deux différences : son amdaemon (de mars 2018) cherche les noms d'ALL.Net en ROT13 (`anbzvarg.wc`,
+  `nvzr.anbzvarg.wc`), que `allnet.cpp` décode maintenant ; ses `ICF1`/`ICF2` sont dans le `amfs` de segatools à
+  côté de `app\` (le `TeknoParrot\AMFS` de la copie n'a que `emoney`), pris pour E: quand ils manquent ailleurs.
+  Vérifié en mode agent : ALL.Net (PowerOn `ver=1.31`), Aime, réglage du volant, partie invité (Prologue,
+  STAGE 0, course jusqu'à 170 km/h), retour de force (couples jusqu'à ±0,42). Le sélecteur la distingue de
+  la Ver.2 par l'horodatage de son exécutable. Une ERROR 8304 « Failed in connect(GAME) » passagère (le jeu se
+  relance seul jusqu'à l'attract) quand la SRAM d'un lancement précédent est reprise.
+- Menu Tab ✅ (27/10, Direct3D 11, vérifié en Ver.1.31) : pages, reprise du jeu.
 - Reste : les cartes Aime et le jeu en ligne (le serveur UserDB du jeu, que le server box joint ; protocole
-  binaire chiffré, minime en a une version) ; le menu Tab, un vrai volant sur borne.
+  binaire chiffré, minime en a une version) ; un vrai volant sur borne.
 
 ## Frenzy Express (Uniana PC, 2001)
 
@@ -1278,7 +1300,8 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   du jeu sont déplacés et agrandis là où va l'image. Le jeu relit son viewport (`glGetIntegerv`) et le redonne
   chaque image : il reçoit le sien, sinon l'image rétrécissait à chaque tour. Les autres jeux OpenGL (Initial D 6 à
   8) gardent leur fenêtre telle quelle.
-- Reste : le menu Tab (pas en OpenGL), vJoy et un vrai guidon sur borne, les lampes vues sur borne.
+- Menu Tab ✅ (27/10) : comme Initial D 6 (OpenGL), sur l'image placée par windowsloader.
+- Reste : vJoy et un vrai guidon sur borne, les lampes vues sur borne.
 
 ## D1GP Arcade (Taito Type X2, 2009)
 
