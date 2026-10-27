@@ -198,6 +198,10 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 189 | 27/10 | Regarde aussi le menu Tab pour les jeux OpenGL | ✅ (non commité) menu Tab en OpenGL : dans `SwapBuffers`, backend OpenGL 2 de Dear ImGui (opengl32 chargé en différé, seulement par un jeu OpenGL), l'image du jeu relue dans une texture et redessinée sous le menu. Initial D 6 laisse programmes Cg, tampons et autres états actifs (menu noir, retourné, décalé) : état neutre posé autour de chaque dessin et celui du jeu rendu. Vérifié : Frenzy Express (image placée par windowsloader) et Initial D 6 (pages, reprise du jeu). Initial D 7 et 8 : le même chemin, pas de copie sur ce PC |
 | 190 | 27/10 | Oublie la lecture du clavier en arrière-plan : à ne pas implémenter, perturbant pour l'utilisateur ; la fenêtre doit avoir le focus pour que les touches soient reçues | ✅ noté, ligne 180 corrigée ; rien à changer : le clavier n'est lu qu'avec le focus |
 | 191 | 27/10 | Vérifie l'émulation de la servoboard avec le protocole (DRIVEBOARD.md) ; elle doit être commune à tous les jeux Sega | ✅ (non commité) `driveboard.cpp` relu commande par commande : 80 (mode court, la force retombe 240 ms après la dernière trame ; l'activation), 83 (gain), 84 (couple), 85 (sinus : octet 1 la fréquence en demi-hertz, octet 2 l'amplitude ; l'ancien code les lisait à l'envers), FF (valeurs par défaut), joués par un fil toutes les 10 ms. Une seule émulation pour les jeux Sega à servoboard série (Initial D 6 à 8, K.O. Drive, Sonic, SWDC, Initial D Zero) ; les cartes moteur sur port parallèle (Sega Rally 3, Daytona, Ford Racing, GRID, DiRT) gardent leur décodeur. Revérifié en course : Initial D 6, Initial D Zero, SWDC |
+| 192 | 27/10 | Commit et pousse ; étapes suivantes ? | ✅ poussé `12f52ab..78180dd` (menu Tab OpenGL, effets de la servoboard, Initial D Zero v1.31, docs). Proposées : une release pour les bornes, l'affichage OpenGL d'Initial D 6 à 8, les cartes Aime d'Initial D Zero, le gel de Wangan 6 sur racecab2, les ⏳ du bilan |
+| 193 | 27/10 | Fais l'affichage OpenGL | ✅ (non commité) `[Display]` appliqué aux jeux OpenGL comme aux jeux Direct3D : le jeu dessine dans un framebuffer de windowsloader à la taille de sa fenêtre, recopié à chaque image (`glBlitFramebuffer`) là où va l'image, bandes noires autour ; la fenêtre réglée selon `DISPLAY_MODE`, F11, Alt+Entrée ; recadrage sans courbure. Le jeu n'en voit rien (ses `glBindFramebuffer(0)`, `glGetIntegerv`, `glDrawBuffer`/`glReadBuffer` sont traduits). Vérifié : Initial D 6 (ORIGINAL, 4:3, 4:3_CROP, 4:3_STRETCH, fenêtre, plein écran fenêtré, plein écran ; course rendue comme avant ; menu Tab) et Frenzy Express (qui limitait sa fenêtre à 640×480 hors tout : limites de Windows rendues). L'agent `screen` d'un jeu OpenGL relit la fenêtre par OpenGL (la copie d'écran GDI tombait à côté sur ce portable mis à l'échelle). Initial D 7 et 8 : même code, pas de copie ici |
+| 194 | 27/10 | Fais les corrections (servoboard, d'après les relevés de linuxloader) et renomme les fichiers driveboard relatifs à la servoboard en servoboard ; garde le nom driveboard pour les cartes moteur comme Sega Rally 3 ; si c'est le même fichier, scinde-le ; une classe parente et deux sous-classes si c'était la même classe | ✅ (non commité) `driveboard.cpp`/`.h` → `servoboard.cpp`/`.h` (`git mv`), `wl_servoboard_register`, `wl_servoboard_free_wheel(_test)`, journal « servoboard: ». Rien à scinder : ce fichier ne sert que la servoboard série ; les cartes moteur (Sega Rally 3 au port 0x1020, Daytona, Ford Racing, GRID, DiRT au port parallèle, Sega Racing Classic) ont leur décodeur dans le module de leur jeu, sans code ni classe commune. `EMULATE_DRIVEBOARD` garde son nom (celui de linuxloader, pour toutes). Corrections : recherche d'index 4,05 s ; FF répond dans le mode qu'il termine ; FA 00 00 à 0F relisent les dernières 80 à 8F ; la lecture rend les réponses en attente jusqu'à la taille demandée. Banc d'essai (les exemples des relevés) et courses d'Initial D 6 et d'Initial D Zero v1.31 |
+| 195 | 27/10 | Commit et pousse | ✅ `2563515` (affichage OpenGL), `26c9b6f` (servoboard : nom et relevés), puis la doc ; poussés |
 | 131 | 25/10 | (Image borne) Mario Kart DX, la -6, Wangan sur les bornes, le journal d'Initial D 6 | ✅ noté : Mario Kart DX 1.18 et 1.10 à ON sur les deux bornes, 45 paquets chacun (« E05-11 ERROR DEVICE » en tête du menu de test, déjà vu, sans effet) ; la -6 sur racecab1, racecab2 à suivre ; Wangan 5 (593 paquets) et DX+ dans AttractPlus sur les deux bornes, DX+ à ON sur racecab1, plus de message rouge. Initial D 6 : le journal n'a ni port série ni mémoire partagée pour le lecteur (les 10 082 connexions vont à la clé, 40106) ; copie du jeu depuis racecab1 proposée au propriétaire pour trouver comment il cherche son lecteur |
 | 132 | 25/10 | (Image borne) Wasteland Racers sur racecab2 avec la -6, accélérateur tenu : ça marche ; « Get Ready » dure 150 à 170 s, est-ce le jeu ou le chargeur ? | ✅ noté : course et retour de force (184 paquets). L'attente n'est pas le réseau (élection réglée à 176 s) : c'est « Object Manager - Load Map » du jeu, 141 s (209 à 350 s), l'image à 60 images/s ; environ 60 s pour tout « Get Ready » sur mon portable. Deux essais demandés : `--set Display.PRESENT=DIRECT` (si le chargement avance image par image, la recopie GDI le ralentit), et la durée sous TeknoParrot (le disque de la borne) |
 | 16 | 21/10 | Un menu F10 pour mettre le jeu en pause et le configurer, comme linuxloader ? | ⏳ oui, faisable : Dear ImGui dessiné dans le hook de Present (backend DX9), pause par gel des threads du jeu et du temps (QPC, timeGetTime, GetTickCount) ; pages Contrôles, Affichage, Retour de force |
@@ -1643,3 +1647,45 @@ Ce que fait windowsloader (aucun patch du jeu, aucun fichier du jeu modifié) :
 - La servoboard (DRIVEBOARD.md) : 85 a la fréquence (demi-hertz) dans l'octet 1 et l'amplitude dans l'octet 2 ;
   80 01 : mode court, la force retombe 240 ms après la dernière trame ; 83 : gain. Un fil rejoue le sinus et le mode
   court toutes les 10 ms. Commune aux jeux Sega à servoboard série par `wl_driveboard_register`.
+
+### 27/10 — L'affichage des jeux OpenGL (demande 193)
+
+- Avant : Initial D 6 à 8 gardaient leur fenêtre telle quelle ; Frenzy Express avait ses viewports déplacés et
+  agrandis (`glViewport`, `glGetIntegerv(GL_VIEWPORT)`), ce qui ne vaut pas pour un jeu qui dessine aussi dans ses
+  propres framebuffers, relit son image ou fait des découpes (`glScissor`) : Initial D 6 charge `glBindFramebuffer`,
+  `glBlitFramebuffer`, les pbuffers et `glRenderbufferStorageMultisample` par `wglGetProcAddress`.
+- Maintenant (`glhook.cpp`) : au premier `SwapBuffers` d'un contexte dans une fenêtre, un framebuffer object de la
+  taille de la zone cliente et du format de la fenêtre (couleur RGB8 ou RGBA8 selon les bits alpha, profondeur 24,
+  stencil 8, échantillons ; multiéchantillonné : résolu dans un second avant la copie) prend la place du 0. À chaque
+  `SwapBuffers` : la fenêtre effacée en noir, l'image (tout le framebuffer, ou le coin donné par `wl_gl_picture`)
+  copiée par `glBlitFramebuffer` dans `wl_display_picture`, coupée à `wl_display_frame` (le recadrage).
+- Ce que le jeu voit : `glBindFramebuffer(..., 0)` (ses pointeurs de `wglGetProcAddress`) lie celui de
+  windowsloader ; `glGetIntegerv` rend 0 pour lui et `GL_BACK` pour sa couleur ; `glDrawBuffer`, `glReadBuffer`,
+  `glDrawBuffers` des tampons de la fenêtre (`GL_BACK`...) donnent sa couleur ; un pbuffer rendu courant avec le même
+  contexte retrouve le sien (`wglMakeCurrent`) ; `wglDeleteContext` libère tout. Les appels de windowsloader passent
+  outre (`wl_busy`). Sans framebuffer objects, la fenêtre reste comme le jeu l'a faite.
+- Le menu Tab redessine l'image du jeu depuis ce framebuffer (le jeu en pause ne l'écrit plus) là où l'affichage la
+  met à chaque image : la page Affichage et F11 s'appliquent sous le menu.
+- Frenzy Express : sa fenêtre limitée à 640×480 hors tout (`WM_GETMINMAXINFO`), la zone cliente restait à 634×451
+  en mode WINDOW et ne grandissait pas en 16:9 ; `display_wndproc` lui rend les limites de Windows.
+- Agent : `screen` d'un jeu OpenGL relit la fenêtre (tampon arrière après la copie, `wl_window_shot`) ; la copie
+  de l'écran par GDI tombait à côté sur ce portable mis à l'échelle (2048×1280 logiques). `shot` reste l'image du jeu.
+- Vu en passant, sans rapport : Initial D 6 a parfois une exception (lecture de 0x574C4844 dans setupapi) quand
+  DirectInput énumère ses périphériques avec les SetupDi émulés (`\\.\mxsmbus`) ; le jeu continue. À regarder.
+
+### 27/10 — La servoboard : son nom, les relevés de vraies bornes (demande 194)
+
+- `src/hook/driveboard.cpp` et `.h` deviennent `servoboard.cpp` et `.h` : c'est la servoboard série de Sega
+  (Lindbergh, RingEdge, RingWide, ALLS, Nu). « Drive board » reste le nom des cartes moteur décodées dans les
+  modules des jeux (Sega Rally 3, les jeux au port parallèle, Sega Racing Classic), et de `EMULATE_DRIVEBOARD`.
+- Les mesures de linuxloader sur cinq relevés COMDump (OutRun 2 SP, Harley-Davidson, Hummer, R-Tuned, Race TV) :
+  - la recherche d'index (FC) dure 4,03 à 4,06 s : 4 050 ms ;
+  - FF répond dans l'état d'avant le reset (Race TV en mode 14 : 94 ... ; Harley 94, puis 11) ;
+  - FA 00 00 à 0F : les réponses relisent la dernière commande 80 à 8F, 0x80 | xx, ses deux valeurs, la somme
+    (Harley : FA 00 00 puis 80 01 01 donne 80 01 01 00).
+- Le mode de réponse est maintenant l'adresse de FA (1F court, 10 et 14 statuts longs, 00 à 0F relecture) ; FC
+  lance la recherche d'index dans tous les modes ; une lecture rend les octets en attente jusqu'à la taille
+  demandée (la réponse de 4 octets d'un reset lue en mode court).
+- Banc d'essai (bloc-notes, `servotest.cpp` : `servoboard.cpp` seul, les autres fonctions remplacées) : les
+  exemples des relevés retrouvés. Initial D 6 et Initial D Zero (FF, FA 00 10, FC, FA 00 1F 17 s après) : course
+  et retour de force comme avant.

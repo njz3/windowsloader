@@ -18,9 +18,9 @@ dans NOTES.md, « Jeux des bornes »).
 | Daytona Championship USA | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
 | Daytona Championship USA NSE | ✅ | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | Ford Racing Full Blown | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | — |
-| Initial D Arcade Stage 6 AA | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
-| Initial D Arcade Stage 7 AAX | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ⏳ | ✅ | ✅ |
-| Initial D Arcade Stage 8 Infinity | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
+| Initial D Arcade Stage 6 AA | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Initial D Arcade Stage 7 AAX | ✅ | ✅ | ⏳ | ⚠️ | ⏳ | ⏳ | ✅ | ✅ |
+| Initial D Arcade Stage 8 Infinity | ✅ | ✅ | ⏳ | ⚠️ | ⏳ | ⏳ | ⏳ | ✅ |
 | GRID | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ❌ | ✅ |
 | DiRT Showdown | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ❌ | ✅ |
 | K.O. Drive (RingWide) | ✅ | ✅ | ✅ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
@@ -148,9 +148,12 @@ Racing) :
 - Retour de force ⚠️ : carte de pilotage Sega sur COM1, couple (0x84) envoyé en course ; sens à
   confirmer au volant ; le test du menu de service est grisé (sa vérification fait bouger le volant et
   attend que la position suive).
-- Affichage ⚠️ : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus (noir
-  sur l'Intel) ; FPS et `[initiald6]` dans le titre ; captures pour l'agent. La fenêtre reste celle du
-  jeu (1920×1080 sans cadre) : `[Display]` pas encore appliqué en OpenGL.
+- Affichage ✅ (27/10) : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus
+  (noir sur l'Intel) ; FPS et `[initiald6]` dans le titre ; captures pour l'agent. `[Display]` appliqué comme
+  pour Direct3D : le jeu dessine dans un framebuffer de windowsloader à la taille de sa fenêtre (1920×1080),
+  recopié à chaque image (`glBlitFramebuffer`) là où va l'image, bandes noires autour ; la fenêtre réglée selon
+  `DISPLAY_MODE`, F11 et Alt+Entrée. Vérifié en mode agent : ORIGINAL, 4:3, 4:3_CROP, 4:3_STRETCH en fenêtre,
+  plein écran fenêtré et plein écran ; la course rendue comme avant (lumières, phares, HUD).
 - Menu Tab ✅ (27/10) : dessiné dans `SwapBuffers` avec le backend OpenGL 2 de Dear ImGui (le pipeline fixe),
   l'image du jeu relue dans une texture et redessinée dessous. Le jeu laisse ses programmes Cg, ses tampons et
   d'autres états actifs : sans un état neutre, le menu sortait noir, retourné et décalé. windowsloader garde
@@ -197,8 +200,7 @@ Ce qui diffère d'Initial D 6 :
   - Initial D 8 : personnage, voiture, boîte, mode, course (98 km/h).
 - Retour de force ⚠️ : la carte de pilotage sur COM1, couple (0x84) envoyé en course (363 et 559 trames),
   comme Initial D 6 ; sens à confirmer au volant.
-- Affichage ⚠️ : comme Initial D 6 (OpenGL). Menu Tab ⏳ : le même qu'Initial D 6, pas essayé (pas de copie sur
-  ce PC).
+- Affichage ⏳, Menu Tab ⏳ : le même code qu'Initial D 6 (OpenGL), pas essayé (pas de copie sur ce PC).
 - Menu de service : Initial D 7 ✅ (`-t` : GAME TEST MODE, GAME ASSIGNMENTS, l'option « CARD R/W USE »).
   Initial D 8 ⏳.
 - Crédits ✅ : pièces par la carte JVS.
@@ -648,7 +650,8 @@ Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe 
 - Vérifié (captures de la fenêtre) sur GTI Club 3 (D3D9, 16:9), Battle Gear 4 (D3D9, 4:3) et DiRT Showdown
   (D3D11, 16:9) : les 16 cas de `crop_check.py` (bloc-notes) et le menu ; `--set`, `-c`, le fichier du jeu
   créé, relu au lancement suivant.
-- Non fait : OpenGL (Initial D 6) garde sa fenêtre telle quelle, sans aucun de ces réglages.
+- OpenGL (Initial D 6 à 8, Frenzy Express, depuis le 27/10) : comme la recopie GDI, sauf la courbure (recadré
+  sans courbure) : l'image du jeu est recopiée par OpenGL dans la fenêtre.
 - Modes d'affichage (`DISPLAY_MODE`, mêmes noms que linuxloader) : `WINDOW`, `WINDOW_STRETCH` ; `FULLSCREEN`,
   `FULLSCREEN_STRETCH`, l'écran passé à son plus petit mode qui contient l'image du jeu, comme SDL chez linuxloader (repris en revenant à une fenêtre, et par Windows à
   la fin du jeu ; à la résolution du bureau si l'écran refuse cette taille) ; `BORDERLESS`, `BORDERLESS_STRETCH`
@@ -1253,16 +1256,21 @@ leurs clés et valeurs) :
   potentiomètres d'une borne ne tournent pas plus loin) ; avant, elles saturaient à 19 % de la course.
 - Partie invité ✅ : deux pièces, Start, « sans données », choix de la voiture, AT/MT, Story, STAGE 0,
   course (100 à 145 km/h).
-- Retour de force ✅ : la carte du moteur Sega sur COM1 (`driveboard.cpp`), en statut long après FA 00 10
+- Retour de force ✅ : la carte du moteur Sega sur COM1 (`servoboard.cpp`), en statut long après FA 00 10
   (DRIVEBOARD.md de BackForceFeeder) ; FORCE FEEDBACK TEST : LEFT +0,19, RIGHT −0,19 ; en course, couple et
   sinus (environ 580 changements par segment). Le même changement sert Initial D 6 à 8.
   Vérifiée au protocole (27/10, DRIVEBOARD.md) : 80 (mode court : la force retombe 240 ms après la dernière
   trame ; l'activation), 83 (gain), 84 (couple), 85 (sinus : l'octet 1 la fréquence en demi-hertz, l'octet 2
   l'amplitude, joué par un fil toutes les 10 ms), FF (valeurs par défaut). Une seule émulation dans
-  `driveboard.cpp` pour les jeux Sega à servoboard série : Initial D 6 à 8, K.O. Drive, Sonic, SWDC,
-  Initial D Zero. Les jeux à carte moteur sur port parallèle (Sega Rally 3, Daytona, Ford Racing, GRID, DiRT)
-  gardent leur décodeur. Revérifié en course : Initial D 6 (forces comme avant), Initial D Zero (vibration
-  ±0,03, couples −0,23 et +0,25), SWDC (80 00 01 avant la course, couples envoyés).
+  `servoboard.cpp` (`driveboard.cpp` jusqu'au 27/10) pour les jeux Sega à servoboard série : Initial D 6 à 8,
+  K.O. Drive, Sonic, SWDC, Initial D Zero. Les cartes moteur (« drive boards » : Sega Rally 3 par le port
+  0x1020, Daytona, Ford Racing, GRID, DiRT par le port parallèle, Sega Racing Classic) gardent leur décodeur
+  dans le module de leur jeu. Revérifié en course : Initial D 6 (forces comme avant), Initial D Zero
+  (vibration ±0,03, couples −0,23 et +0,25), SWDC (80 00 01 avant la course, couples envoyés).
+  D'après cinq relevés de vraies bornes (mesures de linuxloader, 27/10) : la recherche d'index après FC dure
+  4,05 s (non plus 2 s) ; FF répond dans le mode qu'il termine (94... en mode 14) ; FA 00 00 à 0F relisent
+  les valeurs des dernières commandes 80 à 8F (FA 00 00 puis 80 01 01 : 80 01 01 00). Vérifié par un banc
+  d'essai qui rejoue ces exemples, puis en course sur Initial D 6 et Initial D Zero v1.31.
 - Lampes : la carte 837-15070 sur COM11 (comme celle de SWDC).
 - Ver.1.31 ✅ (27/10, copie `games/idz131` de racecab1, 12,3 Go, le jeu dans `app\package`) : le même module.
   Deux différences : son amdaemon (de mars 2018) cherche les noms d'ALL.Net en ROT13 (`anbzvarg.wc`,
@@ -1295,11 +1303,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   pair 0x0A..0x16 : vers la droite, sept forces). Le sens est vérifié par l'étalonnage : un guidon qui suit la force
   le passe, l'autre sens donne « ERROR ». En course : un ressort vers le milieu, plus raide avec la vitesse.
 - Sorties réseau : `lamp` (motif), `start_lamp`, `select_lamp`, `vibration` (3 au repos), `handlebar_motor`.
-- Affichage ✅ : le jeu dessine 640×480 dans une fenêtre de la taille de l'écran. Son module donne la taille
-  (`wl_gl_picture`) : la fenêtre est réglée selon `DISPLAY_MODE` comme un jeu Direct3D 11, et les viewports OpenGL
-  du jeu sont déplacés et agrandis là où va l'image. Le jeu relit son viewport (`glGetIntegerv`) et le redonne
-  chaque image : il reçoit le sien, sinon l'image rétrécissait à chaque tour. Les autres jeux OpenGL (Initial D 6 à
-  8) gardent leur fenêtre telle quelle.
+- Affichage ✅ : le jeu dessine 640×480 dans le coin d'une fenêtre de la taille de l'écran. Son module donne la
+  taille (`wl_gl_picture`) ; depuis le 27/10, comme Initial D 6 : le jeu dessine dans le framebuffer de
+  windowsloader, ce coin est recopié là où va l'image, la fenêtre réglée selon `DISPLAY_MODE`. Le jeu limitait sa
+  fenêtre à 640×480 hors tout (`WM_GETMINMAXINFO`, la zone cliente restait à 634×451) : il reçoit maintenant les
+  limites de Windows.
 - Menu Tab ✅ (27/10) : comme Initial D 6 (OpenGL), sur l'image placée par windowsloader.
 - Reste : vJoy et un vrai guidon sur borne, les lampes vues sur borne.
 
