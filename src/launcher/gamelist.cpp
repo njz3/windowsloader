@@ -69,6 +69,8 @@ const WlKnownGame g_wlKnownGames[] = {
      "E/S et volant UNIS, clé de la borne."},
     {"Storm Racer G", {L"racing.exe"}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
      "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."},
+    {"Storm Rider", {L"motobike.exe"}, {L"motobikeio.dll"}, 0, NULL, "Wahlap (PC)", "2013", WL_GAME_WORK,
+     "Moto. Carte par motobikeio.dll ; s'arrête sur sa protection contre la copie (clé liée au disque), non prise en charge."},
     {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, L"-windowed", "Sega ALLS (64 bits)", "", WL_GAME_PARTLY,
      "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini "
      "(option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game "
