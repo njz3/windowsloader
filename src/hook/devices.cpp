@@ -461,6 +461,17 @@ static const char *interface_path(int interface)
     return interface < 0 ? wl_vhid_device()->path : g_interfaces[interface].path;
 }
 
+// A set destroyed, or its handle given again by Windows (amdaemon's AMEX drivers, one after the
+// other; DirectInput's list of the HID devices after the game's): no longer the emulated
+// interface's. Kept, DirectInput's enumeration got the emulated interface, and setupapi read its
+// mark (VDEV_MAGIC) as a pointer (Initial D 6: an access violation at 0x574C4844 in setupapi).
+static void forget_set(HDEVINFO set)
+{
+    for (int i = 0; i < (int)(sizeof g_sets / sizeof g_sets[0]); i++)
+        if (g_sets[i].set == set)
+            g_sets[i].set = NULL;
+}
+
 static void on_class_devs(const GUID *cls, const char *enumerator, DWORD flags, HDEVINFO r, const void *caller)
 {
     char g[48], where[128];
@@ -473,11 +484,6 @@ static void on_class_devs(const GUID *cls, const char *enumerator, DWORD flags, 
             if (IsEqualGUID(*cls, g_interfaces[i].cls))
                 interface = i;
     }
-    // A handle Windows gives again once the game destroyed the set it was (amdaemon's AMEX drivers,
-    // one after the other): it is this set's now
-    for (int i = 0; i < (int)(sizeof g_sets / sizeof g_sets[0]); i++)
-        if (g_sets[i].set == r)
-            g_sets[i].set = NULL;
     if (interface > -2)
     {
         int k = g_setNext++ % (int)(sizeof g_sets / sizeof g_sets[0]);
@@ -495,6 +501,7 @@ static HDEVINFO WINAPI hSetupDiGetClassDevsA(const GUID *cls, PCSTR enumerator, 
     wl_busy_enter();
     HDEVINFO r = oSetupDiGetClassDevsA(cls, enumerator, parent, flags);
     wl_busy_leave();
+    forget_set(r); // whoever asked, Windows' own DLLs too
     if (!nested && !wl_is_system_caller(WL_CALLER))
         on_class_devs(cls, enumerator, flags, r, WL_CALLER);
     return r;
@@ -507,12 +514,20 @@ static HDEVINFO WINAPI hSetupDiGetClassDevsW(const GUID *cls, PCWSTR enumerator,
     wl_busy_enter();
     HDEVINFO r = oSetupDiGetClassDevsW(cls, enumerator, parent, flags);
     wl_busy_leave();
+    forget_set(r); // whoever asked, Windows' own DLLs too
     if (!nested && !wl_is_system_caller(WL_CALLER))
     {
         char e[128];
         on_class_devs(cls, enumerator ? wl_u8(enumerator, e, sizeof e) : NULL, flags, r, WL_CALLER);
     }
     return r;
+}
+
+static BOOL(WINAPI *oSetupDiDestroyDeviceInfoList)(HDEVINFO);
+static BOOL WINAPI hSetupDiDestroyDeviceInfoList(HDEVINFO set)
+{
+    forget_set(set);
+    return oSetupDiDestroyDeviceInfoList(set);
 }
 
 static BOOL(WINAPI *oSetupDiEnumDeviceInterfaces)(HDEVINFO, PSP_DEVINFO_DATA, const GUID *, DWORD, PSP_DEVICE_INTERFACE_DATA);
@@ -833,6 +848,7 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", DeviceIoControl),
     WL_HOOK(L"setupapi.dll", SetupDiGetClassDevsA),
     WL_HOOK(L"setupapi.dll", SetupDiGetClassDevsW),
+    WL_HOOK(L"setupapi.dll", SetupDiDestroyDeviceInfoList),
     WL_HOOK(L"setupapi.dll", SetupDiEnumDeviceInterfaces),
     WL_HOOK(L"setupapi.dll", SetupDiGetDeviceInterfaceDetailA),
     WL_HOOK(L"setupapi.dll", SetupDiGetDeviceInterfaceDetailW),
