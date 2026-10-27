@@ -855,6 +855,89 @@ static WlHook g_daemonHooks[] = {
     WL_HOOK(L"kernel32.dll", GetComputerNameA),
 };
 
+// The PC's CD/DVD drives and removable disks hidden from amdaemon and the game: amdaemon looks
+// for them among the volumes (FindFirstVolumeW, QueryDosDeviceW's \Device\CdRom, GetDriveTypeW)
+// and stops on "Error 0919 DVD Drive Remain Error" (0917 for a USB flash drive), a drive left in
+// the cabinet after an install. D:, E: and Y: are the copy's folders (drive()): fixed disks,
+// whatever the PC has under these letters (a racecab's DVD drive is its E:)
+static int copy_letter(wchar_t c)
+{
+    c = (wchar_t)towupper(c);
+    return c == L'D' || c == L'E' || c == L'Y';
+}
+
+static UINT(WINAPI *oGetDriveTypeW)(LPCWSTR);
+
+static int hidden_drive(LPCWSTR root)
+{
+    UINT type = oGetDriveTypeW ? oGetDriveTypeW(root) : GetDriveTypeW(root);
+    if (type != DRIVE_CDROM && type != DRIVE_REMOVABLE)
+        return 0;
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 8)
+        wl_log("alls: %ls hidden (%s)", root ? root : L"(current drive)", type == DRIVE_CDROM ? "CD/DVD drive" : "removable disk");
+    return 1;
+}
+
+static UINT WINAPI hGetDriveTypeW(LPCWSTR root)
+{
+    if (root && root[0] && root[1] == L':' && copy_letter(root[0]))
+        return DRIVE_FIXED;
+    return hidden_drive(root) ? DRIVE_NO_ROOT_DIR : oGetDriveTypeW(root);
+}
+
+static UINT(WINAPI *oGetDriveTypeA)(LPCSTR);
+static UINT WINAPI hGetDriveTypeA(LPCSTR root)
+{
+    wchar_t w[MAX_PATH];
+    if (!root || !MultiByteToWideChar(CP_ACP, 0, root, -1, w, MAX_PATH))
+        return hGetDriveTypeW(NULL);
+    return hGetDriveTypeW(w);
+}
+
+static BOOL(WINAPI *oFindNextVolumeW)(HANDLE, LPWSTR, DWORD);
+static BOOL WINAPI hFindNextVolumeW(HANDLE find, LPWSTR name, DWORD length)
+{
+    BOOL ok;
+    while ((ok = oFindNextVolumeW(find, name, length)) && hidden_drive(name))
+        ;
+    return ok;
+}
+
+static HANDLE(WINAPI *oFindFirstVolumeW)(LPWSTR, DWORD);
+static HANDLE WINAPI hFindFirstVolumeW(LPWSTR name, DWORD length)
+{
+    HANDLE find = oFindFirstVolumeW(name, length);
+    if (find != INVALID_HANDLE_VALUE && hidden_drive(name) && !hFindNextVolumeW(find, name, length))
+    {
+        DWORD error = GetLastError();
+        FindVolumeClose(find);
+        SetLastError(error);
+        return INVALID_HANDLE_VALUE;
+    }
+    return find;
+}
+
+static DWORD(WINAPI *oQueryDosDeviceW)(LPCWSTR, LPWSTR, DWORD);
+static DWORD WINAPI hQueryDosDeviceW(LPCWSTR name, LPWSTR target, DWORD max)
+{
+    DWORD n = oQueryDosDeviceW(name, target, max);
+    if (name && n && target && !_wcsnicmp(target, L"\\Device\\CdRom", 13))
+    {
+        SetLastError(ERROR_FILE_NOT_FOUND);
+        return 0;
+    }
+    return n;
+}
+
+static WlHook g_driveHooks[] = {
+    WL_HOOK(L"kernel32.dll", GetDriveTypeW),
+    WL_HOOK(L"kernel32.dll", GetDriveTypeA),
+    WL_HOOK(L"kernel32.dll", FindFirstVolumeW),
+    WL_HOOK(L"kernel32.dll", FindNextVolumeW),
+    WL_HOOK(L"kernel32.dll", QueryDosDeviceW),
+};
+
 // ------------------------------------------------------------------------------
 
 // The copy's folder: the first one up from the program's holding game.bat
@@ -957,6 +1040,7 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     drive("D:", L"D");
     drive("E:", L"AMFS");
     drive("Y:", L"Y");
+    wl_hooks_add(g_driveHooks, sizeof g_driveHooks / sizeof g_driveHooks[0]);
     // The main cabinet (the only one here): the game knows it by this empty file
     wchar_t lanServer[MAX_PATH];
     swprintf(lanServer, MAX_PATH, L"%s\\Y\\SDDS", g_root);

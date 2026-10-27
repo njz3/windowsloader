@@ -119,6 +119,9 @@ the launcher starts amdaemon (the ALLS platform's service) 5 s before the game, 
 `config.json` and windowsloader's settings for a cabinet alone (written in the temporary folder:
 ALL.Net's accounting, the network delivery, the electronic money, ABaaS's logs and the LAN install
 off), and the game with `-launch=MiniCabinet` (unless its command line has a `-launch=`). The
+PC's CD/DVD drives and removable disks are hidden from both (amdaemon stops on "Error 0919 DVD
+Drive Remain Error" when it finds a DVD drive, 0917 for a USB key); `D:`, `E:` and `Y:` are the
+copy's folders, fixed disks, whatever the PC has under these letters. The
 network services the cabinet reaches are played on the PC: ALL.Net (in amdaemon, port 40180), the
 Aime server (40182) and the game's title server (in the game, 40181: its season and event
 settings); the game shows ALL.Net, Aime and the user database online and plays as a guest (at the
