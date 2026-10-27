@@ -400,12 +400,30 @@ static DWORD jvs_modem(void)
 }
 
 // The \\.\mxjvs driver of the RingWide (K.O. Drive's amJvst +0x7c0d3e): one call takes a request
-// packet and gives back the reply
+// packet and gives back the reply. Sega Nu's AMEX board, its JVS driver found by its device
+// interface (segatools' amex/jvs.c): a greeting (two bytes 0), the sense line (3: no address yet,
+// 2: addressed), and the same exchange, ERROR_NO_DATA_DETECTED when there is no reply (a reset)
 #define MXJVS_IOCTL_EXCHANGE 0x9C402000
+#define AMEX_JVS_IOCTL_HELLO 0x80006004
+#define AMEX_JVS_IOCTL_SENSE 0x8000600C
+#define AMEX_JVS_IOCTL_TRANSACT 0x8000E008
 
 static BOOL jvs_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
 {
-    if (code != MXJVS_IOCTL_EXCHANGE)
+    *returned = 0;
+    if (code == AMEX_JVS_IOCTL_HELLO && out && outSize >= 2)
+    {
+        memset(out, 0, 2);
+        *returned = 2;
+        return TRUE;
+    }
+    if (code == AMEX_JVS_IOCTL_SENSE && out && outSize >= 1)
+    {
+        *(unsigned char *)out = (jvs_modem() & MS_DSR_ON) ? 2 : 3;
+        *returned = 1;
+        return TRUE;
+    }
+    if (code != MXJVS_IOCTL_EXCHANGE && code != AMEX_JVS_IOCTL_TRANSACT)
     {
         static int logged;
         if (logged++ < 10)
@@ -421,6 +439,11 @@ static BOOL jvs_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD
     g_outUsed = 0;
     LeaveCriticalSection(&g_lock);
     *returned = n;
+    if (!n && code == AMEX_JVS_IOCTL_TRANSACT)
+    {
+        SetLastError(ERROR_NO_DATA_DETECTED);
+        return FALSE;
+    }
     return TRUE;
 }
 
