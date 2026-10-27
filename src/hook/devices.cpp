@@ -420,7 +420,7 @@ static struct
 {
     GUID cls;
     const char *path;
-} g_interfaces[4];
+} g_interfaces[8];
 static int g_interfaceCount;
 
 void wl_vdev_interface(const GUID *cls, const char *path)
@@ -473,6 +473,11 @@ static void on_class_devs(const GUID *cls, const char *enumerator, DWORD flags, 
             if (IsEqualGUID(*cls, g_interfaces[i].cls))
                 interface = i;
     }
+    // A handle Windows gives again once the game destroyed the set it was (amdaemon's AMEX drivers,
+    // one after the other): it is this set's now
+    for (int i = 0; i < (int)(sizeof g_sets / sizeof g_sets[0]); i++)
+        if (g_sets[i].set == r)
+            g_sets[i].set = NULL;
     if (interface > -2)
     {
         int k = g_setNext++ % (int)(sizeof g_sets / sizeof g_sets[0]);
