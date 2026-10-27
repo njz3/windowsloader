@@ -1225,6 +1225,32 @@ Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
 - Le mode MiniCabinet sans 8404 ni 4103 ; « CONNECT MAIN CABINET » passé par la diffusion UDP en boucle locale
   (40257 vers 192.168.172.255).
 
+## Frenzy Express (Uniana PC, 2001)
+
+`xwin.exe` (copie `games\frenzyexpress`, 130 Mo depuis racecab1), x86, OpenGL, 640×480. Module `uniana.cpp`. Une
+trottinette : guidon, poussées du pied à gauche et à droite, frein, six boutons. La borne passe par `xio.dll` (classe
+`XIO`) : sa fonction `update`, appelée à chaque image, est celle de windowsloader et remplit les variables de la
+bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier de `xio.dll`).
+
+- Lancement ✅ : étalonnage du guidon au démarrage (le moteur le tourne lui-même ; sans volant à retour de force :
+  « ERROR THE STEERING WHEEL » puis « DEFAULT SETTING », et le jeu continue), « INITIALIZE » tout OK (I/O PORT
+  compris), avertissement, titre, attract.
+- Commandes ✅ (agent, vues dans I/O CHECK du menu de test) : guidon (0x00 à gauche, 0xFF à droite), frein, poussées
+  gauche et droite, Start (bit 0x01), Service (0x02), Test (0x04, ouvre le MAIN MENU), pièce (0x08 ; Service compte
+  aussi une pièce), choix gauche et droite (0x10, 0x20). L'accélérateur (la poignée des bornes moto) alterne les deux
+  poussées, plus vite quand il est tourné à fond : 54 km/h. Partie : deux pièces = un crédit, choix du joueur, du
+  costume et du pied, mission, course.
+- Retour de force ✅ : `setSteeringBar` est le moteur du guidon (0 : aucun ; impair 0x0B..0x17 : vers la gauche,
+  pair 0x0A..0x16 : vers la droite, sept forces). Le sens est vérifié par l'étalonnage : un guidon qui suit la force
+  le passe, l'autre sens donne « ERROR ». En course : un ressort vers le milieu, plus raide avec la vitesse.
+- Sorties réseau : `lamp` (motif), `start_lamp`, `select_lamp`, `vibration` (3 au repos), `handlebar_motor`.
+- Affichage ✅ : le jeu dessine 640×480 dans une fenêtre de la taille de l'écran. Son module donne la taille
+  (`wl_gl_picture`) : la fenêtre est réglée selon `DISPLAY_MODE` comme un jeu Direct3D 11, et les viewports OpenGL
+  du jeu sont déplacés et agrandis là où va l'image. Le jeu relit son viewport (`glGetIntegerv`) et le redonne
+  chaque image : il reçoit le sien, sinon l'image rétrécissait à chaque tour. Les autres jeux OpenGL (Initial D 6 à
+  8) gardent leur fenêtre telle quelle.
+- Reste : le menu Tab (pas en OpenGL), vJoy et un vrai guidon sur borne, les lampes vues sur borne.
+
 ## D1GP Arcade (Taito Type X2, 2009)
 
 `game.exe` dans `games/d1gp` (avec `IFC23.dll` et `game.inf`), v2.02 GBR, x86, Direct3D 9, 1360×768. Dans `taito.cpp`
