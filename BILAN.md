@@ -1140,6 +1140,11 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
   changements de force en une course, de −0,96 à +0,96 ; volant à −0,5 force moyenne +0,16, à +0,5 −0,18, au centre
   +0,02 : vers le centre, comme Wangan 6 ; 0 aux résultats.
 - Crédits ⚠️ : pièces comptées (« CREDIT(S) »), la partie invité en prend une.
+- Lecteurs (27/10) : sur racecab2 (graveur DVD HP en E:), « Error 0919 DVD Drive Remain Error » au bout de 14 s :
+  amdaemon cherche un lecteur de CD/DVD parmi les volumes (`FindFirstVolumeW`, `QueryDosDeviceW` → `\Device\CdRom`,
+  `GetDriveTypeW`) ; 0917 pour une clé USB. windowsloader lui cache (et au jeu) les lecteurs de CD/DVD et les disques
+  amovibles ; D:, E: et Y: (les dossiers de la copie) sont des disques fixes. Reproduit sur le PC d'essai avec une
+  image ISO montée en E: (0919 en 10 s), plus d'erreur avec le correctif ; pas encore rejoué sur la borne.
 - Langue : `[Game.swdc] LANGUAGE` (`ENGLISH` par défaut, `JAPANESE`, `CHINESE`, les noms anglais dans le menu) pour
   les messages d'amdaemon seulement ; les textes du jeu restent en japonais (son pak n'a que la locale « en » du moteur).
 - Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), la carte LED
