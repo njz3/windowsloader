@@ -39,7 +39,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Wangan Midnight Maximum Tune 5 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 5 DX+ (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ⏳ | ✅ | ⚠️ |
 | Wangan Midnight Maximum Tune 6 (Namco ES3X, 64 bits) | ✅ | ✅ | ⏳ | ✅ | ⏳ | ✅ | ✅ | ⚠️ |
-| Sega World Drivers Championship (ALLS, 64 bits) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ⏳ | ⏳ | ⚠️ |
+| Sega World Drivers Championship (ALLS, 64 bits) | ✅ | ⚠️ | ⚠️ | ⚠️ | ⚠️ | ✅ | ⚠️ | ⚠️ |
 | Sega Racing Classic (RingEdge) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
 | Wacky Races (Taito Type X2) | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ |
@@ -779,8 +779,9 @@ Le 26/10 (demandes 143 à 145) :
   - GTI Club 3 ⚠️ (lu dans `libacio.dll`) : `ac_io_hbhi_control_lamp_on` / `_off` (8 lampes) → `lamp0..7`,
     `_bright` (0-31) → `bright0..7`, `_mode` suivi ; libacio appelée ensuite.
   - ⚠️ = pas essayé en jeu : ces jeux ne sont pas sur ce PC (bibliothèques copiées de racecab1 pour les lire).
-  - Pas encore : la carte LED 837-15070 de SWDC (une salve au démarrage en mode Cabinet seulement). Sega Rally 3,
-    Daytona, GRID, Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
+  - SWDC en mode Cabinet ✅ (27/10) : la carte LED 837-15070 (`led0_r` à `led8_b`, `fet0` à `fet2`) et le tableau de
+    bord (`speed`, `gear`, `rpm`, `dash_lamp0` à `dash_lamp7`) ; voir sa section. Sega Rally 3, Daytona, GRID,
+    Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
 
 Pas encore vu : la touche Tab elle-même avec `SETTINGS_MENU = false`, `CopyFile`, `SetFileAttributes` et
 `RemoveDirectory` à travers le dossier d'écriture.
@@ -919,7 +920,7 @@ vérification ensuite :
 - Menu de service ✅ : menu de test, test des entrées-sorties, étalonnage, réglages du jeu ; enregistrés (le
   renommage de `F:\TestMode\…bin.tmp` passe maintenant par la redirection de F:\).
 - Crédits ✅ : la pièce compte (test des contacts) ; la copie est en jeu gratuit.
-- Link entre bornes 🔄 (26/10, `[Game.mkdx] LINK` et `CABINET`, voir le README) :
+- Link entre bornes ✅ (26/10, `[Game.mkdx] LINK` et `CABINET`, voir le README ; vérifié sur les deux bornes le 27/10) :
   - le protocole, lu dans le jeu (+0x318c40) : chaque borne diffuse toutes les 10 s environ sur UDP 20199 huit
     octets « MK3 » 0x12 0x10, son mode, son groupe et son PCB-ID − 1 ; une borne entendue depuis le réseau des
     bornes (l'adresse de l'envoyeur) entre dans le link, ses paquets (155 octets, puis l'état de toutes) lui
@@ -937,7 +938,12 @@ vérification ensuite :
     0,18 s ; pièce et Start sur les deux : choix du personnage et du circuit ensemble, puis une course à quatre
     (les deux Mario des bornes, Yoshi et Luigi en COM), Kingdom Way, le même classement sur les deux écrans, le
     kart de l'autre borne visible à côté ;
-  - reste : l'essai sur les deux bornes (leurs adresses dans `LINK`, PCB-ID 2 sur la seconde, le pare-feu).
+  - sur les deux bornes (27/10, Image borne, la -2 en mode agent, BFF arrêté) : `--set Game.LINK=192.168.1.4,192.168.1.5`
+    et `--set Game.CABINET=1` / `2`, PCB-ID 1 sur racecab1 et 2 sur racecab2 (en 1.18, la ligne 基板ID de その他
+    ne fait qu'afficher : le réglage est sous ゲーム設定) ; les paquets dans les deux sens (UDP 20100,
+    192.168.112.11 et .12), la démo synchronisée « 2人で対戦できます », Start des deux côtés, Kingdom Way, une
+    course à quatre (les deux Mario des bornes, Yoshi et Luigi en COM) ; sur racecab2, le Mario de racecab1 porte
+    l'objet qu'il vient de prendre. Le bandeau hors ligne s'affiche en jeu, sans effet sur la partie.
 
 ## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
 
@@ -965,7 +971,8 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
   une 1.18 ne se lient pas, les bornes du link doivent avoir la même version. Pas de mutex « une seule fois » dans
   la 1.10. Essai sur ce PC comme pour la 1.18 (Board ID 2 réglé sur le second) : chacune entend l'autre, deux
   pièces et Start sur les deux, « Deux Joueurs VERSUS / CO-OP » proposé, course ensemble au Château de Peach, le
-  même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Reste l'essai sur les bornes.
+  même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Sur les deux bornes (27/10, Image
+  borne, Board ID 1 et 2) : « Deux Joueurs VERSUS / CO-OP » proposé sur les deux, la course pas encore lancée.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 
@@ -1128,7 +1135,8 @@ le mode avec pièces (le terminal joué est en jeu gratuit) ; vJoy et l'affichag
 ## Sega World Drivers Championship (Sega ALLS, Unreal Engine 4, 64 bits) — jouable en invité
 
 `App\Todoroki\WindowsNoEditor\Todoroki\Binaries\Win64\Todoroki-Win64-Shipping.exe -windowed` ; le lanceur y ajoute
-`-launch=MiniCabinet` (borne seule, comme TeknoParrot) et démarre 5 s avant lui `AMDaemon\amdaemon.exe`, le service de
+`-launch=Cabinet` (borne complète) ou `-launch=MiniCabinet` (petite borne, comme TeknoParrot) selon l'option
+`[Game.swdc] CABINET` (`CABINET` par défaut, `MINI`), et démarre 5 s avant lui `AMDaemon\amdaemon.exe`, le service de
 la plateforme (programme compagnon), avec le `config.json` du jeu et les réglages de borne seule de windowsloader
 (`%TEMP%\windowsloader-swdc-amdaemon.json`, écrit par le module dans amdaemon). Modules `src/hook/games/alls.cpp`,
 `src/hook/games/allnet.cpp` (les services réseau), `src/hook/netenv.cpp`. Copie locale le 23/10 (12,5 Go, 95 min).
@@ -1147,9 +1155,31 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
   image ISO montée en E: (0919 en 10 s), plus d'erreur avec le correctif ; pas encore rejoué sur la borne.
 - Langue : `[Game.swdc] LANGUAGE` (`ENGLISH` par défaut, `JAPANESE`, `CHINESE`, les noms anglais dans le menu) pour
   les messages d'amdaemon seulement ; les textes du jeu restent en japonais (son pak n'a que la locale « en » du moteur).
-- Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), la carte LED
-  837-15070, le mode Cabinet (8404 : installation LAN, `ICF1` absent), un essai au vrai volant, vJoy, menus Tab et de
-  service.
+- Mode Cabinet (27/10) ✅ : avec les services réseau joués sur le PC et l'installation LAN coupée, plus de 8404 ni de
+  4103 ; une partie invité complète (course, résultats, continue, game over), le retour de force comme en MiniCabinet.
+  C'est maintenant le mode par défaut (option `CABINET`, prise au lancement : le lanceur donne `-launch=`, sauf si la
+  ligne de commande en a un). Le jeu n'ouvre COM2 (carte LED) et COM20 (tableau de bord) qu'en mode Cabinet.
+- Boutons du volant ✅ (test d'entrées) : en mode Cabinet, par le tableau de bord (838-15415, COM20) : le jeu envoie
+  « pr » toutes les 17 ms environ, la réponse « ps » et six chiffres 0/1 : jaune, rouge, vert, bleu, palette droite,
+  palette gauche. En MiniCabinet, le jeu les lit par amdaemon (mot du joueur 2 de la carte IO4, `config.json`), mais
+  amdaemon ne transmet pas ce mot (essayé : FFFF, octets 34 à 63, max_player 2) : les boutons du volant n'y marchent pas.
+- Sorties réseau ✅ (mode Cabinet seulement, déclarées selon le `-launch=` du jeu) : le tableau de bord reçoit
+  « sp1*0*2*:gr2:le11110000:pr » toutes les 35 ms en course (vitesse sur trois chiffres suivis de « * », rapport,
+  8 lampes en barre, « rp » toujours vide) → `speed`, `gear`, `rpm`, `dash_lamp0` à `dash_lamp7` ; la carte LED
+  (837-15070, COM2) 9 LED RVB (commandes 31, 32 clignotement, 33 fondu, appliquées par 3C) et 3 sorties de
+  puissance (39) → `led0_r` à `led8_b` (0-255), `fet0` à `fet2`. Course enregistrée sur le port 8000 : `speed` 116
+  valeurs (74 à 116 km/h), `gear` 2, 3, 4, `dash_lamp0` 0/1, les LED en rouge, orange, jaune, `fet0` 0/1. Le
+  clignotement et le fondu ne sont pas rejoués : leur couleur est envoyée telle quelle.
+- Menu Tab ✅ : le jeu en pause, les sept pages (options du jeu : `CABINET`, `LANGUAGE`, les cartes).
+- Menu de service ⚠️ : Test ouvre le « GAME TEST MENU » (Service pour choisir, Test pour valider) ; test d'entrées
+  ✅ (volant ±128, accélérateur 255, frein, boutons ; Test et Service ensemble pour sortir) ; le test du retour de
+  force reste sur « CHECKING... » (le jeu interroge la carte par FD, notre réponse 00 ne lui suffit pas ; ce test
+  est dans les Blueprints, segatools n'y répond pas non plus).
+- vJoy ⚠️ (`--controllers`, une course de 30 s) : vJoy ouvert en joueur 1, retour de force à 100 % ; le nombre
+  d'effets envoyés pas compté (le script s'arrêtait en pleine course). Images par seconde en course : 19 en moyenne
+  avec les manettes, 26 à 29 sans, sur trop peu de course pour conclure.
+- Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), un essai au vrai
+  volant, le test du retour de force.
 
 Avant (23/10) :
 - Lancement ⚠️ : amdaemon démarre sans erreur (registre `SystemProperty` inventé en mémoire, clé `\??\FddDriver`,
