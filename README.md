@@ -146,7 +146,18 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows): the game and its cabinet's boards (how the
 controls reach it, which motor board drives its wheel), controls (bindings captured from the
 keyboard, a gamepad or a wheel, saved to `controls.ini`), the game's own options, display, force
-feedback strength and direction, the network outputs the game can send.
+feedback (its device, strength and direction), the network outputs the game can send.
+
+The force feedback's device, as Supermodel, Flycast, linuxloader and sm2-emu choose it:
+`controls.ini` `[Config] FFB_Device` (beside `FFB_Strength` and `FFB_Invert`; `--set
+ForceFeedback.FFB_DEVICE=...` overrides it) is `AUTO` (or empty: player 1's wheel, as before) or a
+force feedback device's name as the system gives it ("vJoy Device"), compared whole without case
+or the spaces around it. The chosen device alone plays the effects, whichever device the wheel is
+read from (the steering read on vJoy, the effects on a real wheel, or the reverse); of two devices
+of that name, player 1's, else the first. While it is not connected, at the start or unplugged
+during the game, player 1's wheel plays them; plugged in again, it takes them back with the current
+force. The menu's force feedback page lists "Automatique" and the connected devices ("<name> (non
+connecté)" for a chosen one that is absent); a choice there takes effect at once and is saved.
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
 own file (made from a copy of the file read the first time). `[Launcher] SETTINGS_MENU = false`, for
 a public cabinet: Tab no longer opens the menu over a running game (the agent's `menu on` still

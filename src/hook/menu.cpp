@@ -414,6 +414,32 @@ static void page_ffb(void)
     wl_controls_ffb_settings(&strength, &invert);
     const char *pad = wl_controls_player_name(0);
     ImGui::Text("Volant : %s", pad[0] ? pad : "aucun (joueur 1)");
+    // The device the effects go to: Automatique (player 1's wheel) or one by its name
+    char device[128], names[16][128], label[160], playing[128];
+    int connected = wl_controls_ffb_device(device, sizeof device);
+    int count = wl_controls_ffb_devices(names, 16);
+    if (!device[0])
+        snprintf(label, sizeof label, "Automatique");
+    else
+        snprintf(label, sizeof label, connected ? "%s" : "%s (non connecté)", device);
+    if (ImGui::BeginCombo("Dispositif de retour de force", label))
+    {
+        if (ImGui::Selectable("Automatique", !device[0]))
+            wl_controls_set_ffb_device("");
+        for (int i = 0; i < count; i++)
+        {
+            ImGui::PushID(i);
+            if (ImGui::Selectable(names[i], device[0] && !_stricmp(names[i], device)))
+                wl_controls_set_ffb_device(names[i]);
+            ImGui::PopID();
+        }
+        if (device[0] && !connected)
+            ImGui::Selectable(label, true);
+        ImGui::EndCombo();
+    }
+    wl_controls_ffb_playing(playing, sizeof playing);
+    ImGui::TextDisabled("Effets joués sur : %s%s", playing[0] ? playing : "aucun",
+                        device[0] && !connected ? " (le choisi n'est pas branché : automatique)" : "");
     ImGui::Spacing();
     int pct = (int)(strength * 100 + 0.5);
     if (ImGui::SliderInt("Force", &pct, 0, 200, "%d %%"))
@@ -427,7 +453,7 @@ static void page_ffb(void)
     snprintf(text, sizeof text, "%+.2f (%s)", f, f > 0 ? "vers la gauche" : f < 0 ? "vers la droite" : "aucune");
     ImGui::TextUnformatted("Force demandée par le jeu :");
     ImGui::ProgressBar((float)(1 - f) / 2, ImVec2(-1, 0), text);
-    ImGui::TextDisabled("Réglages enregistrés dans [Config] de controls.ini (FFB_Strength, FFB_Invert).");
+    ImGui::TextDisabled("Réglages enregistrés dans [Config] de controls.ini (FFB_Device, FFB_Strength, FFB_Invert).");
 }
 
 // Display: linuxloader's settings, applied at the next frame (the resolution at the next start)

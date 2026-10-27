@@ -23,7 +23,8 @@
 //   GC<n>_BUTTON_<name>, GC<n>_AXIS_<name>[suffix]   (SDL gamepads: A, B, START, LEFTX, RIGHTTRIGGER...)
 //   suffixes: _POSITIVE, _NEGATIVE (half an axis as a button), _POSITIVE_HALF, _NEGATIVE_HALF,
 //             _INVERTED
-//   [Config] <name>_DeadZone = 0..32767, FFB_Strength = percent, FFB_Invert = 0/1
+//   [Config] <name>_DeadZone = 0..32767, FFB_Strength = percent, FFB_Invert = 0/1,
+//            FFB_Device = AUTO or a force feedback device's name (--set ForceFeedback.FFB_DEVICE=)
 //   [ControllerGUIDs] P<n>_GUID = SDL joystick GUID
 // <n> is the player: P1_GUID's device is JOY0 / GC0, the other devices follow in order.
 
@@ -45,3 +46,7 @@ int wl_controls_capture_result(char *out, size_t size);                // 1 once
 void wl_controls_capture_cancel(void);
 void wl_controls_ffb_settings(double *strength, int *invert);
 void wl_controls_set_ffb(double strength, int invert);                 // applied and saved
+int wl_controls_ffb_device(char *out, size_t size);                    // FFB_Device, "" for AUTO; 0 when not connected
+int wl_controls_ffb_devices(char (*names)[128], int max);              // the connected force feedback devices
+void wl_controls_ffb_playing(char *out, size_t size);                  // the device the effects go to, "" for none
+void wl_controls_set_ffb_device(const char *name);                     // "" or AUTO: player 1's; applied at once and saved

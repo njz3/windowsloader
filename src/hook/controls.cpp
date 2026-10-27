@@ -27,6 +27,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "settings.h"
 
 // ------------------------------------------------------------------------------
 // Bindings
@@ -292,8 +293,15 @@ static Device g_players[MAX_PLAYERS];
 static int g_keyboardFocus;
 
 // ------------------------------------------------------------------------------
-// Force feedback on player 1's wheel: one constant effect, updated when the game's force
-// changes (ffb.h). [Config] FFB_Strength (percent, 100) and FFB_Invert (0/1) of controls.ini.
+// Force feedback: one constant effect, updated when the game's force changes (ffb.h), on one
+// device. [Config] of controls.ini: FFB_Strength (percent, 100), FFB_Invert (0/1), FFB_Device
+// (AUTO, or empty: player 1's wheel; else a force feedback device's name as the system gives
+// it, compared whole without case or the spaces around; --set ForceFeedback.FFB_DEVICE=
+// overrides it, as Supermodel's, Flycast's, linuxloader's and sm2-emu's). The chosen device
+// alone plays the effects, whichever device the wheel is read from; of two of the same name,
+// player 1's. Not connected: player 1's wheel, until it is plugged in (devices are reassigned
+// at each plug). A change from the settings menu takes effect at once: the old device's
+// effect closed, the current force sent to the new one.
 // ------------------------------------------------------------------------------
 
 static SDL_Haptic *g_haptic;
@@ -302,12 +310,113 @@ static unsigned g_ffbSerial;
 static double g_ffbStrength = 1.0;
 static int g_ffbInvert;
 
+#define MAX_FFB_DEVICES 16
+static char g_ffbDevice[128];                           // the setting, "" for AUTO
+static char g_ffbNames[MAX_FFB_DEVICES][128];           // the connected force feedback devices
+static int g_ffbCount;
+static char g_ffbPlaying[128];                          // the device the effects go to, "" for none
+static volatile LONG g_ffbReopen;                       // the setting changed: reopen in the controls thread
+static CRITICAL_SECTION g_ffbLock;                      // the names, read by the settings menu
+static INIT_ONCE g_ffbLockOnce = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK init_ffb_lock(PINIT_ONCE, PVOID, PVOID *)
+{
+    InitializeCriticalSection(&g_ffbLock);
+    return TRUE;
+}
+
+static void ffb_lock(void)
+{
+    InitOnceExecuteOnce(&g_ffbLockOnce, init_ffb_lock, NULL, NULL);
+    EnterCriticalSection(&g_ffbLock);
+}
+
+// A device's name without the spaces around it (in place)
+static void trim(char *s)
+{
+    size_t n = strlen(s), b = 0;
+    while (n && isspace((unsigned char)s[n - 1]))
+        s[--n] = 0;
+    while (isspace((unsigned char)s[b]))
+        b++;
+    memmove(s, s + b, n - b + 1);
+}
+
+static int same_device(const char *a, const char *b)
+{
+    char x[128], y[128];
+    snprintf(x, sizeof x, "%s", a ? a : "");
+    snprintf(y, sizeof y, "%s", b ? b : "");
+    trim(x);
+    trim(y);
+    return x[0] && !_stricmp(x, y);
+}
+
+static void read_ffb_device(void)
+{
+    char v[128];
+    wl_settings_get("ForceFeedback", "FFB_DEVICE", "", v, sizeof v);
+    if (!v[0] && g_ini[0])
+    {
+        wchar_t w[128];
+        GetPrivateProfileStringW(L"Config", L"FFB_Device", L"", w, 128, g_ini);
+        WideCharToMultiByte(CP_UTF8, 0, w, -1, v, sizeof v, NULL, NULL);
+    }
+    trim(v);
+    ffb_lock();
+    snprintf(g_ffbDevice, sizeof g_ffbDevice, "%s", _stricmp(v, "AUTO") ? v : "");
+    LeaveCriticalSection(&g_ffbLock);
+}
+
 static void close_haptic(void)
 {
     if (g_haptic)
         SDL_CloseHaptic(g_haptic);
     g_haptic = NULL;
     g_hapticEffect = -1;
+    ffb_lock();
+    g_ffbPlaying[0] = 0;
+    LeaveCriticalSection(&g_ffbLock);
+}
+
+// The connected force feedback devices' names, for the settings menu
+static void list_ffb_devices(void)
+{
+    int count = 0;
+    SDL_HapticID *ids = SDL_GetHaptics(&count);
+    ffb_lock();
+    g_ffbCount = 0;
+    for (int i = 0; ids && i < count && g_ffbCount < MAX_FFB_DEVICES; i++)
+    {
+        const char *name = SDL_GetHapticNameForID(ids[i]);
+        snprintf(g_ffbNames[g_ffbCount++], sizeof g_ffbNames[0], "%s", name ? name : "?");
+    }
+    LeaveCriticalSection(&g_ffbLock);
+    SDL_free(ids);
+}
+
+// The chosen device, opened; NULL when none is connected by that name. Player 1's own device
+// first when it has the name (the one the wheel is read from), then the first of that name
+static SDL_Haptic *open_chosen(SDL_Haptic **player1)
+{
+    char chosen[128];
+    ffb_lock();
+    snprintf(chosen, sizeof chosen, "%s", g_ffbDevice);
+    LeaveCriticalSection(&g_ffbLock);
+    if (*player1 && same_device(SDL_GetHapticName(*player1), chosen))
+    {
+        SDL_Haptic *h = *player1;
+        *player1 = NULL;
+        return h;
+    }
+    int count = 0;
+    SDL_HapticID *ids = SDL_GetHaptics(&count);
+    SDL_Haptic *h = NULL;
+    for (int i = 0; ids && i < count && !h; i++)
+        if (same_device(SDL_GetHapticNameForID(ids[i]), chosen))
+            h = SDL_OpenHaptic(ids[i]);
+    SDL_free(ids);
+    return h;
 }
 
 static void constant_effect(SDL_HapticEffect *e, double level)
@@ -323,18 +432,34 @@ static void constant_effect(SDL_HapticEffect *e, double level)
 static void open_haptic(void)
 {
     close_haptic();
+    list_ffb_devices();
     SDL_Joystick *joy = g_players[0].joy;
-    if (!joy || !SDL_IsJoystickHaptic(joy))
-        return;
-    g_haptic = SDL_OpenHapticFromJoystick(joy);
+    SDL_Haptic *player1 = joy && SDL_IsJoystickHaptic(joy) ? SDL_OpenHapticFromJoystick(joy) : NULL;
+    char chosen[128];
+    ffb_lock();
+    snprintf(chosen, sizeof chosen, "%s", g_ffbDevice);
+    LeaveCriticalSection(&g_ffbLock);
+    if (chosen[0])
+    {
+        g_haptic = open_chosen(&player1);
+        static char told[128]; // said once for each name
+        if (!g_haptic && strcmp(told, chosen))
+            wl_log("controls: force feedback: \"%s\" (FFB_Device) not connected: player 1's wheel until it is", chosen);
+        snprintf(told, sizeof told, "%s", g_haptic ? "" : chosen);
+    }
+    if (!g_haptic)
+        g_haptic = player1;
+    else if (player1)
+        SDL_CloseHaptic(player1);
     if (!g_haptic)
     {
-        wl_log("controls: force feedback: cannot open player 1's device (%s)", SDL_GetError());
+        if (joy && SDL_IsJoystickHaptic(joy))
+            wl_log("controls: force feedback: cannot open player 1's device (%s)", SDL_GetError());
         return;
     }
     if (!(SDL_GetHapticFeatures(g_haptic) & SDL_HAPTIC_CONSTANT))
     {
-        wl_log("controls: force feedback: player 1's device has no constant force");
+        wl_log("controls: force feedback: %s has no constant force", SDL_GetHapticName(g_haptic));
         close_haptic();
         return;
     }
@@ -349,7 +474,12 @@ static void open_haptic(void)
     }
     wl_ffb_get(&g_ffbSerial);
     g_ffbSerial--; // the current force is sent at the next update
-    wl_log("controls: force feedback on player 1, strength %d%%%s", (int)(g_ffbStrength * 100), g_ffbInvert ? ", inverted" : "");
+    const char *name = SDL_GetHapticName(g_haptic);
+    ffb_lock();
+    snprintf(g_ffbPlaying, sizeof g_ffbPlaying, "%s", name ? name : "?");
+    LeaveCriticalSection(&g_ffbLock);
+    wl_log("controls: force feedback on %s (%s), strength %d%%%s", g_ffbPlaying, chosen[0] && same_device(name, chosen) ? "FFB_Device" : "player 1",
+           (int)(g_ffbStrength * 100), g_ffbInvert ? ", inverted" : "");
 }
 
 static void update_haptic(void)
@@ -593,6 +723,7 @@ static const char *g_defaults =
     "Brake_DeadZone = 500\r\n"
     "FFB_Strength = 100\r\n"
     "FFB_Invert = 0\r\n"
+    "FFB_Device = AUTO\r\n"
     "\r\n"
     "[Common]\r\n"
     "Test = KEY_T\r\n"
@@ -756,6 +887,8 @@ static DWORD WINAPI controls_thread(LPVOID)
                 changed = 1;
         if (changed)
             assign_devices();
+        else if (InterlockedExchange(&g_ffbReopen, 0)) // FFB_Device changed in the settings menu
+            open_haptic();
         g_keyboardFocus = focus_is_ours();
         if (InterlockedExchange(&g_reload, 0))
             load_bindings();
@@ -782,6 +915,7 @@ void wl_controls_load(const wchar_t *iniPath)
     load_bindings();
     g_ffbStrength = GetPrivateProfileIntW(L"Config", L"FFB_Strength", 100, g_ini) / 100.0;
     g_ffbInvert = GetPrivateProfileIntW(L"Config", L"FFB_Invert", 0, g_ini) != 0;
+    read_ffb_device();
 }
 
 int wl_controls_has_file(void)
@@ -900,6 +1034,51 @@ void wl_controls_set_ffb(double strength, int invert)
     swprintf(v, 16, L"%d", (int)(strength * 100 + 0.5));
     WritePrivateProfileStringW(L"Config", L"FFB_Strength", v, g_ini);
     WritePrivateProfileStringW(L"Config", L"FFB_Invert", invert ? L"1" : L"0", g_ini);
+}
+
+int wl_controls_ffb_device(char *out, size_t size)
+{
+    ffb_lock();
+    snprintf(out, size, "%s", g_ffbDevice);
+    int connected = !g_ffbDevice[0];
+    for (int i = 0; i < g_ffbCount && !connected; i++)
+        connected = same_device(g_ffbNames[i], g_ffbDevice);
+    LeaveCriticalSection(&g_ffbLock);
+    return connected;
+}
+
+int wl_controls_ffb_devices(char (*names)[128], int max)
+{
+    ffb_lock();
+    int n = g_ffbCount < max ? g_ffbCount : max;
+    for (int i = 0; i < n; i++)
+        snprintf(names[i], 128, "%s", g_ffbNames[i]);
+    LeaveCriticalSection(&g_ffbLock);
+    return n;
+}
+
+void wl_controls_ffb_playing(char *out, size_t size)
+{
+    ffb_lock();
+    snprintf(out, size, "%s", g_ffbPlaying);
+    LeaveCriticalSection(&g_ffbLock);
+}
+
+void wl_controls_set_ffb_device(const char *name)
+{
+    char v[128];
+    snprintf(v, sizeof v, "%s", name ? name : "");
+    trim(v);
+    ffb_lock();
+    snprintf(g_ffbDevice, sizeof g_ffbDevice, "%s", _stricmp(v, "AUTO") ? v : "");
+    LeaveCriticalSection(&g_ffbLock);
+    InterlockedExchange(&g_ffbReopen, 1);
+    wl_log("controls: FFB_Device = %s (settings menu)", v[0] && _stricmp(v, "AUTO") ? v : "AUTO");
+    if (!g_ini[0])
+        return;
+    wchar_t w[128];
+    MultiByteToWideChar(CP_UTF8, 0, v[0] ? v : "AUTO", -1, w, 128);
+    WritePrivateProfileStringW(L"Config", L"FFB_Device", w, g_ini);
 }
 
 // Key names written by the capture, read back by key_vk
