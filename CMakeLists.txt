@@ -150,7 +150,7 @@ add_library(wl_hook SHARED
     src/hook/games/codemasters.cpp
     src/hook/pcp.cpp
     src/hook/jvs.cpp
-    src/hook/driveboard.cpp
+    src/hook/servoboard.cpp
     src/hook/segashell.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp

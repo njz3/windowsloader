@@ -462,7 +462,7 @@ void wl_outputs_force(double force)
 {
     if (!g_lockReady)
         return;
-    // The drive board's torque as driveboard.cpp reads it: 84's value - 0x80, > 0 pushing left
+    // The servoboard's torque as servoboard.cpp reads it: 84's value - 0x80, > 0 pushing left
     int torque = (int)(force * 127 + (force < 0 ? -0.5 : 0.5));
     EnterCriticalSection(&g_lock);
     if (!g_rawDrive && torque != g_sentTorque)

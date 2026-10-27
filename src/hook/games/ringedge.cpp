@@ -31,7 +31,7 @@
 #include <string.h>
 #include <wchar.h>
 
-#include "driveboard.h"
+#include "servoboard.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -58,7 +58,7 @@ struct RingGame
     int inputCount;
     const int (*switches)[2]; // an input, its bit in player 1's two switch bytes
     int switchCount;
-    int freeWheelTest; // the drive board's power-on test wants the wheel to turn (driveboard.h)
+    int freeWheelTest; // the servoboard's power-on test wants the wheel to turn (servoboard.h)
     int linkUp;        // the network card's link: Sonic wants it (query_nic_status 0) to ask its address
     const char *saveDrive; // a drive of the cabinet's, the game's folder here (Sonic's Y:\ssr_save.bin)
     int freePlayOption;    // the option FREE_PLAY (eeprom_system)
@@ -735,7 +735,7 @@ static void jvs_state(WlJvsState *s)
         s->player[1] |= src_shifter();
     s->coins[0] = coins;
     int steering;
-    if (!wl_driveboard_free_wheel(&steering))
+    if (!wl_servoboard_free_wheel(&steering))
         steering = wl_input_get(&in[IN_STEERING]);
     if (g_game->inputs == g_lgsInputs)
     {
@@ -1143,9 +1143,9 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     wl_jvs_register(&g_jvs);
     if (g_game->jvsPort2)
         wl_jvs_add_port(g_game->jvsPort2);
-    wl_driveboard_register("COM1");
+    wl_servoboard_register("COM1");
     if (g_game->freeWheelTest)
-        wl_driveboard_free_wheel_test();
+        wl_servoboard_free_wheel_test();
     wl_vdev_register(&g_sram);
     wl_vdev_register(&g_superio);
     wl_vdev_register(&g_smbus);

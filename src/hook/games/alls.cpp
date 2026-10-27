@@ -33,7 +33,7 @@
 #include <wchar.h>
 
 #include "display.h"
-#include "driveboard.h"
+#include "servoboard.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
@@ -1559,8 +1559,8 @@ static void nu_setup(int daemon, int box)
     g_led.name = "COM11";
     wl_vdev_register(&g_led);
     wl_vdev_label("COM11", "Carte des lampes (837-15070)");
-    // The wheel's motor on COM1, opened at the game's start: Sega's drive board, as Initial D 6 to 8's
-    wl_driveboard_register("COM1");
+    // The wheel's motor on COM1, opened at the game's start: Sega's servoboard, as Initial D 6 to 8's
+    wl_servoboard_register("COM1");
 }
 
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
@@ -1630,9 +1630,9 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     }
     else
     {
-        // The game's own boards: the wheel's motor on COM1, Sega's drive board protocol (80 on,
+        // The game's own boards: the wheel's motor on COM1, Sega's servoboard protocol (80 on,
         // 84 torque, 85 rumble, 86 damper; segatools' board/ffb.c); the LEDs' on COM2
-        wl_driveboard_register("COM1");
+        wl_servoboard_register("COM1");
         InitializeCriticalSection(&g_ledLock);
         wl_vdev_register(&g_led);
         wl_vdev_label("COM2", "Carte des lampes (837-15070)");

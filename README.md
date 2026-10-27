@@ -187,7 +187,7 @@ njz3 forks of Supermodel and sm2-emu): a TCP server on `OUTPUTS_NETWORK_PORT` (8
 to each client that connects, and `mame_stop = 1` when the game ends; a UDP datagram announces the
 start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `RawLamps`,
 `RawLamps1`... and `lamp0`... (the JVS board's general purpose outputs), `RawDrive` (the bytes the game
-sends to a Sega drive board; for the other boards, the Sega servo board's frames made from the force:
+sends to a Sega servoboard; for the other boards, the Sega servoboard's frames made from the force:
 80, 81, 83 once, then 84 the torque). A game's companion opens no server: the port is the game's.
 The lamps of boards that are not JVS ones go out the same way (`RawLamps`..., `lamp<n>`): Wasteland
 Racers 2071's SDC2 board (`SetDigitalOut`, `lamp0` to `lamp15`, named after its `Inputs.xml`),
