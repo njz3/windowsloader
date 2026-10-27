@@ -716,6 +716,8 @@ static const char *section_of(const WlInput *in)
     return "Driving";
 }
 
+// The pedals: a gamepad's triggers, or the first joystick's Y and Z from their middle to their low
+// end (BackForceFeeder's vJoy: the accelerator on Y-, the brake on Z-, at rest in the middle)
 static const char *g_defaults =
     "[Config]\r\n"
     "Steer_DeadZone = 500\r\n"
@@ -764,8 +766,8 @@ static const char *g_defaults =
     "PedalLeft = KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
     "PedalRight = KEY_X, GC0_BUTTON_RIGHTSHOULDER\r\n"
     "P1_Steer = GC0_AXIS_LEFTX, JOY0_AXIS_0\r\n"
-    "P1_Gas = GC0_AXIS_RIGHTTRIGGER\r\n"
-    "P1_Brake = GC0_AXIS_LEFTTRIGGER\r\n"
+    "P1_Gas = GC0_AXIS_RIGHTTRIGGER, JOY0_AXIS_1_NEGATIVE_SIDE\r\n"
+    "P1_Brake = GC0_AXIS_LEFTTRIGGER, JOY0_AXIS_2_NEGATIVE_SIDE\r\n"
     "\r\n"
     "[ControllerGUIDs]\r\n";
 
