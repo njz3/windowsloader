@@ -37,7 +37,8 @@ The DLL must have the bitness of the game, so both presets are needed: everythin
 
 The build's version is named as the release archives are, `<version>-<the build's day>-njz3`
 (`0.1.0-20261025-njz3`), followed by the branch's edition, "FFB Edition": in the game's window
-title (`<title> [wmmt5] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition`), the picker's,
+title (`<title> [wmmt5] - 59.9 fps - windowsloader 0.1.0-20261025-njz3 FFB Edition`, the frames per
+second with a tenth), the picker's,
 the menu's "À propos" page and the log. `cmake/build_version.cmake` writes it at each build. A
 release adds its archive's number of the day with `-DWL_BUILD_NUMBER=4` (`0.1.0-20261024-4-njz3`);
 `WL_FORK` and `WL_EDITION` are the branch's name and edition.

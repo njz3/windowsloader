@@ -777,19 +777,28 @@ static int focus_is_ours(void)
 }
 
 // The game's name between brackets, the frames per second and the build in the window's title, once
-// a second: "<the game's title> [segarally3] - 60 fps - windowsloader 0.1.0-20261025-njz3 FFB
-// Edition" (the brackets let BackForceFeeder find the game)
+// a second: "<the game's title> [segarally3] - 59.9 fps - windowsloader 0.1.0-20261025-njz3 FFB
+// Edition" (the brackets let BackForceFeeder find the game). Timed by the performance counter (ours,
+// not the game's that the pause stops): GetTickCount's 16 ms steps would make the tenth a guess
 static void title_fps(HWND wnd)
 {
     static wchar_t title[128];
     static int got;
     static unsigned frames;
-    static ULONGLONG since;
-    ULONGLONG now = GetTickCount64();
+    static LONGLONG since, freq;
+    LARGE_INTEGER now;
+    QueryPerformanceCounter(&now);
+    if (!freq)
+    {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        freq = f.QuadPart;
+    }
     frames++;
     if (!since)
-        since = now;
-    if (now - since < 1000)
+        since = now.QuadPart;
+    double seconds = (double)(now.QuadPart - since) / (double)freq;
+    if (seconds < 1)
         return;
     if (!got)
     {
@@ -800,13 +809,12 @@ static void title_fps(HWND wnd)
     int n = swprintf(text, 320, L"%s", title);
     if (strcmp(wl_game_name(), "unknown"))
         n += swprintf(text + n, 320 - n, L"%s[%S]", n ? L" " : L"", wl_game_name());
-    swprintf(text + n, 320 - n, L"%s%.0f fps - windowsloader %S %S", n ? L" - " : L"", frames * 1000.0 / (double)(now - since), WL_BUILD_VERSION,
-             WL_EDITION);
+    swprintf(text + n, 320 - n, L"%s%.1f fps - windowsloader %S %S", n ? L" - " : L"", frames / seconds, WL_BUILD_VERSION, WL_EDITION);
     // The window's own thread may be another one: never wait long for it
     DWORD_PTR result;
     SendMessageTimeoutW(wnd, WM_SETTEXT, 0, (LPARAM)text, SMTO_ABORTIFHUNG, 50, &result);
     frames = 0;
-    since = now;
+    since = now.QuadPart;
 }
 
 void wl_display_title(HWND wnd)
