@@ -506,6 +506,17 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
     return buf;
 }
 
+const wchar_t *wl_files_write_path(const wchar_t *path, wchar_t *buf, size_t size)
+{
+    wchar_t over[WL_PATH];
+    if (!g_writeGame[0] || !path || (!wcschr(path, L'\\') && !wcschr(path, L'/')))
+        return path;
+    const wchar_t *r = ov_write(path, 1, over);
+    if (r == path || wcscpy_s(buf, size, r))
+        return path;
+    return buf;
+}
+
 // CreateFile's: written (write access, a creation) goes to the write folder, read comes from it when
 // the file is there. A folder's handle is taken where the folder is
 static const wchar_t *ov_create(const wchar_t *path, DWORD access, DWORD *disp, wchar_t *buf)

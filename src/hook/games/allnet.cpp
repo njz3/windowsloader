@@ -16,7 +16,7 @@
 // ("ABaaS"), in the game's:
 // - the names amdaemon looks up (DnsQuery_A, DnsQueryEx and getaddrinfo, its import table) are
 //   answered as segatools' hooks/dns.c (Unlicense) answers them: the name is replaced by an address
-//   and the query made with it. naominet.jp, ib.naominet.jp and aime.naominet.jp are 192.0.2.1
+//   and the query made with it. naominet.jp, ib.naominet.jp and aime.naominet.jp (or in ROT13) are 192.0.2.1
 //   (TEST-NET-1, RFC 5737: never routed; ALL.Net's library refuses 0.0.0.0/8, 127.0.0.0/8 and
 //   240.0.0.0/4), the shop's router and its broadband line (tenporouter.loc, bbrouter.loc) the
 //   cabinet's gateway (netenv.cpp); the mobile and DSL lines' routers are not found;
@@ -301,13 +301,33 @@ static CRITICAL_SECTION g_inflateLock;
 // (tenporouter.loc and mobirouter.loc both found: error 8005, "Network type error (WAN)")
 static const char g_absent[] = "(not found)";
 
+// A name in ROT13: the one older amdaemons look up (Initial D Zero v1.31's: anbzvarg.wc for
+// naominet.jp, nvzr.anbzvarg.wc for aime.naominet.jp)
+static void rot13(const char *name, char *out, size_t size)
+{
+    size_t i = 0;
+    for (; name[i] && i + 1 < size; i++)
+    {
+        char c = name[i];
+        if (c >= 'a' && c <= 'z')
+            c = (char)('a' + (c - 'a' + 13) % 26);
+        else if (c >= 'A' && c <= 'Z')
+            c = (char)('A' + (c - 'A' + 13) % 26);
+        out[i] = c;
+    }
+    out[i] = 0;
+}
+
 static const char *address_of(const char *name)
 {
     static const char *local[] = {"naominet.jp", "ib.naominet.jp", "aime.naominet.jp"};
     static const char *routers[] = {"tenporouter.loc", "bbrouter.loc"};
     static const char *absent[] = {"mobirouter.loc", "dslrouter.loc"};
+    char decoded[256] = "";
+    if (name)
+        rot13(name, decoded, sizeof decoded);
     for (int i = 0; name && i < (int)(sizeof local / sizeof local[0]); i++)
-        if (!_stricmp(name, local[i]))
+        if (!_stricmp(name, local[i]) || !_stricmp(decoded, local[i]))
             return ALLNET_ADDRESS;
     for (int i = 0; name && i < (int)(sizeof routers / sizeof routers[0]); i++)
         if (!_stricmp(name, routers[i]))

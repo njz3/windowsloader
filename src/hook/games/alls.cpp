@@ -470,10 +470,12 @@ enum
     IDZ_COUNT
 };
 
+// The pedals within 0..0x3000: the game's INPUT TEST shows 0..255 for 0..0x3000 and holds 255 above
+// (a cabinet's potentiometers turn that far only)
 static WlInput g_idzInputs[IDZ_COUNT] = {
     {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 0xFFFF, 0x8000},
-    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
-    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
+    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 0x3000, 0},
+    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 0x3000, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
@@ -547,8 +549,8 @@ static WlJvsBoard g_idzJvs = {"\\\\.\\mxjvs", "SEGA ENTERPRISES,LTD.;I/O BD JVS;
 // ------------------------------------------------------------------------------
 // Sega Nu's AMEX board (segatools' amex/sram.c, eeprom.c, ds.c and gpio.c), found by its device
 // interfaces; each driver tells its version (0x80006000: 0x0100):
-// - the battery-backed SRAM, 512 KB kept in wl_sram.bin beside the game, read and written as a
-//   disk of 4-byte sectors;
+// - the battery-backed SRAM, 512 KB kept in wl_sram.bin beside the game (in the write folder when
+//   there is one), read and written as a disk of 4-byte sectors;
 // - the EEPROM, 8 KB kept in wl_eeprom.bin, a disk of 7 KB in 1-byte sectors;
 // - the DS chip, the board's identity: a 32-byte record (its CRC-32, the region, the serial
 //   number), whatever the sector read;
@@ -577,10 +579,11 @@ static HANDLE nv_file(NvFile *nv)
 {
     if (nv->file == INVALID_HANDLE_VALUE)
     {
-        wchar_t path[MAX_PATH];
+        wchar_t path[MAX_PATH], buf[MAX_PATH * 2]; // the write folder's path past MAX_PATH: \\?\...
         swprintf(path, MAX_PATH, L"%s\\%s", g_root, nv->name);
+        const wchar_t *at = wl_files_write_path(path, buf, MAX_PATH * 2); // with --write-dir, the game's folder untouched
         wl_busy_enter();
-        nv->file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
+        nv->file = CreateFileW(at, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
         LARGE_INTEGER size;
         if (nv->file != INVALID_HANDLE_VALUE && GetFileSizeEx(nv->file, &size) && size.QuadPart < nv->size)
         {
@@ -1407,12 +1410,22 @@ static int nu_root(const wchar_t *exePath)
 
 static void drive(const char *letter, const wchar_t *folder)
 {
-    wchar_t path[MAX_PATH];
-    swprintf(path, MAX_PATH, L"%s\\%s", g_root, folder);
+    wchar_t rel[MAX_PATH], path[MAX_PATH];
+    swprintf(rel, MAX_PATH, L"%s\\%s", g_root, folder);
+    if (!GetFullPathNameW(rel, MAX_PATH, path, NULL)) // a folder above the copy's: ..\ resolved
+        wcscpy_s(path, MAX_PATH, rel);
     CreateDirectoryW(path, NULL);
     char to[MAX_PATH];
     WideCharToMultiByte(CP_ACP, 0, path, -1, to, sizeof to, NULL, NULL);
     wl_files_redirect(letter, to);
+}
+
+// Whether the copy's folder has the AMFS's first file
+static int has_icf(const wchar_t *folder)
+{
+    wchar_t path[MAX_PATH];
+    swprintf(path, MAX_PATH, L"%s\\%s\\ICF1", g_root, folder);
+    return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
 // amdaemon's settings for a cabinet alone, beside the game's config.json: the services that need
@@ -1491,11 +1504,16 @@ static void amdaemon_settings(void)
 // the shop's server box (ServerBoxD8_Nu_x64.exe, the cabinets' link to the game's online server)
 static void nu_setup(int daemon, int box)
 {
-    // The copy's drives as TeknoParrot keeps them: Y:\SDDF the game's data, E: AMFS (the system's files)
+    // The copy's drives as TeknoParrot keeps them: Y:\SDDF the game's data, E: AMFS (the system's
+    // files, ICF1 and ICF2). Without them there, segatools' amfs beside app\ (Initial D Zero v1.31's
+    // copy: app\package the game's folder)
     wchar_t tp[MAX_PATH];
     swprintf(tp, MAX_PATH, L"%s\\TeknoParrot\\AMFS", g_root);
     int teknoparrot = GetFileAttributesW(tp) != INVALID_FILE_ATTRIBUTES;
-    drive("E:", teknoparrot ? L"TeknoParrot\\AMFS" : L"AMFS");
+    const wchar_t *amfs = teknoparrot ? L"TeknoParrot\\AMFS" : L"AMFS";
+    if (!has_icf(amfs) && has_icf(L"..\\..\\amfs"))
+        amfs = L"..\\..\\amfs";
+    drive("E:", amfs);
     drive("Y:", teknoparrot ? L"TeknoParrot\\Y" : L"Y");
     wl_hooks_add(g_driveHooks, sizeof g_driveHooks / sizeof g_driveHooks[0]);
     static const unsigned char mac[6] = {0x00, 0xD0, 0xF1, 0x01, 0x02, 0x04};

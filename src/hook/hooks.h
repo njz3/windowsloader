@@ -106,6 +106,10 @@ void wl_files_write_dir(void);
 // A path with a folder as the write folder has it for reading: its copy there (in buf) when there
 // is one, else the path itself (LoadLibrary: a DLL the game wrote, in the temporary folder say)
 const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size);
+// The same for a file windowsloader keeps for the game and modifies (a board's memory): its copy in
+// the write folder, made from the first one if needed, or the path itself without a write folder
+// (buf of MAX_PATH * 2: past MAX_PATH, the \\?\ form)
+const wchar_t *wl_files_write_path(const wchar_t *path, wchar_t *buf, size_t size);
 
 // A program the game starts that windowsloader plays itself (Daytona's InpWrapper.exe, its
 // parallel port helper): returns 1 when the module took it over. The game is still told the

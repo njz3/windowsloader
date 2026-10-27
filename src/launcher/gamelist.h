@@ -16,8 +16,8 @@
 #include <windows.h>
 
 // The games windowsloader plays, for the picker: told apart the way their modules recognize them
-// (src/hook/games/*.cpp), by the program's name, files beside it and, for two, the program's time
-// stamp. To keep in step with the modules.
+// (src/hook/games/*.cpp), by the program's name, files beside it and, for a few (Battle Gear 4's
+// two, Initial D Zero's versions), the program's time stamp. To keep in step with the modules.
 
 enum
 {
