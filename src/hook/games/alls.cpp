@@ -27,23 +27,42 @@
 // its settings for a cabinet alone (launcher.cpp).
 
 #include <windows.h>
+#include <winioctl.h>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
 
+#include "display.h"
 #include "driveboard.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "jvs.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdev.h"
 #include "vhid.h"
 
-#define GAME_ID "SDDS"
-#define PLATFORM_ID "ACA4"
+// The games, on two of amdaemon's platforms. Sega Nu's, Initial D Arcade Stage Zero: the game and
+// amdaemon side by side in the copy's folder, its drives in TeknoParrot\Y and TeknoParrot\AMFS
+// (the copy of the cabinets), its I/O board a JVS one through the \\.\mxjvs driver
+struct AllsGame
+{
+    const wchar_t *exe; // the game's program
+    const char *name, *title;
+    const char *gameId, *platformId, *platformName; // the keychip's (segatools' platform_hook_init)
+    int nu;
+    const char *aimePort, *aimeHardware; // the card reader: its port, its model
+    unsigned char aimeFirmware;          // its firmware's version, as amdaemon's firmware file (no update)
+};
 
-static wchar_t g_root[MAX_PATH]; // the copy's folder, where game.bat is
+static const AllsGame g_games[] = {
+    {L"Todoroki-Win64-Shipping.exe", "swdc", "Sega World Drivers Championship", "SDDS", "ACA4", "ALLS MX2.1", 0, "COM3", "837-15396", 0x94},
+    {L"InitialD0_DX11_Nu.exe", "idz", "Initial D Arcade Stage Zero", "SDDF", "AAV2", "Nu 1.1", 1, "COM10", "837-15286", 0x92},
+};
+static const AllsGame *g_game;
+
+static wchar_t g_root[MAX_PATH]; // the copy's folder, where game.bat is (Nu: the game's)
 
 // ------------------------------------------------------------------------------
 // The registry: HKLM\SYSTEM\SEGA\SystemProperty (segatools' platform/misc.c and nusec.c)
@@ -51,22 +70,22 @@ static wchar_t g_root[MAX_PATH]; // the copy's folder, where game.bat is
 
 static void system_property(void)
 {
-    static const DWORD cpuError = 100, cpuWarning = 95, loaders = 1, model = PLATFORM_ID[3] - '0', region = 1, flag = 0x64;
+    const DWORD cpuError = 100, cpuWarning = 95, loaders = 1, model = (DWORD)(g_game->platformId[3] - '0'), region = 1, flag = 0x64;
     static const unsigned char server[4] = {192, 168, 172, 0}, server6[16] = {0};
     static const char keychipId[17] = "A69E-01A88888888"; // segatools' default, 16 characters (amSerialIdConvert)
     static const WlRegValue root[] = {{"OSVersion", REG_SZ, "0_0_0", 0}};
-    static const WlRegValue stat[] = {
+    const WlRegValue stat[] = {
         {"CpuTempError", REG_DWORD, &cpuError, 4},
         {"CpuTempWarning", REG_DWORD, &cpuWarning, 4},
-        {"PlatformId", REG_SZ, PLATFORM_ID, 0},
-        {"PlatformName", REG_SZ, "ALLS MX2.1", 0},
+        {"PlatformId", REG_SZ, g_game->platformId, 0},
+        {"PlatformName", REG_SZ, g_game->platformName, 0},
     };
-    static const WlRegValue master[] = {{"AppLoaderCount", REG_DWORD, &loaders, 4}};
-    static const WlRegValue keychip[] = {
-        {"gameId", REG_BINARY, GAME_ID, 4},
+    const WlRegValue master[] = {{"AppLoaderCount", REG_DWORD, &loaders, 4}};
+    const WlRegValue keychip[] = {
+        {"gameId", REG_BINARY, g_game->gameId, 4},
         {"keychipId", REG_BINARY, keychipId, 16},
         {"modelType", REG_DWORD, &model, 4},
-        {"platformId", REG_BINARY, PLATFORM_ID, 3},
+        {"platformId", REG_BINARY, g_game->platformId, 3},
         {"region", REG_DWORD, &region, 4},
         {"serverIpIpv4", REG_BINARY, server, 4},
         {"serverIpIpv6", REG_BINARY, server6, 16},
@@ -299,13 +318,18 @@ static void put16(unsigned char *p, unsigned v)
 // alone), the board reads amdaemon's own table. The lamps go the other way: amdaemon's board writes
 // them there, the game's process sends them to the network outputs
 #define SHARED_INPUTS L"Local\\windowsloader-alls-inputs"
+#define SHARED_MAX 32
 
 struct SharedInputs
 {
     volatile LONG writer; // the game's process id, 0 before it writes
-    volatile LONG raw[IN_COUNT];
+    volatile LONG raw[SHARED_MAX];
     volatile LONG lamps; // the board's general outputs, command 04's first 4 bytes (byte 0 in bits 0-7)
 };
+
+// The game's table of inputs: SWDC's (g_inputs) or Initial D Zero's (g_idzInputs)
+static WlInput *g_table;
+static int g_tableCount;
 
 // The 14 general outputs ("GOUT=14"), as a JVS board's: lamp n is bit 7 - n % 8 of byte n / 8.
 // In the attract mode the game lights lamp 0 and puts it out as Start is pressed: Start's, it seems
@@ -334,8 +358,8 @@ static DWORD WINAPI inputs_writer(void *unused)
     wl_log("alls: the inputs go to amdaemon's I/O board (shared memory)");
     for (;;)
     {
-        for (int i = 0; i < IN_COUNT; i++)
-            InterlockedExchange(&s->raw[i], (LONG)wl_input_get(&g_inputs[i]));
+        for (int i = 0; i < g_tableCount; i++)
+            InterlockedExchange(&s->raw[i], (LONG)wl_input_get(&g_table[i]));
         unsigned lamps = (unsigned)s->lamps;
         for (int i = 0; i * 8 < IO4_LAMPS; i++)
             wl_outputs_gpo(i, (unsigned char)(lamps >> 8 * i)); // for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
@@ -346,7 +370,7 @@ static DWORD WINAPI inputs_writer(void *unused)
 static int input_raw(int i)
 {
     SharedInputs *s = g_shared ? g_shared : shared_inputs();
-    return s && s->writer ? (int)s->raw[i] : wl_input_get(&g_inputs[i]);
+    return s && s->writer ? (int)s->raw[i] : wl_input_get(&g_table[i]);
 }
 
 static void io4_input(unsigned char *r, int length)
@@ -418,6 +442,301 @@ static const WlVirtualHid g_io4 = {
 };
 
 // ------------------------------------------------------------------------------
+// Sega Nu's I/O board (Initial D Arcade Stage Zero): a JVS one, Sega 837-14572, reached through
+// the \\.\mxjvs driver (amdaemon's amJvsInitEx; segatools' amex/jvs.c and games/idzhook/jvs.c).
+// As amdaemon's config.json reads it: Test the system byte's bit 7; player 1's byte 0 bit 7 Start,
+// 6 Service, 5 to 2 up, down, left and right (the menus), 1 the view; player 2's byte 0 bits 5 to 2
+// the 6-speed H shifter's up, down, left and right; analog 0 the wheel, 1 the accelerator, 2 the
+// brake.
+// ------------------------------------------------------------------------------
+
+enum
+{
+    IDZ_STEERING,
+    IDZ_GAS,
+    IDZ_BRAKE,
+    IDZ_COIN,
+    IDZ_TEST,
+    IDZ_SERVICE,
+    IDZ_START,
+    IDZ_VIEW,
+    IDZ_UP,
+    IDZ_DOWN,
+    IDZ_LEFT,
+    IDZ_RIGHT,
+    IDZ_GEAR1,
+    IDZ_GEAR_UP = IDZ_GEAR1 + 6,
+    IDZ_GEAR_DOWN,
+    IDZ_COUNT
+};
+
+static WlInput g_idzInputs[IDZ_COUNT] = {
+    {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 0xFFFF, 0x8000},
+    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
+    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
+    {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ViewChange", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Up", "SelectUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Down", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Left", "SelectLeft", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Right", "SelectRight", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
+    {"GearUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"GearDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+};
+
+static const struct
+{
+    int input;
+    unsigned short bit;
+} g_idzSwitches[] = {{IDZ_START, 0x8000}, {IDZ_SERVICE, 0x4000}, {IDZ_UP, 0x2000}, {IDZ_DOWN, 0x1000},
+                     {IDZ_LEFT, 0x0800},  {IDZ_RIGHT, 0x0400},   {IDZ_VIEW, 0x0200}};
+
+// The H shifter's gear, 0 (neutral) to 6, on player 2's byte 0: 1 up and left, 2 down and left, 3 up,
+// 4 down, 5 up and right, 6 down and right. A real lever stays in its gear: the gear here is kept,
+// chosen by Gear1..Gear6 or stepped by GearUp / GearDown
+static unsigned short idz_shifter(void)
+{
+    static int gear, was[8];
+    for (int i = 0; i < 8; i++)
+    {
+        int now = input_raw(IDZ_GEAR1 + i);
+        if (now && !was[i])
+        {
+            if (i < 6)
+                gear = i + 1;
+            else if (i == 6 && gear < 6)
+                gear++;
+            else if (i == 7 && gear > 0)
+                gear--;
+        }
+        was[i] = now;
+    }
+    static const unsigned short bits[7] = {0, 0x2800, 0x1800, 0x2000, 0x1000, 0x2400, 0x1400};
+    return bits[gear];
+}
+
+static void idz_jvs_state(WlJvsState *s)
+{
+    memset(s, 0, sizeof *s);
+    s->system = input_raw(IDZ_TEST) ? 0x80 : 0;
+    for (int i = 0; i < (int)(sizeof g_idzSwitches / sizeof g_idzSwitches[0]); i++)
+        if (input_raw(g_idzSwitches[i].input))
+            s->player[0] |= g_idzSwitches[i].bit;
+    s->player[1] = idz_shifter();
+    int coin = input_raw(IDZ_COIN);
+    if (coin && !g_coinWas)
+        InterlockedIncrement(&g_coins);
+    g_coinWas = coin;
+    s->coins[0] = (unsigned short)g_coins;
+    s->analog[0] = (unsigned short)input_raw(IDZ_STEERING);
+    s->analog[1] = (unsigned short)input_raw(IDZ_GAS);
+    s->analog[2] = (unsigned short)input_raw(IDZ_BRAKE);
+}
+
+static WlJvsBoard g_idzJvs = {"\\\\.\\mxjvs", "SEGA ENTERPRISES,LTD.;I/O BD JVS;837-14572;Ver1.00;2005/10", 2, 2, 2, 8, 10, 20, idz_jvs_state, NULL};
+
+// ------------------------------------------------------------------------------
+// Sega Nu's AMEX board (segatools' amex/sram.c, eeprom.c, ds.c and gpio.c), found by its device
+// interfaces; each driver tells its version (0x80006000: 0x0100):
+// - the battery-backed SRAM, 512 KB kept in wl_sram.bin beside the game, read and written as a
+//   disk of 4-byte sectors;
+// - the EEPROM, 8 KB kept in wl_eeprom.bin, a disk of 7 KB in 1-byte sectors;
+// - the DS chip, the board's identity: a 32-byte record (its CRC-32, the region, the serial
+//   number), whatever the sector read;
+// - the GPIO: the DIP switches (1 on: the first cabinet, whose settings are
+//   configDHCP_Final_EX_ST1.json), the board's two push buttons (Test and Service: those of the
+//   JVS board are used), its LEDs.
+// ------------------------------------------------------------------------------
+
+static const GUID g_sramGuid = {0x741B5FCA, 0x4635, 0x4443, {0xA7, 0xA0, 0x57, 0xCA, 0x7B, 0x50, 0x6A, 0x49}};
+static const GUID g_eepromGuid = {0xB7970F0C, 0x31C4, 0x45FF, {0x96, 0x18, 0x0A, 0x24, 0x00, 0x94, 0xB2, 0x71}};
+static const GUID g_dsGuid = {0x279A9F67, 0x348F, 0x41C9, {0xA4, 0xC4, 0xDF, 0xDB, 0x8A, 0xE8, 0xE5, 0xE0}};
+static const GUID g_gpioGuid = {0xE9A26688, 0xF522, 0x44FA, {0xBF, 0xEE, 0x59, 0xDD, 0x16, 0x15, 0x56, 0x6C}};
+static const GUID g_jvsGuid = {0xDB6BBB45, 0xCC96, 0x4288, {0xAA, 0x00, 0x6C, 0x00, 0xD7, 0x67, 0xBD, 0xBF}};
+
+struct NvFile
+{
+    const wchar_t *name;
+    LONGLONG size;
+    HANDLE file;
+};
+
+static NvFile g_sramNv = {L"wl_sram.bin", 0x80000, INVALID_HANDLE_VALUE};
+static NvFile g_eepromNv = {L"wl_eeprom.bin", 0x2000, INVALID_HANDLE_VALUE};
+
+static HANDLE nv_file(NvFile *nv)
+{
+    if (nv->file == INVALID_HANDLE_VALUE)
+    {
+        wchar_t path[MAX_PATH];
+        swprintf(path, MAX_PATH, L"%s\\%s", g_root, nv->name);
+        wl_busy_enter();
+        nv->file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
+        LARGE_INTEGER size;
+        if (nv->file != INVALID_HANDLE_VALUE && GetFileSizeEx(nv->file, &size) && size.QuadPart < nv->size)
+        {
+            LARGE_INTEGER end;
+            end.QuadPart = nv->size;
+            SetFilePointerEx(nv->file, end, NULL, FILE_BEGIN);
+            SetEndOfFile(nv->file);
+        }
+        wl_busy_leave();
+    }
+    return nv->file;
+}
+
+static BOOL nv_io(NvFile *nv, void *buffer, DWORD size, DWORD *done, LONGLONG offset, int write)
+{
+    HANDLE f = nv_file(nv);
+    *done = 0;
+    if (f == INVALID_HANDLE_VALUE || offset >= nv->size)
+        return f != INVALID_HANDLE_VALUE;
+    if (offset + size > nv->size)
+        size = (DWORD)(nv->size - offset);
+    OVERLAPPED ov;
+    memset(&ov, 0, sizeof ov);
+    ov.Offset = (DWORD)offset;
+    wl_busy_enter();
+    BOOL ok = write ? WriteFile(f, buffer, size, done, &ov) : ReadFile(f, buffer, size, done, &ov);
+    wl_busy_leave();
+    return ok;
+}
+
+static BOOL sram_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
+{
+    return nv_io(&g_sramNv, buffer, size, read, offset, 0);
+}
+
+static BOOL sram_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    return nv_io(&g_sramNv, (void *)buffer, size, written, offset, 1);
+}
+
+static BOOL eeprom_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
+{
+    return nv_io(&g_eepromNv, buffer, size, read, offset, 0);
+}
+
+static BOOL eeprom_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    return nv_io(&g_eepromNv, (void *)buffer, size, written, offset, 1);
+}
+
+// The version, the geometry (cylinders x tracks x sectors of n bytes), the DS's setup (0x80006004)
+static BOOL amex_ioctl(DWORD code, void *out, DWORD outSize, DWORD *returned, LONGLONG cylinders, DWORD tracks, DWORD sectors, DWORD bytes)
+{
+    *returned = 0;
+    if (code == 0x80006000 && out && outSize >= 2)
+    {
+        *(WORD *)out = 0x0100;
+        *returned = 2;
+        return TRUE;
+    }
+    if (code == IOCTL_DISK_GET_DRIVE_GEOMETRY && out && outSize >= sizeof(DISK_GEOMETRY))
+    {
+        DISK_GEOMETRY *g = (DISK_GEOMETRY *)out;
+        memset(g, 0, sizeof *g);
+        g->Cylinders.QuadPart = cylinders;
+        g->MediaType = tracks > 1 ? FixedMedia : Unknown;
+        g->TracksPerCylinder = tracks;
+        g->SectorsPerTrack = sectors;
+        g->BytesPerSector = bytes;
+        *returned = sizeof *g;
+        return TRUE;
+    }
+    SetLastError(ERROR_INVALID_FUNCTION);
+    return FALSE;
+}
+
+static BOOL sram_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
+{
+    return amex_ioctl(code, out, outSize, returned, 0x80000 / 4, 1, 1, 4);
+}
+
+static BOOL eeprom_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
+{
+    return amex_ioctl(code, out, outSize, returned, 1, 224, 32, 1);
+}
+
+static unsigned crc32(const unsigned char *p, int n)
+{
+    unsigned c = 0xFFFFFFFF;
+    while (n-- > 0)
+    {
+        c ^= *p++;
+        for (int k = 0; k < 8; k++)
+            c = c >> 1 ^ (0xEDB88320 & (0 - (c & 1)));
+    }
+    return ~c;
+}
+
+static BOOL ds_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
+{
+    *returned = 0;
+    if (code == 0x80006004) // set up
+        return TRUE;
+    if (code == 0x80006010 && out && outSize >= 32) // a sector: the record
+    {
+        unsigned char *r = (unsigned char *)out;
+        memset(r, 0, 32);
+        r[8] = 4; // the region: 1 Japan, 4 export (amdaemon's "EXP")
+        memcpy(r + 9, "AAVE-01A99999999", 16); // segatools' default serial number
+        *(unsigned *)r = crc32(r + 4, 28);
+        *returned = 32;
+        return TRUE;
+    }
+    return amex_ioctl(code, out, outSize, returned, 1, 1, 2, 32);
+}
+
+static BOOL gpio_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
+{
+    *returned = 0;
+    switch (code)
+    {
+    case 0x8000A004: // the LEDs
+        return TRUE;
+    case 0x80006008: // the push buttons: bit 0 Test, 1 Service
+    case 0x8000600C: // the DIP switches
+        if (!out || outSize < 4)
+            break;
+        *(DWORD *)out = code == 0x8000600C ? 0x01 : 0;
+        *returned = 4;
+        return TRUE;
+    case 0x80006014: // what the board has: a byte, then 32 ports (a byte, their count, their type)
+        if (!out || outSize < 129)
+            break;
+        {
+            unsigned char *p = (unsigned char *)out;
+            memset(p, 0, 129);
+            static const unsigned char ports[3][2] = {{2, 1}, {8, 2}, {2, 3}}; // 2 LEDs, 8 DIP switches, 2 push buttons
+            for (int i = 0; i < 3; i++)
+            {
+                p[1 + 4 * i + 1] = ports[i][0];
+                p[1 + 4 * i + 2] = ports[i][1];
+            }
+            *returned = 129;
+        }
+        return TRUE;
+    }
+    SetLastError(ERROR_INVALID_FUNCTION);
+    return FALSE;
+}
+
+static const WlVirtualDevice g_nuSram = {"\\\\.\\amexsram", sram_ioctl, sram_read, sram_write, NULL, NULL};
+static const WlVirtualDevice g_nuEeprom = {"\\\\.\\amexeeprom", eeprom_ioctl, eeprom_read, eeprom_write, NULL, NULL};
+static const WlVirtualDevice g_nuDs = {"\\\\.\\amexds", ds_ioctl, NULL, NULL, NULL, NULL};
+static const WlVirtualDevice g_nuGpio = {"\\\\.\\amexgpio", gpio_ioctl, NULL, NULL, NULL, NULL};
+
+// ------------------------------------------------------------------------------
 // The VFD of the e-money reader, Futaba GP1232A02A on COM4 (segatools' board/vfd.c): text and
 // pictures written to it; it answers only its version request (1B 5B): 02 "01.20" 03
 // ------------------------------------------------------------------------------
@@ -470,11 +789,11 @@ static DWORD vfd_waiting(void)
 static WlVirtualDevice g_vfd = {"COM4", NULL, vfd_read, vfd_write, vfd_modem, vfd_waiting};
 
 // ------------------------------------------------------------------------------
-// The card reader, Sega 837-15396 "Aime" (gen 3) on COM3, 115200 bauds (segatools'
-// board/sg-frame.c, sg-nfc.c, sg-led.c). Frames: E0, then the length (the bytes up to the
-// checksum), the address (0 the NFC reader, 8 its LEDs), a sequence number, the command, the
-// payload's length (an answer: its status first), the payload, an 8-bit sum; D0 escapes D0 and E0
-// (the byte minus 1 follows). No card is ever on it yet: a poll finds none.
+// The card reader, Sega 837-15396 "Aime" (gen 3) on COM3, Initial D Zero's 837-15286 on COM10,
+// 115200 bauds (segatools' board/sg-frame.c, sg-nfc.c, sg-led.c). Frames: E0, then the length
+// (the bytes up to the checksum), the address (0 the NFC reader, 8 its LEDs), a sequence number,
+// the command, the payload's length (an answer: its status first), the payload, an 8-bit sum; D0
+// escapes D0 and E0 (the byte minus 1 follows). No card is ever on it yet: a poll finds none.
 // ------------------------------------------------------------------------------
 
 static unsigned char g_aimeIn[512], g_aimeOut[1024];
@@ -532,18 +851,19 @@ static void aime_request(const unsigned char *r, int length)
             aime_answer(r, 0, NULL, 0);
         return;
     }
-    static const unsigned char firmware = 0x94, none = 0;
+    static const unsigned char none = 0;
     static const unsigned char block[16] = {0};
     switch (cmd)
     {
     case 0x62: // reset
         aime_answer(r, 3, NULL, 0);
         break;
-    case 0x30: // firmware version: 94, as amdaemon's firmware file (update_15396_6728_94.bin)
-        aime_answer(r, 0, &firmware, 1);
+    case 0x30: // firmware version, as amdaemon's firmware file (SWDC's update_15396_6728_94.bin, Initial D
+               // Zero's update_15286exp_6731_92.bin)
+        aime_answer(r, 0, &g_game->aimeFirmware, 1);
         break;
     case 0x32: // hardware version
-        aime_answer(r, 0, "837-15396", 9);
+        aime_answer(r, 0, g_game->aimeHardware, (int)strlen(g_game->aimeHardware));
         break;
     case 0x42: // poll: no card
         aime_answer(r, 0, &none, 1);
@@ -1072,6 +1392,19 @@ static int find_root(const wchar_t *exePath)
     return 0;
 }
 
+// Sega Nu's: the program's folder, when the game is there (amdaemon beside it)
+static int nu_root(const wchar_t *exePath)
+{
+    wcsncpy_s(g_root, MAX_PATH, exePath, _TRUNCATE);
+    wchar_t *slash = wcsrchr(g_root, L'\\');
+    if (!slash)
+        return 0;
+    *slash = 0;
+    wchar_t game[MAX_PATH];
+    swprintf(game, MAX_PATH, L"%s\\%s", g_root, g_games[1].exe);
+    return GetFileAttributesW(game) != INVALID_FILE_ATTRIBUTES;
+}
+
 static void drive(const char *letter, const wchar_t *folder)
 {
     wchar_t path[MAX_PATH];
@@ -1113,6 +1446,12 @@ static const WlGameOption g_swdcOptions[] = {
      WL_OPTION_CHOICE, g_languages, 0, 0, "ENGLISH", 1, NULL},
 };
 
+// Initial D Zero's: the same language of amdaemon's messages
+static const WlGameOption g_idzOptions[] = {
+    {"LANGUAGE", "Langue des messages d'amdaemon", "Les écrans d'erreur et d'avertissement de la plateforme.", WL_OPTION_CHOICE, g_languages,
+     0, 0, "ENGLISH", 1, NULL},
+};
+
 static void amdaemon_settings(void)
 {
     char language[32];
@@ -1126,7 +1465,7 @@ static void amdaemon_settings(void)
     DWORD n = GetTempPathW(MAX_PATH, path);
     if (!n || n + 32 > MAX_PATH)
         return;
-    wcscat_s(path, MAX_PATH, L"windowsloader-swdc-amdaemon.json");
+    swprintf(path + n, MAX_PATH - n, L"windowsloader-%S-amdaemon.json", g_game->name);
     char json[512];
     int len = snprintf(json, sizeof json,
                        "{\r\n"
@@ -1148,16 +1487,91 @@ static void amdaemon_settings(void)
         CloseHandle(f);
 }
 
+// Sega Nu's Initial D Arcade Stage Zero: amdaemon with the JVS board, the game with its controls,
+// the shop's server box (ServerBoxD8_Nu_x64.exe, the cabinets' link to the game's online server)
+static void nu_setup(int daemon, int box)
+{
+    // The copy's drives as TeknoParrot keeps them: Y:\SDDF the game's data, E: AMFS (the system's files)
+    wchar_t tp[MAX_PATH];
+    swprintf(tp, MAX_PATH, L"%s\\TeknoParrot\\AMFS", g_root);
+    int teknoparrot = GetFileAttributesW(tp) != INVALID_FILE_ATTRIBUTES;
+    drive("E:", teknoparrot ? L"TeknoParrot\\AMFS" : L"AMFS");
+    drive("Y:", teknoparrot ? L"TeknoParrot\\Y" : L"Y");
+    wl_hooks_add(g_driveHooks, sizeof g_driveHooks / sizeof g_driveHooks[0]);
+    static const unsigned char mac[6] = {0x00, 0xD0, 0xF1, 0x01, 0x02, 0x04};
+    wl_netenv_fake(0xC0A8AC0B, 0xC0A8AC01, mac);
+    g_table = g_idzInputs;
+    g_tableCount = IDZ_COUNT;
+    wl_inputs_set_table(g_idzInputs, IDZ_COUNT);
+    if (daemon)
+    {
+        wl_allnet_start(0xC0A8AC01);
+        system_property();
+        wl_system_virtual_dll("$amvideo", g_amvideo, 4);
+        wl_vdev_register(&g_keychip);
+        wl_vdev_register(&g_hwmon);
+        wl_hooks_add(g_daemonHooks, sizeof g_daemonHooks / sizeof g_daemonHooks[0]);
+        wl_jvs_register(&g_idzJvs);
+        wl_vdev_interface(&g_jvsGuid, g_idzJvs.port);
+        wl_vdev_register(&g_nuSram);
+        wl_vdev_interface(&g_sramGuid, g_nuSram.name);
+        wl_vdev_register(&g_nuEeprom);
+        wl_vdev_interface(&g_eepromGuid, g_nuEeprom.name);
+        wl_vdev_register(&g_nuDs);
+        wl_vdev_interface(&g_dsGuid, g_nuDs.name);
+        wl_vdev_register(&g_nuGpio);
+        wl_vdev_interface(&g_gpioGuid, g_nuGpio.name);
+        InitializeCriticalSection(&g_aimeLock);
+        g_aime.name = g_game->aimePort;
+        wl_vdev_register(&g_aime);
+        wl_vdev_label(g_aime.name, "Lecteur de cartes Aime");
+        return;
+    }
+    // The game and the server box find each other by broadcasts: here, this PC's
+    wl_system_loopback_broadcast(1);
+    if (box)
+    {
+        wl_display_hidden(); // its window, a view of the shop's server, is not the cabinet's
+        return;
+    }
+    CloseHandle(CreateThread(NULL, 0, inputs_writer, NULL, 0, NULL));
+    // A board of the 837-15070 family on COM11 (the game opens \\.\COM11 at its start): the same
+    // frames as SWDC's LED board, its address 11
+    InitializeCriticalSection(&g_ledLock);
+    g_led.name = "COM11";
+    wl_vdev_register(&g_led);
+    wl_vdev_label("COM11", "Carte des lampes (837-15070)");
+    // The wheel's motor on COM1, opened at the game's start: Sega's drive board, as Initial D 6 to 8's
+    wl_driveboard_register("COM1");
+}
+
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
     base = base ? base + 1 : exePath;
-    int daemon = !_wcsicmp(base, L"amdaemon.exe");
-    if ((!daemon && _wcsicmp(base, L"Todoroki-Win64-Shipping.exe")) || !find_root(exePath))
+    int daemon = !_wcsicmp(base, L"amdaemon.exe"), box = !_wcsicmp(base, L"ServerBoxD8_Nu_x64.exe");
+    g_game = NULL;
+    if (daemon || box || !_wcsicmp(base, g_games[1].exe))
+        g_game = nu_root(exePath) ? &g_games[1] : NULL;
+    if (!g_game && (daemon || !_wcsicmp(base, g_games[0].exe)) && find_root(exePath))
+        g_game = &g_games[0];
+    if (!g_game)
         return 0;
-    *name = "swdc";
-    *title = "Sega World Drivers Championship";
-    wl_log("game: %s (Sega ALLS), %s", *title, daemon ? "amdaemon.exe, the platform's service" : "the game");
+    *name = g_game->name;
+    *title = g_game->title;
+    wl_log("game: %s (Sega %s), %s", *title, g_game->nu ? "Nu" : "ALLS",
+           daemon ? "amdaemon.exe, the platform's service" : box ? "the shop's server box" : "the game");
+    if (g_game->nu)
+    {
+        wl_game_set_boards("Controls on JVS board, Sega 837-14572, JVS 3.0 (mxjvs driver, amdaemon)", "Motor board: (the game)");
+        wl_game_set_options(g_idzOptions, (int)(sizeof g_idzOptions / sizeof g_idzOptions[0]));
+        if (daemon)
+            wl_game_on_settings(amdaemon_settings);
+        nu_setup(daemon, box);
+        return 1;
+    }
+    g_table = g_inputs;
+    g_tableCount = IN_COUNT;
     wl_game_set_boards("Controls on USB I/O board, Sega 837-15257 \"IO4\" (amdaemon)", "Motor board: (COM1, the game)");
     wl_game_set_options(g_swdcOptions, (int)(sizeof g_swdcOptions / sizeof g_swdcOptions[0]));
     if (daemon)

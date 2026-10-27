@@ -105,6 +105,9 @@ const RECT *wl_display_source(void);                         // and the part of 
 // chain exists. wl_display_dest is still called each Present (placing, F11, Alt+Enter).
 HWND wl_display_child(HWND parent);
 void wl_display_window(HWND wnd, int width, int height);
+// A program of the cabinet's that shows nothing but has a window (Initial D Zero's server box): its
+// window hidden once its swap chain exists, left alone after (no child, no copy, no mode)
+void wl_display_hidden(void);
 
 // OpenGL games (their window as they made it): the frames per second and the game's name in the
 // window's title, at each SwapBuffers

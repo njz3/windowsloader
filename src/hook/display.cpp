@@ -69,6 +69,7 @@ static RECT g_pic;                 // the whole picture's place (beyond g_dest w
 static RECT g_src;                 // the back buffer's part shown (Direct3D 9's Present, cropped)
 static int g_full = 1;             // the picture is the whole client area
 static int g_glPicture;            // an OpenGL game whose viewports windowsloader moves (wl_display_gl_window)
+static int g_hidden;               // a program of the cabinet's that shows nothing (wl_display_hidden)
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
 static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"};
@@ -696,7 +697,7 @@ static LRESULT CALLBACK child_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 
 HWND wl_display_child(HWND parent)
 {
-    if (!g_wl.windowed || !parent)
+    if (!g_wl.windowed || !parent || g_hidden)
         return parent;
     wchar_t swap[16] = L"";
     GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
@@ -735,10 +736,21 @@ HWND wl_display_child(HWND parent)
     return g_child;
 }
 
+void wl_display_hidden(void)
+{
+    g_hidden = 1;
+}
+
 void wl_display_window(HWND wnd, int width, int height)
 {
     if (!g_wl.windowed || !wnd)
         return;
+    if (g_hidden)
+    {
+        ShowWindowAsync(wnd, SW_HIDE); // from the render thread: the window's own may be busy
+        wl_log("display: window %p hidden (a program of the cabinet's that shows nothing)", wnd);
+        return;
+    }
     // Only a window of the game's own: never the desktop or another program's
     DWORD pid = 0;
     GetWindowThreadProcessId(wnd, &pid);

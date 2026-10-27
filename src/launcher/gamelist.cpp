@@ -71,6 +71,9 @@ const WlKnownGame g_wlKnownGames[] = {
      "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."},
     {"Storm Rider", {L"motobike.exe"}, {L"motobikeio.dll"}, 0, NULL, "Wahlap (PC)", "2013", WL_GAME_WORK,
      "Moto. Carte par motobikeio.dll ; s'arrête sur sa protection contre la copie (clé liée au disque), non prise en charge."},
+    {"Initial D Arcade Stage Zero Ver.2", {L"InitialD0_DX11_Nu.exe"}, {L"amdaemon.exe"}, 0, NULL, "Sega Nu (64 bits)", "2017", WL_GAME_PARTLY,
+     "Plateforme Nu (amdaemon, carte AMEX), carte JVS, levier en H, moteur du volant (COM1), lampes (COM11), server box du magasin : "
+     "partie invité ; les cartes Aime attendent le serveur en ligne du jeu."},
     {"Frenzy Express", {L"xwin.exe"}, {L"xio.dll"}, 0, NULL, "Uniana (PC)", "2001", WL_GAME_PLAYS,
      "Trottinette. Carte par xio.dll : guidon, poussées gauche et droite (l'accélérateur les alterne), frein, moteur du guidon."},
     {"Sega World Drivers Championship", {L"Todoroki-Win64-Shipping.exe"}, {NULL}, 0, L"-windowed", "Sega ALLS (64 bits)", "", WL_GAME_PARTLY,
