@@ -13,10 +13,11 @@
 
 // Sega's drive board (the wheel's motor board of Lindbergh and RingEdge driving cabinets) on an
 // emulated serial port. The game writes 4-byte frames: opcode, two 7-bit values, a checksum; each
-// read gets one status byte (0x00 ready, 0x44 busy). The protocol is BackForceFeeder's
-// DRIVEBOARD.md ("Sega servoboard") as linuxloader's notes give it:
+// frame gets an answer, one status byte (0x00 ready, 0x44 busy) or, after FA 00 10, four (below).
+// The protocol is BackForceFeeder's DRIVEBOARD.md ("Sega servoboard"):
 // - FF reset, 80 effects on/off, 81 maximum force, 83 gain, 84 constant torque, 85 sine, 86 damper,
-//   87/88/8B spring, 9D/9E parameters, FB play a page, FC the wheel's bounds test (busy once);
+//   87/88/8B spring, 9D/9E parameters, FA the answers' mode, FB play a page, FC the wheel's bounds
+//   test and the encoder's index (busy once);
 // - 84: torque = ((v1 << 7) | v2) - 0x80, -128..127, > 0 to the left.
 // The torque and the sine (85, its amplitude) go to the force feedback (ffb.cpp); the other
 // effects are logged only. K.O. Drive (RingWide) reads 4 bytes as its answer: the status, zeros.
@@ -40,11 +41,37 @@ static int g_used;
 static volatile LONG g_status = BOARD_READY;
 // One answer per frame received, the bytes waiting for ClearCommError: Sonic & Sega All-Stars
 // Racing (+0x41a7b0) reads while there are some. A read with none still gets the status.
-static unsigned char g_answers[64];
+static unsigned char g_answers[256];
 static int g_answerFirst, g_answerCount;
 static CRITICAL_SECTION g_lock;
 static int g_boundsTested;
 static unsigned g_logged;
+
+// The answers' mode, chosen by FA 00 xx (BackForceFeeder's DRIVEBOARD.md, from a real cabinet's
+// captures): short, the one status byte above, after FF and FA 00 1F; long after FA 00 10 (Initial
+// D's, Initial D Zero's test menu waits for it): 4 bytes, 0x80 | 10 once set up or 0xA0 | 10
+// before, the state in two 7-bit halves (01 reset and waiting, 04 looking for the encoder's index
+// for about 2 s after FC, 00 set up), and their sum (b0 ^ b1 ^ b2) & 0x7F. FA 00 14: the same with
+// the encoder's position (the centre, 0x2000) in place of the state. Every command gets the mode's
+// status.
+static int g_longMode;          // 0 short, 0x10 or 0x14 long
+static int g_setUp;             // the index found since the last reset
+static ULONGLONG g_indexSince;  // FC's search under way: its start
+#define INDEX_SEARCH_MS 2000
+
+static int long_status(unsigned char *a)
+{
+    if (g_indexSince && GetTickCount64() - g_indexSince >= INDEX_SEARCH_MS)
+    {
+        g_indexSince = 0;
+        g_setUp = 1;
+    }
+    a[0] = (unsigned char)((g_setUp ? 0x80 : 0xA0) | g_longMode);
+    a[1] = g_longMode == 0x14 ? 0x40 : 0x00;
+    a[2] = g_longMode == 0x14 ? 0x00 : g_indexSince ? 0x04 : g_setUp ? 0x00 : 0x01;
+    a[3] = (unsigned char)((a[0] ^ a[1] ^ a[2]) & 0x7F);
+    return 4;
+}
 
 // The power-on test's free wheel: K.O. Drive (+0x4a50d0) gives a torque of +8 then -8 and wants
 // the wheel's position on each side in turn; Sonic (+0x41b280) waits for it to rest against each
@@ -94,7 +121,23 @@ static void frame(const unsigned char *f)
     case 0x85:
         sine = f[1] & 0x7F;
         break;
-    case 0xFC: // bounds test: busy the first time it is asked
+    case 0xFF: // reset: the short answers, the board to set up again
+        g_longMode = 0;
+        g_setUp = 0;
+        g_indexSince = 0;
+        break;
+    case 0xFA: // the answers' mode
+        if (f[2] == 0x10 || f[2] == 0x14)
+            g_longMode = f[2];
+        else if (f[2] == 0x1F)
+            g_longMode = 0;
+        break;
+    case 0xFC: // bounds test: busy the first time it is asked (short), the index looked for (long)
+        if (g_longMode)
+        {
+            g_indexSince = GetTickCount64();
+            g_setUp = 0;
+        }
         g_status = g_boundsTested++ ? BOARD_READY : BOARD_BUSY;
         return;
     default:
@@ -118,10 +161,19 @@ static BOOL board_write(const void *buffer, DWORD size, DWORD *written, LONGLONG
         if (g_used == 4)
         {
             frame(g_frame);
+            unsigned char a[4];
+            int n = 1;
+            if (g_longMode)
+                n = long_status(a);
+            else
+                a[0] = (unsigned char)(g_frame[0] == 0x81 || g_frame[0] == 0x82 ? BOARD_SET : g_status);
             EnterCriticalSection(&g_lock);
-            if (g_answerCount < (int)sizeof g_answers)
-                g_answers[(g_answerFirst + g_answerCount++) % sizeof g_answers] =
-                    (unsigned char)(g_frame[0] == 0x81 || g_frame[0] == 0x82 ? BOARD_SET : g_status);
+            // The reset's answer alone, those of before gone (a test reopening the port); the long
+            // mode's first answer alone (the reset's short one would put the long ones off by a byte)
+            if (g_frame[0] == 0xFF || (g_frame[0] == 0xFA && g_longMode))
+                g_answerCount = 0;
+            for (int k = 0; k < n && g_answerCount < (int)sizeof g_answers; k++)
+                g_answers[(g_answerFirst + g_answerCount++) % sizeof g_answers] = a[k];
             LeaveCriticalSection(&g_lock);
             g_used = 0;
         }
@@ -137,7 +189,27 @@ static BOOL board_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
         *read = 0;
         return TRUE;
     }
+    unsigned char *b = (unsigned char *)buffer;
     EnterCriticalSection(&g_lock);
+    if (g_longMode) // the long answers waiting, as many as asked; none: the status
+    {
+        DWORD n = 0;
+        while (n < size && g_answerCount)
+        {
+            b[n++] = g_answers[g_answerFirst];
+            g_answerFirst = (g_answerFirst + 1) % sizeof g_answers;
+            g_answerCount--;
+        }
+        if (!n)
+        {
+            unsigned char a[4];
+            for (int k = long_status(a); k > 0 && n < size; k--)
+                b[n] = a[n], n++;
+        }
+        LeaveCriticalSection(&g_lock);
+        *read = n;
+        return TRUE;
+    }
     unsigned char answer = (unsigned char)g_status;
     if (g_answerCount)
     {
@@ -146,7 +218,7 @@ static BOOL board_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
         g_answerCount--;
     }
     LeaveCriticalSection(&g_lock);
-    ((unsigned char *)buffer)[0] = answer;
+    b[0] = answer;
     *read = 1;
     return TRUE;
 }
