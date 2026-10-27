@@ -1225,6 +1225,35 @@ Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
 - Le mode MiniCabinet sans 8404 ni 4103 ; « CONNECT MAIN CABINET » passé par la diffusion UDP en boucle locale
   (40257 vers 192.168.172.255).
 
+## Initial D Arcade Stage Zero Ver.2 (Sega Nu, 64 bits, 2017)
+
+`InitialD0_DX11_Nu.exe` (copie `games/idz230`, 14,1 Go depuis racecab1), Direct3D 11, 2560x1440 (son
+`initialD.ini`). Module `alls.cpp`, ouvert à une seconde plateforme d'amdaemon : la Nu. Trois programmes
+démarrés par le lanceur dans le dossier du jeu : `amdaemon.exe` (les réglages export de la première borne,
+`configDHCP_Final_Common/EX/EX_ST1.json`, puis ceux de windowsloader pour une borne seule), le server box du
+magasin `ServerBoxD8_Nu_x64.exe` (sa fenêtre cachée), puis le jeu. Ce que la plateforme trouve (segatools,
+leurs clés et valeurs) :
+- le registre `SystemProperty` (jeu SDDF, plateforme AAV2), la clé `FddDriver`, le moniteur ;
+- la carte AMEX par ses interfaces de périphérique : la SRAM (512 Ko, `wl_sram.bin`), l'EEPROM (8 Ko,
+  `wl_eeprom.bin`), la puce DS (l'identité de la carte, région export), le GPIO (DIP 1 : la première borne),
+  le pilote JVS (salut, ligne de détection, échange : `jvs.cpp`) ;
+- la carte d'E/S JVS 837-14572 : boutons des menus et de vue, levier en H à 6 vitesses (Gear1 à Gear6,
+  GearUp/GearDown), volant, accélérateur, frein ; le lecteur Aime 837-15286 sur COM10 ;
+- les lecteurs E: et Y: dans `TeknoParrot` de la copie ; ALL.Net et Aime joués sur ce PC (`allnet.cpp`).
+
+- Lancement ✅ : réglage du volant (Start), « Initializing », attract (ALL.Net, Xeen, titre, démo). Sans le
+  server box : ERROR 8306 ; avec lui (diffusions UDP en boucle locale), l'attract.
+- Commandes ✅ (agent, INPUT TEST) : volant −128 à 127, accélérateur 0 à 255, boutons, levier N, 1 à 6. Le
+  frein atteint 255 à mi-course : l'étalonnage du jeu, à voir.
+- Partie invité ✅ : deux pièces, Start, « sans données », choix de la voiture, AT/MT, Story, STAGE 0,
+  course (100 à 145 km/h).
+- Retour de force ✅ : la carte du moteur Sega sur COM1 (`driveboard.cpp`), en statut long après FA 00 10
+  (DRIVEBOARD.md de BackForceFeeder) ; FORCE FEEDBACK TEST : LEFT +0,19, RIGHT −0,19 ; en course, couple et
+  sinus (environ 580 changements par segment). Le même changement sert Initial D 6 à 8.
+- Lampes : la carte 837-15070 sur COM11 (comme celle de SWDC).
+- Reste : les cartes Aime et le jeu en ligne (le serveur UserDB du jeu, que le server box joint ; protocole
+  binaire chiffré, minime en a une version) ; le menu Tab, un vrai volant sur borne.
+
 ## Frenzy Express (Uniana PC, 2001)
 
 `xwin.exe` (copie `games\frenzyexpress`, 130 Mo depuis racecab1), x86, OpenGL, 640×480. Module `uniana.cpp`. Une
