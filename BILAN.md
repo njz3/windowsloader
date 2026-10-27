@@ -66,11 +66,17 @@ Fonctions :
 ## Sega Rally 3 (Sega Europa-R, 2008)
 
 `Rally\Rally.exe`, x86, Direct3D 9. Module `src/hook/games/segarally3.cpp`. Copie locale effacée
-(Corbeille) le 22/10.
+(Corbeille) le 22/10 ; l'édition Standard recopiée de racecab1 le 27/10 (`games/segarally3`).
 
 - Commandes ✅ : carte d'E/S USB HID émulée (VID 0x1043), volant, pédales, Start, vue, frein à main,
   rapports + / − (`sr3_bits.py`, `sr3_pedals.py`, `sr3_race_bits.py`, `sr3_handbrake.py`).
 - vJoy ⚠️ : ouvert par un lancement normal, retour de force vers lui ; pas repris en course depuis.
+- Pédales par vJoy (28/10, le controls.ini des bornes : accélérateur sur Y-, frein sur Z-, du milieu relâché à 0
+  enfoncé) : la carte reçoit 40 au repos, 124 à mi-course, 210 à fond (l'étalonnage de `ShellData.ini`). En course,
+  boîte AT : à demi-accélérateur la voiture reste en 1re (65 km/h au rupteur), à fond elle passe jusqu'en 4e ; le frein
+  ralentit jusqu'à l'arrêt, puis, gardé, passe en R et la voiture recule (la logique du jeu : le rapport de la carte
+  passe par le même code qu'une vraie, octet 3 frein, octet 4 accélérateur). Sur les bornes, la voiture reculait au
+  départ : le jeu y reçoit un frein enfoncé, l'axe Z n'y est pas au milieu au repos (à vérifier, page Contrôles).
 - Retour de force ✅ : port 0x1020 par inpout32 (émulé, la vraie DLL jamais chargée), sens vérifié
   (`sr3_ffb.py`).
 - Affichage ✅ : 16 couples aspect × mode et fenêtres réduites justes à l'écran ; résolution interne
