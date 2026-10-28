@@ -26,6 +26,7 @@
 #include <d3d9.h>
 #include <d3d10_1.h>
 #include <d3d11.h>
+#include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wctype.h>
@@ -66,10 +67,18 @@ static HWND g_wnd;
 static int g_bbW, g_bbH;
 
 static volatile LONG g_tabRequest = -1;
+static int g_captureKeys; // a binding's input being captured (the controls page): the keys are its, not ImGui's
 
 void wl_menu_request_tab(int tab)
 {
     InterlockedExchange(&g_tabRequest, tab);
+}
+
+static volatile LONG g_mapRequest = -2; // the agent's "menu map": a device's bindings, -1 closed, -2 none asked
+
+void wl_menu_request_map(int device)
+{
+    InterlockedExchange(&g_mapRequest, device);
 }
 
 void wl_menu_request(int open)
@@ -139,7 +148,9 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
     }
     if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST)
     {
-        ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+        // A key pressed for a binding is not a move in the page nor a button's Enter (Escape still cancels)
+        if (!g_captureKeys || wp == VK_ESCAPE)
+            ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
         return 1;
     }
     if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)
@@ -252,28 +263,689 @@ static void feed_mouse(void)
 // Pages
 // ------------------------------------------------------------------------------
 
-static const struct
-{
-    const char *action;
-    const char *label;
-} g_labels[] = {
-    {"P1_Steer", WL_N("Volant")},          {"P1_Gas", WL_N("Accélérateur")},      {"P1_Brake", WL_N("Frein")},
-    {"P1_Start", WL_N("Start")},           {"ViewChange", WL_N("Vue")},           {"Handbrake", WL_N("Frein à main")},
-    {"GearUp", WL_N("Rapport +")},         {"GearDown", WL_N("Rapport −")},       {"P1_Coin", WL_N("Pièce")},
-    {"Test", WL_N("Test")},                {"P1_Service", WL_N("Service")},       {"View1", WL_N("Vue 1 (rouge)")},
-    {"View2", WL_N("Vue 2 (bleu)")},       {"View3", WL_N("Vue 3 (jaune)")},      {"View4", WL_N("Vue 4 (vert)")},
-    {"Gear1", WL_N("1re")},                {"Gear2", WL_N("2e")},                 {"Gear3", WL_N("3e")},
-    {"Gear4", WL_N("4e")},
-};
+// ------------------------------------------------------------------------------
+// Controls: linuxloader's page (its guiControls.cpp, itself laid out as Flycast's): the devices
+// found, each with a page of its own that binds the actions of controls.ini to that device's
+// inputs; then what the game gets and the [Config] options. windowsloader's own besides: each row's
+// "Ajouter" (one more input of the device, "Lier" replacing them) and "Défaut" (the device's inputs
+// of the action as a new controls.ini has them; linuxloader resets the whole device only), and what
+// the game gets. Written to controls.ini at each change, the bindings reloaded at once.
+// ------------------------------------------------------------------------------
 
-static const char *label_of(const WlInput *in)
+// The name of an action without its player (P1_Steer: Steer, player 1)
+static const char *generic_name(const char *key, int *player)
 {
-    for (int i = 0; i < (int)(sizeof g_labels / sizeof g_labels[0]); i++)
-        if (!strcmp(in->action, g_labels[i].action))
-            return wl_tr(g_labels[i].label);
-    return in->name;
+    *player = 0;
+    if (key[0] == 'P' && key[1] >= '1' && key[1] <= '4' && key[2] == '_')
+    {
+        *player = key[1] - '0';
+        return key + 3;
+    }
+    return key;
 }
 
+static const struct
+{
+    const char *name;
+    const char *label;
+} g_actionLabels[] = {
+    {"Test", WL_N("Test")},
+    {"Coin", WL_N("Pièce")},
+    {"Start", WL_N("Départ")},
+    {"Service", WL_N("Service")},
+    {"ExitGame", WL_N("Quitter le jeu")},
+    {"Steer", WL_N("Volant")},
+    {"Gas", WL_N("Accélérateur")},
+    {"Brake", WL_N("Frein")},
+    {"Clutch", WL_N("Embrayage")},
+    {"Steer_Left", WL_N("Volant à gauche")},
+    {"Steer_Right", WL_N("Volant à droite")},
+    {"Gas_Digital", WL_N("Accélérateur (tout ou rien)")},
+    {"Brake_Digital", WL_N("Frein (tout ou rien)")},
+    {"Clutch_Digital", WL_N("Embrayage (tout ou rien)")},
+    {"GearUp", WL_N("Vitesse +")},
+    {"GearDown", WL_N("Vitesse −")},
+    {"ViewChange", WL_N("Changer de vue")},
+    {"Handbrake", WL_N("Frein à main")},
+    {"Hazard", WL_N("Feux de détresse")},
+    {"Overtake", WL_N("Dépassement")},
+    {"Nitro", WL_N("Nitro")},
+    {"ShiftNitro", WL_N("Nitro (levier)")},
+    {"Action", WL_N("Action")},
+    {"SelectUp", WL_N("Choix : haut")},
+    {"SelectDown", WL_N("Choix : bas")},
+    {"SelectLeft", WL_N("Choix : gauche")},
+    {"SelectRight", WL_N("Choix : droite")},
+    {"SelectEnter", WL_N("Choix : valider")},
+    {"View1", WL_N("Vue 1 (rouge)")},
+    {"View2", WL_N("Vue 2 (bleu)")},
+    {"View3", WL_N("Vue 3 (jaune)")},
+    {"View4", WL_N("Vue 4 (vert)")},
+    {"Gear1", WL_N("1re")},
+    {"Gear2", WL_N("2e")},
+    {"Gear3", WL_N("3e")},
+    {"Gear4", WL_N("4e")},
+    {"Gear5", WL_N("5e")},
+    {"Gear6", WL_N("6e")},
+    {"PedalLeft", WL_N("Pédale gauche")},
+    {"PedalRight", WL_N("Pédale droite")},
+    {"Boost", WL_N("Boost")},
+    {"MusicChange", WL_N("Changer de musique")},
+};
+
+static const char *action_label(const char *name)
+{
+    for (int i = 0; i < (int)(sizeof g_actionLabels / sizeof g_actionLabels[0]); i++)
+        if (!_stricmp(name, g_actionLabels[i].name))
+            return wl_tr(g_actionLabels[i].label);
+    return name;
+}
+
+static int is_pedal(const char *name)
+{
+    return !_stricmp(name, "Gas") || !_stricmp(name, "Brake") || !_stricmp(name, "Clutch");
+}
+
+static int is_analog(const char *name)
+{
+    return is_pedal(name) || !_stricmp(name, "Steer");
+}
+
+// A binding's alternatives ("A, B + C": "A" and "B + C"), trimmed
+#define MAX_TOKENS 16
+typedef char Token[96];
+
+static int alternatives(const char *value, Token *out, int max)
+{
+    int n = 0;
+    while (*value && n < max)
+    {
+        const char *end = strchr(value, ',');
+        size_t len = end ? (size_t)(end - value) : strlen(value);
+        while (len && (*value == ' ' || *value == '\t'))
+            value++, len--;
+        while (len && (value[len - 1] == ' ' || value[len - 1] == '\t'))
+            len--;
+        if (len)
+            snprintf(out[n++], sizeof out[0], "%.*s", (int)len, value);
+        if (!end)
+            break;
+        value = end + 1;
+    }
+    return n;
+}
+
+static void join(const Token *tokens, int n, char *out, size_t size)
+{
+    out[0] = 0;
+    for (int i = 0; i < n; i++)
+    {
+        size_t used = strlen(out);
+        snprintf(out + used, size - used, "%s%s", used ? ", " : "", tokens[i]);
+    }
+}
+
+// The alternative belongs to the device when its first input is one of the device's
+static int owns(const WlControlDevice *d, const char *token)
+{
+    if (d->player < 0)
+        return !_strnicmp(token, "KEY_", 4);
+    char joy[16], gc[16];
+    snprintf(joy, sizeof joy, "JOY%d_", d->player);
+    snprintf(gc, sizeof gc, "GC%d_", d->player);
+    return !_strnicmp(token, joy, strlen(joy)) || !_strnicmp(token, gc, strlen(gc));
+}
+
+// The device's alternatives of a value (mine 1), or the others' (mine 0)
+static int device_tokens(const WlControlDevice *d, const char *value, int mine, Token *out, int max)
+{
+    Token all[MAX_TOKENS];
+    int n = alternatives(value, all, MAX_TOKENS), k = 0;
+    for (int i = 0; i < n && k < max; i++)
+        if (!owns(d, all[i]) == !mine)
+            memcpy(out[k++], all[i], sizeof all[i]);
+    return k;
+}
+
+static const char *axis_suffix(const char *s, char *out, size_t size)
+{
+    if (!_stricmp(s, "_POSITIVE"))
+        return " +";
+    if (!_stricmp(s, "_NEGATIVE"))
+        return " -";
+    if (!_stricmp(s, "_POSITIVE_HALF") || !_stricmp(s, "_NEGATIVE_HALF"))
+        snprintf(out, size, "%s%s", s[1] == 'P' ? " +" : " -", wl_tr(" (moitié)"));
+    else if (!_stricmp(s, "_POSITIVE_SIDE") || !_stricmp(s, "_NEGATIVE_SIDE"))
+        snprintf(out, size, "%s%s", s[1] == 'P' ? " +" : " -", wl_tr(" (pédale)"));
+    else if (!_stricmp(s, "_INVERTED"))
+        snprintf(out, size, "%s", wl_tr(" (inversé)"));
+    else
+        snprintf(out, size, "%s", s);
+    return out;
+}
+
+// An input as the page shows it: "Axe 0 - (pédale)", "Bouton 3", "Left"...
+static void describe(const char *token, char *out, size_t size)
+{
+    out[0] = 0;
+    if (strchr(token, '+'))
+    {
+        char part[96];
+        for (const char *p = token; *p;)
+        {
+            const char *end = strchr(p, '+');
+            size_t len = end ? (size_t)(end - p) : strlen(p);
+            while (len && *p == ' ')
+                p++, len--;
+            while (len && p[len - 1] == ' ')
+                len--;
+            snprintf(part, sizeof part, "%.*s", (int)len, p);
+            char shown[96];
+            describe(part, shown, sizeof shown);
+            size_t used = strlen(out);
+            snprintf(out + used, size - used, "%s%s", used ? " + " : "", shown);
+            if (!end)
+                break;
+            p = end + 1;
+        }
+        return;
+    }
+    int device = 0, number = 0, length = 0;
+    char name[32] = "", suffix[48];
+    if (!_strnicmp(token, "KEY_", 4))
+        snprintf(out, size, "%s", token + 4);
+    else if (sscanf(token, "JOY%d_BUTTON_%d%n", &device, &number, &length) == 2 && !token[length])
+        snprintf(out, size, wl_tr("Bouton %d"), number);
+    else if (sscanf(token, "JOY%d_AXIS_%d%n", &device, &number, &length) == 2)
+    {
+        snprintf(out, size, wl_tr("Axe %d"), number);
+        size_t used = strlen(out);
+        snprintf(out + used, size - used, "%s", axis_suffix(token + length, suffix, sizeof suffix));
+    }
+    else if (sscanf(token, "JOY%d_HAT%d_%31s", &device, &number, name) == 3)
+    {
+        const char *dir = !_stricmp(name, "UP") ? wl_tr("haut") : !_stricmp(name, "DOWN") ? wl_tr("bas")
+                          : !_stricmp(name, "LEFT") ? wl_tr("gauche") : wl_tr("droite");
+        snprintf(out, size, wl_tr("Chapeau %d"), number);
+        size_t used = strlen(out);
+        snprintf(out + used, size - used, " %s", dir);
+    }
+    else if (sscanf(token, "GC%d_BUTTON_%31s", &device, name) == 2)
+        snprintf(out, size, "%s", name);
+    else if (sscanf(token, "GC%d_AXIS_%31[^_]%n", &device, name, &length) == 2)
+        snprintf(out, size, "%s%s", name, axis_suffix(token + length, suffix, sizeof suffix));
+    else
+        snprintf(out, size, "%s", token);
+}
+
+// A pedal, 0 released to 1 pressed, as its input reads the axis
+static float pedal_level(const char *token, int raw)
+{
+    float level;
+    if (strstr(token, "_POSITIVE_SIDE") || strstr(token, "_POSITIVE_HALF"))
+        level = raw > 0 ? raw / 32767.0f : 0.0f;
+    else if (strstr(token, "_NEGATIVE_SIDE") || strstr(token, "_NEGATIVE_HALF"))
+        level = raw < 0 ? -raw / 32768.0f : 0.0f;
+    else if (strstr(token, "TRIGGER"))
+        level = raw / 32767.0f;
+    else
+        level = (raw + 32768.0f) / 65535.0f;
+    return strstr(token, "_INVERTED") ? 1.0f - level : level;
+}
+
+// sm2-emu's centre bar (centre_bar, github.com/dmanlfc/sm2-emu, GPL v3, Daniel Martin (dmanlfc)
+// and the sm2-emu contributors), as linuxloader has it: the axis around its middle, the dead zone
+// shaded
+static void centre_bar(const char *id, int raw, float deadzone)
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    float width = ImGui::GetContentRegionAvail().x, height = ImGui::GetFrameHeight() * 0.6f;
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton(id, ImVec2(width > 1 ? width : 1, height));
+    ImDrawList *draw = ImGui::GetWindowDrawList();
+    float mid = pos.x + width * 0.5f;
+    draw->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), ImGui::GetColorU32(ImGuiCol_FrameBg), style.FrameRounding);
+    if (deadzone > 0)
+    {
+        float half = width * 0.5f * deadzone;
+        draw->AddRectFilled(ImVec2(mid - half, pos.y), ImVec2(mid + half, pos.y + height), ImGui::GetColorU32(ImGuiCol_FrameBgHovered));
+    }
+    draw->AddLine(ImVec2(mid, pos.y), ImVec2(mid, pos.y + height), ImGui::GetColorU32(ImGuiCol_TextDisabled));
+    float value = raw / 32767.0f;
+    value = value < -1 ? -1 : value > 1 ? 1 : value;
+    float x = (float)(int)(mid + width * 0.5f * value + 0.5f);
+    int inside = (value < 0 ? -value : value) <= deadzone;
+    draw->AddRectFilled(ImVec2(x - 2, pos.y), ImVec2(x + 2, pos.y + height), ImGui::GetColorU32(inside ? ImGuiCol_TextDisabled : ImGuiCol_SliderGrabActive));
+}
+
+// A dot lit while the input is pressed
+static void press_dot(int on)
+{
+    float size = ImGui::GetFontSize() * 0.7f;
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::Dummy(ImVec2(size, ImGui::GetFontSize()));
+    ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(pos.x + size * 0.5f, pos.y + ImGui::GetFontSize() * 0.5f), size * 0.5f,
+                                                ImGui::GetColorU32(on ? ImGuiCol_SliderGrabActive : ImGuiCol_FrameBg));
+}
+
+// A title bar across the page, as Flycast's and linuxloader's
+static void header(const char *label)
+{
+    const ImGuiStyle &style = ImGui::GetStyle();
+    ImGui::Spacing();
+    ImVec2 pos = ImGui::GetCursorScreenPos();
+    float width = ImGui::GetContentRegionAvail().x, height = ImGui::GetFrameHeight();
+    ImGui::GetWindowDrawList()->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), ImGui::GetColorU32(ImGuiCol_Header), style.FrameRounding);
+    ImGui::SetCursorScreenPos(ImVec2(pos.x + style.FramePadding.x, pos.y + style.FramePadding.y));
+    ImGui::TextUnformatted(label);
+    ImGui::SetCursorScreenPos(ImVec2(pos.x, pos.y + height + style.ItemSpacing.y));
+    ImGui::Dummy(ImVec2(0, 0));
+}
+
+// controls.ini's rows, read when the page opens and after each change
+#define MAX_ROWS 96
+static const char *g_rowSections[2] = {"Common", "Driving"};
+static WlControlRow g_rows[2][MAX_ROWS], g_configRows[32];
+static int g_rowCounts[2], g_configCount, g_rowsRead;
+
+static void read_rows(void)
+{
+    for (int s = 0; s < 2; s++)
+        g_rowCounts[s] = wl_controls_rows(g_rowSections[s], g_rows[s], MAX_ROWS);
+    g_configCount = wl_controls_rows("Config", g_configRows, 32);
+    g_rowsRead = 1;
+}
+
+static void set_row(int section, const char *key, const char *value)
+{
+    wl_controls_set_row(g_rowSections[section], key, value);
+    g_rowsRead = 0;
+}
+
+// The device whose page is open, and the input being captured for one of its rows
+static struct
+{
+    int requestOpen, requestClose;
+    WlControlDevice device;
+} g_mapping;
+
+static struct
+{
+    int active, requestOpen;
+    int append; // "Ajouter": the input joins the device's ones; "Lier": it replaces them
+    int section;
+    char key[64];
+} g_capture;
+
+static void cancel_capture(void)
+{
+    if (g_capture.active)
+        wl_controls_capture_cancel();
+    g_capture.active = g_captureKeys = 0;
+}
+
+// The row's value with the device's inputs replaced by those given (the other devices' kept)
+static void replace_device_tokens(const char *value, const Token *mine, int n, char *out, size_t size)
+{
+    Token tokens[MAX_TOKENS];
+    int k = device_tokens(&g_mapping.device, value, 0, tokens, MAX_TOKENS);
+    for (int i = 0; i < n && k < MAX_TOKENS; i++)
+        memcpy(tokens[k++], mine[i], sizeof mine[i]);
+    join(tokens, k, out, size);
+}
+
+// The row as a new controls.ini has it for the device; 1 when the device's inputs differ from those
+static int default_of_row(int section, const WlControlRow *row, char *out, size_t size, Token *mine, int *n)
+{
+    char def[512];
+    wl_controls_default_row(g_rowSections[section], row->key, def, sizeof def);
+    *n = device_tokens(&g_mapping.device, def, 1, mine, MAX_TOKENS);
+    replace_device_tokens(row->value, mine, *n, out, size);
+    Token now[MAX_TOKENS];
+    int k = device_tokens(&g_mapping.device, row->value, 1, now, MAX_TOKENS);
+    if (k != *n)
+        return 1;
+    for (int i = 0; i < k; i++)
+        if (_stricmp(now[i], mine[i]))
+            return 1;
+    return 0;
+}
+
+static void reset_device(void)
+{
+    for (int s = 0; s < 2; s++)
+        for (int i = 0; i < g_rowCounts[s]; i++)
+        {
+            char value[1024];
+            Token mine[MAX_TOKENS];
+            int n;
+            if (default_of_row(s, &g_rows[s][i], value, sizeof value, mine, &n))
+                wl_controls_set_row(g_rowSections[s], g_rows[s][i].key, value);
+        }
+    g_rowsRead = 0;
+}
+
+static const char *config_value(const char *key)
+{
+    for (int i = 0; i < g_configCount; i++)
+        if (!_stricmp(g_configRows[i].key, key))
+            return g_configRows[i].value;
+    return NULL;
+}
+
+static void binding_row(int section, int i, const char *name)
+{
+    WlControlRow *row = &g_rows[section][i];
+    ImGui::PushID(section * MAX_ROWS + i);
+    ImGui::TableNextRow();
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(action_label(name));
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", row->key);
+
+    Token tokens[MAX_TOKENS];
+    int n = device_tokens(&g_mapping.device, row->value, 1, tokens, MAX_TOKENS);
+    ImGui::TableSetColumnIndex(1);
+    ImGui::AlignTextToFramePadding();
+    char text[1024] = "", shown[192];
+    for (int k = 0; k < n; k++)
+    {
+        describe(tokens[k], shown, sizeof shown);
+        size_t used = strlen(text);
+        snprintf(text + used, sizeof text - used, "%s%s", used ? ", " : "", shown);
+    }
+    if (!text[0])
+        ImGui::TextDisabled("-");
+    else
+        ImGui::TextUnformatted(text);
+    if (n && ImGui::IsItemHovered())
+    {
+        char raw[1024];
+        join(tokens, n, raw, sizeof raw);
+        ImGui::SetTooltip("%s", raw);
+    }
+
+    // The input now: an axis's position, a pedal's travel, a button's dot
+    ImGui::TableSetColumnIndex(2);
+    int on = 0, any = 0, raw = 0, axis = -1;
+    for (int k = 0; k < n; k++)
+    {
+        int pressedNow, value;
+        int kind = wl_controls_input_state(tokens[k], &pressedNow, &value);
+        if (kind == 2 && axis < 0)
+        {
+            axis = k;
+            raw = value;
+        }
+        on |= kind == 1 && pressedNow;
+        any |= kind != 0;
+    }
+    if (is_analog(name) && axis >= 0)
+    {
+        if (is_pedal(name))
+            ImGui::ProgressBar(pedal_level(tokens[axis], raw), ImVec2(-FLT_MIN, ImGui::GetFrameHeight() * 0.6f), "");
+        else
+        {
+            char key[96];
+            snprintf(key, sizeof key, "%s_DeadZone", name);
+            const char *dz = config_value(key);
+            centre_bar("##axis", raw, dz ? atoi(dz) / 32767.0f : 0.0f);
+        }
+    }
+    else if (any && !is_analog(name))
+        press_dot(on);
+
+    ImGui::TableSetColumnIndex(3);
+    ImGui::BeginDisabled(!wl_controls_running()); // the capture is the controls thread's
+    int map = ImGui::Button(wl_tr("Lier")), add = 0;
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!n); // nothing to add to: "Lier"
+    add = ImGui::Button(wl_tr("Ajouter"));
+    ImGui::EndDisabled();
+    ImGui::EndDisabled();
+    if (map || add)
+    {
+        g_capture.active = g_capture.requestOpen = 1;
+        g_capture.append = add;
+        g_capture.section = section;
+        snprintf(g_capture.key, sizeof g_capture.key, "%s", row->key);
+        g_captureKeys = 1;
+        wl_controls_capture(g_mapping.device.player,
+                            is_pedal(name) ? WL_CAPTURE_PEDAL : is_analog(name) ? WL_CAPTURE_STEERING : WL_CAPTURE_BUTTON);
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!n);
+    if (ImGui::Button(wl_tr("Délier")))
+    {
+        char value[1024];
+        replace_device_tokens(row->value, NULL, 0, value, sizeof value);
+        set_row(section, row->key, value);
+    }
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    char def[1024];
+    Token mine[MAX_TOKENS];
+    int defCount;
+    ImGui::BeginDisabled(!default_of_row(section, row, def, sizeof def, mine, &defCount));
+    if (ImGui::Button(wl_tr("Défaut")))
+        set_row(section, row->key, def);
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        char list[1024] = "";
+        for (int k = 0; k < defCount; k++)
+        {
+            describe(mine[k], shown, sizeof shown);
+            size_t used = strlen(list);
+            snprintf(list + used, sizeof list - used, "%s%s", used ? ", " : "", shown);
+        }
+        ImGui::SetTooltip(wl_tr("Par défaut : %s"), list[0] ? list : "-");
+    }
+    ImGui::PopID();
+}
+
+// One section's rows on the device's page, under a title bar per player: the rows for all players
+// first, then player 1's, player 2's...
+static void draw_bindings(int section)
+{
+    static const char *labels[2] = {WL_N("Tous les jeux"), WL_N("Conduite")};
+    int tableOpen = 0;
+    for (int player = 0; player <= 4; player++)
+    {
+        int shown = 0;
+        for (int i = 0; i < g_rowCounts[section]; i++)
+        {
+            int p;
+            const char *name = generic_name(g_rows[section][i].key, &p);
+            if (p != player)
+                continue;
+            if (!shown)
+            {
+                if (tableOpen)
+                    ImGui::EndTable();
+                char title[96], playerText[32];
+                snprintf(playerText, sizeof playerText, wl_tr("Joueur %d"), player);
+                if (player)
+                    snprintf(title, sizeof title, "%s - %s", wl_tr(labels[section]), playerText);
+                else
+                    snprintf(title, sizeof title, "%s", wl_tr(labels[section]));
+                header(title);
+                char id[32];
+                snprintf(id, sizeof id, "##rows%d_%d", section, player);
+                tableOpen = ImGui::BeginTable(id, 4, ImGuiTableFlags_SizingStretchProp);
+                if (tableOpen)
+                {
+                    ImGui::TableSetupColumn("##action", ImGuiTableColumnFlags_WidthStretch, 0.34f);
+                    ImGui::TableSetupColumn("##binding", ImGuiTableColumnFlags_WidthStretch, 0.30f);
+                    ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch, 0.22f);
+                    ImGui::TableSetupColumn("##buttons", ImGuiTableColumnFlags_WidthFixed);
+                }
+                shown = 1;
+            }
+            if (tableOpen)
+                binding_row(section, i, name);
+        }
+    }
+    if (tableOpen)
+        ImGui::EndTable();
+}
+
+// The device's page, over the whole picture: its inputs for every action
+static void mapping_page(void)
+{
+    if (g_mapping.requestOpen)
+    {
+        ImGui::OpenPopup("###mapping");
+        g_mapping.requestOpen = 0;
+    }
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowBgAlpha(1.0f);
+    char title[192];
+    snprintf(title, sizeof title, wl_tr("Liaisons : %s"), g_mapping.device.name);
+    size_t used = strlen(title);
+    snprintf(title + used, sizeof title - used, "###mapping");
+    if (!ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        return;
+    if (!g_rowsRead)
+        read_rows();
+
+    float right = ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x;
+    if (ImGui::Button(wl_tr("Fermer")) || g_mapping.requestClose)
+    {
+        cancel_capture();
+        ImGui::CloseCurrentPopup();
+    }
+    g_mapping.requestClose = 0;
+    // On the right: the device's bindings back to the defaults
+    const char *resetLabel = wl_tr("Réinitialiser...");
+    const ImGuiStyle &style = ImGui::GetStyle();
+    ImGui::SameLine(right - ImGui::CalcTextSize(resetLabel).x - style.FramePadding.x * 2);
+    if (ImGui::Button(resetLabel))
+        ImGui::OpenPopup("##reset");
+    if (ImGui::BeginPopupModal("##reset", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
+    {
+        ImGui::TextUnformatted(wl_tr("Remettre les liaisons de ce périphérique par défaut ?"));
+        if (ImGui::Button(wl_tr("Oui")))
+        {
+            reset_device();
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(wl_tr("Non")))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+
+    if (ImGui::BeginChild("##bindings", ImVec2(0, 0), ImGuiChildFlags_Borders))
+    {
+        draw_bindings(0);
+        draw_bindings(1);
+        if (!g_rowCounts[1])
+            ImGui::TextDisabled("%s", wl_tr("Cette section de controls.ini est vide."));
+    }
+    ImGui::EndChild();
+
+    // The capture: the device's next input, written to the row
+    if (g_capture.requestOpen)
+    {
+        ImGui::OpenPopup("##capture");
+        g_capture.requestOpen = 0;
+    }
+    if (ImGui::BeginPopupModal("##capture", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
+    {
+        char got[64];
+        int player;
+        const char *name = generic_name(g_capture.key, &player);
+        if (!g_capture.active)
+            ImGui::CloseCurrentPopup();
+        else if (wl_controls_capture_result(got, sizeof got))
+        {
+            for (int i = 0; i < g_rowCounts[g_capture.section]; i++)
+                if (!strcmp(g_rows[g_capture.section][i].key, g_capture.key))
+                {
+                    // "Lier": the device's inputs replaced by it; "Ajouter": it after them, once
+                    Token mine[MAX_TOKENS];
+                    int k = g_capture.append ? device_tokens(&g_mapping.device, g_rows[g_capture.section][i].value, 1, mine, MAX_TOKENS - 1) : 0, there = 0;
+                    for (int t = 0; t < k; t++)
+                        there |= !_stricmp(mine[t], got);
+                    if (!there)
+                        snprintf(mine[k++], sizeof mine[0], "%s", got);
+                    char value[1024];
+                    replace_device_tokens(g_rows[g_capture.section][i].value, mine, k, value, sizeof value);
+                    set_row(g_capture.section, g_capture.key, value);
+                }
+            g_capture.active = g_captureKeys = 0;
+            ImGui::CloseCurrentPopup();
+        }
+        else
+        {
+            ImGui::Text(wl_tr("Appuyez sur une commande de %s pour : %s"), g_mapping.device.name, action_label(name));
+            if (is_analog(name) && !is_pedal(name))
+                ImGui::TextUnformatted(wl_tr("Tournez vers la gauche."));
+            ImGui::TextDisabled("%s", wl_tr("Échap : annuler"));
+            if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::Button(wl_tr("Annuler")))
+            {
+                cancel_capture();
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::EndPopup();
+}
+
+// The [Config] options but the force feedback's (its own page): dead zones as sliders, toggles as
+// boxes, the rest as numbers; written once a change is done
+static void draw_options(void)
+{
+    for (int i = 0; i < g_configCount; i++)
+    {
+        WlControlRow *row = &g_configRows[i];
+        if (!_strnicmp(row->key, "FFB_", 4))
+            continue;
+        size_t len = strlen(row->key);
+        int deadZone = len > 9 && !_stricmp(row->key + len - 9, "_DeadZone");
+        int toggle = len > 7 && !_stricmp(row->key + len - 7, "_Toggle");
+        char label[160], bare[64];
+        snprintf(bare, sizeof bare, "%.*s", (int)(deadZone ? len - 9 : len), row->key);
+        snprintf(label, sizeof label, "%s##%s", deadZone ? action_label(bare) : row->key, row->key);
+        int changed = 0;
+        if (deadZone)
+        {
+            int value = atoi(row->value);
+            if (ImGui::SliderInt(label, &value, 0, 16000))
+                snprintf(row->value, sizeof row->value, "%d", value);
+            changed = ImGui::IsItemDeactivatedAfterEdit();
+        }
+        else if (toggle)
+        {
+            bool value = atoi(row->value) != 0;
+            if ((changed = ImGui::Checkbox(label, &value)) != 0)
+                snprintf(row->value, sizeof row->value, "%d", value ? 1 : 0);
+        }
+        else if (strchr(row->value, '.'))
+        {
+            float value = (float)atof(row->value);
+            if (ImGui::InputFloat(label, &value, 0.05f, 0.1f, "%.2f"))
+                snprintf(row->value, sizeof row->value, "%.2f", value);
+            changed = ImGui::IsItemDeactivatedAfterEdit();
+        }
+        else
+        {
+            int value = atoi(row->value);
+            if (ImGui::InputInt(label, &value))
+                snprintf(row->value, sizeof row->value, "%d", value);
+            changed = ImGui::IsItemDeactivatedAfterEdit();
+        }
+        if (changed)
+            wl_controls_set_row("Config", row->key, row->value);
+    }
+}
+
+// What the game gets of each of its inputs (windowsloader's: the raw value its board reads)
 static void draw_value(const WlInput *in)
 {
     int raw = wl_input_get(in);
@@ -288,135 +960,94 @@ static void draw_value(const WlInput *in)
     ImGui::ProgressBar(f < 0 ? 0 : f > 1 ? 1 : f, ImVec2(-1, 0), text);
 }
 
-// The capture of a binding in progress
-static int g_capInput = -1, g_capWhich, g_capAppend, g_capOpen;
-static char g_capPrompt[128];
-
-static void start_capture(int input, int which, int append, const WlInput *in)
-{
-    g_capInput = input;
-    g_capWhich = which;
-    g_capAppend = append;
-    if (in->type == WL_INPUT_AXIS && which == 0)
-        snprintf(g_capPrompt, sizeof g_capPrompt, "%s", wl_tr("Tournez le volant vers la GAUCHE"));
-    else if (in->type == WL_INPUT_ANALOG && which == 0)
-        snprintf(g_capPrompt, sizeof g_capPrompt, wl_tr("Appuyez à fond sur la pédale « %s »"), label_of(in));
-    else
-        snprintf(g_capPrompt, sizeof g_capPrompt, wl_tr("Appuyez sur la touche ou le bouton « %s »"), label_of(in));
-    wl_controls_capture(input, which);
-    g_capOpen = 1;
-}
-
-static void capture_popup(void)
-{
-    // Opened here, at the menu window's level where it is drawn (a popup's name is taken in the
-    // ID stack it is opened in: the table's row would be another one)
-    // Its title in the language shown, its name (###assign) the same in all
-    if (g_capOpen)
-        ImGui::OpenPopup("###assign");
-    g_capOpen = 0;
-    char title[64];
-    snprintf(title, sizeof title, "%s###assign", wl_tr("Assigner"));
-    if (!ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
-        return;
-    ImGui::TextUnformatted(g_capPrompt);
-    ImGui::TextDisabled("%s", wl_tr("Clavier, manette ou volant. Échap pour annuler."));
-    char got[64];
-    if (g_capInput >= 0 && wl_controls_capture_result(got, sizeof got))
-    {
-        char value[1024] = "";
-        if (g_capAppend)
-            wl_controls_binding(g_capInput, g_capWhich, value, sizeof value);
-        size_t n = strlen(value);
-        snprintf(value + n, sizeof value - n, "%s%s", n ? ", " : "", got);
-        wl_controls_set_binding(g_capInput, g_capWhich, value);
-        g_capInput = -1;
-        ImGui::CloseCurrentPopup();
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::Button(wl_tr("Annuler")))
-    {
-        wl_controls_capture_cancel();
-        g_capInput = -1;
-        ImGui::CloseCurrentPopup();
-    }
-    ImGui::EndPopup();
-}
-
-static void binding_row(int index, const WlInput *in, int which, const char *label)
-{
-    char text[1024];
-    wl_controls_binding(index, which, text, sizeof text);
-    ImGui::TableNextRow();
-    ImGui::TableSetColumnIndex(0);
-    ImGui::TextUnformatted(label);
-    ImGui::TableSetColumnIndex(1);
-    ImGui::TextWrapped("%s", text[0] ? text : wl_tr("(aucune)"));
-    ImGui::TableSetColumnIndex(2);
-    if (which == 0)
-        draw_value(in);
-    ImGui::TableSetColumnIndex(3);
-    ImGui::PushID(index * 4 + which);
-    ImGui::BeginDisabled(!wl_controls_running());
-    if (ImGui::SmallButton(wl_tr("Assigner")))
-        start_capture(index, which, 0, in);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(wl_tr("Ajouter")))
-        start_capture(index, which, 1, in);
-    ImGui::SameLine();
-    if (ImGui::SmallButton(wl_tr("Effacer")))
-        wl_controls_set_binding(index, which, "");
-    ImGui::EndDisabled();
-    ImGui::PopID();
-}
-
 static void page_controls(void)
 {
     if (!wl_controls_running())
         ImGui::TextWrapped("%s", wl_tr("Le jeu est piloté par l'agent (--agent) : les manettes ne sont pas lues, l'assignation est désactivée."));
-    else
-    {
-        const char *pad = wl_controls_player_name(0);
-        ImGui::Text(wl_tr("Joueur 1 : %s"), pad[0] ? pad : wl_tr("aucune manette (clavier seulement)"));
-    }
     if (!wl_controls_has_file())
         return;
-    ImGui::TextDisabled("%s", wl_tr("Liaisons enregistrées dans controls.ini, à côté du lanceur."));
-    ImGui::Spacing();
+    if (ImGui::IsWindowAppearing() || !g_rowsRead)
+        read_rows();
 
-    if (!ImGui::BeginTable("controls", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp))
-        return;
-    ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableSetupColumn(wl_tr("Action"), ImGuiTableColumnFlags_WidthStretch, 1.2f);
-    ImGui::TableSetupColumn(wl_tr("Liaisons"), ImGuiTableColumnFlags_WidthStretch, 2.2f);
-    ImGui::TableSetupColumn(wl_tr("Valeur"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableHeadersRow();
-    char label[96];
-    for (int i = 0; i < wl_inputs_count(); i++)
+    header(wl_tr("Périphériques"));
+    WlControlDevice devices[16];
+    int count = wl_controls_devices(devices, 16);
+    if (ImGui::BeginTable("##devices", 3, ImGuiTableFlags_SizingStretchProp))
     {
-        WlInput *in = wl_input_at(i);
-        if (!in->action)
-            continue;
-        if (in->type == WL_INPUT_AXIS)
+        ImGui::TableSetupColumn(wl_tr("Nom"), ImGuiTableColumnFlags_WidthStretch, 0.6f);
+        ImGui::TableSetupColumn(wl_tr("Dans controls.ini"), ImGuiTableColumnFlags_WidthStretch, 0.4f);
+        ImGui::TableSetupColumn("##map", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableHeadersRow();
+        for (int i = 0; i < count; i++)
         {
-            snprintf(label, sizeof label, wl_tr("%s (axe)"), label_of(in));
-            binding_row(i, in, 0, label);
-            snprintf(label, sizeof label, wl_tr("%s à gauche"), label_of(in));
-            binding_row(i, in, 1, label);
-            snprintf(label, sizeof label, wl_tr("%s à droite"), label_of(in));
-            binding_row(i, in, 2, label);
+            WlControlDevice *d = &devices[i];
+            if (d->player < 0)
+                snprintf(d->name, sizeof d->name, "%s", wl_tr("Clavier"));
+            ImGui::PushID(i);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("%s%s", d->name, d->ffb ? wl_tr(" (retour de force)") : "");
+            ImGui::TableSetColumnIndex(1);
+            ImGui::AlignTextToFramePadding();
+            if (d->player < 0)
+                ImGui::TextDisabled("KEY");
+            else if (d->gamepad)
+                ImGui::TextDisabled("GC%d / JOY%d", d->player, d->player);
+            else
+                ImGui::TextDisabled("JOY%d", d->player);
+            ImGui::TableSetColumnIndex(2);
+            ImGui::BeginDisabled(!wl_controls_running());
+            if (ImGui::Button(wl_tr("Lier")))
+            {
+                g_mapping.device = *d;
+                g_mapping.requestOpen = 1;
+                g_rowsRead = 0;
+            }
+            ImGui::EndDisabled();
+            ImGui::PopID();
         }
-        else if (in->type == WL_INPUT_ANALOG)
-        {
-            snprintf(label, sizeof label, wl_tr("%s (axe)"), label_of(in));
-            binding_row(i, in, 0, label);
-            snprintf(label, sizeof label, wl_tr("%s (touche)"), label_of(in));
-            binding_row(i, in, 1, label);
-        }
-        else
-            binding_row(i, in, 0, label_of(in));
+        ImGui::EndTable();
     }
-    ImGui::EndTable();
+    if (count < 2)
+        ImGui::TextDisabled("%s", wl_tr("Aucune manette branchée."));
+    LONG map = InterlockedExchange(&g_mapRequest, -2); // the agent's "menu map N"
+    if (map >= 0 && map < count)
+    {
+        g_mapping.device = devices[map];
+        g_mapping.requestOpen = 1;
+        g_rowsRead = 0;
+    }
+    else if (map == -1)
+        g_mapping.requestClose = 1;
+
+    // windowsloader's: what each input of the game gets now, as its board reads it
+    header(wl_tr("Ce que reçoit le jeu"));
+    if (ImGui::BeginTable("##game", 2, ImGuiTableFlags_SizingStretchProp))
+    {
+        ImGui::TableSetupColumn("##input", ImGuiTableColumnFlags_WidthStretch, 0.4f);
+        ImGui::TableSetupColumn("##value", ImGuiTableColumnFlags_WidthStretch, 0.6f);
+        for (int i = 0; i < wl_inputs_count(); i++)
+        {
+            WlInput *in = wl_input_at(i);
+            if (!in->action)
+                continue;
+            int player;
+            ImGui::PushID(i);
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextUnformatted(action_label(generic_name(in->action, &player)));
+            ImGui::TableSetColumnIndex(1);
+            draw_value(in);
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+
+    header(wl_tr("Zones mortes et options"));
+    draw_options();
+
+    mapping_page();
 }
 
 static void page_ffb(void)
@@ -963,7 +1594,6 @@ static void draw_menu(void)
         ImGui::EndChild();
         ImGui::Separator();
         save_buttons();
-        capture_popup();
     }
     ImGui::End();
 }
@@ -997,9 +1627,7 @@ static void run_menu(void (*frame)(void *), void *arg)
         if (g_open)
             frame(arg);
     }
-    if (g_capInput >= 0)
-        wl_controls_capture_cancel();
-    g_capInput = -1;
+    cancel_capture();
     wl_pause_end();
     wl_log("menu: closed");
 }

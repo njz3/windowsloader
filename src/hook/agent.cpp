@@ -34,6 +34,8 @@
 //   menu [on|off]          open or close the settings menu; "menu open" or "menu closed"
 //   menu tab N             show its page N (0 game, 1 controls, 2 display, 3 force feedback, 4 about,
 //                          5 game options, 6 outputs and network)
+//   menu map [N]           on the controls page, open device N's bindings (0 the keyboard, then the
+//                          controllers in the list's order); without N, close them
 //   menu save [game]       its button "Sauvegarder" (or "Sauvegarder pour ce jeu"): "ok MESSAGE" or
 //                          "err MESSAGE"
 //   quit                   "bye", and the game ends
@@ -207,6 +209,8 @@ static void command(char *line)
     {
         if (!strcmp(a1, "tab"))
             wl_menu_request_tab(atoi(a2));
+        else if (!strcmp(a1, "map"))
+            wl_menu_request_map(a2[0] ? atoi(a2) : -1);
         else if (!strcmp(a1, "save"))
         {
             char status[MAX_PATH * 2 + 64];

@@ -36,13 +36,39 @@ void wl_controls_start(const wchar_t *iniPath);
 void wl_controls_load(const wchar_t *iniPath);
 int wl_controls_has_file(void);
 
-// For the settings menu. which: 0 the action, 1 ACTION_Left (axis) or ACTION_Digital (pedal), 2 ACTION_Right
+// For the settings menu's page (linuxloader's: the devices, each binding the actions to its own inputs)
 int wl_controls_running(void);
 const char *wl_controls_player_name(int player);
-void wl_controls_binding(int input, int which, char *out, size_t size);
-void wl_controls_set_binding(int input, int which, const char *value); // saved, then reloaded
-void wl_controls_capture(int input, int which);                        // waits for a key, button or axis
-int wl_controls_capture_result(char *out, size_t size);                // 1 once captured
+
+struct WlControlDevice
+{
+    int player;  // -1 the keyboard (KEY_), else JOY<player>_ (and GC<player>_ for a gamepad)
+    int gamepad; // SDL sees a gamepad
+    int ffb;     // the force feedback is played on it
+    char name[128];
+};
+int wl_controls_devices(WlControlDevice *out, int max); // the keyboard, then the controllers connected
+
+struct WlControlRow
+{
+    char key[64];    // P1_Steer, GearUp...
+    char value[512]; // KEY_Left, JOY0_AXIS_0, GC0_BUTTON_START + GC0_BUTTON_BACK...
+};
+int wl_controls_rows(const char *section, WlControlRow *rows, int max);              // in the file's order
+void wl_controls_set_row(const char *section, const char *key, const char *value);   // saved, then reloaded
+int wl_controls_default_row(const char *section, const char *key, char *out, size_t size); // a new file's; 0 for none
+// A binding's input now: 0 not there, 1 pressed or not in *on (a key, a button, a hat, half an
+// axis, a combination), 2 an axis, its raw value -32768..32767 in *raw
+int wl_controls_input_state(const char *token, int *on, int *raw);
+
+enum
+{
+    WL_CAPTURE_BUTTON,   // a key, a button, a hat, half an axis
+    WL_CAPTURE_STEERING, // an axis turned to the left
+    WL_CAPTURE_PEDAL     // an axis pressed from its rest
+};
+void wl_controls_capture(int player, int kind);         // waits for an input of one device (-1 the keyboard)
+int wl_controls_capture_result(char *out, size_t size); // 1 once captured
 void wl_controls_capture_cancel(void);
 void wl_controls_ffb_settings(double *strength, int *invert);
 void wl_controls_set_ffb(double strength, int invert);                 // applied and saved

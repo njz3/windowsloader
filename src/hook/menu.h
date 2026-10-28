@@ -46,6 +46,7 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result);
 void wl_menu_request(int open);
 void wl_menu_request_tab(int tab); // "menu tab N": 0 Jeu, 1 Contrôles, 2 Affichage, 3 Retour de force, 4 À propos,
                                    // 5 Options du jeu, 6 Sorties et réseau
+void wl_menu_request_map(int device); // "menu map N": the controls page's device N's bindings, -1 closed
 int wl_menu_is_open(void);
 
 // While it is open: 1 and its window's place in the picture (back buffer pixels), for display.cpp

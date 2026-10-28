@@ -27,6 +27,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "menu.h"
 #include "settings.h"
 
 // ------------------------------------------------------------------------------
@@ -291,6 +292,8 @@ struct Device
 
 static Device g_players[MAX_PLAYERS];
 static int g_keyboardFocus;
+// Held to change g_players (the controls thread, exclusive) and by the settings menu to read them
+static SRWLOCK g_devicesLock = SRWLOCK_INIT;
 
 // ------------------------------------------------------------------------------
 // Force feedback: one constant effect, updated when the game's force changes (ffb.h), on one
@@ -306,6 +309,7 @@ static int g_keyboardFocus;
 
 static SDL_Haptic *g_haptic;
 static int g_hapticEffect = -1;
+static int g_hapticPlayer = -1; // 0: the effects are on player 1's device; -1 another one or none
 static unsigned g_ffbSerial;
 static double g_ffbStrength = 1.0;
 static int g_ffbInvert;
@@ -374,6 +378,7 @@ static void close_haptic(void)
         SDL_CloseHaptic(g_haptic);
     g_haptic = NULL;
     g_hapticEffect = -1;
+    g_hapticPlayer = -1;
     ffb_lock();
     g_ffbPlaying[0] = 0;
     LeaveCriticalSection(&g_ffbLock);
@@ -434,7 +439,7 @@ static void open_haptic(void)
     close_haptic();
     list_ffb_devices();
     SDL_Joystick *joy = g_players[0].joy;
-    SDL_Haptic *player1 = joy && SDL_IsJoystickHaptic(joy) ? SDL_OpenHapticFromJoystick(joy) : NULL;
+    SDL_Haptic *player1 = joy && SDL_IsJoystickHaptic(joy) ? SDL_OpenHapticFromJoystick(joy) : NULL, *own = player1;
     char chosen[128];
     ffb_lock();
     snprintf(chosen, sizeof chosen, "%s", g_ffbDevice);
@@ -451,6 +456,7 @@ static void open_haptic(void)
         g_haptic = player1;
     else if (player1)
         SDL_CloseHaptic(player1);
+    g_hapticPlayer = g_haptic && g_haptic == own ? 0 : -1;
     if (!g_haptic)
     {
         if (joy && SDL_IsJoystickHaptic(joy))
@@ -491,8 +497,10 @@ static void update_haptic(void)
     if (serial == g_ffbSerial)
         return;
     g_ffbSerial = serial;
-    // > 0 pushes left; SDL's x axis grows to the right
-    double level = f * g_ffbStrength * (g_ffbInvert ? 1 : -1);
+    // > 0 pushes left, as SDL's: its direction is where the force comes from, the cartesian (1, 0) the
+    // right (90 degrees in DirectInput, as vJoy reports it), so a positive level pushes to the left
+    // (linuxloader's forceFeedback.c the same; seen at a cabinet's wheel on Sega Rally 3, 28/10/2026)
+    double level = f * g_ffbStrength * (g_ffbInvert ? -1 : 1);
     if (level > 1)
         level = 1;
     if (level < -1)
@@ -518,7 +526,16 @@ static void close_devices(void)
     }
 }
 
+static void open_devices(void);
+
 static void assign_devices(void)
+{
+    AcquireSRWLockExclusive(&g_devicesLock);
+    open_devices();
+    ReleaseSRWLockExclusive(&g_devicesLock);
+}
+
+static void open_devices(void)
 {
     close_devices();
     int count = 0;
@@ -732,6 +749,7 @@ static const char *g_defaults =
     "P1_Coin = KEY_5\r\n"
     "P1_Start = KEY_1, GC0_BUTTON_START\r\n"
     "P1_Service = KEY_S\r\n"
+    "ExitGame = KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10\r\n"
     "\r\n"
     "[Driving]\r\n"
     "P1_Steer_Left = KEY_Left\r\n"
@@ -828,9 +846,14 @@ static void write_defaults(void)
     }
 }
 
+// [Common] ExitGame, linuxloader's: the game ends (Escape, as under TeknoParrot)
+static Binding g_exitGame;
+
 static void load_bindings(void)
 {
     char s[96];
+    read_binding("Common", "ExitGame", &g_exitGame);
+    wl_log("controls: ExitGame = [Common] ExitGame (%d bindings)", g_exitGame.count);
     for (int i = 0; i < wl_inputs_count() && i < MAX_INPUTS; i++)
     {
         WlInput *in = wl_input_at(i);
@@ -870,6 +893,21 @@ static volatile LONG g_running;
 static volatile LONG g_reload; // controls.ini changed by the settings menu: reload the bindings
 static void capture_step(void);
 
+// ExitGame pressed: the game ends at once, as with the menu's "Quitter le jeu" (the launcher then
+// closes the programs it started with it). Not while the settings menu is open (Escape is its own
+// there), nor for a press already held before: only a new one counts
+static void exit_step(void)
+{
+    static int was = 1;
+    int down = binding_pressed(&g_exitGame);
+    if (down && !was && !wl_menu_is_open())
+    {
+        wl_log("controls: ExitGame: the game ends");
+        TerminateProcess(GetCurrentProcess(), 0);
+    }
+    was = down;
+}
+
 static DWORD WINAPI controls_thread(LPVOID)
 {
     InterlockedExchange(&g_running, 1);
@@ -897,6 +935,7 @@ static DWORD WINAPI controls_thread(LPVOID)
         if (InterlockedExchange(&g_reload, 0))
             load_bindings();
         capture_step();
+        exit_step();
 
         for (int i = 0; i < wl_inputs_count() && i < MAX_INPUTS; i++)
         {
@@ -943,8 +982,9 @@ void wl_controls_start(const wchar_t *iniPath)
 // is changed by request and done in that thread.
 // ------------------------------------------------------------------------------
 
-static volatile LONG g_captureInput = -1;
-static volatile LONG g_captureWhich;
+static volatile LONG g_capturing; // a capture asked: g_captureDevice's input for a row of g_captureKind
+static volatile LONG g_captureDevice;
+static volatile LONG g_captureKind;
 static volatile LONG g_captureDone;
 static char g_captured[64];
 
@@ -958,53 +998,157 @@ const char *wl_controls_player_name(int player)
     return player >= 0 && player < MAX_PLAYERS ? g_playerNames[player] : "";
 }
 
-// controls.ini key of an input's binding: 0 the action, 1 ACTION_Left / ACTION_Digital, 2 ACTION_Right
-static void binding_key(const WlInput *in, int which, char *key, size_t size)
+int wl_controls_devices(WlControlDevice *out, int max)
 {
-    if (which == 1)
-        snprintf(key, size, "%s_%s", in->action, in->type == WL_INPUT_AXIS ? "Left" : "Digital");
-    else if (which == 2)
-        snprintf(key, size, "%s_Right", in->action);
-    else
-        snprintf(key, size, "%s", in->action);
+    int n = 0;
+    if (n < max)
+    {
+        memset(&out[n], 0, sizeof out[n]);
+        out[n].player = -1;
+        n++;
+    }
+    AcquireSRWLockShared(&g_devicesLock);
+    for (int p = 0; p < MAX_PLAYERS && n < max; p++)
+    {
+        if (!g_players[p].joy)
+            continue;
+        WlControlDevice *d = &out[n++];
+        d->player = p;
+        d->gamepad = g_players[p].pad != NULL;
+        d->ffb = g_hapticPlayer == p && g_haptic;
+        snprintf(d->name, sizeof d->name, "%s", g_playerNames[p][0] ? g_playerNames[p] : "?");
+    }
+    ReleaseSRWLockShared(&g_devicesLock);
+    return n;
 }
 
-void wl_controls_binding(int input, int which, char *out, size_t size)
+static void trim_both(char *s)
 {
-    out[0] = 0;
-    WlInput *in = wl_input_at(input);
-    if (!in || !in->action || !g_ini[0])
-        return;
-    char key[96];
-    binding_key(in, which, key, sizeof key);
-    wchar_t ws[64], wk[96], wv[1024];
-    MultiByteToWideChar(CP_UTF8, 0, section_of(in), -1, ws, 64);
-    MultiByteToWideChar(CP_UTF8, 0, key, -1, wk, 96);
-    GetPrivateProfileStringW(ws, wk, L"", wv, 1024, g_ini);
-    WideCharToMultiByte(CP_UTF8, 0, wv, -1, out, (int)size, NULL, NULL);
+    size_t n = strlen(s);
+    while (n && (s[n - 1] == ' ' || s[n - 1] == '\t'))
+        s[--n] = 0;
+    size_t b = 0;
+    while (s[b] == ' ' || s[b] == '\t')
+        b++;
+    memmove(s, s + b, n - b + 1);
 }
 
-void wl_controls_set_binding(int input, int which, const char *value)
+int wl_controls_rows(const char *section, WlControlRow *rows, int max)
 {
-    WlInput *in = wl_input_at(input);
-    if (!in || !in->action || !g_ini[0])
+    if (!g_ini[0])
+        return 0;
+    static wchar_t all[32768];
+    wchar_t ws[64];
+    MultiByteToWideChar(CP_UTF8, 0, section, -1, ws, 64);
+    if (!GetPrivateProfileSectionW(ws, all, sizeof all / sizeof all[0], g_ini))
+        return 0;
+    int n = 0;
+    for (const wchar_t *line = all; *line && n < max; line += wcslen(line) + 1)
+    {
+        char text[1024];
+        WideCharToMultiByte(CP_UTF8, 0, line, -1, text, sizeof text, NULL, NULL);
+        char *eq = strchr(text, '=');
+        if (!eq || text[0] == ';' || text[0] == '#')
+            continue;
+        *eq = 0;
+        snprintf(rows[n].key, sizeof rows[n].key, "%s", text);
+        snprintf(rows[n].value, sizeof rows[n].value, "%s", eq + 1);
+        trim_both(rows[n].key);
+        trim_both(rows[n].value);
+        if (rows[n].key[0])
+            n++;
+    }
+    return n;
+}
+
+void wl_controls_set_row(const char *section, const char *key, const char *value)
+{
+    if (!g_ini[0])
         return;
-    char key[96];
-    binding_key(in, which, key, sizeof key);
     wchar_t ws[64], wk[96], wv[1024];
-    MultiByteToWideChar(CP_UTF8, 0, section_of(in), -1, ws, 64);
+    MultiByteToWideChar(CP_UTF8, 0, section, -1, ws, 64);
     MultiByteToWideChar(CP_UTF8, 0, key, -1, wk, 96);
     MultiByteToWideChar(CP_UTF8, 0, value, -1, wv, 1024);
     WritePrivateProfileStringW(ws, wk, wv, g_ini);
-    wl_log("controls: [%s] %s = %s (settings menu)", section_of(in), key, value);
+    wl_log("controls: [%s] %s = %s (settings menu)", section, key, value);
     InterlockedExchange(&g_reload, 1);
 }
 
-void wl_controls_capture(int input, int which)
+int wl_controls_default_row(const char *section, const char *key, char *out, size_t size)
+{
+    char line[256], current[64] = "";
+    for (const char *d = g_defaults; *d;)
+    {
+        size_t n = strcspn(d, "\r\n");
+        snprintf(line, sizeof line, "%.*s", (int)n, d);
+        d += n;
+        while (*d == '\r' || *d == '\n')
+            d++;
+        if (line[0] == '[')
+        {
+            snprintf(current, sizeof current, "%s", line + 1);
+            char *end = strchr(current, ']');
+            if (end)
+                *end = 0;
+            continue;
+        }
+        char *eq = strchr(line, '=');
+        if (!eq || _stricmp(current, section))
+            continue;
+        *eq = 0;
+        trim_both(line);
+        if (_stricmp(line, key))
+            continue;
+        snprintf(out, size, "%s", eq + 1);
+        trim_both(out);
+        return 1;
+    }
+    out[0] = 0;
+    return 0;
+}
+
+int wl_controls_input_state(const char *token, int *on, int *raw)
+{
+    *on = 0;
+    *raw = 0;
+    char t[192];
+    snprintf(t, sizeof t, "%s", token);
+    Source parts[MAX_COMBO];
+    int count = 0;
+    char *ctx = NULL;
+    for (char *part = strtok_s(t, "+", &ctx); part && count < MAX_COMBO; part = strtok_s(NULL, "+", &ctx))
+        if (parse_source(part, &parts[count]))
+            count++;
+    if (!count)
+        return 0;
+    AcquireSRWLockShared(&g_devicesLock);
+    int kind = 1;
+    const Source *s = &parts[0];
+    if (count == 1 && (s->kind == SRC_JOY_AXIS || s->kind == SRC_GC_AXIS) && s->part != PART_POSITIVE && s->part != PART_NEGATIVE)
+    {
+        Device *d = &g_players[s->player < MAX_PLAYERS ? s->player : 0];
+        kind = d->joy ? 2 : 0;
+        if (s->kind == SRC_JOY_AXIS && d->joy)
+            *raw = SDL_GetJoystickAxis(d->joy, s->index);
+        else if (d->pad)
+            *raw = SDL_GetGamepadAxis(d->pad, (SDL_GamepadAxis)s->index);
+    }
+    else
+    {
+        *on = 1;
+        for (int i = 0; i < count; i++)
+            *on = *on && pressed(&parts[i]);
+    }
+    ReleaseSRWLockShared(&g_devicesLock);
+    return kind;
+}
+
+void wl_controls_capture(int player, int kind)
 {
     g_captureDone = 0;
-    g_captureWhich = which;
-    InterlockedExchange(&g_captureInput, input);
+    InterlockedExchange(&g_captureDevice, player);
+    InterlockedExchange(&g_captureKind, kind);
+    InterlockedExchange(&g_capturing, 1);
 }
 
 int wl_controls_capture_result(char *out, size_t size)
@@ -1018,7 +1162,7 @@ int wl_controls_capture_result(char *out, size_t size)
 
 void wl_controls_capture_cancel(void)
 {
-    InterlockedExchange(&g_captureInput, -1);
+    InterlockedExchange(&g_capturing, 0);
 }
 
 void wl_controls_ffb_settings(double *strength, int *invert)
@@ -1131,21 +1275,19 @@ struct CaptureBase
 };
 static CaptureBase g_base;
 
+// The settings menu's capture (wl_controls_capture): the first input of the device asked that
+// changes, a key for the keyboard (-1), else a button, a hat or an axis of player n's device. An
+// axis for the steering is the whole axis (_INVERTED when it was turned right, the left being
+// asked), for a pedal its side from where it rested (or the whole axis, _INVERTED when it rested
+// at the top), for a button half of it (_POSITIVE / _NEGATIVE)
 static void capture_step(void)
 {
-    int input = g_captureInput;
-    if (input < 0)
+    if (!g_capturing)
     {
         g_base.started = 0;
         return;
     }
-    WlInput *in = wl_input_at(input);
-    int which = g_captureWhich;
-    if (!in)
-    {
-        InterlockedExchange(&g_captureInput, -1);
-        return;
-    }
+    int device = g_captureDevice, kind = g_captureKind;
 
     if (!g_base.started)
     {
@@ -1167,7 +1309,7 @@ static void capture_step(void)
     }
 
     char found[64] = "", name[32];
-    if (g_keyboardFocus)
+    if (device < 0 && g_keyboardFocus)
         for (int vk = 8; vk < 256 && !found[0]; vk++)
         {
             int down = (GetAsyncKeyState(vk) & 0x8000) != 0;
@@ -1181,7 +1323,7 @@ static void capture_step(void)
     for (int p = 0; p < MAX_PLAYERS && !found[0]; p++)
     {
         SDL_Joystick *j = g_players[p].joy;
-        if (!j)
+        if (!j || p != device)
             continue;
         for (int b = 0; b < SDL_GetNumJoystickButtons(j) && b < 64 && !found[0]; b++)
             if (SDL_GetJoystickButton(j, b) && !g_base.buttons[p][b])
@@ -1199,9 +1341,9 @@ static void capture_step(void)
             if (fabs(a1 - a0) < 0.5)
                 continue;
             const char *suffix;
-            if (in->type == WL_INPUT_AXIS && which == 0)
+            if (kind == WL_CAPTURE_STEERING)
                 suffix = a1 < a0 ? "" : "_INVERTED"; // turned left: SDL's left is negative
-            else if (in->type == WL_INPUT_ANALOG && which == 0)
+            else if (kind == WL_CAPTURE_PEDAL)
                 suffix = fabs(a0) > 0.8 ? (a0 > 0 ? "_INVERTED" : "") : (a1 > a0 ? "_POSITIVE_SIDE" : "_NEGATIVE_SIDE");
             else
                 suffix = a1 > a0 ? "_POSITIVE" : "_NEGATIVE";
@@ -1213,7 +1355,7 @@ static void capture_step(void)
     {
         snprintf(g_captured, sizeof g_captured, "%s", found);
         g_captureDone = 1;
-        InterlockedExchange(&g_captureInput, -1);
+        InterlockedExchange(&g_capturing, 0);
         g_base.started = 0;
         wl_log("controls: captured %s", found);
     }
