@@ -127,7 +127,23 @@ static void usage(void)
 // cabinets' copies, for information: a program with another one is recognized and played the same
 static void list_games(void)
 {
-    say("%-37s %-13s %-7s %-38s %s\n", "Game", "Name", "Version", "Program", "CRC32");
+    // The columns as wide as their longest text
+    int wTitle = 4, wName = 4, wVersion = 7, wProgram = 7;
+    for (int i = 0; i < g_wlKnownGameCount; i++)
+    {
+        const WlKnownGame *g = &g_wlKnownGames[i];
+        int n;
+        if ((n = (int)strlen(g->title)) > wTitle)
+            wTitle = n;
+        if ((n = (int)strlen(g->name)) > wName)
+            wName = n;
+        if ((n = (int)strlen(g->version)) > wVersion)
+            wVersion = n;
+        for (int k = 0; k < 3 && g->exes[k]; k++)
+            if ((n = (int)wcslen(g->exes[k])) > wProgram)
+                wProgram = n;
+    }
+    say("%-*s  %-*s  %-*s  %-*s  %s\n", wTitle, "Game", wName, "Name", wVersion, "Version", wProgram, "Program", "CRC32");
     for (int i = 0; i < g_wlKnownGameCount; i++)
     {
         const WlKnownGame *g = &g_wlKnownGames[i];
@@ -136,7 +152,8 @@ static void list_games(void)
             char crc[16] = "--------";
             if (g->crc32[k])
                 snprintf(crc, sizeof crc, "%08lX", (unsigned long)g->crc32[k]);
-            say("%-37s %-13s %-7s %-38s %s\n", g->title, g->name, g->version[0] ? g->version : "-", u8(g->exes[k]), crc);
+            say("%-*s  %-*s  %-*s  %-*s  %s\n", wTitle, g->title, wName, g->name, wVersion, g->version[0] ? g->version : "-", wProgram,
+                u8(g->exes[k]), crc);
         }
     }
 }
