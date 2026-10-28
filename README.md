@@ -100,8 +100,11 @@ Display settings are in `windowsloader.ini` next to the launcher, with linuxload
 keys and meanings: `ASPECT_RATIO` (`ORIGINAL`; `4:3`, `16:9`, `4:3_LETTERBOX`: the picture whole in
 that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deformed; `4:3_CROP`,
 `16:9_CROP`: the frame filled, the picture cut), `CROP_POSITION` (-100 left or top to 100),
-`CROP_BARREL` (the cut parts bent onto the edges, as on a cylinder; with `PRESENT = GDI`, the
-default), `BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `DISPLAY_MODE` (`WINDOW`,
+`CROP_BARREL` (the cut parts bent onto the edges, as on a cylinder; with `PRESENT = GDI` only),
+`BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `PRESENT` (`DIRECT`, the default since
+28/10/2026: the game presents its own picture; `GDI`: windowsloader reads each frame back and draws it
+into the window, much slower, for a PC that shows nothing of `DIRECT`, such as a laptop whose screen
+is on another graphics chip than the game's), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`; `FULLSCREEN`, `FULLSCREEN_STRETCH`: the screen switched to its smallest mode holding the game's picture;
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or
@@ -156,9 +159,19 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 
 **Tab** pauses the game and opens the settings menu, Tab again closes it (F10 until October 2026;
 Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows): the game and its cabinet's boards (how the
-controls reach it, which motor board drives its wheel), controls (bindings captured from the
-keyboard, a gamepad or a wheel, saved to `controls.ini`), the game's own options, display, force
-feedback (its device, strength and direction), the network outputs the game can send.
+controls, the game's own options, display, force feedback (its device, strength and direction),
+the network outputs the game can send.
+
+The controls page is linuxloader's (itself laid out as Flycast's): the devices found (the keyboard,
+then each controller with its `JOY<n>` / `GC<n>` prefix in `controls.ini`), each with a "Lier" button
+that opens its bindings page over the whole picture: every action of `[Common]` and `[Driving]`,
+grouped by player, with that device's inputs, their state now (an axis around its middle with its dead
+zone, a pedal's travel, a button's dot) and "Lier" (the device's next input replaces its own ones for
+the action, the other devices' kept), "Délier", and windowsloader's "Ajouter" (the device's next input
+joins its own ones: two keys for an action; a key and a joystick's button are each bound from their
+device's page) and "Défaut" (the device's inputs of that action as a new `controls.ini` has them);
+"Réinitialiser..." does the same for all the device's actions. Below the devices: what the game gets of each of its inputs (the value its board reads), and
+the dead zones and other `[Config]` options. Every change is written to `controls.ini` and taken at once.
 
 The force feedback's device, as Supermodel, Flycast, linuxloader and sm2-emu choose it:
 `controls.ini` `[Config] FFB_Device` (beside `FFB_Strength` and `FFB_Invert`; `--set
@@ -170,6 +183,17 @@ of that name, player 1's, else the first. While it is not connected, at the star
 during the game, player 1's wheel plays them; plugged in again, it takes them back with the current
 force. The menu's force feedback page lists "Automatique" and the connected devices ("<name> (non
 connecté)" for a chosen one that is absent); a choice there takes effect at once and is saved.
+The force's direction is SDL's own, as linuxloader's: a positive constant force pushes the wheel to
+the left (SDL gives the direction a force comes from). Up to the 20261028-3 release, windowsloader
+sent it the other way round: a `controls.ini` saved with `FFB_Invert = 1` to make up for it must go
+back to `FFB_Invert = 0` ("Inverser le sens" unticked).
+
+`[Common] ExitGame` ends the game, as linuxloader's (and Escape under TeknoParrot): by default
+`KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10`, added to an existing
+`controls.ini` that lacks it; `ExitGame =` (empty) turns it off. The keyboard counts only while the
+game's window has the focus, nothing while the settings menu is open; the launcher then closes the
+programs it started with the game.
+
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
 own file (made from a copy of the file read the first time). `[Launcher] SETTINGS_MENU = false`, for
 a public cabinet: Tab no longer opens the menu over a running game (the agent's `menu on` still
