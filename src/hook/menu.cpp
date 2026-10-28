@@ -1342,6 +1342,7 @@ static LRESULT CALLBACK gl_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 #define GL_TEXTURE_3D_ 0x806F
 #define GL_TEXTURE_RECTANGLE_ 0x84F5
 #define GL_FRAMEBUFFER_SRGB_ 0x8DB9
+#define GL_FUNC_ADD_ 0x8006
 
 typedef void(APIENTRY *GlUintFn)(GLenum);
 typedef void(APIENTRY *GlBindFn)(GLenum, GLuint);
@@ -1350,7 +1351,7 @@ typedef void(APIENTRY *GlProgramFn)(GLuint);
 static struct
 {
     int looked;
-    GlUintFn activeTexture, clientActiveTexture;
+    GlUintFn activeTexture, clientActiveTexture, blendEquation;
     GlBindFn bindBuffer, bindFramebuffer;
     GlProgramFn useProgram;
 } g_glx;
@@ -1372,6 +1373,9 @@ static void gl_functions(void)
     if (!g_glx.bindFramebuffer)
         g_glx.bindFramebuffer = (GlBindFn)wglGetProcAddress("glBindFramebufferEXT");
     g_glx.useProgram = (GlProgramFn)wglGetProcAddress("glUseProgram");
+    g_glx.blendEquation = (GlUintFn)wglGetProcAddress("glBlendEquation");
+    if (!g_glx.blendEquation)
+        g_glx.blendEquation = (GlUintFn)wglGetProcAddress("glBlendEquationEXT");
 }
 
 // After glPushAttrib(GL_ALL_ATTRIB_BITS) and glPushClientAttrib(GL_CLIENT_ALL_ATTRIB_BITS)
@@ -1433,6 +1437,14 @@ static void gl_neutral(GlSaved *s)
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_COLOR_LOGIC_OP);
     glDisable(GL_POLYGON_STIPPLE);
+    // What Dear ImGui's backend leaves as it finds it: Initial D 6 keeps a GL_MAX blending (its
+    // menu came out see-through over a bright picture), fog or an alpha test would fade it too
+    glDisable(GL_ALPHA_TEST);
+    glDisable(GL_FOG);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    if (g_glx.blendEquation)
+        g_glx.blendEquation(GL_FUNC_ADD_);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     glDrawBuffer(GL_BACK);
     glReadBuffer(GL_BACK);
