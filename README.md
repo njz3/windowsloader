@@ -67,7 +67,15 @@ windowsloader               (alone: the game picker)
                            --set Display.ASPECT_RATIO=4:3_CROP
   --write-dir <folder>     everything written goes there, the launcher's and the game's folders
                            only read (default: [Paths] WRITE_DIR of the settings file)
+  --list-games     the games windowsloader knows, one line per program it takes: the game, its
+                   short name, its version, the program, the program's CRC32 in the cabinets'
+                   copies ("--------" when not known)
 ```
+
+The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and in the write folder
+(`WRITE_DIR\<name>`). The CRC32 is that of the cabinets' copies, for information only: a program
+with another CRC32 is recognized and played all the same (a game is told by its program's name, the
+files beside it and, for a few, the program's time stamp).
 
 Started alone, without a game (a double click in the Explorer), `windowsloader.exe` opens the game
 picker, as linuxloader's: the games found in the games folder as a list, the chosen one's

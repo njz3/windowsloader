@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+#include "gamelist.h"
 #include "picker.h"
 #include "wlshared.h"
 #include "writedir.h"
@@ -110,11 +111,34 @@ static void usage(void)
         "                   (repeatable)\n"
         "  --write-dir <folder>  everything written goes there, the launcher's and the game's folders only\n"
         "                   read (default: [Paths] WRITE_DIR of the settings file, none when empty)\n"
+        "  --list-games     the games windowsloader knows, one line per program: the game, its short name,\n"
+        "                   its version, the program, the program's CRC32 in the cabinets' copies (for\n"
+        "                   information: a program with another CRC32 is played all the same)\n"
         "  -h, --help       this help\n"
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
         "windowsloader64.dll; each launcher hands the other kind of game to its sibling in the same folder.\n",
         WL_SELF_BITS == 64 ? "windowsloader64" : "windowsloader", WL_SELF_BITS == 64 ? "windowsloader64" : "windowsloader");
+}
+
+// --list-games: the games of the table (gamelist.cpp), one line per program it takes: the game, its
+// short name (its settings' [Game.<name>], its WRITE_DIR\<name>), its version ("-" when the copies
+// do not tell it), the program, its CRC-32 ("--------" when not known). The CRC-32 is that of the
+// cabinets' copies, for information: a program with another one is recognized and played the same
+static void list_games(void)
+{
+    say("%-37s %-13s %-7s %-38s %s\n", "Game", "Name", "Version", "Program", "CRC32");
+    for (int i = 0; i < g_wlKnownGameCount; i++)
+    {
+        const WlKnownGame *g = &g_wlKnownGames[i];
+        for (int k = 0; k < 3 && g->exes[k]; k++)
+        {
+            char crc[16] = "--------";
+            if (g->crc32[k])
+                snprintf(crc, sizeof crc, "%08lX", (unsigned long)g->crc32[k]);
+            say("%-37s %-13s %-7s %-38s %s\n", g->title, g->name, g->version[0] ? g->version : "-", u8(g->exes[k]), crc);
+        }
+    }
 }
 
 // ------------------------------------------------------------------------------
@@ -716,6 +740,11 @@ int wmain(int argc, wchar_t **argv)
         if (!wcscmp(a, L"-h") || !wcscmp(a, L"--help"))
         {
             usage();
+            return 0;
+        }
+        else if (!wcscmp(a, L"--list-games"))
+        {
+            list_games();
             return 0;
         }
         else if (!wcscmp(a, L"--log") && hasValue)
