@@ -1297,17 +1297,22 @@ trottinette : guidon, poussées du pied à gauche et à droite, frein, six bouto
 `XIO`) : sa fonction `update`, appelée à chaque image, est celle de windowsloader et remplit les variables de la
 bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier de `xio.dll`).
 
-- Lancement ✅ : étalonnage du guidon au démarrage (le moteur le tourne lui-même ; sans volant à retour de force :
-  « ERROR THE STEERING WHEEL » puis « DEFAULT SETTING », et le jeu continue), « INITIALIZE » tout OK (I/O PORT
-  compris), avertissement, titre, attract.
+- Lancement ✅ : étalonnage du guidon au démarrage, « INITIALIZE » tout OK (I/O PORT compris), avertissement, titre,
+  attract. L'étalonnage (xwin.exe+0x25c00, 300 images par étape) : le moteur pousse le guidon à droite, le jeu en
+  prend la position, puis à gauche, puis le ramène au milieu ; « ERROR THE STEERING WHEEL » puis « DEFAULT SETTING »
+  (0x00, 0x80, 0xFF) si la position de gauche n'est pas sous celle de droite. Un guidon que le moteur ne tourne pas
+  (un volant sans retour de force, vJoy, ou un retour de force trop faible ou inversé) donnait l'erreur, et un faible
+  une course trop courte. Depuis le 28/10, l'étalonnage reçoit le guidon qu'il attend : 0xFF à droite, 0x00 à
+  gauche, 0x80 au milieu (la plage de windowsloader) ; il passe, le moteur joue toujours.
 - Commandes ✅ (agent, vues dans I/O CHECK du menu de test) : guidon (0x00 à gauche, 0xFF à droite), frein, poussées
   gauche et droite, Start (bit 0x01), Service (0x02), Test (0x04, ouvre le MAIN MENU), pièce (0x08 ; Service compte
   aussi une pièce), choix gauche et droite (0x10, 0x20). L'accélérateur (la poignée des bornes moto) alterne les deux
   poussées, plus vite quand il est tourné à fond : 54 km/h. Partie : deux pièces = un crédit, choix du joueur, du
   costume et du pied, mission, course.
 - Retour de force ✅ : `setSteeringBar` est le moteur du guidon (0 : aucun ; impair 0x0B..0x17 : vers la gauche,
-  pair 0x0A..0x16 : vers la droite, sept forces). Le sens est vérifié par l'étalonnage : un guidon qui suit la force
-  le passe, l'autre sens donne « ERROR ». En course : un ressort vers le milieu, plus raide avec la vitesse.
+  pair 0x0A..0x16 : vers la droite, sept forces). Le sens a été vérifié par l'étalonnage (avant qu'il reçoive le
+  guidon attendu) : un guidon qui suit la force le passait, l'autre sens donnait « ERROR ». En course : un ressort vers
+  le milieu, plus raide avec la vitesse.
 - Sorties réseau : `lamp` (motif), `start_lamp`, `select_lamp`, `vibration` (3 au repos), `handlebar_motor`.
 - Affichage ✅ : le jeu dessine 640×480 dans le coin d'une fenêtre de la taille de l'écran. Son module donne la
   taille (`wl_gl_picture`) ; depuis le 27/10, comme Initial D 6 : le jeu dessine dans le framebuffer de

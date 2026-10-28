@@ -157,6 +157,34 @@ static void __fastcall hupdate(void *self, void *)
         *g_xio.accel[p] = *g_xio.accelDif[p] = *g_xio.accelEnd[p] = down[p] ? 1 : 0;
 }
 
+// The power-on calibration of the handlebar (xwin.exe+0x25c00, called once a frame until it
+// returns 1; its state at [this], its frames at [this+8], 300 for each step): the motor pulls the
+// handlebar right (state 1) and g_bHandle is taken as its right end, pulls it left (2) for its left
+// end, brings it back to the middle (3) and waits (4); then "ERROR THE STEERING WHEEL" and the
+// defaults 0x00, 0x80, 0xFF unless the left end is below the right one. A handlebar the motor does
+// not turn (a wheel without force feedback, or with its own, too weak or the other way) gives the
+// error, and a weak one a range too short. windowsloader's handlebar already spans 0x00..0xFF: the
+// calibration gets the one it expects, at those ends, and keeps them; the motor still plays.
+#define FE_CALIBRATE 0x425c00
+static const unsigned char g_calibrateStart[] = {0x53, 0x56, 0x8B, 0xF1, 0x57}; // push ebx; push esi; mov esi, ecx; push edi
+
+static int(__fastcall *ocalibrate)(void *, void *);
+static int __fastcall hcalibrate(void *self, void *)
+{
+    int state = *(int *)self;
+    if (xio_globals() && state >= 1 && state <= 4)
+        *g_xio.handle = (unsigned char)(state == 1 ? 0xFF : state == 2 ? 0x00 : 0x80);
+    int done = ocalibrate(self, NULL);
+    static int logged;
+    if (done && !logged)
+    {
+        logged = 1;
+        const unsigned char *c = (const unsigned char *)self + 0xC;
+        wl_log("uniana: handlebar calibrated: left 0x%02x, middle 0x%02x, right 0x%02x", c[0], c[1], c[2]);
+    }
+    return done;
+}
+
 // The outputs: the lights and the motor's value, for the network outputs
 enum
 {
@@ -248,6 +276,12 @@ int wl_game_uniana(const wchar_t *exePath, const char **name, const char **title
     g_out[OUT_MOTOR] = wl_outputs_declare_value("handlebar_motor", "nombre (0, 10-23)",
                                                 "Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant");
     wl_hooks_add(g_xioHooks, sizeof g_xioHooks / sizeof g_xioHooks[0]);
+    MEMORY_BASIC_INFORMATION mi;
+    if (VirtualQuery((const void *)FE_CALIBRATE, &mi, sizeof mi) && mi.State == MEM_COMMIT && !(mi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) &&
+        !memcmp((const void *)FE_CALIBRATE, g_calibrateStart, sizeof g_calibrateStart))
+        wl_hook_code((void *)FE_CALIBRATE, (void *)hcalibrate, (void **)&ocalibrate, "xwin.exe handlebar calibration");
+    else
+        wl_log("uniana: another xwin.exe (no handlebar calibration at +0x25c00): the calibration left alone");
     wl_gl_picture(640, 480);
     return 1;
 }
