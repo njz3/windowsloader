@@ -514,6 +514,12 @@ static const char *state_text(int state, ImVec4 *color)
     }
 }
 
+// A feature of the game (gamelist.h's WL_FEATURE_...), for its sheet
+static const char *feature_text(int feature)
+{
+    return feature == WL_FEATURE_YES ? "oui" : feature == WL_FEATURE_PARTLY ? "en partie (voir BILAN.md)" : "non";
+}
+
 static void field(const char *name, const char *value)
 {
     if (!value || !value[0])
@@ -611,6 +617,8 @@ static int draw(int *selected, int *action)
         field("Dossier", e->folderName);
         field("Programme", e->exeShown);
         field("Arguments", e->args);
+        field("Retour de force", feature_text(e->game->ffb));
+        field("Link", feature_text(e->game->link));
         field("Émulé", e->game->note);
         ImGui::Spacing();
         ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);

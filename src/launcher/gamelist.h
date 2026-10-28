@@ -26,6 +26,14 @@ enum
     WL_GAME_WORK    // being worked on: does not play yet
 };
 
+// How far windowsloader plays one of the game's features (--list-games, the picker's sheet)
+enum
+{
+    WL_FEATURE_NO,     // not played: the game has none, or windowsloader does not play it
+    WL_FEATURE_PARTLY, // played, not all of it checked (BILAN.md)
+    WL_FEATURE_YES     // played and checked
+};
+
 struct WlKnownGame
 {
     const char *title;
@@ -41,6 +49,8 @@ struct WlKnownGame
     const char *year;
     int state;
     const char *note; // what windowsloader plays for it
+    int ffb;          // the force feedback: the game's motor sent to the wheel (WL_FEATURE_...)
+    int link;         // the link between cabinets
 };
 
 extern const WlKnownGame g_wlKnownGames[];

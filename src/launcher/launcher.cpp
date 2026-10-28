@@ -112,7 +112,8 @@ static void usage(void)
         "  --write-dir <folder>  everything written goes there, the launcher's and the game's folders only\n"
         "                   read (default: [Paths] WRITE_DIR of the settings file, none when empty)\n"
         "  --list-games     the games windowsloader knows, one line per program: the game, its short name,\n"
-        "                   its version, the program, the program's CRC32 in the cabinets' copies (for\n"
+        "                   its version, its force feedback and link between cabinets (yes, partly, no),\n"
+        "                   the program, the program's CRC32 in the cabinets' copies (for\n"
         "                   information: a program with another CRC32 is played all the same)\n"
         "  -h, --help       this help\n"
         "\n"
@@ -123,8 +124,14 @@ static void usage(void)
 
 // --list-games: the games of the table (gamelist.cpp), one line per program it takes: the game, its
 // short name (its settings' [Game.<name>], its WRITE_DIR\<name>), its version ("-" when the copies
-// do not tell it), the program, its CRC-32 ("--------" when not known). The CRC-32 is that of the
-// cabinets' copies, for information: a program with another one is recognized and played the same
+// do not tell it), how far windowsloader plays its force feedback and its link between cabinets
+// (yes, partly, no: BILAN.md), the program, its CRC-32 ("--------" when not known). The CRC-32 is that
+// of the cabinets' copies, for information: a program with another one is recognized and played the same
+static const char *feature_text(int feature)
+{
+    return feature == WL_FEATURE_YES ? "yes" : feature == WL_FEATURE_PARTLY ? "partly" : "no";
+}
+
 static void list_games(void)
 {
     // The columns as wide as their longest text
@@ -143,7 +150,8 @@ static void list_games(void)
             if ((n = (int)wcslen(g->exes[k])) > wProgram)
                 wProgram = n;
     }
-    say("%-*s  %-*s  %-*s  %-*s  %s\n", wTitle, "Game", wName, "Name", wVersion, "Version", wProgram, "Program", "CRC32");
+    say("%-*s  %-*s  %-*s  %-6s  %-6s  %-*s  %s\n", wTitle, "Game", wName, "Name", wVersion, "Version", "FFB", "Link", wProgram, "Program",
+        "CRC32");
     for (int i = 0; i < g_wlKnownGameCount; i++)
     {
         const WlKnownGame *g = &g_wlKnownGames[i];
@@ -152,8 +160,8 @@ static void list_games(void)
             char crc[16] = "--------";
             if (g->crc32[k])
                 snprintf(crc, sizeof crc, "%08lX", (unsigned long)g->crc32[k]);
-            say("%-*s  %-*s  %-*s  %-*s  %s\n", wTitle, g->title, wName, g->name, wVersion, g->version[0] ? g->version : "-", wProgram,
-                u8(g->exes[k]), crc);
+            say("%-*s  %-*s  %-*s  %-6s  %-6s  %-*s  %s\n", wTitle, g->title, wName, g->name, wVersion, g->version[0] ? g->version : "-",
+                feature_text(g->ffb), feature_text(g->link), wProgram, u8(g->exes[k]), crc);
         }
     }
 }

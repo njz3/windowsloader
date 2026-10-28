@@ -68,8 +68,9 @@ windowsloader               (alone: the game picker)
   --write-dir <folder>     everything written goes there, the launcher's and the game's folders
                            only read (default: [Paths] WRITE_DIR of the settings file)
   --list-games     the games windowsloader knows, one line per program it takes: the game, its
-                   short name, its version, the program, the program's CRC32 in the cabinets'
-                   copies ("--------" when not known)
+                   short name, its version, its force feedback and its link between cabinets
+                   (yes, partly, no), the program, the program's CRC32 in the cabinets' copies
+                   ("--------" when not known)
 ```
 
 The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and in the write folder
@@ -79,7 +80,8 @@ files beside it and, for a few, the program's time stamp).
 
 Started alone, without a game (a double click in the Explorer), `windowsloader.exe` opens the game
 picker, as linuxloader's: the games found in the games folder as a list, the chosen one's
-description beside it (platform, state, program, arguments, what is emulated), Enter or a double
+description beside it (platform, state, program, arguments, force feedback and link between
+cabinets: yes, partly or no, what is emulated), Enter or a double
 click to play. The game runs through `windowsloader.exe` again, its log in `windowsloader.log` next
 to the launcher, and the picker comes back when it ends. The games folder is `[Launcher] GAMES_DIR` of
 `windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next
