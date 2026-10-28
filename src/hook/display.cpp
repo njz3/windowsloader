@@ -61,7 +61,7 @@ static int g_unicode;
 static int g_bbW, g_bbH;           // the game's picture
 static int g_copy;                 // the swap chain takes a destination rectangle
 static HWND g_child;               // or it shows the picture in this child window (Direct3D 11)
-static int g_gdiSetting = 1;       // [Display] PRESENT: GDI (1) or DIRECT (0)
+static int g_gdiSetting;           // [Display] PRESENT: GDI (1) or DIRECT (0, the default)
 static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
 static int g_appliedMode = -1;
@@ -112,9 +112,10 @@ static const char *g_defaults =
     "# resolution (full screen window). F11 or Alt+Enter: window / full screen.\r\n"
     "DISPLAY_MODE = WINDOW\r\n"
     "\r\n"
-    "# Direct3D 9 and 11 games in a window. GDI: windowsloader copies the picture into the window itself;\r\n"
-    "# DIRECT: the game's own Present, faster, but some PCs show nothing of it (Windows 11 on a laptop).\r\n"
-    "PRESENT = GDI\r\n"
+    "# Direct3D 9 and 11 games in a window. DIRECT: the game's own Present, at full speed. GDI: windowsloader\r\n"
+    "# copies the picture into the window itself, much slower (each frame read back), for a PC that shows\r\n"
+    "# nothing of DIRECT (a laptop whose screen is on another graphics chip than the game's).\r\n"
+    "PRESENT = DIRECT\r\n"
     "\r\n"
     "[Paths]\r\n"
     "# The folder everything is written to (or --write-dir); the launcher's and the games' folders are then\r\n"
@@ -208,8 +209,10 @@ void wl_display_load(void)
     g_cropBarrel = wl_settings_get_bool("Display", "CROP_BARREL", 0);
     g_barrelCenter = clamp(wl_settings_get_int("Display", "BARREL_CENTER", 60), 0, 100);
     g_barrelRadius = clamp(wl_settings_get_int("Display", "BARREL_RADIUS", 50), 1, 1000);
-    wl_settings_get("Display", "PRESENT", "GDI", v, sizeof v);
-    g_gdiSetting = _stricmp(v, "DIRECT") != 0;
+    // DIRECT by default since 28/10/2026: GDI held Sega Rally 3 at 26 frames a second on racecab1 (each
+    // frame read back and drawn by the processor); GDI for the PCs that show nothing of DIRECT
+    wl_settings_get("Display", "PRESENT", "DIRECT", v, sizeof v);
+    g_gdiSetting = !_stricmp(v, "GDI");
     g_width = wl_settings_get_int("Display", "WIDTH", 0);
     g_height = wl_settings_get_int("Display", "HEIGHT", 0);
     if (g_width <= 0 || g_height <= 0)
