@@ -143,7 +143,11 @@ static const char *g_defaults =
     "GAMES_DIR = \r\n"
     "\r\n"
     "# Set to false on a public cabinet: Tab no longer opens the settings over a running game (which pauses it)\r\n"
-    "SETTINGS_MENU = true\r\n";
+    "SETTINGS_MENU = true\r\n"
+    "\r\n"
+    "# The picker's and the settings menu's language: AUTO (Windows' own: French, else its lang\\<code>.po when\r\n"
+    "# there is one, else English), fr, en, or the code of another lang\\<code>.po beside the launcher\r\n"
+    "LANGUAGE = AUTO\r\n";
 
 // The names without case, a space for the underscore ("4:3 crop", as linuxloader reads them)
 static int name_index(const char *const *names, int count, const char *value, int def)

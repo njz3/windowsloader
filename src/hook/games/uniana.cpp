@@ -37,6 +37,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -269,12 +270,13 @@ int wl_game_uniana(const wchar_t *exePath, const char **name, const char **title
     wl_log("game: %s (Uniana PC)", *title);
     wl_game_set_boards("Controls on Uniana's board (through xio.dll)", "Motor board: the handlebar's motor (through xio.dll)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
-    g_out[OUT_LAMP] = wl_outputs_declare_value("lamp", "motif (1, 2, 4, 8)", "Lumières de la borne : le motif choisi par le jeu");
-    g_out[OUT_START_LAMP] = wl_outputs_declare_value("start_lamp", "bit (0/1)", "Lumière du bouton Start");
-    g_out[OUT_SELECT_LAMP] = wl_outputs_declare_value("select_lamp", "bit (0/1)", "Lumières des boutons de choix (gauche, droite)");
-    g_out[OUT_VIBRATION] = wl_outputs_declare_value("vibration", "nombre", "Vibration du guidon (3 : au repos, la valeur de la bibliothèque)");
-    g_out[OUT_MOTOR] = wl_outputs_declare_value("handlebar_motor", "nombre (0, 10-23)",
-                                                "Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant");
+    g_out[OUT_LAMP] = wl_outputs_declare_value("lamp", wl_tr("motif (1, 2, 4, 8)"), wl_tr("Lumières de la borne : le motif choisi par le jeu"));
+    g_out[OUT_START_LAMP] = wl_outputs_declare_value("start_lamp", "bit (0/1)", wl_tr("Lumière du bouton Start"));
+    g_out[OUT_SELECT_LAMP] = wl_outputs_declare_value("select_lamp", "bit (0/1)", wl_tr("Lumières des boutons de choix (gauche, droite)"));
+    g_out[OUT_VIBRATION] = wl_outputs_declare_value("vibration", wl_tr("nombre"),
+                                                    wl_tr("Vibration du guidon (3 : au repos, la valeur de la bibliothèque)"));
+    g_out[OUT_MOTOR] = wl_outputs_declare_value("handlebar_motor", wl_tr("nombre (0, 10-23)"),
+                                                wl_tr("Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant"));
     wl_hooks_add(g_xioHooks, sizeof g_xioHooks / sizeof g_xioHooks[0]);
     MEMORY_BASIC_INFORMATION mi;
     if (VirtualQuery((const void *)FE_CALIBRATE, &mi, sizeof mi) && mi.State == MEM_COMMIT && !(mi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) &&

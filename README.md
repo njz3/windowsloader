@@ -47,6 +47,7 @@ release adds its archive's number of the day with `-DWL_BUILD_NUMBER=4` (`0.1.0-
 |---|---|---|
 | `windowsloader.exe`, `windowsloader32.dll` | `msvc-x86` | 32-bit games |
 | `windowsloader64.exe`, `windowsloader64.dll` | `msvc-x64` | 64-bit games |
+| `lang\en.po`, `lang\windowsloader.pot` | both (copied from `lang/`) | the interface's languages |
 
 ## Use
 
@@ -173,6 +174,34 @@ connecté)" for a chosen one that is absent); a choice there takes effect at onc
 own file (made from a copy of the file read the first time). `[Launcher] SETTINGS_MENU = false`, for
 a public cabinet: Tab no longer opens the menu over a running game (the agent's `menu on` still
 does).
+
+### Languages
+
+The picker and the settings menu speak French or English, and any other language given a catalogue.
+`[Launcher] LANGUAGE` of `windowsloader.ini` (or `--set Launcher.LANGUAGE=en`): `AUTO` (the default:
+Windows' display language, French as it is, another one through its catalogue when there is one,
+`pt_BR` then `pt`, else English), `fr`, `en`, or the code of another catalogue. The picker's list
+at the bottom and the menu's "About" page ("À propos") change it at once and write it to
+`windowsloader.ini`; only the texts the games' modules give at their start (the network outputs'
+descriptions) wait for the next start.
+
+The texts are written in French in the code; each other language is a gettext catalogue,
+`lang\<code>.po` beside the launcher (`lang\en.po`), read as it is: no `.mo` to build, no gettext
+library. Its `msgid` is the French text, its `msgstr` the translation; an entry left empty or marked
+fuzzy keeps the French text, one whose `%` formats differ from the French text's is left out (a
+mistaken catalogue cannot crash a game), and the header's `X-Language-Name` is the name shown in the
+lists (else Windows' name of the language). A text the language has no translation for is told once
+in the game's log (`lang: no en translation for "..."`).
+
+Another language: `python scripts/lang_update.py --new de "Deutsch"` makes `lang/de.po` from the
+template, to translate with [Poedit](https://poedit.net) or a text editor, then put in the `lang`
+folder beside the launcher. When texts change in the code, `python scripts/lang_update.py` gathers the
+marked ones again in `lang/windowsloader.pot` and brings each `.po` up to date (as `msgmerge`: the
+translations kept, the new texts empty, the ones gone kept at the end as obsolete), and
+`python scripts/lang_update.py --check` tells what is left to translate. In the code, `wl_tr("...")`
+translates a text where it is shown and `WL_N("...")` marks one in a table translated later
+(`src/common/lang.h`); `xgettext --keyword=wl_tr --keyword=WL_N --from-code=UTF-8` finds the same
+texts. linuxloader's catalogues are made the same way, English being its source language.
 
 The write folder (`--write-dir`, or `[Paths] WRITE_DIR`, relative to the launcher's folder or a full
 path; linuxloader's key): the launcher's folder and the games' are then only read, for a write

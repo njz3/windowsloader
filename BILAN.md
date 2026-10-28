@@ -59,7 +59,8 @@ Fonctions :
   (`PRESENT = GDI`, voir « Affichage sur ce PC » plus bas) ; `PRESENT = DIRECT` garde le Present du jeu.
   Les réglages de linuxloader en plus (voir « Rapport d'aspect, recadrage et courbure » plus bas).
 - **Menu Tab** (F10 jusqu'au 24/10/2026, Tab comme Flycast, linuxloader et Supermodel) : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
-  et « Sauvegarder pour ce jeu ».
+  et « Sauvegarder pour ce jeu ». En français ou en anglais (28/10, `[Launcher] LANGUAGE`, catalogues
+  `lang\<code>.po`), comme le sélecteur ; vu en anglais sur Sega Rally 3 et Mario Kart DX 1.18.
 - **Menu de service** : le menu de test de la borne (bouton Test).
 - **Crédits / Shell** : pièces, crédits et ce que le Shell de la borne fournit au jeu.
 

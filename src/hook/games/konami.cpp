@@ -28,6 +28,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "settings.h"
@@ -253,13 +254,13 @@ static void lamps_hook(void)
         wl_log("gti club 3: %d of libacio's 4 lamp functions found, the lamps not sent", n);
         return;
     }
-    wl_outputs_name_lamps("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)", NULL, GTI_LAMPS);
+    wl_outputs_name_lamps(WL_N("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"), NULL, GTI_LAMPS);
     for (int i = 0; i < GTI_LAMPS; i++)
     {
         char value[16], about[128];
         snprintf(value, sizeof value, "bright%d", i);
-        snprintf(about, sizeof about, "Intensité de la lampe %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 à 31", i);
-        int v = wl_outputs_declare_value(value, "intensité (0-31)", about);
+        snprintf(about, sizeof about, wl_tr("Intensité de la lampe %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 à 31"), i);
+        int v = wl_outputs_declare_value(value, wl_tr("intensité (0-31)"), about);
         if (!i)
             g_brightValue = v;
     }

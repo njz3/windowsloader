@@ -52,7 +52,7 @@ void wl_vdev_hooks(void); // SetFilePointer(Ex), GetCommTimeouts, ReadFileEx, Cr
 // as linuxloader's): the PC's port ("\\.\COM7") the game's goes to, NULL when emulated
 const char *wl_vdev_real_port(const char *path);
 void wl_vdev_settings(void); // once the settings are read
-void wl_vdev_label(const char *name, const char *label); // "Carte du moteur du volant", for the menu
+void wl_vdev_label(const char *name, const char *label); // WL_N("Carte du moteur du volant"), for the menu (lang.h)
 // For the menu: the game's serial ports, the PC's port chosen for each ("" emulated), written back
 int wl_serial_count(void);
 const char *wl_serial_name(int k);

@@ -20,6 +20,7 @@
 
 #include "hooks.h"
 #include "jvs.h"
+#include "lang.h"
 #include "log.h"
 #include "settings.h"
 #include "vdev.h"
@@ -129,7 +130,7 @@ const char *wl_serial_label(int k)
 {
     int i = serial_index(k);
     if (!g_label[i][0])
-        snprintf(g_label[i], sizeof g_label[i], "%s", wl_jvs_is_port(g_devices[i]->name) ? "Carte JVS" : "Carte série");
+        snprintf(g_label[i], sizeof g_label[i], "%s", wl_jvs_is_port(g_devices[i]->name) ? WL_N("Carte JVS") : WL_N("Carte série"));
     return g_label[i];
 }
 

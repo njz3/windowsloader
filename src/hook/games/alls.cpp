@@ -38,6 +38,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "jvs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdev.h"
@@ -334,7 +335,7 @@ static int g_tableCount;
 // The 14 general outputs ("GOUT=14"), as a JVS board's: lamp n is bit 7 - n % 8 of byte n / 8.
 // In the attract mode the game lights lamp 0 and puts it out as Start is pressed: Start's, it seems
 #define IO4_LAMPS 14
-static const char *const g_io4LampNames[IO4_LAMPS] = {"Start (semble-t-il)"};
+static const char *const g_io4LampNames[IO4_LAMPS] = {WL_N("Start (semble-t-il)")};
 
 static SharedInputs *g_shared;
 
@@ -995,14 +996,14 @@ static int g_ledValue = -1; // led0_r's number in the network outputs, -1 when n
 
 static void led_declare(void)
 {
-    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {WL_N("rouge"), WL_N("vert"), WL_N("bleu")};
     for (int led = 0; led < LED_SWDC_LEDS; led++)
         for (int c = 0; c < 3; c++)
         {
             char name[32], about[128];
             snprintf(name, sizeof name, "led%d_%s", led, colour[c]);
-            snprintf(about, sizeof about, "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255", led + 1, label[c]);
-            int i = wl_outputs_declare_value(name, "intensité (0-255)", about);
+            snprintf(about, sizeof about, wl_tr("Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255"), led + 1, wl_tr(label[c]));
+            int i = wl_outputs_declare_value(name, wl_tr("intensité (0-255)"), about);
             if (!led && !c)
                 g_ledValue = i;
         }
@@ -1010,8 +1011,8 @@ static void led_declare(void)
     {
         char name[32], about[128];
         snprintf(name, sizeof name, "fet%d", f);
-        snprintf(about, sizeof about, "Carte LED 837-15070 (mode Cabinet) : sortie de puissance %d (commande 39), 0 à 255", f + 1);
-        wl_outputs_declare_value(name, "intensité (0-255)", about);
+        snprintf(about, sizeof about, wl_tr("Carte LED 837-15070 (mode Cabinet) : sortie de puissance %d (commande 39), 0 à 255"), f + 1);
+        wl_outputs_declare_value(name, wl_tr("intensité (0-255)"), about);
     }
 }
 
@@ -1167,15 +1168,15 @@ static int g_dashValue = -1; // speed's number in the network outputs, then gear
 
 static void dash_declare(void)
 {
-    g_dashValue = wl_outputs_declare_value("speed", "nombre (0-999)", "Tableau de bord (mode Cabinet) : la vitesse affichée, km/h");
-    wl_outputs_declare_value("gear", "nombre", "Tableau de bord (mode Cabinet) : le rapport affiché");
-    wl_outputs_declare_value("rpm", "nombre", "Tableau de bord (mode Cabinet) : le régime affiché (vide en course : 0)");
+    g_dashValue = wl_outputs_declare_value("speed", wl_tr("nombre (0-999)"), wl_tr("Tableau de bord (mode Cabinet) : la vitesse affichée, km/h"));
+    wl_outputs_declare_value("gear", wl_tr("nombre"), wl_tr("Tableau de bord (mode Cabinet) : le rapport affiché"));
+    wl_outputs_declare_value("rpm", wl_tr("nombre"), wl_tr("Tableau de bord (mode Cabinet) : le régime affiché (vide en course : 0)"));
     for (int i = 0; i < DASH_LAMPS; i++)
     {
         char name[32], about[128];
         snprintf(name, sizeof name, "dash_lamp%d", i);
-        snprintf(about, sizeof about, "Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)",
-                 i + 1);
+        snprintf(about, sizeof about,
+                 wl_tr("Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)"), i + 1);
         wl_outputs_declare_value(name, "bit (0/1)", about);
     }
 }
@@ -1436,33 +1437,33 @@ static int has_icf(const wchar_t *folder)
 
 // amdaemon's languages, those of its resources (am_resources\error.<language>.dll), by their English names
 static const WlOptionChoice g_languages[] = {
-    {"ENGLISH", "English"},
-    {"JAPANESE", "Japanese"},
-    {"CHINESE", "Chinese"},
+    {"ENGLISH", WL_N("English")},
+    {"JAPANESE", WL_N("Japanese")},
+    {"CHINESE", WL_N("Chinese")},
     {NULL, NULL},
 };
 
 // The cabinet the game plays: the launcher gives it -launch= (launcher.cpp, g_gameOptionArgs)
 static const WlOptionChoice g_cabinets[] = {
-    {"CABINET", "Cabinet"},
-    {"MINI", "MiniCabinet"},
+    {"CABINET", WL_N("Cabinet")},
+    {"MINI", WL_N("MiniCabinet")},
     {NULL, NULL},
 };
 
 static const WlGameOption g_swdcOptions[] = {
-    {"CABINET", "Type de borne",
-     "Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties "
-     "réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu.",
+    {"CABINET", WL_N("Type de borne"),
+     WL_N("Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties "
+          "réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu."),
      WL_OPTION_CHOICE, g_cabinets, 0, 0, "CABINET", 1, NULL},
-    {"LANGUAGE", "Langue des messages d'amdaemon",
-     "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais.",
+    {"LANGUAGE", WL_N("Langue des messages d'amdaemon"),
+     WL_N("Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."),
      WL_OPTION_CHOICE, g_languages, 0, 0, "ENGLISH", 1, NULL},
 };
 
 // Initial D Zero's: the same language of amdaemon's messages
 static const WlGameOption g_idzOptions[] = {
-    {"LANGUAGE", "Langue des messages d'amdaemon", "Les écrans d'erreur et d'avertissement de la plateforme.", WL_OPTION_CHOICE, g_languages,
-     0, 0, "ENGLISH", 1, NULL},
+    {"LANGUAGE", WL_N("Langue des messages d'amdaemon"), WL_N("Les écrans d'erreur et d'avertissement de la plateforme."), WL_OPTION_CHOICE,
+     g_languages, 0, 0, "ENGLISH", 1, NULL},
 };
 
 static void amdaemon_settings(void)
@@ -1542,7 +1543,7 @@ static void nu_setup(int daemon, int box)
         InitializeCriticalSection(&g_aimeLock);
         g_aime.name = g_game->aimePort;
         wl_vdev_register(&g_aime);
-        wl_vdev_label(g_aime.name, "Lecteur de cartes Aime");
+        wl_vdev_label(g_aime.name, WL_N("Lecteur de cartes Aime"));
         return;
     }
     // The game and the server box find each other by broadcasts: here, this PC's
@@ -1558,7 +1559,7 @@ static void nu_setup(int daemon, int box)
     InitializeCriticalSection(&g_ledLock);
     g_led.name = "COM11";
     wl_vdev_register(&g_led);
-    wl_vdev_label("COM11", "Carte des lampes (837-15070)");
+    wl_vdev_label("COM11", WL_N("Carte des lampes (837-15070)"));
     // The wheel's motor on COM1, opened at the game's start: Sega's servoboard, as Initial D 6 to 8's
     wl_servoboard_register("COM1");
 }
@@ -1623,10 +1624,10 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_vhid_register(&g_io4);
         InitializeCriticalSection(&g_vfdLock);
         wl_vdev_register(&g_vfd);
-        wl_vdev_label("COM4", "Afficheur du lecteur de paiement (VFD)");
+        wl_vdev_label("COM4", WL_N("Afficheur du lecteur de paiement (VFD)"));
         InitializeCriticalSection(&g_aimeLock);
         wl_vdev_register(&g_aime);
-        wl_vdev_label("COM3", "Lecteur de cartes Aime");
+        wl_vdev_label("COM3", WL_N("Lecteur de cartes Aime"));
     }
     else
     {
@@ -1635,10 +1636,10 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_servoboard_register("COM1");
         InitializeCriticalSection(&g_ledLock);
         wl_vdev_register(&g_led);
-        wl_vdev_label("COM2", "Carte des lampes (837-15070)");
+        wl_vdev_label("COM2", WL_N("Carte des lampes (837-15070)"));
         InitializeCriticalSection(&g_dashLock);
         wl_vdev_register(&g_dash);
-        wl_vdev_label("COM20", "Tableau de bord (838-15415)");
+        wl_vdev_label("COM20", WL_N("Tableau de bord (838-15415)"));
         // Windows' list of the serial ports, which Unreal's SerialPort plugin reads
         // (GetPortNames): the cabinet's, not the PC's
         static const WlRegValue ports[] = {{"\\Device\\Serial0", REG_SZ, "COM1", 0},
@@ -1647,7 +1648,10 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
         wl_registry_add_key("HARDWARE\\DEVICEMAP", NULL, 0);
         wl_registry_add_key("HARDWARE\\DEVICEMAP\\SERIALCOMM", ports, 3);
         wl_inputs_set_table(g_inputs, IN_COUNT);
-        wl_outputs_name_lamps("la carte d'E/S IO4 837-15257, via amdaemon", g_io4LampNames, IO4_LAMPS);
+        static const char *lampNames[IO4_LAMPS]; // in the language shown
+        for (int i = 0; i < IO4_LAMPS; i++)
+            lampNames[i] = g_io4LampNames[i] ? wl_tr(g_io4LampNames[i]) : NULL;
+        wl_outputs_name_lamps(WL_N("la carte d'E/S IO4 837-15257, via amdaemon"), lampNames, IO4_LAMPS);
         // The cabinet the game plays, as its command line says (the launcher's -launch= from the
         // option CABINET, or one given by hand): the full cabinet's dashboard and LED board send
         // their own outputs too

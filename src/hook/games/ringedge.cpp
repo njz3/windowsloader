@@ -37,6 +37,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "jvs.h"
+#include "lang.h"
 #include "log.h"
 #include "pcp.h"
 #include "vdev.h"
@@ -1047,8 +1048,8 @@ static void use_toolmode(void)
 #define COUNT(a) (int)(sizeof a / sizeof a[0])
 
 static const WlGameOption g_creditOptions[] = {
-    {"FREE_PLAY", "Jeu gratuit",
-     "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a).",
+    {"FREE_PLAY", WL_N("Jeu gratuit"),
+     WL_N("Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."),
      WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
 };
 

@@ -47,6 +47,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "menu.h"
 #include "outputs.h"
@@ -256,18 +257,20 @@ static const struct
     const char *action;
     const char *label;
 } g_labels[] = {
-    {"P1_Steer", "Volant"},        {"P1_Gas", "Accélérateur"}, {"P1_Brake", "Frein"},       {"P1_Start", "Start"},
-    {"ViewChange", "Vue"},         {"Handbrake", "Frein à main"}, {"GearUp", "Rapport +"},  {"GearDown", "Rapport −"},
-    {"P1_Coin", "Pièce"},          {"Test", "Test"},           {"P1_Service", "Service"},
-    {"View1", "Vue 1 (rouge)"},    {"View2", "Vue 2 (bleu)"},  {"View3", "Vue 3 (jaune)"},  {"View4", "Vue 4 (vert)"},
-    {"Gear1", "1re"},              {"Gear2", "2e"},            {"Gear3", "3e"},             {"Gear4", "4e"},
+    {"P1_Steer", WL_N("Volant")},          {"P1_Gas", WL_N("Accélérateur")},      {"P1_Brake", WL_N("Frein")},
+    {"P1_Start", WL_N("Start")},           {"ViewChange", WL_N("Vue")},           {"Handbrake", WL_N("Frein à main")},
+    {"GearUp", WL_N("Rapport +")},         {"GearDown", WL_N("Rapport −")},       {"P1_Coin", WL_N("Pièce")},
+    {"Test", WL_N("Test")},                {"P1_Service", WL_N("Service")},       {"View1", WL_N("Vue 1 (rouge)")},
+    {"View2", WL_N("Vue 2 (bleu)")},       {"View3", WL_N("Vue 3 (jaune)")},      {"View4", WL_N("Vue 4 (vert)")},
+    {"Gear1", WL_N("1re")},                {"Gear2", WL_N("2e")},                 {"Gear3", WL_N("3e")},
+    {"Gear4", WL_N("4e")},
 };
 
 static const char *label_of(const WlInput *in)
 {
     for (int i = 0; i < (int)(sizeof g_labels / sizeof g_labels[0]); i++)
         if (!strcmp(in->action, g_labels[i].action))
-            return g_labels[i].label;
+            return wl_tr(g_labels[i].label);
     return in->name;
 }
 
@@ -276,7 +279,7 @@ static void draw_value(const WlInput *in)
     int raw = wl_input_get(in);
     if (in->type == WL_INPUT_SWITCH)
     {
-        ImGui::TextUnformatted(raw != in->rawLow ? "appuyé" : "—");
+        ImGui::TextUnformatted(raw != in->rawLow ? wl_tr("appuyé") : "—");
         return;
     }
     float f = in->rawHigh != in->rawLow ? (float)(raw - in->rawLow) / (float)(in->rawHigh - in->rawLow) : 0;
@@ -295,11 +298,11 @@ static void start_capture(int input, int which, int append, const WlInput *in)
     g_capWhich = which;
     g_capAppend = append;
     if (in->type == WL_INPUT_AXIS && which == 0)
-        snprintf(g_capPrompt, sizeof g_capPrompt, "Tournez le volant vers la GAUCHE");
+        snprintf(g_capPrompt, sizeof g_capPrompt, "%s", wl_tr("Tournez le volant vers la GAUCHE"));
     else if (in->type == WL_INPUT_ANALOG && which == 0)
-        snprintf(g_capPrompt, sizeof g_capPrompt, "Appuyez à fond sur la pédale « %s »", label_of(in));
+        snprintf(g_capPrompt, sizeof g_capPrompt, wl_tr("Appuyez à fond sur la pédale « %s »"), label_of(in));
     else
-        snprintf(g_capPrompt, sizeof g_capPrompt, "Appuyez sur la touche ou le bouton « %s »", label_of(in));
+        snprintf(g_capPrompt, sizeof g_capPrompt, wl_tr("Appuyez sur la touche ou le bouton « %s »"), label_of(in));
     wl_controls_capture(input, which);
     g_capOpen = 1;
 }
@@ -308,13 +311,16 @@ static void capture_popup(void)
 {
     // Opened here, at the menu window's level where it is drawn (a popup's name is taken in the
     // ID stack it is opened in: the table's row would be another one)
+    // Its title in the language shown, its name (###assign) the same in all
     if (g_capOpen)
-        ImGui::OpenPopup("Assigner");
+        ImGui::OpenPopup("###assign");
     g_capOpen = 0;
-    if (!ImGui::BeginPopupModal("Assigner", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    char title[64];
+    snprintf(title, sizeof title, "%s###assign", wl_tr("Assigner"));
+    if (!ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
         return;
     ImGui::TextUnformatted(g_capPrompt);
-    ImGui::TextDisabled("Clavier, manette ou volant. Échap pour annuler.");
+    ImGui::TextDisabled("%s", wl_tr("Clavier, manette ou volant. Échap pour annuler."));
     char got[64];
     if (g_capInput >= 0 && wl_controls_capture_result(got, sizeof got))
     {
@@ -327,7 +333,7 @@ static void capture_popup(void)
         g_capInput = -1;
         ImGui::CloseCurrentPopup();
     }
-    else if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::Button("Annuler"))
+    else if (ImGui::IsKeyPressed(ImGuiKey_Escape) || ImGui::Button(wl_tr("Annuler")))
     {
         wl_controls_capture_cancel();
         g_capInput = -1;
@@ -344,20 +350,20 @@ static void binding_row(int index, const WlInput *in, int which, const char *lab
     ImGui::TableSetColumnIndex(0);
     ImGui::TextUnformatted(label);
     ImGui::TableSetColumnIndex(1);
-    ImGui::TextWrapped("%s", text[0] ? text : "(aucune)");
+    ImGui::TextWrapped("%s", text[0] ? text : wl_tr("(aucune)"));
     ImGui::TableSetColumnIndex(2);
     if (which == 0)
         draw_value(in);
     ImGui::TableSetColumnIndex(3);
     ImGui::PushID(index * 4 + which);
     ImGui::BeginDisabled(!wl_controls_running());
-    if (ImGui::SmallButton("Assigner"))
+    if (ImGui::SmallButton(wl_tr("Assigner")))
         start_capture(index, which, 0, in);
     ImGui::SameLine();
-    if (ImGui::SmallButton("Ajouter"))
+    if (ImGui::SmallButton(wl_tr("Ajouter")))
         start_capture(index, which, 1, in);
     ImGui::SameLine();
-    if (ImGui::SmallButton("Effacer"))
+    if (ImGui::SmallButton(wl_tr("Effacer")))
         wl_controls_set_binding(index, which, "");
     ImGui::EndDisabled();
     ImGui::PopID();
@@ -366,23 +372,23 @@ static void binding_row(int index, const WlInput *in, int which, const char *lab
 static void page_controls(void)
 {
     if (!wl_controls_running())
-        ImGui::TextWrapped("Le jeu est piloté par l'agent (--agent) : les manettes ne sont pas lues, l'assignation est désactivée.");
+        ImGui::TextWrapped("%s", wl_tr("Le jeu est piloté par l'agent (--agent) : les manettes ne sont pas lues, l'assignation est désactivée."));
     else
     {
         const char *pad = wl_controls_player_name(0);
-        ImGui::Text("Joueur 1 : %s", pad[0] ? pad : "aucune manette (clavier seulement)");
+        ImGui::Text(wl_tr("Joueur 1 : %s"), pad[0] ? pad : wl_tr("aucune manette (clavier seulement)"));
     }
     if (!wl_controls_has_file())
         return;
-    ImGui::TextDisabled("Liaisons enregistrées dans controls.ini, à côté du lanceur.");
+    ImGui::TextDisabled("%s", wl_tr("Liaisons enregistrées dans controls.ini, à côté du lanceur."));
     ImGui::Spacing();
 
     if (!ImGui::BeginTable("controls", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp))
         return;
     ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthStretch, 1.2f);
-    ImGui::TableSetupColumn("Liaisons", ImGuiTableColumnFlags_WidthStretch, 2.2f);
-    ImGui::TableSetupColumn("Valeur", ImGuiTableColumnFlags_WidthStretch, 1.0f);
+    ImGui::TableSetupColumn(wl_tr("Action"), ImGuiTableColumnFlags_WidthStretch, 1.2f);
+    ImGui::TableSetupColumn(wl_tr("Liaisons"), ImGuiTableColumnFlags_WidthStretch, 2.2f);
+    ImGui::TableSetupColumn(wl_tr("Valeur"), ImGuiTableColumnFlags_WidthStretch, 1.0f);
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableHeadersRow();
     char label[96];
@@ -393,18 +399,18 @@ static void page_controls(void)
             continue;
         if (in->type == WL_INPUT_AXIS)
         {
-            snprintf(label, sizeof label, "%s (axe)", label_of(in));
+            snprintf(label, sizeof label, wl_tr("%s (axe)"), label_of(in));
             binding_row(i, in, 0, label);
-            snprintf(label, sizeof label, "%s à gauche", label_of(in));
+            snprintf(label, sizeof label, wl_tr("%s à gauche"), label_of(in));
             binding_row(i, in, 1, label);
-            snprintf(label, sizeof label, "%s à droite", label_of(in));
+            snprintf(label, sizeof label, wl_tr("%s à droite"), label_of(in));
             binding_row(i, in, 2, label);
         }
         else if (in->type == WL_INPUT_ANALOG)
         {
-            snprintf(label, sizeof label, "%s (axe)", label_of(in));
+            snprintf(label, sizeof label, wl_tr("%s (axe)"), label_of(in));
             binding_row(i, in, 0, label);
-            snprintf(label, sizeof label, "%s (touche)", label_of(in));
+            snprintf(label, sizeof label, wl_tr("%s (touche)"), label_of(in));
             binding_row(i, in, 1, label);
         }
         else
@@ -419,18 +425,18 @@ static void page_ffb(void)
     int invert;
     wl_controls_ffb_settings(&strength, &invert);
     const char *pad = wl_controls_player_name(0);
-    ImGui::Text("Volant : %s", pad[0] ? pad : "aucun (joueur 1)");
+    ImGui::Text(wl_tr("Volant : %s"), pad[0] ? pad : wl_tr("aucun (joueur 1)"));
     // The device the effects go to: Automatique (player 1's wheel) or one by its name
     char device[128], names[16][128], label[160], playing[128];
     int connected = wl_controls_ffb_device(device, sizeof device);
     int count = wl_controls_ffb_devices(names, 16);
     if (!device[0])
-        snprintf(label, sizeof label, "Automatique");
+        snprintf(label, sizeof label, "%s", wl_tr("Automatique"));
     else
-        snprintf(label, sizeof label, connected ? "%s" : "%s (non connecté)", device);
-    if (ImGui::BeginCombo("Dispositif de retour de force", label))
+        snprintf(label, sizeof label, connected ? "%s" : wl_tr("%s (non connecté)"), device);
+    if (ImGui::BeginCombo(wl_tr("Dispositif de retour de force"), label))
     {
-        if (ImGui::Selectable("Automatique", !device[0]))
+        if (ImGui::Selectable(wl_tr("Automatique"), !device[0]))
             wl_controls_set_ffb_device("");
         for (int i = 0; i < count; i++)
         {
@@ -444,22 +450,22 @@ static void page_ffb(void)
         ImGui::EndCombo();
     }
     wl_controls_ffb_playing(playing, sizeof playing);
-    ImGui::TextDisabled("Effets joués sur : %s%s", playing[0] ? playing : "aucun",
-                        device[0] && !connected ? " (le choisi n'est pas branché : automatique)" : "");
+    ImGui::TextDisabled(wl_tr("Effets joués sur : %s%s"), playing[0] ? playing : wl_tr("aucun"),
+                        device[0] && !connected ? wl_tr(" (le choisi n'est pas branché : automatique)") : "");
     ImGui::Spacing();
     int pct = (int)(strength * 100 + 0.5);
-    if (ImGui::SliderInt("Force", &pct, 0, 200, "%d %%"))
+    if (ImGui::SliderInt(wl_tr("Force"), &pct, 0, 200, "%d %%"))
         wl_controls_set_ffb(pct / 100.0, invert);
     bool inv = invert != 0;
-    if (ImGui::Checkbox("Inverser le sens", &inv))
+    if (ImGui::Checkbox(wl_tr("Inverser le sens"), &inv))
         wl_controls_set_ffb(strength, inv);
     ImGui::Spacing();
     double f = wl_ffb_get(NULL);
     char text[64];
-    snprintf(text, sizeof text, "%+.2f (%s)", f, f > 0 ? "vers la gauche" : f < 0 ? "vers la droite" : "aucune");
-    ImGui::TextUnformatted("Force demandée par le jeu :");
+    snprintf(text, sizeof text, "%+.2f (%s)", f, f > 0 ? wl_tr("vers la gauche") : f < 0 ? wl_tr("vers la droite") : wl_tr("aucune"));
+    ImGui::TextUnformatted(wl_tr("Force demandée par le jeu :"));
     ImGui::ProgressBar((float)(1 - f) / 2, ImVec2(-1, 0), text);
-    ImGui::TextDisabled("Réglages enregistrés dans [Config] de controls.ini (FFB_Device, FFB_Strength, FFB_Invert).");
+    ImGui::TextDisabled("%s", wl_tr("Réglages enregistrés dans [Config] de controls.ini (FFB_Device, FFB_Strength, FFB_Invert)."));
 }
 
 // Display: linuxloader's settings, applied at the next frame (the resolution at the next start)
@@ -468,9 +474,17 @@ static void page_display(void)
     // linuxloader's seven choices (4:3_LETTERBOX shown as 4:3)
     static const int choices[] = {WL_ASPECT_ORIGINAL,     WL_ASPECT_4_3,      WL_ASPECT_16_9,     WL_ASPECT_4_3_STRETCH,
                                   WL_ASPECT_16_9_STRETCH, WL_ASPECT_4_3_CROP, WL_ASPECT_16_9_CROP};
-    static const char *aspects[] = {"Original", "4:3 bandes noires", "16:9 bandes noires", "4:3 étiré", "16:9 étiré", "4:3 recadré", "16:9 recadré"};
-    static const char *modes[WL_MODE_COUNT] = {"Fenêtre (pixels carrés)", "Fenêtre étirée", "Plein écran", "Plein écran étiré",
-                                               "Plein écran fenêtré (sans bordure)", "Plein écran fenêtré étiré"};
+    static const char *aspectTexts[] = {WL_N("Original"),   WL_N("4:3 bandes noires"), WL_N("16:9 bandes noires"), WL_N("4:3 étiré"),
+                                        WL_N("16:9 étiré"), WL_N("4:3 recadré"),       WL_N("16:9 recadré")};
+    static const char *modeTexts[WL_MODE_COUNT] = {WL_N("Fenêtre (pixels carrés)"),           WL_N("Fenêtre étirée"),
+                                                   WL_N("Plein écran"),                       WL_N("Plein écran étiré"),
+                                                   WL_N("Plein écran fenêtré (sans bordure)"), WL_N("Plein écran fenêtré étiré")};
+    // In the language shown
+    const char *aspects[sizeof aspectTexts / sizeof aspectTexts[0]], *modes[WL_MODE_COUNT];
+    for (int i = 0; i < (int)(sizeof aspects / sizeof aspects[0]); i++)
+        aspects[i] = wl_tr(aspectTexts[i]);
+    for (int i = 0; i < WL_MODE_COUNT; i++)
+        modes[i] = wl_tr(modeTexts[i]);
     static const int sizes[][2] = {{0, 0},     {640, 480},   {800, 600},   {1024, 768},  {1280, 720},  {1280, 1024}, {1360, 768},
                                    {1366, 768}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
     int aspect = wl_display_aspect(), mode = wl_display_mode(), choice = 0;
@@ -478,7 +492,7 @@ static void page_display(void)
         if (choices[i] == (aspect == WL_ASPECT_4_3_LETTERBOX ? WL_ASPECT_4_3 : aspect))
             choice = i;
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-    if (ImGui::Combo("Rapport d'aspect", &choice, aspects, (int)(sizeof aspects / sizeof aspects[0])))
+    if (ImGui::Combo(wl_tr("Rapport d'aspect"), &choice, aspects, (int)(sizeof aspects / sizeof aspects[0])))
         wl_display_set(choices[choice], mode);
     aspect = wl_display_aspect();
     if (aspect == WL_ASPECT_4_3_CROP || aspect == WL_ASPECT_16_9_CROP)
@@ -488,43 +502,45 @@ static void page_display(void)
         wl_display_crop(&position, &barrel, &center, &radius);
         bool bend = barrel != 0;
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-        ImGui::SliderInt("Position du recadrage", &position, -100, 100);
-        ImGui::TextDisabled("-100 : à gauche ou en haut, 0 : au milieu, 100 : à droite ou en bas.");
-        ImGui::Checkbox("Courber les parties coupées sur les bords", &bend);
+        ImGui::SliderInt(wl_tr("Position du recadrage"), &position, -100, 100);
+        ImGui::TextDisabled("%s", wl_tr("-100 : à gauche ou en haut, 0 : au milieu, 100 : à droite ou en bas."));
+        ImGui::Checkbox(wl_tr("Courber les parties coupées sur les bords"), &bend);
         if (bend)
         {
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-            ImGui::SliderInt("Milieu non déformé", &center, 0, 100, "%d %%");
+            ImGui::SliderInt(wl_tr("Milieu non déformé"), &center, 0, 100, "%d %%");
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-            ImGui::SliderInt("Rayon de courbure", &radius, 10, 300, "%d %%");
+            ImGui::SliderInt(wl_tr("Rayon de courbure"), &radius, 10, 300, "%d %%");
             ImGui::PushTextWrapPos(0.0f);
-            ImGui::TextDisabled("Toute l'image reste visible : le milieu (en %% du cadre) tel que recadré, les parties que le recadrage couperait "
-                                "resserrées sur les bords comme sur un cylindre vu de face. Un petit rayon courbe fort au bord, un grand "
-                                "resserre uniformément.");
+            ImGui::TextDisabled("%s", wl_tr("Toute l'image reste visible : le milieu (en pourcentage du cadre) tel que recadré, les parties que le recadrage "
+                                            "couperait resserrées sur les bords comme sur un cylindre vu de face. Un petit rayon courbe fort au "
+                                            "bord, un grand resserre uniformément."));
             if (!wl_display_gdi())
-                ImGui::TextDisabled("Courbure seulement quand windowsloader recopie l'image (PRESENT = GDI) : ici l'image est seulement recadrée.");
+                ImGui::TextDisabled("%s", wl_tr("Courbure seulement quand windowsloader recopie l'image (PRESENT = GDI) : ici l'image est seulement "
+                                                "recadrée."));
             ImGui::PopTextWrapPos();
         }
         wl_display_set_crop(position, bend, center, radius);
     }
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("Original : la forme de la résolution de rendu du jeu. Bandes noires : la forme du cadre, l'image entière dedans à sa "
-                        "forme. Étiré : l'image remplit le cadre, déformée. Recadré : l'image remplit le cadre à sa forme, coupée sur les "
-                        "côtés (ou en haut et en bas).");
+    ImGui::TextDisabled("%s", wl_tr("Original : la forme de la résolution de rendu du jeu. Bandes noires : la forme du cadre, l'image entière "
+                                    "dedans à sa forme. Étiré : l'image remplit le cadre, déformée. Recadré : l'image remplit le cadre à sa "
+                                    "forme, coupée sur les côtés (ou en haut et en bas)."));
     ImGui::PopTextWrapPos();
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-    if (ImGui::Combo("Mode d'affichage", &mode, modes, WL_MODE_COUNT))
+    if (ImGui::Combo(wl_tr("Mode d'affichage"), &mode, modes, WL_MODE_COUNT))
         wl_display_set(aspect, mode);
     ImGui::PushTextWrapPos(0.0f);
-    ImGui::TextDisabled("Plein écran : l'écran passe à la taille de l'image du jeu. Plein écran fenêtré : une fenêtre sans bordure "
-                        "couvre l'écran, à la résolution du bureau. F11 ou Alt+Entrée : fenêtre / plein écran.");
+    ImGui::TextDisabled("%s", wl_tr("Plein écran : l'écran passe à la taille de l'image du jeu. Plein écran fenêtré : une fenêtre sans "
+                                    "bordure couvre l'écran, à la résolution du bureau. F11 ou Alt+Entrée : fenêtre / plein écran."));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
 
     int w, h, sw, sh, current = -1;
     wl_display_internal(&w, &h);
     wl_display_internal_next(&sw, &sh);
-    char saved[32] = "Native";
+    char saved[32];
+    snprintf(saved, sizeof saved, "%s", wl_tr("Native"));
     if (sw > 0 && sh > 0)
         snprintf(saved, sizeof saved, "%dx%d", sw, sh);
     for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
@@ -532,7 +548,7 @@ static void page_display(void)
             current = i;
     ImGui::BeginDisabled(!wl_display_internal_supported());
     ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
-    if (ImGui::BeginCombo("Résolution interne", saved))
+    if (ImGui::BeginCombo(wl_tr("Résolution interne"), saved))
     {
         for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
         {
@@ -540,7 +556,7 @@ static void page_display(void)
             if (sizes[i][0])
                 snprintf(name, sizeof name, "%dx%d", sizes[i][0], sizes[i][1]);
             else
-                snprintf(name, sizeof name, "Native");
+                snprintf(name, sizeof name, "%s", wl_tr("Native"));
             if (ImGui::Selectable(name, i == current))
                 wl_display_set_internal(sizes[i][0], sizes[i][1]);
         }
@@ -548,12 +564,13 @@ static void page_display(void)
     }
     ImGui::EndDisabled();
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Taille de calcul et de rendu du jeu, avant l'aspect et le mode.\nPrise en compte au prochain lancement.");
+        ImGui::SetTooltip("%s", wl_tr("Taille de calcul et de rendu du jeu, avant l'aspect et le mode.\nPrise en compte au prochain lancement."));
     if (!wl_display_internal_supported())
-        ImGui::TextDisabled("Pas encore prise en charge pour ce jeu.");
+        ImGui::TextDisabled("%s", wl_tr("Pas encore prise en charge pour ce jeu."));
     else
-        ImGui::TextDisabled("Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement.", g_bbW, g_bbH, w ? "réglages" : "réglage du jeu");
-    ImGui::TextDisabled("Gardé par « Sauvegarder » dans [Display] du fichier de réglages.");
+        ImGui::TextDisabled(wl_tr("Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement."), g_bbW, g_bbH,
+                            w ? wl_tr("réglages") : wl_tr("réglage du jeu"));
+    ImGui::TextDisabled("%s", wl_tr("Gardé par « Sauvegarder » dans [Display] du fichier de réglages."));
 }
 
 // The settings file: "Sauvegarder" to the file read, "Sauvegarder pour ce jeu" to the game's own
@@ -566,18 +583,22 @@ int wl_menu_save(int forGame, char *status, size_t size)
     if (forGame && !file)
     {
         const wchar_t *own = wl_settings_game_file(0);
-        snprintf(status, size, own ? "Impossible d'écrire %s" : "Pas de jeu reconnu", own ? wl_u8(own, u, sizeof u) : "");
+        if (own)
+            snprintf(status, size, wl_tr("Impossible d'écrire %s"), wl_u8(own, u, sizeof u));
+        else
+            snprintf(status, size, "%s", wl_tr("Pas de jeu reconnu"));
         return 0;
     }
     if (!file[0])
     {
-        snprintf(status, size, "Pas de fichier de réglages (lancé sans windowsloader.exe)");
+        snprintf(status, size, "%s", wl_tr("Pas de fichier de réglages (lancé sans windowsloader.exe)"));
         return 0;
     }
     int ok = wl_display_save(file);
     ok &= wl_game_options_save(file);
     ok &= wl_serial_save(file);
-    snprintf(status, size, ok ? (forGame ? "Enregistré dans %s (ce jeu seulement)" : "Enregistré dans %s") : "Impossible d'écrire %s", wl_u8(file, u, sizeof u));
+    snprintf(status, size, ok ? (forGame ? wl_tr("Enregistré dans %s (ce jeu seulement)") : wl_tr("Enregistré dans %s")) : wl_tr("Impossible d'écrire %s"),
+             wl_u8(file, u, sizeof u));
     return ok;
 }
 
@@ -585,16 +606,16 @@ static void save_buttons(void)
 {
     static char status[MAX_PATH * 2 + 64];
     char u[MAX_PATH * 2];
-    if (ImGui::Button("Sauvegarder"))
+    if (ImGui::Button(wl_tr("Sauvegarder")))
         wl_menu_save(0, status, sizeof status);
     if (wl_settings_game_file(0))
     {
         ImGui::SameLine();
-        if (ImGui::Button("Sauvegarder pour ce jeu"))
+        if (ImGui::Button(wl_tr("Sauvegarder pour ce jeu")))
             wl_menu_save(1, status, sizeof status);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Fermer"))
+    if (ImGui::Button(wl_tr("Fermer")))
         InterlockedExchange(&g_open, 0);
     if (status[0])
     {
@@ -604,13 +625,19 @@ static void save_buttons(void)
     else
     {
         ImGui::SameLine();
-        ImGui::TextDisabled("Réglages : %s", wl_u8(wl_settings_file(), u, sizeof u));
+        ImGui::TextDisabled(wl_tr("Réglages : %s"), wl_u8(wl_settings_file(), u, sizeof u));
     }
+}
+
+// The game's title; "jeu inconnu" (game.cpp's) in the language shown
+static const char *game_title(void)
+{
+    return strcmp(wl_game_name(), "unknown") ? wl_game_title() : wl_tr(wl_game_title());
 }
 
 static void page_game(void)
 {
-    ImGui::Text("%s est en pause.", wl_game_title());
+    ImGui::Text(wl_tr("%s est en pause."), game_title());
     // The cabinet's boards, as the game's module describes them
     const char *boards[2] = {wl_game_controls(), wl_game_motor()};
     for (int i = 0; i < 2; i++)
@@ -621,25 +648,27 @@ static void page_game(void)
             ImGui::TextWrapped("%s", boards[i]);
         }
     ImGui::Spacing();
-    if (ImGui::Button("Reprendre (Tab)"))
+    if (ImGui::Button(wl_tr("Reprendre (Tab)")))
         InterlockedExchange(&g_open, 0);
     ImGui::Spacing();
     RECT rc = {};
     GetClientRect(g_wnd, &rc);
-    ImGui::TextDisabled("Image %dx%d, fenêtre %ldx%ld.", g_bbW, g_bbH, rc.right, rc.bottom);
+    ImGui::TextDisabled(wl_tr("Image %dx%d, fenêtre %ldx%ld."), g_bbW, g_bbH, rc.right, rc.bottom);
     ImGui::Spacing();
-    if (ImGui::Button("Quitter le jeu"))
-        ImGui::OpenPopup("Quitter");
-    if (ImGui::BeginPopupModal("Quitter", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    if (ImGui::Button(wl_tr("Quitter le jeu")))
+        ImGui::OpenPopup("###quit");
+    char title[64];
+    snprintf(title, sizeof title, "%s###quit", wl_tr("Quitter"));
+    if (ImGui::BeginPopupModal(title, NULL, ImGuiWindowFlags_AlwaysAutoResize))
     {
-        ImGui::TextUnformatted("Quitter le jeu ?");
-        if (ImGui::Button("Oui"))
+        ImGui::TextUnformatted(wl_tr("Quitter le jeu ?"));
+        if (ImGui::Button(wl_tr("Oui")))
         {
             wl_log("menu: quit");
             TerminateProcess(GetCurrentProcess(), 0);
         }
         ImGui::SameLine();
-        if (ImGui::Button("Non") || ImGui::IsKeyPressed(ImGuiKey_Escape))
+        if (ImGui::Button(wl_tr("Non")) || ImGui::IsKeyPressed(ImGuiKey_Escape))
             ImGui::CloseCurrentPopup();
         ImGui::EndPopup();
     }
@@ -679,21 +708,21 @@ static int page_boards(void)
     if (ImGui::IsWindowAppearing() || portCount < 0)
         portCount = pc_ports(ports, 64);
     ImGui::Spacing();
-    ImGui::SeparatorText("Cartes");
+    ImGui::SeparatorText(wl_tr("Cartes"));
     for (int k = 0; k < count; k++)
     {
-        char *value = wl_serial_edit(k), label[128];
-        snprintf(label, sizeof label, "%s (%s du jeu)", wl_serial_label(k), wl_serial_name(k));
+        char *value = wl_serial_edit(k), label[160];
+        snprintf(label, sizeof label, wl_tr("%s (%s du jeu)"), wl_tr(wl_serial_label(k)), wl_serial_name(k));
         ImGui::PushID(1000 + k);
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-        if (ImGui::BeginCombo(label, value[0] ? value : "Émulée"))
+        if (ImGui::BeginCombo(label, value[0] ? value : wl_tr("Émulée")))
         {
-            if (ImGui::Selectable("Émulée", !value[0]))
+            if (ImGui::Selectable(wl_tr("Émulée"), !value[0]))
                 value[0] = 0;
             for (int i = 0; i < portCount; i++)
             {
-                char item[48];
-                snprintf(item, sizeof item, "Vraie carte sur %s", ports[i]);
+                char item[64];
+                snprintf(item, sizeof item, wl_tr("Vraie carte sur %s"), ports[i]);
                 if (ImGui::Selectable(item, !_stricmp(value, ports[i])))
                     snprintf(value, 32, "%s", ports[i]);
             }
@@ -705,8 +734,9 @@ static int page_boards(void)
     }
     ImGui::Indent();
     ImGui::PushTextWrapPos(0);
-    ImGui::TextDisabled("Au prochain lancement. Émulée : windowsloader joue la carte. Un port du PC : le jeu parle à la vraie "
-                        "carte branchée dessus ([Emulation] EMULATE_JVS ou EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH ou SERIAL_n_PATH).");
+    ImGui::TextDisabled("%s", wl_tr("Au prochain lancement. Émulée : windowsloader joue la carte. Un port du PC : le jeu parle à la vraie "
+                                    "carte branchée dessus ([Emulation] EMULATE_JVS ou EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH ou "
+                                    "SERIAL_n_PATH)."));
     ImGui::PopTextWrapPos();
     ImGui::Unindent();
     return pending;
@@ -718,12 +748,14 @@ static void page_game_options(void)
 {
     char u[MAX_PATH * 2];
     const wchar_t *file = wl_settings_file(), *base = wcsrchr(file, L'\\');
-    ImGui::TextUnformatted(wl_game_title());
-    ImGui::TextDisabled("[%s] de %s, pour ce jeu seulement", wl_game_option_section(), file[0] ? wl_u8(base ? base + 1 : file, u, sizeof u) : "(pas de fichier)");
+    ImGui::TextUnformatted(game_title());
+    ImGui::TextDisabled(wl_tr("[%s] de %s, pour ce jeu seulement"), wl_game_option_section(),
+                        file[0] ? wl_u8(base ? base + 1 : file, u, sizeof u) : wl_tr("(pas de fichier)"));
     ImGui::Separator();
     int count = wl_game_option_count(), pending = 0;
     if (!count && !wl_serial_count())
-        ImGui::TextUnformatted("Aucune option pour ce jeu.");
+        ImGui::TextUnformatted(wl_tr("Aucune option pour ce jeu."));
+    // The module's texts (WL_N) in the language shown
     for (int i = 0; i < count; i++)
     {
         const WlGameOption *o = wl_game_option_at(i);
@@ -733,7 +765,7 @@ static void page_game_options(void)
         if (o->type == WL_OPTION_BOOL)
         {
             bool on = !_stricmp(value, "true");
-            if (ImGui::Checkbox(o->label, &on))
+            if (ImGui::Checkbox(wl_tr(o->label), &on))
                 snprintf(value, WL_OPTION_VALUE_SIZE, "%s", on ? "true" : "false");
         }
         else if (o->type == WL_OPTION_CHOICE)
@@ -741,12 +773,12 @@ static void page_game_options(void)
             const char *shown = value;
             for (const WlOptionChoice *c = o->choices; c && c->value; c++)
                 if (!_stricmp(c->value, value))
-                    shown = c->label;
+                    shown = wl_tr(c->label);
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-            if (ImGui::BeginCombo(o->label, shown))
+            if (ImGui::BeginCombo(wl_tr(o->label), shown))
             {
                 for (const WlOptionChoice *c = o->choices; c && c->value; c++)
-                    if (ImGui::Selectable(c->label, !_stricmp(c->value, value)))
+                    if (ImGui::Selectable(wl_tr(c->label), !_stricmp(c->value, value)))
                         snprintf(value, WL_OPTION_VALUE_SIZE, "%s", c->value);
                 ImGui::EndCombo();
             }
@@ -755,13 +787,13 @@ static void page_game_options(void)
         {
             int n = atoi(value);
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-            if (ImGui::SliderInt(o->label, &n, o->min, o->max))
+            if (ImGui::SliderInt(wl_tr(o->label), &n, o->min, o->max))
                 snprintf(value, WL_OPTION_VALUE_SIZE, "%d", n);
         }
         if (o->nextStart)
         {
             ImGui::SameLine();
-            ImGui::TextDisabled("(au prochain lancement)");
+            ImGui::TextDisabled("%s", wl_tr("(au prochain lancement)"));
             if (_stricmp(value, wl_game_option_started(i)))
                 pending = 1;
         }
@@ -771,7 +803,7 @@ static void page_game_options(void)
         {
             ImGui::Indent();
             ImGui::PushTextWrapPos(0);
-            ImGui::TextDisabled("%s", o->help);
+            ImGui::TextDisabled("%s", wl_tr(o->help));
             ImGui::PopTextWrapPos();
             ImGui::Unindent();
         }
@@ -782,8 +814,8 @@ static void page_game_options(void)
     if (pending)
     {
         ImGui::Separator();
-        ImGui::TextWrapped("Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou "
-                           "« Sauvegarder pour ce jeu »), puis relancez le jeu.");
+        ImGui::TextWrapped("%s", wl_tr("Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » "
+                                       "ou « Sauvegarder pour ce jeu »), puis relancez le jeu."));
     }
 }
 
@@ -797,14 +829,15 @@ static void page_outputs(void)
     if (wl_outputs_server(&tcp, &udp, &clients))
     {
         if (udp > 0)
-            ImGui::Text("Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP).", tcp, clients, udp);
+            ImGui::Text(wl_tr("Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."), tcp, clients,
+                        udp);
         else
-            ImGui::Text("Sorties réseau actives : port TCP %d, %d client(s) connecté(s).", tcp, clients);
+            ImGui::Text(wl_tr("Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."), tcp, clients);
     }
     else
-        ImGui::TextUnformatted("Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les "
-                               "valeurs ci-dessous sont celles que le jeu donne.");
-    ImGui::TextDisabled("Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker).");
+        ImGui::TextUnformatted(wl_tr("Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les "
+                                     "valeurs ci-dessous sont celles que le jeu donne."));
+    ImGui::TextDisabled("%s", wl_tr("Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();
     static WlOutputInfo list[256];
@@ -818,10 +851,10 @@ static void page_outputs(void)
     {
         float em = ImGui::GetFontSize();
         ImGui::TableSetupScrollFreeze(0, 1); // the titles stay
-        ImGui::TableSetupColumn("Nom", ImGuiTableColumnFlags_WidthFixed, em * 7);
-        ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed, em * 10);
-        ImGui::TableSetupColumn("Valeur", ImGuiTableColumnFlags_WidthFixed, em * 6);
-        ImGui::TableSetupColumn("Description", ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(wl_tr("Nom"), ImGuiTableColumnFlags_WidthFixed, em * 7);
+        ImGui::TableSetupColumn(wl_tr("Type"), ImGuiTableColumnFlags_WidthFixed, em * 10);
+        ImGui::TableSetupColumn(wl_tr("Valeur"), ImGuiTableColumnFlags_WidthFixed, em * 6);
+        ImGui::TableSetupColumn(wl_tr("Description"), ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
         for (int i = 0; i < n; i++)
         {
@@ -844,20 +877,43 @@ static void page_outputs(void)
         ImGui::EndTable();
     }
     if (n <= 2)
-        ImGui::TextDisabled("Ce jeu n'envoie ni lampes ni carte moteur pour l'instant.");
+        ImGui::TextDisabled("%s", wl_tr("Ce jeu n'envoie ni lampes ni carte moteur pour l'instant."));
 }
 
 static void page_about(void)
 {
-    ImGui::Text("windowsloader %s %s (%d bits)", WL_BUILD_VERSION, WL_EDITION, (int)sizeof(void *) * 8);
-    ImGui::TextUnformatted("Benjamin Maurin - njz3, licence GPL v3.");
+    ImGui::Text(wl_tr("windowsloader %s %s (%d bits)"), WL_BUILD_VERSION, WL_EDITION, (int)sizeof(void *) * 8);
+    ImGui::TextUnformatted(wl_tr("Benjamin Maurin - njz3, licence GPL v3."));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Avec :");
+    ImGui::TextUnformatted(wl_tr("Avec :"));
     ImGui::BulletText("Dear ImGui, Omar Cornut (MIT)");
-    ImGui::BulletText("MinHook, Tsuda Kageyu (BSD 2 clauses)");
+    ImGui::BulletText("%s", wl_tr("MinHook, Tsuda Kageyu (BSD 2 clauses)"));
     ImGui::BulletText("SDL3 (zlib)");
     ImGui::Spacing();
-    ImGui::TextDisabled("Conventions de linuxloader : controls.ini, menu Tab, mode agent.");
+    ImGui::TextDisabled("%s", wl_tr("Conventions de linuxloader : controls.ini, menu Tab, mode agent."));
+
+    // The interface's language (lang.h): at once, and written at once to the launcher's file, which
+    // the launcher reads it from
+    ImGui::Spacing();
+    ImGui::SeparatorText(wl_tr("Langue"));
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
+    static char status[MAX_PATH * 2 + 64];
+    if (wl_lang_combo(wl_tr("Langue de l'interface")))
+    {
+        char u[MAX_PATH * 2];
+        const wchar_t *file = wl_settings_launcher_file();
+        if (wl_settings_write(file, "Launcher", "LANGUAGE", wl_lang_setting()))
+            snprintf(status, sizeof status, wl_tr("[Launcher] LANGUAGE = %s, enregistré dans %s"), wl_lang_setting(), wl_u8(file, u, sizeof u));
+        else
+            snprintf(status, sizeof status, "%s", wl_tr("Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"));
+        wl_log("menu: language %s (LANGUAGE = %s)", wl_lang_code(), wl_lang_setting());
+    }
+    ImGui::PushTextWrapPos(0);
+    if (status[0])
+        ImGui::TextDisabled("%s", status);
+    ImGui::TextDisabled("%s", wl_tr("Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. "
+                                    "Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."));
+    ImGui::PopTextWrapPos();
 }
 
 static void draw_menu(void)
@@ -866,7 +922,7 @@ static void draw_menu(void)
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.64f, io.DisplaySize.y * 0.74f), ImGuiCond_Always);
     char title[128];
-    snprintf(title, sizeof title, "windowsloader — %s###menu", wl_game_title());
+    snprintf(title, sizeof title, "windowsloader — %s###menu", game_title());
     if (ImGui::Begin(title, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
     {
         ImVec2 at = ImGui::GetWindowPos(), size = ImGui::GetWindowSize();
@@ -876,40 +932,31 @@ static void draw_menu(void)
         ImGui::BeginChild("pages", ImVec2(0, -ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().ItemSpacing.y));
         if (ImGui::BeginTabBar("pages"))
         {
-            if (ImGui::BeginTabItem("Jeu", NULL, tab == 0 ? ImGuiTabItemFlags_SetSelected : 0))
+            // Each page's name in the language shown, its ID (###...) the same in all: the page
+            // stays the one shown when the language changes
+            static const struct
             {
-                page_game();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Options du jeu", NULL, tab == 5 ? ImGuiTabItemFlags_SetSelected : 0))
+                const char *name, *id;
+                int tab;
+                void (*draw)(void);
+            } pages[] = {
+                {WL_N("Jeu"), "###game", 0, page_game},
+                {WL_N("Options du jeu"), "###options", 5, page_game_options},
+                {WL_N("Contrôles"), "###controls", 1, page_controls},
+                {WL_N("Affichage"), "###display", 2, page_display},
+                {WL_N("Retour de force"), "###ffb", 3, page_ffb},
+                {WL_N("Sorties et réseau"), "###outputs", 6, page_outputs},
+                {WL_N("À propos"), "###about", 4, page_about},
+            };
+            for (int i = 0; i < (int)(sizeof pages / sizeof pages[0]); i++)
             {
-                page_game_options();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Contrôles", NULL, tab == 1 ? ImGuiTabItemFlags_SetSelected : 0))
-            {
-                page_controls();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Affichage", NULL, tab == 2 ? ImGuiTabItemFlags_SetSelected : 0))
-            {
-                page_display();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Retour de force", NULL, tab == 3 ? ImGuiTabItemFlags_SetSelected : 0))
-            {
-                page_ffb();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Sorties et réseau", NULL, tab == 6 ? ImGuiTabItemFlags_SetSelected : 0))
-            {
-                page_outputs();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("À propos", NULL, tab == 4 ? ImGuiTabItemFlags_SetSelected : 0))
-            {
-                page_about();
-                ImGui::EndTabItem();
+                char name[96];
+                snprintf(name, sizeof name, "%s%s", wl_tr(pages[i].name), pages[i].id);
+                if (ImGui::BeginTabItem(name, NULL, tab == pages[i].tab ? ImGuiTabItemFlags_SetSelected : 0))
+                {
+                    pages[i].draw();
+                    ImGui::EndTabItem();
+                }
             }
             ImGui::EndTabBar();
         }

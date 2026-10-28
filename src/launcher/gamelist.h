@@ -48,7 +48,7 @@ struct WlKnownGame
     const char *platform;
     const char *year;
     int state;
-    const char *note; // what windowsloader plays for it
+    const char *note; // what windowsloader plays for it (WL_N, translated in the picker: lang.h)
     int ffb;          // the force feedback: the game's motor sent to the wheel (WL_FEATURE_...)
     int link;         // the link between cabinets
 };

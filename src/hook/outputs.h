@@ -37,14 +37,16 @@ void wl_outputs_declare_lamps(int outputs); // the JVS board's general purpose o
 void wl_outputs_declare_drive(void);        // the game's own bytes to a Sega drive board
 
 // The lamps of another board, sent as a JVS board's (RawLamps..., lamp<n>): declared with the
-// board's name ("la carte Trio Tech (SetDigitalOut)") and the lamps' own, or NULL; bit n of bits
-// is lamp n. The names are for the menu (a JVS board's lamps may be named too: board NULL)
+// board's name (WL_N("la carte Trio Tech (SetDigitalOut)"), translated in the menu's list) and the
+// lamps' own (in the language shown already, lang.h), or NULL; bit n of bits is lamp n. The names
+// are for the menu (a JVS board's lamps may be named too: board NULL)
 void wl_outputs_name_lamps(const char *board, const char *const *names, int count);
 void wl_outputs_lamps(unsigned bits, int count);
 
 // A value of the game's own that is not a lamp's bit (a light's brightness, a colour), sent as
 // "name = value\r" when it changes: declared once (its name, MAME's way, its type and what it
-// is, for the menu), then set by its number; -1 when the list is full
+// is, for the menu, both in the language shown: wl_tr's, lang.h), then set by its number; -1 when
+// the list is full
 int wl_outputs_declare_value(const char *name, const char *type, const char *about);
 void wl_outputs_value(int index, int value);
 
@@ -52,7 +54,7 @@ struct WlOutputInfo
 {
     char name[32];
     const char *type;
-    char about[128];  // in French, for the menu
+    char about[128];  // for the menu, in the language shown
     int known, value; // the last value, once the game gave one
     const char *text; // a text instead of a value (mame_start's game), or NULL
 };

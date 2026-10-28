@@ -17,12 +17,13 @@
 #include <string.h>
 
 #include "game.h"
+#include "lang.h"
 #include "log.h"
 #include "settings.h"
 #include "wlshared.h"
 
 static const char *g_name = "unknown";
-static const char *g_title = "jeu inconnu";
+static const char *g_title = WL_N("jeu inconnu"); // translated where it is shown (menu.cpp)
 static const char *g_controls, *g_motor;
 static void (*g_onSettings)(void);
 

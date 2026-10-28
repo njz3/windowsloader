@@ -29,6 +29,9 @@ void wl_settings_init(void);
 
 // The file read, and saved to by the menu's "Sauvegarder"; L"" when the launcher gave none
 const wchar_t *wl_settings_file(void);
+// The launcher's file (windowsloader.ini or -c's), even when the game's own file is read: [Launcher]
+// LANGUAGE's, read by the launcher only from it; L"" when the launcher gave none
+const wchar_t *wl_settings_launcher_file(void);
 // 1 when it is called windowsloader.ini (the common one or a -c file of that name): only then is a
 // game's own file looked for, and the defaults written when it is missing
 int wl_settings_common(void);

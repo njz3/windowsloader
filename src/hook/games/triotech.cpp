@@ -40,6 +40,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdinput.h"
@@ -358,7 +359,7 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
     wchar_t inputs[MAX_PATH];
     swprintf(inputs, MAX_PATH, L"%sInputs.xml", dir);
     read_lamp_names(inputs);
-    wl_outputs_name_lamps("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)", g_lampNames, TT_LAMPS);
+    wl_outputs_name_lamps(WL_N("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)"), g_lampNames, TT_LAMPS);
     // The cabinets elect a host by broadcast on UDP 2070 ("Finding Server..."): alone, it hears itself
     wl_system_loopback_broadcast(1);
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))

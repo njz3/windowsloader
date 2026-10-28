@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "jvs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdev.h"
@@ -150,15 +151,15 @@ static int g_ledValue = -1; // led0_r's number in the network outputs, -1 when t
 
 static void namco_leds_declare(void)
 {
-    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {WL_N("rouge"), WL_N("vert"), WL_N("bleu")};
     for (int led = 0; led < NAMCO_LEDS; led++)
         for (int c = 0; c < 3; c++)
         {
             char name[32], about[128];
             snprintf(name, sizeof name, "led%d_%s", led, colour[c]);
-            snprintf(about, sizeof about, "LED %d (commande JVS %02X, la %de), %s (ordre supposé), 0 éteint à 15", led, 0x78 + led / 9, led % 9 + 1,
-                     label[c]);
-            int i = wl_outputs_declare_value(name, "intensité (0-15)", about);
+            snprintf(about, sizeof about, wl_tr("LED %d (commande JVS %02X, la %de), %s (ordre supposé), 0 éteint à 15"), led, 0x78 + led / 9,
+                     led % 9 + 1, wl_tr(label[c]));
+            int i = wl_outputs_declare_value(name, wl_tr("intensité (0-15)"), about);
             if (!led && !c)
                 g_ledValue = i;
         }
@@ -354,8 +355,8 @@ static void wmmt5_settings(void)
 }
 
 static const WlGameOption g_wmmt5Options[] = {
-    {"HOLD_GEAR", "Garder le rapport", "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas.",
-     WL_OPTION_BOOL, NULL, 0, 0, "false", 0, hold_gear_apply},
+    {"HOLD_GEAR", WL_N("Garder le rapport"),
+     WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 0, hold_gear_apply},
 };
 
 static void wmmt5_output(const unsigned char *data, int length);
@@ -1171,9 +1172,9 @@ static void mkdx_settings(void)
 }
 
 static const WlGameOption g_mkdxOptions[] = {
-    {"CABINET", "Numéro de la borne (link)",
-     "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-     "dans le fichier).",
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL},
 };
 
@@ -1663,7 +1664,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_game_on_settings(wmmt5_settings);
         InitializeCriticalSection(&g_motorLock);
         wl_vdev_register(&g_str3);
-        wl_vdev_label("COM1", "Carte du moteur du volant");
+        wl_vdev_label("COM1", WL_N("Carte du moteur du volant"));
         wangan_dongle(w->keyLibrary, w->cabinetId);
         if (wmmt6)
             bngrw_patch();
@@ -1734,7 +1735,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     namco_leds_declare();
     InitializeCriticalSection(&g_motorLock);
     wl_vdev_register(&g_com1);
-    wl_vdev_label("COM1", "Carte du moteur du volant");
+    wl_vdev_label("COM1", WL_N("Carte du moteur du volant"));
 
     // ShareK's client not started: je to the function's end made a jmp (nop; jmp rel32). The exe
     // moves (ASLR): addresses from its base
@@ -1778,7 +1779,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_hook_code(exe + 0x5F630, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x5f630, v1.10)");
         InitializeCriticalSection(&g_nfcLock);
         wl_vdev_register(&g_com4);
-        wl_vdev_label("COM4", "Lecteur de cartes");
+        wl_vdev_label("COM4", WL_N("Lecteur de cartes"));
     }
     return 1;
 }

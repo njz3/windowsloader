@@ -39,6 +39,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -407,23 +408,23 @@ static bool BIND_SetStartLightState(bool on)
 
 static void lights_declare(void)
 {
-    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {"rouge", "vert", "bleu"};
+    static const char *const colour[3] = {"r", "g", "b"}, *const label[3] = {WL_N("rouge"), WL_N("vert"), WL_N("bleu")};
     char name[32], about[128];
     for (int l = 0; l < LIGHT_RGB_COUNT; l++)
         for (int c = 0; c < 3; c++)
         {
             snprintf(name, sizeof name, "%s_%s", g_rgbLights[l], colour[c]);
-            snprintf(about, sizeof about, "Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)", g_rgbLights[l], label[c]);
+            snprintf(about, sizeof about, wl_tr("Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)"), g_rgbLights[l], wl_tr(label[c]));
             int v = wl_outputs_declare_value(name, "bit (0/1)", about);
             if (!l && !c)
                 g_lightValue = v;
         }
     for (int l = 0; l < LIGHT_ONE_COUNT; l++)
     {
-        snprintf(about, sizeof about, "Set%s (UsbPluginsDll_R.dll)%s", g_oneLights[l], l == LIGHT_GAME_STATE ? "" : ", deux bits");
-        wl_outputs_declare_value(g_oneLights[l], l == LIGHT_GAME_STATE ? "nombre" : "0 à 3", about);
+        snprintf(about, sizeof about, "Set%s (UsbPluginsDll_R.dll)%s", g_oneLights[l], l == LIGHT_GAME_STATE ? "" : wl_tr(", deux bits"));
+        wl_outputs_declare_value(g_oneLights[l], l == LIGHT_GAME_STATE ? wl_tr("nombre") : wl_tr("0 à 3"), about);
     }
-    wl_outputs_declare_value("StartLight", "bit (0/1)", "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)");
+    wl_outputs_declare_value("StartLight", "bit (0/1)", wl_tr("SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)"));
 }
 
 #define BIND(name) {#name, (void *)name}

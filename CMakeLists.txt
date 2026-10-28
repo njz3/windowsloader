@@ -84,6 +84,7 @@ add_executable(wl_launcher
     src/launcher/gamelist.cpp
     src/launcher/picker.cpp
     src/launcher/writedir.cpp
+    src/common/lang.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -98,6 +99,9 @@ add_dependencies(wl_launcher wl_build_version)
 target_compile_definitions(wl_launcher PRIVATE ${WL_C_DEFINES} UNICODE _UNICODE)
 target_compile_options(wl_launcher PRIVATE ${WL_C_FLAGS})
 target_link_libraries(wl_launcher PRIVATE d3d11 dxgi d3dcompiler windowscodecs ole32 dwmapi imm32 shell32 uuid user32 gdi32)
+# The interface's languages (src/common/lang.h): lang\<code>.po beside the programs
+add_custom_command(TARGET wl_launcher POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/lang ${WL_OUTPUT_DIR}/lang)
 
 # ------------------------------------------------------------------------------
 # windowsloader32.dll / windowsloader64.dll: runs inside the game process
@@ -105,6 +109,7 @@ target_link_libraries(wl_launcher PRIVATE d3d11 dxgi d3dcompiler windowscodecs o
 add_library(wl_hook SHARED
     src/hook/dllmain.cpp
     src/hook/wlhook.def
+    src/common/lang.cpp
     src/hook/log.cpp
     src/hook/hooks.cpp
     src/hook/crash.cpp

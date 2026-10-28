@@ -30,6 +30,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "jvs.h"
+#include "lang.h"
 #include "log.h"
 #include "settings.h"
 #include "vdev.h"
@@ -579,18 +580,18 @@ static void bg4_tick(void)
 // (OpenParrot's "Hold Gear", TypeX2Generic.cpp, GPL v3: the neutral's store at +0x8adff taken
 // out), for shifters whose positions do not stay.
 static const WlOptionChoice g_cabinets[] = {
-    {"STANDARD", "Standard"},
-    {"PRO", "Pro"},
+    {"STANDARD", WL_N("Standard")},
+    {"PRO", WL_N("Pro")},
     {NULL, NULL},
 };
 
 static const WlGameOption g_bg4Options[] = {
-    {"CABINET", "Borne",
-     "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change "
-     "ses propres réglages au lancement suivant et se ferme une fois : le relancer.",
+    {"CABINET", WL_N("Borne"),
+     WL_N("Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu "
+          "change ses propres réglages au lancement suivant et se ferme une fois : le relancer."),
      WL_OPTION_CHOICE, g_cabinets, 0, 0, "STANDARD", 1, NULL},
-    {"HOLD_GEAR", "Garder le rapport (borne Pro)", "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas.",
-     WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
+    {"HOLD_GEAR", WL_N("Garder le rapport (borne Pro)"),
+     WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
 };
 
 static void bg4_settings(void)
@@ -741,7 +742,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         wl_dinput_hide_controllers();
         InitializeCriticalSection(&g_wheelLock);
         wl_vdev_register(&g_wheel);
-        wl_vdev_label("COM1", "Carte du volant");
+        wl_vdev_label("COM1", WL_N("Carte du volant"));
         g_vlimitr = 1;
         return 1;
     }
@@ -767,7 +768,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     wl_dinput_hide_controllers();
     InitializeCriticalSection(&g_wheelLock);
     wl_vdev_register(&g_wheel);
-    wl_vdev_label("COM1", "Carte du volant");
+    wl_vdev_label("COM1", WL_N("Carte du volant"));
     wl_log("emulated steering board on COM1 (Taito)");
     if (tuned)
     {

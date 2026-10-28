@@ -23,6 +23,7 @@
 #include "display.h"
 #include "game.h"
 #include "hooks.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "pause.h"
@@ -36,6 +37,25 @@ static int env_int(const wchar_t *name, int def)
     if (!GetEnvironmentVariableW(name, v, 32))
         return def;
     return _wtoi(v);
+}
+
+static void lang_log(const char *message)
+{
+    wl_log("lang: %s", message);
+}
+
+// The interface's language (lang.h), the launcher's LANGUAGE: lang\ is beside this DLL
+static void lang_init(void)
+{
+    wchar_t dir[MAX_PATH], w[16];
+    char setting[16] = "AUTO";
+    GetModuleFileNameW(g_wlModule, dir, MAX_PATH);
+    wchar_t *slash = wcsrchr(dir, L'\\');
+    if (slash)
+        *slash = 0;
+    if (GetEnvironmentVariableW(WL_ENV_LANGUAGE, w, 16))
+        WideCharToMultiByte(CP_UTF8, 0, w, -1, setting, sizeof setting, NULL, NULL);
+    wl_lang_init(dir, setting, lang_log);
 }
 
 static void wl_init(void)
@@ -62,6 +82,8 @@ static void wl_init(void)
     wl_log("command line: %s", GetCommandLineA());
     wl_log("folder: %s", wl_u8(dir, u2, sizeof u2));
     wl_log("windowed: %s, device I/O logged: %d per handle", g_wl.windowed ? "yes" : "no", g_wl.ioLimit);
+    // Before the game's module gives its texts, as it finds the game
+    lang_init();
 
     wl_crash_init();
     wl_hooks_init();

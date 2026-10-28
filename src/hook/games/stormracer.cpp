@@ -45,6 +45,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -629,13 +630,13 @@ int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **t
     wl_log("game: %s", *title);
     wl_game_set_boards("Controls on USB I/O board (through usb_io.dll)", "Motor board: the same board (position servo: strength and window)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
-    wl_outputs_name_lamps("la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)", NULL, SR_LAMPS);
+    wl_outputs_name_lamps(WL_N("la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"), NULL, SR_LAMPS);
     for (int i = 0; i < SR_LAMPS; i++)
     {
         char value[16], about[128];
         snprintf(value, sizeof value, "pwm%d", i);
-        snprintf(about, sizeof about, "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255", i);
-        int v = wl_outputs_declare_value(value, "intensité (0-255)", about);
+        snprintf(about, sizeof about, wl_tr("Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"), i);
+        int v = wl_outputs_declare_value(value, wl_tr("intensité (0-255)"), about);
         if (!i)
             g_pwmValue = v;
     }

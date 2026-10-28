@@ -36,6 +36,7 @@
 
 #include "game.h"
 #include "hooks.h"
+#include "lang.h"
 #include "log.h"
 #include "outputs.h"
 #include "settings.h"
@@ -60,7 +61,7 @@ static HANDLE g_thread;
 static CRITICAL_SECTION g_lock;
 static int g_lampOutputs;  // declared: the JVS board's general purpose outputs
 static int g_driveDeclared; // declared: a Sega drive board's own bytes
-static const char *g_lampBoard = "la carte JVS";
+static const char *g_lampBoard = WL_N("la carte JVS"); // translated in the menu's list (lang.h)
 static const char *const *g_lampNames;
 
 // The game's own values (wl_outputs_declare_value)
@@ -562,37 +563,42 @@ int wl_outputs_list(WlOutputInfo *out, int max)
         return 0;
     int n = 0;
     char name[32], about[128];
+    // In the language shown; the game's own values are in the one of its start (their module's
+    // texts, translated as they were declared)
+    const char *board = wl_tr(g_lampBoard);
     EnterCriticalSection(&g_lock);
-    list_add(out, max, &n, "mame_start", "texte", "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu", 1, 0);
+    list_add(out, max, &n, "mame_start", wl_tr("texte"), wl_tr("Au début du jeu, et à chaque client qui se connecte : le nom court du jeu"), 1,
+             0);
     out[n - 1].text = g_game;
     // The lamps: each byte, then each output, as wl_outputs_gpo sends them
     int bytes = (g_lampOutputs + 7) / 8;
     for (int i = 0; i < bytes; i++)
     {
         gpo_name(i, name, sizeof name);
-        snprintf(about, sizeof about, "Lampes %d à %d de %s, la première sur le bit 7", i * 8, i * 8 + 7, g_lampBoard);
-        list_add(out, max, &n, name, "octet (0-255)", about, g_gpoKnown[i], g_gpo[i]);
+        snprintf(about, sizeof about, wl_tr("Lampes %d à %d de %s, la première sur le bit 7"), i * 8, i * 8 + 7, board);
+        list_add(out, max, &n, name, wl_tr("octet (0-255)"), about, g_gpoKnown[i], g_gpo[i]);
     }
     for (int k = 0; k < g_lampOutputs; k++)
     {
         int i = k / 8, bit = 7 - k % 8;
         lamp_name(i, bit, name, sizeof name);
         if (g_lampNames && g_lampNames[k])
-            snprintf(about, sizeof about, "%s : sortie %d de %s", g_lampNames[k], k + 1, g_lampBoard);
+            snprintf(about, sizeof about, wl_tr("%s : sortie %d de %s"), g_lampNames[k], k + 1, board);
         else
-            snprintf(about, sizeof about, "Sortie %d de %s (une lampe)", k + 1, g_lampBoard);
+            snprintf(about, sizeof about, wl_tr("Sortie %d de %s (une lampe)"), k + 1, board);
         list_add(out, max, &n, name, "bit (0/1)", about, g_gpoKnown[i], (g_gpo[i] >> bit) & 1);
     }
     // The drive board: the game's own bytes, or the servo board's frames made from the force
     if (g_driveDeclared)
-        list_add(out, max, &n, "RawDrive", "octets (0-255), un par ligne",
-                 "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)", g_lastDrive >= 0, g_lastDrive);
+        list_add(out, max, &n, "RawDrive", wl_tr("octets (0-255), un par ligne"),
+                 wl_tr("Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"), g_lastDrive >= 0, g_lastDrive);
     else if (wl_game_motor())
-        list_add(out, max, &n, "RawDrive", "octets (0-255), un par ligne",
-                 "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple", g_lastDrive >= 0, g_lastDrive);
+        list_add(out, max, &n, "RawDrive", wl_tr("octets (0-255), un par ligne"),
+                 wl_tr("Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"), g_lastDrive >= 0,
+                 g_lastDrive);
     for (int i = 0; i < g_valueCount; i++)
         list_add(out, max, &n, g_values[i].name, g_values[i].type, g_values[i].about, g_values[i].known, g_values[i].value);
-    list_add(out, max, &n, "mame_stop", "1", "Quand le jeu se termine", 0, 1);
+    list_add(out, max, &n, "mame_stop", "1", wl_tr("Quand le jeu se termine"), 0, 1);
     LeaveCriticalSection(&g_lock);
     return n;
 }

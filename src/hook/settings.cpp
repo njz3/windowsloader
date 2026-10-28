@@ -125,6 +125,14 @@ const wchar_t *wl_settings_file(void)
     return g_file;
 }
 
+const wchar_t *wl_settings_launcher_file(void)
+{
+    static wchar_t file[MAX_PATH];
+    if (!file[0] && !GetEnvironmentVariableW(WL_ENV_INI, file, MAX_PATH))
+        file[0] = 0;
+    return file;
+}
+
 int wl_settings_common(void)
 {
     return g_file[0] && !_wcsicmp(base_name(g_file), L"windowsloader.ini");

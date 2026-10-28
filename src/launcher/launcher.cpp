@@ -593,6 +593,21 @@ static void game_option(const wchar_t *name, const wchar_t *key, const wchar_t *
     }
 }
 
+// The interface's language (lang.h): [Launcher] LANGUAGE of the settings file, else AUTO, or
+// --set Launcher.LANGUAGE=; handed to the DLL
+static void language_setting(const wchar_t *iniPath, const wchar_t *sets, wchar_t *out, size_t size)
+{
+    GetPrivateProfileStringW(L"Launcher", L"LANGUAGE", L"AUTO", out, (DWORD)size, iniPath);
+    for (const wchar_t *line = sets; line && *line;)
+    {
+        const wchar_t *end = wcschr(line, L'\n');
+        size_t n = end ? (size_t)(end - line) : wcslen(line);
+        if (n >= 18 && !_wcsnicmp(line, L"Launcher.LANGUAGE=", 18))
+            swprintf(out, size, L"%.*s", (int)(n - 18), line + 18);
+        line = end ? end + 1 : NULL;
+    }
+}
+
 // The arguments the game's options give it (g_gameOptionArgs), added to its command line
 static void game_option_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first, const wchar_t *iniPath,
                              const wchar_t *sets)
@@ -887,6 +902,9 @@ int wmain(int argc, wchar_t **argv)
     SetEnvironmentVariableW(WL_ENV_CONTROLS, controlsPath);
     SetEnvironmentVariableW(WL_ENV_INI, iniPath);
     SetEnvironmentVariableW(WL_ENV_SET, setsLen ? sets : NULL);
+    wchar_t language[16];
+    language_setting(iniPath, setsLen ? sets : NULL, language, 16);
+    SetEnvironmentVariableW(WL_ENV_LANGUAGE, language);
     // On a laptop with two graphics cards, an OpenGL game gets the dedicated NVIDIA one through the
     // Optimus shim's per-process switch (Direct3D games are given it by the DLL);
     // WINDOWSLOADER_GPU=default keeps Windows' choice

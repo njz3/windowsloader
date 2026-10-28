@@ -36,6 +36,7 @@
 #include "backends/imgui_impl_win32.h"
 
 #include "gamelist.h"
+#include "lang.h"
 #include "picker.h"
 #include "wlshared.h"
 #include "writedir.h"
@@ -68,11 +69,20 @@ static ID3D11DeviceContext *g_ctx;
 static IDXGISwapChain *g_swap;
 static ID3D11RenderTargetView *g_rtv;
 static UINT g_resizeW, g_resizeH;
+static int g_retitle; // the language changed: the window's title too
 
 static void u8(const wchar_t *w, char *out, int size)
 {
     if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, out, size, NULL, NULL))
         out[0] = 0;
+}
+
+// A UTF-8 text (wl_tr's) for Windows' own windows
+static const wchar_t *wide(const char *text, wchar_t *out, int size)
+{
+    if (!MultiByteToWideChar(CP_UTF8, 0, text, -1, out, size))
+        out[0] = 0;
+    return out;
 }
 
 // ------------------------------------------------------------------------------
@@ -339,7 +349,7 @@ static void play(HWND wnd, const Entry *e)
             CloseHandle(tail.pipe);
         char exe[MAX_PATH * 3];
         u8(e->exe, exe, sizeof exe);
-        snprintf(g_message, sizeof g_message, "Impossible de lancer %s (erreur %lu).", exe, err);
+        snprintf(g_message, sizeof g_message, wl_tr("Impossible de lancer %s (erreur %lu)."), exe, err);
         return;
     }
     HANDLE reader = tail.pipe ? CreateThread(NULL, 0, read_tail, &tail, 0, NULL) : NULL;
@@ -381,8 +391,9 @@ static void play(HWND wnd, const Entry *e)
     {
         char dir[MAX_PATH * 3];
         u8(g_logDir, dir, sizeof dir);
-        snprintf(g_message, sizeof g_message, "Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log.",
-                 (long)code, tail.text, tail.len ? "\n" : "", dir);
+        snprintf(g_message, sizeof g_message,
+                 wl_tr("Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."), (long)code,
+                 tail.text, tail.len ? "\n" : "", dir);
     }
     ImGui::GetIO().ClearInputKeys(); // the keys the game had are not the picker's
     g_keysFrom = GetTickCount64() + 600;
@@ -401,7 +412,8 @@ static void choose_games_dir(HWND wnd)
     DWORD options = 0;
     dialog->GetOptions(&options);
     dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
-    dialog->SetTitle(L"Dossier des jeux");
+    wchar_t title[128];
+    dialog->SetTitle(wide(wl_tr("Dossier des jeux"), title, 128));
     IShellItem *start = NULL;
     if (SUCCEEDED(SHCreateItemFromParsingName(g_gamesDir, NULL, IID_PPV_ARGS(&start))))
     {
@@ -504,20 +516,20 @@ static const char *state_text(int state, ImVec4 *color)
     {
     case WL_GAME_PLAYS:
         *color = ImVec4(0.45f, 0.85f, 0.45f, 1);
-        return "Jouable";
+        return wl_tr("Jouable");
     case WL_GAME_PARTLY:
         *color = ImVec4(0.95f, 0.75f, 0.3f, 1);
-        return "Jouable, avec des réserves";
+        return wl_tr("Jouable, avec des réserves");
     default:
         *color = ImVec4(0.9f, 0.45f, 0.4f, 1);
-        return "En cours : ne se joue pas encore";
+        return wl_tr("En cours : ne se joue pas encore");
     }
 }
 
 // A feature of the game (gamelist.h's WL_FEATURE_...), for its sheet
 static const char *feature_text(int feature)
 {
-    return feature == WL_FEATURE_YES ? "oui" : feature == WL_FEATURE_PARTLY ? "en partie (voir BILAN.md)" : "non";
+    return feature == WL_FEATURE_YES ? wl_tr("oui") : feature == WL_FEATURE_PARTLY ? wl_tr("en partie (voir BILAN.md)") : wl_tr("non");
 }
 
 static void field(const char *name, const char *value)
@@ -553,15 +565,17 @@ static int draw(int *selected, int *action)
     ImGui::Text("windowsloader");
     ImGui::PopFont();
     ImGui::SameLine();
-    ImGui::TextDisabled("  %d jeu%s dans %s", g_count, g_count > 1 ? "x" : "", dir);
+    ImGui::TextDisabled("  ");
+    ImGui::SameLine(0, 0);
+    ImGui::TextDisabled(g_count > 1 ? wl_tr("%d jeux dans %s") : wl_tr("%d jeu dans %s"), g_count, dir);
     ImGui::Separator();
 
     float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
     ImVec2 avail = ImGui::GetContentRegionAvail();
     if (!g_count)
     {
-        ImGui::TextWrapped("Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par "
-                           "windowsloader devient une ligne de la liste.",
+        ImGui::TextWrapped(wl_tr("Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu "
+                                 "par windowsloader devient une ligne de la liste."),
                            dir);
     }
     else
@@ -612,17 +626,18 @@ static int draw(int *selected, int *action)
         ImGui::TextColored(color, "%s", state);
         ImGui::Spacing();
         char platform[128];
-        snprintf(platform, sizeof platform, "%s%s%s", e->game->platform, e->game->year[0] ? ", " : "", e->game->year);
-        field("Plateforme", platform);
-        field("Dossier", e->folderName);
-        field("Programme", e->exeShown);
-        field("Arguments", e->args);
-        field("Retour de force", feature_text(e->game->ffb));
-        field("Link", feature_text(e->game->link));
-        field("Émulé", e->game->note);
+        // The table's texts (WL_N) in the language shown
+        snprintf(platform, sizeof platform, "%s%s%s", wl_tr(e->game->platform), e->game->year[0] ? ", " : "", e->game->year);
+        field(wl_tr("Plateforme"), platform);
+        field(wl_tr("Dossier"), e->folderName);
+        field(wl_tr("Programme"), e->exeShown);
+        field(wl_tr("Arguments"), e->args);
+        field(wl_tr("Retour de force"), feature_text(e->game->ffb));
+        field(wl_tr("Link"), feature_text(e->game->link));
+        field(wl_tr("Émulé"), wl_tr(e->game->note));
         ImGui::Spacing();
         ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-        if (ImGui::Button("Jouer (Entrée)"))
+        if (ImGui::Button(wl_tr("Jouer (Entrée)")))
             *action = ACT_PLAY;
         ImGui::PopItemFlag();
         ImGui::EndChild();
@@ -631,31 +646,43 @@ static int draw(int *selected, int *action)
     // The buttons are for the mouse: the keyboard and the gamepad stay in the list, Enter plays
     ImGui::Separator();
     ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-    if (ImGui::Button("Dossier des jeux (Tab)"))
+    if (ImGui::Button(wl_tr("Dossier des jeux (Tab)")))
         *action = ACT_FOLDER;
     ImGui::SameLine();
-    if (ImGui::Button("Actualiser (F5)"))
+    if (ImGui::Button(wl_tr("Actualiser (F5)")))
         *action = ACT_RESCAN;
     ImGui::SameLine();
-    int quit = ImGui::Button("Quitter (Échap)");
+    int quit = ImGui::Button(wl_tr("Quitter (Échap)"));
+    // The interface's language (lang.h): at once, and kept in [Launcher] LANGUAGE, which the
+    // game's menu reads too
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
+    if (wl_lang_combo("##language"))
+    {
+        wchar_t setting[16];
+        WritePrivateProfileStringW(L"Launcher", L"LANGUAGE", wide(wl_lang_setting(), setting, 16), g_ini);
+        g_retitle = 1;
+    }
     ImGui::PopItemFlag();
     ImGui::SameLine();
-    ImGui::TextDisabled("  Entrée : jouer   Flèches : choisir   Tab : dossier des jeux");
+    ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"));
 
-    // A game that would not start: what the launcher said, until OK
-    static const char *failed = "Le jeu n'a pas démarré";
+    // A game that would not start: what the launcher said, until OK. Its title in the language
+    // shown, its name (###failed) the same in all
     int message = 0;
-    if (g_message[0] && !ImGui::IsPopupOpen(failed))
-        ImGui::OpenPopup(failed);
+    if (g_message[0] && !ImGui::IsPopupOpen("###failed"))
+        ImGui::OpenPopup("###failed");
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.6f, 0));
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    char failed[96];
+    snprintf(failed, sizeof failed, "%s###failed", wl_tr("Le jeu n'a pas démarré"));
     if (ImGui::BeginPopupModal(failed, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
     {
         message = 1;
         ImGui::TextWrapped("%s", g_message);
         ImGui::Spacing();
         int keys = GetTickCount64() >= g_keysFrom;
-        if (ImGui::Button("OK (Entrée)") ||
+        if (ImGui::Button(wl_tr("OK (Entrée)")) ||
             (keys && (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) ||
                       ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false))))
         {
@@ -683,6 +710,14 @@ static int draw(int *selected, int *action)
     return quit;
 }
 
+// "windowsloader <version> <edition> — choix du jeu", in the language shown
+static const wchar_t *window_title(wchar_t *out, int size)
+{
+    char title[256];
+    snprintf(title, sizeof title, wl_tr("windowsloader %s %s — choix du jeu"), WL_BUILD_VERSION, WL_EDITION);
+    return wide(title, out, size);
+}
+
 int wl_picker_run(void)
 {
     GetModuleFileNameW(NULL, g_selfPath, MAX_PATH);
@@ -700,6 +735,12 @@ int wl_picker_run(void)
         wl_write_dir_file(root, L"windowsloader.ini", g_ini, MAX_PATH);
         wcscpy_s(g_logDir, MAX_PATH, root);
     }
+    // The interface's language (lang.h): [Launcher] LANGUAGE, lang\ beside this program
+    wchar_t language[16];
+    char setting[16];
+    GetPrivateProfileStringW(L"Launcher", L"LANGUAGE", L"AUTO", language, 16, g_ini);
+    u8(language, setting, sizeof setting);
+    wl_lang_init(g_selfDir, setting, NULL);
 
     // Started from the Explorer, the console is ours alone: it goes away
     DWORD consoles[2];
@@ -714,13 +755,13 @@ int wl_picker_run(void)
     wc.lpszClassName = L"windowsloader picker";
     RegisterClassExW(&wc);
     float scale = ImGui_ImplWin32_GetDpiScaleForMonitor(MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY));
-    wchar_t title[128];
-    swprintf(title, 128, L"windowsloader %S %S — choix du jeu", WL_BUILD_VERSION, WL_EDITION);
-    HWND wnd = CreateWindowExW(0, wc.lpszClassName, title, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, (int)(1280 * scale), (int)(760 * scale),
-                               NULL, NULL, wc.hInstance, NULL);
+    wchar_t title[256];
+    HWND wnd = CreateWindowExW(0, wc.lpszClassName, window_title(title, 256), WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, (int)(1280 * scale),
+                               (int)(760 * scale), NULL, NULL, wc.hInstance, NULL);
     if (!wnd || !create_device(wnd))
     {
-        MessageBoxW(NULL, L"Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11).", L"windowsloader", MB_ICONERROR);
+        wchar_t text[256];
+        MessageBoxW(NULL, wide(wl_tr("Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."), text, 256), L"windowsloader", MB_ICONERROR);
         return 1;
     }
     ShowWindow(wnd, SW_SHOWDEFAULT);
@@ -777,6 +818,12 @@ int wl_picker_run(void)
         int action = ACT_NONE;
         if (draw(&selected, &action))
             done = 1;
+        if (g_retitle)
+        {
+            wchar_t title[256];
+            SetWindowTextW(wnd, window_title(title, 256));
+            g_retitle = 0;
+        }
         ImGui::Render();
         static const float clear[4] = {0.08f, 0.08f, 0.1f, 1};
         g_ctx->OMSetRenderTargets(1, &g_rtv, NULL);
