@@ -26,7 +26,8 @@
 //   [Config] <name>_DeadZone = 0..32767, FFB_Strength = percent, FFB_Invert = 0/1,
 //            FFB_Device = AUTO or a force feedback device's name (--set ForceFeedback.FFB_DEVICE=)
 //   [ControllerGUIDs] P<n>_GUID = SDL joystick GUID
-// <n> is the player: P1_GUID's device is JOY0 / GC0, the other devices follow in order.
+// <n> is the player: P1_GUID's device is JOY0 / GC0, the other devices follow in order. A real Sega
+// IO4 board on USB is one of them, SDL's virtual joystick "SEGA IO4 837-15257" (io4in.h).
 
 // Reads controls.ini (written with the defaults when missing) and starts the thread that polls
 // the controllers. Not called in agent mode: the agent alone drives the game.

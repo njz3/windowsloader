@@ -129,6 +129,7 @@ add_library(wl_hook SHARED
     src/hook/agent.cpp
     src/hook/game.cpp
     src/hook/controls.cpp
+    src/hook/io4in.cpp
     src/hook/ioports.cpp
     src/hook/ffb.cpp
     src/hook/outputs.cpp

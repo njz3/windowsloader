@@ -182,6 +182,18 @@ device's page) and "Défaut" (the device's inputs of that action as a new `contr
 "Réinitialiser..." does the same for all the device's actions. Below the devices: what the game gets of each of its inputs (the value its board reads), and
 the dead zones and other `[Config]` options. Every change is written to `controls.ini` and taken at once.
 
+A real Sega 837-15257 "IO4" I/O board on USB (VID 0CA3, PID 0021) is one more controller: "SEGA
+IO4 837-15257" in the devices, a `JOY<n>` bound and captured as the others (its GUID in
+`[ControllerGUIDs]` to give it a player). Its 8 ADCs are axes 0 to 7 (0x0000 to 0xFFFF, a wheel at
+0x8000 in the middle), its switches buttons 0 to 31 (player 1's bit n is button n, player 2's
+button 16 + n), a coin counted in chute 1 or 2 presses
+button 32 or 33 for 100 ms. SWDC's cabinet wires ADC 0 the wheel, 1 the accelerator, 2 the brake,
+and button 9 Test, 7 Start, 6 Service, 5 to 2 up, down, left, right, 1 the view. The board is only
+read (no command: it sends its reports by itself, BackForceFeeder's way), shared with the programs
+that read it too; a switch pressed is at 1, and a board whose first report has most switches at 1
+(the unwired ones) is read inverted, as the log tells. It may be plugged in or out while the game
+runs; the log says `io4: board found` and what its first report holds.
+
 The force feedback's device, as Supermodel, Flycast, linuxloader and sm2-emu choose it:
 `controls.ini` `[Config] FFB_Device` (beside `FFB_Strength` and `FFB_Invert`; `--set
 ForceFeedback.FFB_DEVICE=...` overrides it) is `AUTO` (or empty: player 1's wheel, as before) or a

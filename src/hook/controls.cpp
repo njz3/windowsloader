@@ -26,6 +26,7 @@
 #include "ffb.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "io4in.h"
 #include "log.h"
 #include "menu.h"
 #include "settings.h"
@@ -918,6 +919,8 @@ static DWORD WINAPI controls_thread(LPVOID)
     {
         wl_log("controls: SDL_Init failed (%s), keyboard only", SDL_GetError());
     }
+    else
+        wl_io4_start(); // a real IO4 board, one more controller once found
     assign_devices();
 
     for (;;)
