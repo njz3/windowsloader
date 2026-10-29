@@ -640,12 +640,101 @@ static void paint_bars(void)
 }
 
 // ------------------------------------------------------------------------------
+// The keyboard's focus: the game's window brought to the front as it starts
+// ------------------------------------------------------------------------------
+
+// Windows lets a program put its window in front only in some cases (started by the program in
+// front, or the last one to get input), which a game started through the launcher, and the picker
+// before it, may no longer meet once its window shows: GTI Club 3's stayed behind, its keys unread
+// (the keyboard counts only with the focus, controls.cpp). For the window's first seconds it is
+// put back in front whenever it is not; after them, a window the player put behind stays there.
+// Not in agent mode: its inputs are not the keyboard's, and a test must not take the desktop.
+#define FOCUS_MS 10000
+static UINT g_focusMsg;
+static ULONGLONG g_focusUntil, g_focusNext;
+
+static int focus_is_ours(void)
+{
+    DWORD pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+    return pid == GetCurrentProcessId();
+}
+
+// On the window's own thread (SetForegroundWindow activates it there)
+static void take_focus(HWND wnd)
+{
+    static int told;
+    if (focus_is_ours())
+        return;
+    if (IsIconic(wnd))
+        ShowWindow(wnd, SW_RESTORE);
+    BringWindowToTop(wnd);
+    // Allowed when the launcher passed its right on (AllowSetForegroundWindow); else attached to the
+    // input of the window in front, the thread may take its place
+    const char *how = "allowed";
+    if (!SetForegroundWindow(wnd) || !focus_is_ours())
+    {
+        HWND fg = GetForegroundWindow();
+        DWORD fgThread = fg ? GetWindowThreadProcessId(fg, NULL) : 0, me = GetCurrentThreadId();
+        if (fgThread && fgThread != me && AttachThreadInput(me, fgThread, TRUE))
+        {
+            BringWindowToTop(wnd);
+            SetForegroundWindow(wnd);
+            AttachThreadInput(me, fgThread, FALSE);
+            how = "input attached";
+        }
+    }
+    if (focus_is_ours() && told < 3)
+    {
+        told++;
+        wl_log("display: the game's window %p put in front (%s)", wnd, how);
+    }
+}
+
+static void focus_start(void)
+{
+    wchar_t agent[8];
+    if (GetEnvironmentVariableW(WL_ENV_AGENT, agent, 8) && agent[0] == L'1')
+        return;
+    g_focusMsg = RegisterWindowMessageW(L"windowsloader take focus");
+    g_focusUntil = GetTickCount64() + FOCUS_MS;
+    g_focusNext = 0;
+}
+
+// Each frame: every half second, the window put back in front if another one took it
+static void focus_step(void)
+{
+    if (!g_focusUntil || !g_wnd)
+        return;
+    ULONGLONG now = GetTickCount64();
+    if (now >= g_focusUntil)
+    {
+        g_focusUntil = 0;
+        if (!focus_is_ours())
+            wl_log("display: the game's window is not in front (another program kept it): its keys are read once it is clicked");
+        return;
+    }
+    if (now < g_focusNext || focus_is_ours())
+        return;
+    g_focusNext = now + 500;
+    if (owns(g_wnd))
+        take_focus(g_wnd);
+    else
+        PostMessageW(g_wnd, g_focusMsg, 0, 0);
+}
+
+// ------------------------------------------------------------------------------
 // The window procedure: the settings menu's input, Alt+Enter, repainting the bars
 // ------------------------------------------------------------------------------
 
 static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     LRESULT result;
+    if (msg == g_focusMsg && g_focusMsg)
+    {
+        take_focus(h);
+        return 0;
+    }
     if (wl_menu_wndproc(h, msg, wp, lp, &result))
         return result;
     if (msg == WM_SYSKEYDOWN && wp == VK_RETURN && (lp & (1 << 29)))
@@ -799,21 +888,16 @@ void wl_display_window(HWND wnd, int width, int height)
         g_unicode = IsWindowUnicode(wnd);
         g_proc = (WNDPROC)(g_unicode ? SetWindowLongPtrW(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc)
                                      : SetWindowLongPtrA(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc));
+        focus_start();
     }
     apply_mode();
+    focus_step();
 }
 
 void wl_display_gl_window(HWND wnd, int width, int height)
 {
     g_glPicture = 1;
     wl_display_window(wnd, width, height);
-}
-
-static int focus_is_ours(void)
-{
-    DWORD pid = 0;
-    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
-    return pid == GetCurrentProcessId();
 }
 
 // The game's name between brackets, the frames per second and the build in the window's title, once
@@ -869,6 +953,7 @@ const RECT *wl_display_dest(void)
     if (!g_wnd)
         return NULL;
     title_fps(g_wnd);
+    focus_step();
 
     int f11 = focus_is_ours() && (GetAsyncKeyState(VK_F11) & 0x8000);
     if ((f11 && !f11Was) || InterlockedExchange(&g_toggle, 0))

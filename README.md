@@ -96,6 +96,15 @@ F5 to scan again, Escape or F9 to quit.
 In windowed mode the game also leaves the desktop alone: no display mode change, no cursor
 clipping, no global keyboard hook, no shutdown or program started on its behalf.
 
+The keyboard is read only while a window of the game is in front (the controllers, wheels and vJoy
+always are). So that a game whose window would stay behind (GTI Club 3, after a long start) gets the
+keys, its window is put in front during its first 10 seconds, again whenever another program takes
+the front in that time; after them, a window the player put behind stays there. The picker and the
+launcher pass the game their right to put a window in front (`AllowSetForegroundWindow`); when it is
+not enough, the window's thread joins the input of the window in front for the time it takes its
+place. Not in agent mode. The log tells it: `display: the game's window ... put in front`, or
+`... is not in front (another program kept it)`.
+
 Display settings are in `windowsloader.ini` next to the launcher, with linuxloader's `[Display]`
 keys and meanings: `ASPECT_RATIO` (`ORIGINAL`; `4:3`, `16:9`, `4:3_LETTERBOX`: the picture whole in
 that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deformed; `4:3_CROP`,

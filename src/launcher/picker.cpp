@@ -354,6 +354,9 @@ static void play(HWND wnd, const Entry *e)
     }
     HANDLE reader = tail.pipe ? CreateThread(NULL, 0, read_tail, &tail, 0, NULL) : NULL;
     CloseHandle(pi.hThread);
+    // The picker in front passes its right to put a window in front to the launcher, which passes it
+    // to the game: hidden, the picker is no longer the program in front
+    AllowSetForegroundWindow(pi.dwProcessId);
     ShowWindow(wnd, SW_HIDE);
     ULONGLONG start = GetTickCount64();
     for (;;)

@@ -1053,6 +1053,9 @@ int wmain(int argc, wchar_t **argv)
     }
 
     say("  pid:    %lu\n", pi.dwProcessId);
+    // The launcher's right to put a window in front (started by the program in front, or by the
+    // picker that passed it on) passed on to the game, whose window comes seconds later (display.cpp)
+    AllowSetForegroundWindow(pi.dwProcessId);
     ResumeThread(pi.hThread);
     CloseHandle(pi.hThread);
 
