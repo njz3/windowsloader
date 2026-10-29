@@ -56,6 +56,7 @@ struct Client
 static volatile LONG g_on;        // asked for: the values are sent
 static volatile LONG g_lockReady; // the values are kept from the start, for the menu, sent or not
 static volatile LONG g_listening; // the server listens
+static volatile LONG g_error;     // its last start's error (WSA's), for the menu
 static volatile LONG g_clientCount;
 static HANDLE g_thread;
 static CRITICAL_SECTION g_lock;
@@ -297,9 +298,11 @@ static DWORD WINAPI server_thread(LPVOID)
 {
     wl_busy_enter(); // the server's sockets are not the game's
     WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa))
+    int err = WSAStartup(MAKEWORD(2, 2), &wsa);
+    if (err)
     {
         wl_log("outputs: WSAStartup failed, no network outputs");
+        InterlockedExchange(&g_error, err);
         outputs_off();
         return 0;
     }
@@ -310,7 +313,9 @@ static DWORD WINAPI server_thread(LPVOID)
     at.sin_addr.s_addr = htonl(INADDR_ANY);
     if (listener == INVALID_SOCKET || bind(listener, (const sockaddr *)&at, sizeof at) || listen(listener, OUT_CLIENTS))
     {
-        wl_log("outputs: cannot listen on TCP port %d (error %d), no network outputs", g_tcpPort, WSAGetLastError());
+        err = WSAGetLastError();
+        wl_log("outputs: cannot listen on TCP port %d (error %d), no network outputs", g_tcpPort, err);
+        InterlockedExchange(&g_error, err ? err : -1);
         if (listener != INVALID_SOCKET)
             closesocket(listener);
         outputs_off();
@@ -364,7 +369,32 @@ static DWORD WINAPI server_thread(LPVOID)
         close_client(&g_clients[i]);
     closesocket(listener);
     free(batch);
+    wl_log("outputs: TCP port %d closed", g_tcpPort);
     return 0;
+}
+
+static int server_start(void)
+{
+    g_tcpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_PORT", 8000);
+    g_udpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_UDP_PORT", 8001);
+    EnterCriticalSection(&g_lock);
+    g_stopping = 0;
+    g_pendingUsed = 0;
+    // The servo board's first frames sent again: this server's clients have not had them
+    g_servoStarted = 0;
+    g_sentTorque = 1000;
+    InterlockedExchange(&g_on, 1);
+    LeaveCriticalSection(&g_lock);
+    InterlockedExchange(&g_error, 0);
+    // The sockets are made by the thread: at the start, here is DllMain, under the loader's lock
+    g_thread = CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
+    if (!g_thread)
+    {
+        wl_log("outputs: cannot start the server's thread, no network outputs");
+        outputs_off();
+        return 0;
+    }
+    return 1;
 }
 
 void wl_outputs_init(void)
@@ -382,16 +412,53 @@ void wl_outputs_init(void)
         wl_log("outputs: a companion, the network outputs left to its game");
         return;
     }
-    g_tcpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_PORT", 8000);
-    g_udpPort = wl_settings_get_int("Outputs", "OUTPUTS_NETWORK_UDP_PORT", 8001);
-    InterlockedExchange(&g_on, 1);
-    // The sockets are made by the thread: here is DllMain, under the loader's lock
-    g_thread = CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
-    if (!g_thread)
+    server_start();
+}
+
+int wl_outputs_enable(int on)
+{
+    if (!g_lockReady)
+        return 0;
+    if (on)
     {
-        wl_log("outputs: cannot start the server's thread, no network outputs");
-        InterlockedExchange(&g_on, 0);
+        if (g_on)
+            return 1;
+        if (wl_game_companion_of())
+            return 0;
+        // The previous server ends first: its mame_stop sent, its port given back
+        if (g_thread)
+        {
+            if (WaitForSingleObject(g_thread, 1000) == WAIT_TIMEOUT)
+                return 0;
+            CloseHandle(g_thread);
+            g_thread = NULL;
+        }
+        wl_log("outputs: started from the menu");
+        return server_start();
     }
+    if (!g_on)
+        return 1;
+    // Nothing more queued: the server sends what it has, mame_stop last, then ends
+    EnterCriticalSection(&g_lock);
+    if (!g_stopping)
+    {
+        pending_append("mame_stop = 1\r", strlen("mame_stop = 1\r"));
+        g_stopping = 1;
+    }
+    InterlockedExchange(&g_on, 0);
+    LeaveCriticalSection(&g_lock);
+    wl_log("outputs: stopped from the menu");
+    return 1;
+}
+
+int wl_outputs_enabled(void)
+{
+    return g_on != 0;
+}
+
+int wl_outputs_error(void)
+{
+    return g_error;
 }
 
 void wl_outputs_stop(void)

@@ -1450,13 +1450,40 @@ static void page_game_options(void)
     }
 }
 
+int wl_menu_outputs(int on, char *status, size_t size)
+{
+    if (!wl_outputs_enable(on))
+    {
+        snprintf(status, size, "%s", wl_tr("Le serveur précédent s'arrête encore : réessayez dans un instant."));
+        return 0;
+    }
+    char u[MAX_PATH * 2];
+    const wchar_t *file = wl_settings_file();
+    const char *value = on ? "true" : "false";
+    if (!file[0])
+        snprintf(status, size, "%s", wl_tr("Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"));
+    else if (wl_settings_write(file, "Outputs", "OUTPUTS_NETWORK", value))
+        snprintf(status, size, wl_tr("[Outputs] OUTPUTS_NETWORK = %s, enregistré dans %s"), value, wl_u8(file, u, sizeof u));
+    else
+        snprintf(status, size, wl_tr("Impossible d'écrire %s"), wl_u8(file, u, sizeof u));
+    wl_log("menu: network outputs %s", on ? "on" : "off");
+    return 1;
+}
+
 // "Sorties et réseau": what the game can send to BackForceFeeder or MAMEHooker ([Outputs]
 // OUTPUTS_NETWORK, outputs.cpp), each value's type and its last one, in a list of its own that
-// scrolls
+// scrolls. The box starts or stops the server at once, the game going on
 static void page_outputs(void)
 {
     int tcp = 0, udp = 0, clients = 0;
+    static char status[MAX_PATH * 2 + 96];
+    bool on = wl_outputs_enabled() != 0;
+    if (ImGui::Checkbox(wl_tr("Envoyer les sorties réseau (OUTPUTS_NETWORK)"), &on))
+        wl_menu_outputs(on, status, sizeof status);
     ImGui::PushTextWrapPos(0);
+    if (status[0])
+        ImGui::TextDisabled("%s", status);
+    int error = wl_outputs_error();
     if (wl_outputs_server(&tcp, &udp, &clients))
     {
         if (udp > 0)
@@ -1465,9 +1492,14 @@ static void page_outputs(void)
         else
             ImGui::Text(wl_tr("Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."), tcp, clients);
     }
+    else if (wl_outputs_enabled())
+        ImGui::Text(wl_tr("Sorties réseau : ouverture du port TCP %d..."), tcp);
+    else if (error == 10048) // WSAEADDRINUSE
+        ImGui::Text(wl_tr("Sorties réseau coupées : le port TCP %d est déjà pris par un autre programme."), tcp);
+    else if (error)
+        ImGui::Text(wl_tr("Sorties réseau coupées : le port TCP %d n'a pas pu être ouvert (erreur %d)."), tcp, error);
     else
-        ImGui::TextUnformatted(wl_tr("Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les "
-                                     "valeurs ci-dessous sont celles que le jeu donne."));
+        ImGui::TextUnformatted(wl_tr("Sorties réseau coupées. Les valeurs ci-dessous sont celles que le jeu donne."));
     ImGui::TextDisabled("%s", wl_tr("Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."));
     ImGui::PopTextWrapPos();
     ImGui::Spacing();

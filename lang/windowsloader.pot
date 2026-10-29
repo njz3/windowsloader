@@ -326,7 +326,7 @@ msgstr ""
 msgid "Périphériques"
 msgstr ""
 
-#: src/hook/menu.cpp:977 src/hook/menu.cpp:1485
+#: src/hook/menu.cpp:977 src/hook/menu.cpp:1517
 msgid "Nom"
 msgstr ""
 
@@ -548,7 +548,7 @@ msgstr ""
 msgid "Gardé par « Sauvegarder » dans [Display] du fichier de réglages."
 msgstr ""
 
-#: src/hook/menu.cpp:1218 src/hook/menu.cpp:1231
+#: src/hook/menu.cpp:1218 src/hook/menu.cpp:1231 src/hook/menu.cpp:1468
 #, c-format
 msgid "Impossible d'écrire %s"
 msgstr ""
@@ -649,154 +649,182 @@ msgstr ""
 msgid "Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou « Sauvegarder pour ce jeu »), puis relancez le jeu."
 msgstr ""
 
-#: src/hook/menu.cpp:1463
-#, c-format
-msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."
+#: src/hook/menu.cpp:1457
+msgid "Le serveur précédent s'arrête encore : réessayez dans un instant."
+msgstr ""
+
+#: src/hook/menu.cpp:1464 src/hook/menu.cpp:1571
+msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"
 msgstr ""
 
 #: src/hook/menu.cpp:1466
 #, c-format
+msgid "[Outputs] OUTPUTS_NETWORK = %s, enregistré dans %s"
+msgstr ""
+
+#: src/hook/menu.cpp:1481
+msgid "Envoyer les sorties réseau (OUTPUTS_NETWORK)"
+msgstr ""
+
+#: src/hook/menu.cpp:1490
+#, c-format
+msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."
+msgstr ""
+
+#: src/hook/menu.cpp:1493
+#, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."
 msgstr ""
 
-#: src/hook/menu.cpp:1469
-msgid "Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les valeurs ci-dessous sont celles que le jeu donne."
+#: src/hook/menu.cpp:1496
+#, c-format
+msgid "Sorties réseau : ouverture du port TCP %d..."
 msgstr ""
 
-#: src/hook/menu.cpp:1471
+#: src/hook/menu.cpp:1498
+#, c-format
+msgid "Sorties réseau coupées : le port TCP %d est déjà pris par un autre programme."
+msgstr ""
+
+#: src/hook/menu.cpp:1500
+#, c-format
+msgid "Sorties réseau coupées : le port TCP %d n'a pas pu être ouvert (erreur %d)."
+msgstr ""
+
+#: src/hook/menu.cpp:1502
+msgid "Sorties réseau coupées. Les valeurs ci-dessous sont celles que le jeu donne."
+msgstr ""
+
+#: src/hook/menu.cpp:1503
 msgid "Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."
 msgstr ""
 
-#: src/hook/menu.cpp:1486
+#: src/hook/menu.cpp:1518
 msgid "Type"
 msgstr ""
 
-#: src/hook/menu.cpp:1487
+#: src/hook/menu.cpp:1519
 msgid "Valeur"
 msgstr ""
 
-#: src/hook/menu.cpp:1488
+#: src/hook/menu.cpp:1520
 msgid "Description"
 msgstr ""
 
-#: src/hook/menu.cpp:1511
+#: src/hook/menu.cpp:1543
 msgid "Ce jeu n'envoie ni lampes ni carte moteur pour l'instant."
 msgstr ""
 
-#: src/hook/menu.cpp:1516
+#: src/hook/menu.cpp:1548
 #, c-format
 msgid "windowsloader %s %s (%d bits)"
 msgstr ""
 
-#: src/hook/menu.cpp:1517
+#: src/hook/menu.cpp:1549
 msgid "Benjamin Maurin - njz3, licence GPL v3."
 msgstr ""
 
-#: src/hook/menu.cpp:1519
+#: src/hook/menu.cpp:1551
 msgid "Avec :"
 msgstr ""
 
-#: src/hook/menu.cpp:1521
+#: src/hook/menu.cpp:1553
 msgid "MinHook, Tsuda Kageyu (BSD 2 clauses)"
 msgstr ""
 
-#: src/hook/menu.cpp:1524
+#: src/hook/menu.cpp:1556
 msgid "Conventions de linuxloader : controls.ini, menu Tab, mode agent."
 msgstr ""
 
-#: src/hook/menu.cpp:1529
+#: src/hook/menu.cpp:1561
 msgid "Langue"
 msgstr ""
 
-#: src/hook/menu.cpp:1532
+#: src/hook/menu.cpp:1564
 msgid "Langue de l'interface"
 msgstr ""
 
-#: src/hook/menu.cpp:1537
+#: src/hook/menu.cpp:1569
 #, c-format
 msgid "[Launcher] LANGUAGE = %s, enregistré dans %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1539
-msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"
-msgstr ""
-
-#: src/hook/menu.cpp:1545
+#: src/hook/menu.cpp:1577
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr ""
 
-#: src/hook/menu.cpp:1574
+#: src/hook/menu.cpp:1606
 msgid "Jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1575
+#: src/hook/menu.cpp:1607
 msgid "Options du jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1576
+#: src/hook/menu.cpp:1608
 msgid "Contrôles"
 msgstr ""
 
-#: src/hook/menu.cpp:1577
+#: src/hook/menu.cpp:1609
 msgid "Affichage"
 msgstr ""
 
-#: src/hook/menu.cpp:1578 src/launcher/picker.cpp:635
+#: src/hook/menu.cpp:1610 src/launcher/picker.cpp:638
 msgid "Retour de force"
 msgstr ""
 
-#: src/hook/menu.cpp:1579
+#: src/hook/menu.cpp:1611
 msgid "Sorties et réseau"
 msgstr ""
 
-#: src/hook/menu.cpp:1580
+#: src/hook/menu.cpp:1612
 msgid "À propos"
 msgstr ""
 
-#: src/hook/outputs.cpp:64
+#: src/hook/outputs.cpp:65
 msgid "la carte JVS"
 msgstr ""
 
-#: src/hook/outputs.cpp:570
+#: src/hook/outputs.cpp:637
 msgid "texte"
 msgstr ""
 
-#: src/hook/outputs.cpp:570
+#: src/hook/outputs.cpp:637
 msgid "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu"
 msgstr ""
 
-#: src/hook/outputs.cpp:578
+#: src/hook/outputs.cpp:645
 #, c-format
 msgid "Lampes %d à %d de %s, la première sur le bit 7"
 msgstr ""
 
-#: src/hook/outputs.cpp:579
+#: src/hook/outputs.cpp:646
 msgid "octet (0-255)"
 msgstr ""
 
-#: src/hook/outputs.cpp:586
+#: src/hook/outputs.cpp:653
 #, c-format
 msgid "%s : sortie %d de %s"
 msgstr ""
 
-#: src/hook/outputs.cpp:588
+#: src/hook/outputs.cpp:655
 #, c-format
 msgid "Sortie %d de %s (une lampe)"
 msgstr ""
 
-#: src/hook/outputs.cpp:593 src/hook/outputs.cpp:596
+#: src/hook/outputs.cpp:660 src/hook/outputs.cpp:663
 msgid "octets (0-255), un par ligne"
 msgstr ""
 
-#: src/hook/outputs.cpp:594
+#: src/hook/outputs.cpp:661
 msgid "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"
 msgstr ""
 
-#: src/hook/outputs.cpp:597
+#: src/hook/outputs.cpp:664
 msgid "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"
 msgstr ""
 
-#: src/hook/outputs.cpp:601
+#: src/hook/outputs.cpp:668
 msgid "Quand le jeu se termine"
 msgstr ""
 
@@ -1192,7 +1220,7 @@ msgstr ""
 msgid "Impossible de lancer %s (erreur %lu)."
 msgstr ""
 
-#: src/launcher/picker.cpp:395
+#: src/launcher/picker.cpp:398
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1200,106 +1228,106 @@ msgid ""
 "%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."
 msgstr ""
 
-#: src/launcher/picker.cpp:416
+#: src/launcher/picker.cpp:419
 msgid "Dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:519
+#: src/launcher/picker.cpp:522
 msgid "Jouable"
 msgstr ""
 
-#: src/launcher/picker.cpp:522
+#: src/launcher/picker.cpp:525
 msgid "Jouable, avec des réserves"
 msgstr ""
 
-#: src/launcher/picker.cpp:525
+#: src/launcher/picker.cpp:528
 msgid "En cours : ne se joue pas encore"
 msgstr ""
 
-#: src/launcher/picker.cpp:532
+#: src/launcher/picker.cpp:535
 msgid "oui"
 msgstr ""
 
-#: src/launcher/picker.cpp:532
+#: src/launcher/picker.cpp:535
 msgid "en partie (voir BILAN.md)"
 msgstr ""
 
-#: src/launcher/picker.cpp:532
+#: src/launcher/picker.cpp:535
 msgid "non"
 msgstr ""
 
-#: src/launcher/picker.cpp:570
+#: src/launcher/picker.cpp:573
 #, c-format
 msgid "%d jeux dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:570
+#: src/launcher/picker.cpp:573
 #, c-format
 msgid "%d jeu dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:577
+#: src/launcher/picker.cpp:580
 #, c-format
 msgid "Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par windowsloader devient une ligne de la liste."
 msgstr ""
 
-#: src/launcher/picker.cpp:631
+#: src/launcher/picker.cpp:634
 msgid "Plateforme"
 msgstr ""
 
-#: src/launcher/picker.cpp:632
+#: src/launcher/picker.cpp:635
 msgid "Dossier"
 msgstr ""
 
-#: src/launcher/picker.cpp:633
+#: src/launcher/picker.cpp:636
 msgid "Programme"
 msgstr ""
 
-#: src/launcher/picker.cpp:634
+#: src/launcher/picker.cpp:637
 msgid "Arguments"
 msgstr ""
 
-#: src/launcher/picker.cpp:636
+#: src/launcher/picker.cpp:639
 msgid "Link"
 msgstr ""
 
-#: src/launcher/picker.cpp:637
+#: src/launcher/picker.cpp:640
 msgid "Émulé"
 msgstr ""
 
-#: src/launcher/picker.cpp:640
+#: src/launcher/picker.cpp:643
 msgid "Jouer (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:649
+#: src/launcher/picker.cpp:652
 msgid "Dossier des jeux (Tab)"
 msgstr ""
 
-#: src/launcher/picker.cpp:652
+#: src/launcher/picker.cpp:655
 msgid "Actualiser (F5)"
 msgstr ""
 
-#: src/launcher/picker.cpp:655
+#: src/launcher/picker.cpp:658
 msgid "Quitter (Échap)"
 msgstr ""
 
-#: src/launcher/picker.cpp:668
+#: src/launcher/picker.cpp:671
 msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:678
+#: src/launcher/picker.cpp:681
 msgid "Le jeu n'a pas démarré"
 msgstr ""
 
-#: src/launcher/picker.cpp:685
+#: src/launcher/picker.cpp:688
 msgid "OK (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:717
+#: src/launcher/picker.cpp:720
 #, c-format
 msgid "windowsloader %s %s — choix du jeu"
 msgstr ""
 
-#: src/launcher/picker.cpp:764
+#: src/launcher/picker.cpp:767
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr ""

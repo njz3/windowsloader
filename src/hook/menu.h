@@ -56,3 +56,8 @@ int wl_menu_rect(RECT *r);
 // Its buttons "Sauvegarder" (0) and "Sauvegarder pour ce jeu" (1), also the agent's "menu save
 // [game]": 1 when written, status the message shown
 int wl_menu_save(int forGame, char *status, size_t size);
+
+// The "Sorties et réseau" page's box, also the agent's "menu outputs on|off": the network outputs'
+// server started or stopped at once, [Outputs] OUTPUTS_NETWORK written to the file read for the next
+// starts; 1 when done, status the message shown
+int wl_menu_outputs(int on, char *status, size_t size);

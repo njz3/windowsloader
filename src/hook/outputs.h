@@ -21,6 +21,13 @@ void wl_outputs_init(void);
 // "mame_stop = 1" sent to the clients, the server stopped: at the game's end (ExitProcess,
 // TerminateProcess of itself). Once; harmless when the server never started
 void wl_outputs_stop(void);
+// The menu's switch ("Sorties et réseau"): the server started or stopped at once, without the game
+// started again ("mame_stop = 1" to its clients when stopped). 0 when it cannot start: a
+// companion's, or the previous server still stopping; a port it cannot listen on is told
+// afterwards by wl_outputs_error
+int wl_outputs_enable(int on);
+int wl_outputs_enabled(void); // 1 while the values are sent (the server starting or listening)
+int wl_outputs_error(void);   // the last start's error: WSA's (10048: the port taken), 0 for none
 
 // A JVS general purpose output byte (lamps): byte 0 holds outputs 1 to 8 in bits 7 to 0
 void wl_outputs_gpo(int byteIndex, unsigned char value);

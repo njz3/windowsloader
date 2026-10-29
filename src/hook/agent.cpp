@@ -38,6 +38,8 @@
 //                          controllers in the list's order); without N, close them
 //   menu save [game]       its button "Sauvegarder" (or "Sauvegarder pour ce jeu"): "ok MESSAGE" or
 //                          "err MESSAGE"
+//   menu outputs on|off    the "Sorties et réseau" page's box: the network outputs' server started or
+//                          stopped at once, OUTPUTS_NETWORK written: "ok MESSAGE" or "err MESSAGE"
 //   quit                   "bye", and the game ends
 
 #include <windows.h>
@@ -216,6 +218,13 @@ static void command(char *line)
             char status[MAX_PATH * 2 + 64];
             int ok = wl_menu_save(!strcmp(a2, "game"), status, sizeof status);
             answer("%s %s", ok ? "ok" : "err", status);
+            return;
+        }
+        else if (!strcmp(a1, "outputs"))
+        {
+            char status[MAX_PATH * 2 + 96];
+            int ok = (!strcmp(a2, "on") || !strcmp(a2, "off")) && wl_menu_outputs(!strcmp(a2, "on"), status, sizeof status);
+            answer("%s %s", ok ? "ok" : "err", ok || a2[0] ? status : "on or off");
             return;
         }
         else if (a1[0])

@@ -273,7 +273,14 @@ of their own: Storm Racer G's PWM lights `pwm0` to `pwm5` (0 to 255), GTI Club 3
 supposed, as Crazy Ride's), SWDC's in a full cabinet (its LED board and dashboard, see above); the
 other games give their I/O board no lamps.
 The menu's "Sorties et réseau" page lists the values the running game can send, with their type and
-their last value (kept even when `OUTPUTS_NETWORK` is off), and the server's state.
+their last value (kept even when `OUTPUTS_NETWORK` is off), and the server's state. Its box "Envoyer
+les sorties réseau" starts or stops the server at once, the game going on (no new start needed):
+started, it announces the game by UDP and gives each client that connects every known value;
+stopped, its clients get `mame_stop = 1` and the port is closed. The choice is written to the
+settings file read (`OUTPUTS_NETWORK = true` or `false`) for the next starts; a `--set
+Outputs.OUTPUTS_NETWORK=...` of the launcher still wins at those. A port another program holds is
+told there (`OUTPUTS_NETWORK_PORT` to change in the file). The agent's `menu outputs on|off` does the
+same.
 
 ## License
 
