@@ -424,6 +424,10 @@ static const char *axis_suffix(const char *s, char *out, size_t size)
     return out;
 }
 
+// [Input] BUTTONS_FROM_ONE: a joystick's buttons shown from 1, as Windows and vJoy number them
+// (JOY0_BUTTON_0 is "Bouton 1"), or from 0 as SDL and controls.ini; read when the page opens
+static int g_buttonsFromOne = 1;
+
 // An input as the page shows it: "Axe 0 - (pédale)", "Bouton 3", "Left"...
 static void describe(const char *token, char *out, size_t size)
 {
@@ -455,7 +459,7 @@ static void describe(const char *token, char *out, size_t size)
     if (!_strnicmp(token, "KEY_", 4))
         snprintf(out, size, "%s", token + 4);
     else if (sscanf(token, "JOY%d_BUTTON_%d%n", &device, &number, &length) == 2 && !token[length])
-        snprintf(out, size, wl_tr("Bouton %d"), number);
+        snprintf(out, size, wl_tr("Bouton %d"), number + (g_buttonsFromOne ? 1 : 0));
     else if (sscanf(token, "JOY%d_AXIS_%d%n", &device, &number, &length) == 2)
     {
         snprintf(out, size, wl_tr("Axe %d"), number);
@@ -553,6 +557,7 @@ static void read_rows(void)
     for (int s = 0; s < 2; s++)
         g_rowCounts[s] = wl_controls_rows(g_rowSections[s], g_rows[s], MAX_ROWS);
     g_configCount = wl_controls_rows("Config", g_configRows, 32);
+    g_buttonsFromOne = wl_settings_get_bool("Input", "BUTTONS_FROM_ONE", 1);
     g_rowsRead = 1;
 }
 
@@ -1011,6 +1016,16 @@ static void page_controls(void)
     }
     if (count < 2)
         ImGui::TextDisabled("%s", wl_tr("Aucune manette branchée."));
+    // Written at once to the settings file read (windowsloader.ini), not to controls.ini
+    bool fromOne = g_buttonsFromOne != 0;
+    if (ImGui::Checkbox(wl_tr("Numéroter les boutons à partir de 1 (comme Windows et vJoy)"), &fromOne))
+    {
+        g_buttonsFromOne = fromOne;
+        wl_settings_write(wl_settings_file(), "Input", "BUTTONS_FROM_ONE", fromOne ? "true" : "false");
+        wl_log("menu: [Input] BUTTONS_FROM_ONE = %s", fromOne ? "true" : "false");
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", wl_tr("controls.ini garde les numéros de SDL, qui commencent à 0 : « Bouton 1 » y est JOY0_BUTTON_0."));
     LONG map = InterlockedExchange(&g_mapRequest, -2); // the agent's "menu map N"
     if (map >= 0 && map < count)
     {

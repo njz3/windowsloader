@@ -215,6 +215,12 @@ back to `FFB_Invert = 0` ("Inverser le sens" unticked).
 game's window has the focus, nothing while the settings menu is open; the launcher then closes the
 programs it started with the game.
 
+`controls.ini` numbers a joystick's buttons as SDL does, from 0 (`JOY0_BUTTON_0` is the first one),
+where Windows' and vJoy's panels count from 1. The menu's controls page shows them from 1 by default
+("Bouton 1" for `JOY0_BUTTON_0`): `[Input] BUTTONS_FROM_ONE = true` of `windowsloader.ini`, `false`
+for SDL's own numbers; its box under the devices' list writes it at once. `controls.ini` keeps SDL's
+numbers either way.
+
 "Sauvegarder" writes the display settings to the file read, "Sauvegarder pour ce jeu" to the game's
 own file (made from a copy of the file read the first time). `[Launcher] SETTINGS_MENU = false`, for
 a public cabinet: Tab no longer opens the menu over a running game (the agent's `menu on` still
