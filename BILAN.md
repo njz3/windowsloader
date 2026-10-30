@@ -88,7 +88,8 @@ Fonctions :
 ## Daytona Championship USA (2017) et New Season Edition (2019)
 
 `Sega\Daytona\Daytona.exe`, x86, Direct3D 11. Module `src/hook/games/daytona.cpp`. Copies locales
-effacées (Corbeille) le 22/10.
+effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
+(ceux des bornes).
 
 - Commandes ✅ : manette DirectInput « SEGA IO Controller » jouée par windowsloader ; volant (sens
   vérifié), accélérateur, frein (57 → 18 mph en 2 s), Start, rapports + / −, levier en H et vues câblés

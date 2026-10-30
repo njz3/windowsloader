@@ -23,12 +23,12 @@
 const WlKnownGame g_wlKnownGames[] = {
     {"Sega Rally 3", "segarally3", "", {L"Rally.exe"}, {0x9228B72E}, {NULL}, 0, NULL, "Sega Europa-R", "2008", WL_GAME_PLAYS,
      WL_N("Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."), WL_FEATURE_YES, WL_FEATURE_NO},
-    {"Daytona Championship USA", "daytona", "171221", {L"Daytona.exe"}, {0x08823BEF}, {NULL}, 0, NULL, "Sega (PC)", "2017", WL_GAME_PLAYS,
+    {"Daytona Championship USA", "daytona3", "171221", {L"Daytona.exe"}, {0x08823BEF}, {NULL}, 0, NULL, "Sega (PC)", "2017", WL_GAME_PLAYS,
      WL_N("Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."),
      WL_FEATURE_YES, WL_FEATURE_NO},
     // The New Season Edition (2019): its own program, the same name. Told apart by the DLL from its
     // Install.ini; here the line above comes first and the picker shows both editions as it
-    {"Daytona Championship USA New Season Edition", "daytona", "190306", {L"Daytona.exe"}, {0x9650CBB4}, {NULL}, 0, NULL, "Sega (PC)",
+    {"Daytona Championship USA New Season Edition", "daytona3nse", "190306", {L"Daytona.exe"}, {0x9650CBB4}, {NULL}, 0, NULL, "Sega (PC)",
      "2019", WL_GAME_PLAYS, WL_N("Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."),
      WL_FEATURE_YES, WL_FEATURE_NO},
     {"Ford Racing Full Blown", "fordracing", "", {L"fordracing.exe"}, {0xEB788677}, {NULL}, 0, NULL, "Sega (PC)", "2006", WL_GAME_PLAYS,

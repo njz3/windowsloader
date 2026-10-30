@@ -17,7 +17,7 @@
 // Returns 1 when the game is its own.
 
 int wl_game_segarally3(const wchar_t *exePath);
-int wl_game_daytona(const wchar_t *exePath, const char **title); // both editions
+int wl_game_daytona(const wchar_t *exePath, const char **name, const char **title); // both editions
 int wl_game_fordracing(const wchar_t *exePath, const char **title); // the game or its GameShell
 int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **title); // GRID, DiRT Showdown
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title); // Sega RingEdge and RingWide games

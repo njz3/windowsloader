@@ -75,7 +75,8 @@ windowsloader               (alone: the game picker)
 ```
 
 The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and in the write folder
-(`WRITE_DIR\<name>`). The CRC32 is that of the cabinets' copies, for information only: a program
+(`WRITE_DIR\<name>`). Daytona Championship USA's two editions are `daytona3` and `daytona3nse`, the
+cabinets' names. The CRC32 is that of the cabinets' copies, for information only: a program
 with another CRC32 is recognized and played all the same (a game is told by its program's name, the
 files beside it and, for a few, the program's time stamp).
 
