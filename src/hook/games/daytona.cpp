@@ -42,11 +42,12 @@
 //   ignores that message). windowsloader is that shell (segashell.cpp).
 //
 // The game's settings are left as they are; it only reads some of them differently: no
-// exclusive full screen ([FullHD] ENABLE_FULL_SCREEN of GameData\config.ini) and a single
-// cabinet, the first ([Network] NumCabinets 1 and CabinetID 1 of ShellData.ini; the links with
-// other cabinets would go out on the local network, which system.cpp refuses anyway). The camera
-// (the players' photos) is refused by system.cpp too.
+// exclusive full screen ([FullHD] ENABLE_FULL_SCREEN of GameData\config.ini) and the cabinets of
+// the link ([Network] NumCabinets and CabinetID of ShellData.ini: 1 and 1 alone, else from
+// [Game.daytona3] LINK and CABINET, see the link below). The camera (the players' photos) is
+// refused by system.cpp.
 
+#include <winsock2.h>
 #include <windows.h>
 #include <math.h>
 #include <stdio.h>
@@ -512,6 +513,10 @@ static const WlGameOption g_options[] = {
     {"PANEL_SPRING", WL_N("Ressort du panneau (%)"),
      WL_N("Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."), WL_OPTION_INT, NULL, 0, 100, "20", 0,
      apply_panel},
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
 };
 
 static void read_options(void)
@@ -543,8 +548,6 @@ static void find_build(void)
         return;
     }
     wl_log("motor: %s build %08lx, the drive board's command at +0x%lx", g_build->name, stamp, g_build->command);
-    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
-    wl_game_on_settings(read_options);
     wl_outputs_declare_drive();
     wl_outputs_name_lamps(WL_N("la borne Model 2 (lampes)"), g_lampNames, 8);
     HANDLE t = CreateThread(NULL, 0, board_thread, NULL, 0, NULL);
@@ -652,6 +655,321 @@ static WlSegaShell g_shell = {
 };
 
 // ------------------------------------------------------------------------------
+// The link between cabinets
+// ------------------------------------------------------------------------------
+
+// The game finds the other cabinets on its own network, 192.168.1.0/24, written in its code
+// (src\soc\ping.cpp; addresses of the 2017 edition, the NSE does the same): its address is the
+// last byte of gethostbyname(gethostname()) (+0x1758f0); cabinet 1 ([Network] CabinetID) is the
+// main PC, it tries 192.168.1.1 to .8 but its own on TCP 26000 (+0x174d00, +0x176ad0, again every
+// 20 ms until it answers); each other cabinet listens there on its address (+0x175770), answers
+// its CabinetID, and the main PC sends them all the cabinets' addresses ("Create network group").
+// The race then goes between those addresses: a heart beat (TCP, +0x12a5e0, on its address),
+// the ranking (TCP 5888, +0x17b840), a broadcast on 192.168.1.255 (UDP, picomm.cpp +0x173fb0).
+// For windowsloader cabinet N is 192.168.1.N; [Game.daytona3] LINK lists the cabinets' real
+// addresses (cabinet 1's first), CABINET is this one's number (0: the first of LINK's addresses
+// that is this PC's). The game's sockets (its import table) carry it between them:
+//   gethostbyname(this PC's name)         -> 192.168.1.CABINET
+//   bind 192.168.1.CABINET                -> its real address, the same port (another .x: refused)
+//   connect, sendto 192.168.1.N           -> cabinet N's real address; the other .x unreachable
+//   sendto 192.168.1.255, 255.255.255.255 -> each cabinet's real address, its own too
+//   accept, recvfrom, getpeername, getsockname of cabinet N's real address -> 192.168.1.N
+// Anything else is left to system.cpp, which keeps the game off the local network. Without LINK
+// the cabinet is alone, cabinet 1 of 1: a second cabinet's file (CabinetID = 2, the link's
+// identity from TeknoParrot) made it wait for cabinet 1 on "network discovery" (racecab2).
+#define LINK_MAX 8
+#define LINK_NET 0x0001A8C0u // 192.168.1.0, in network order
+#define LINK_MASK 0x00FFFFFFu
+
+static int g_cabinet = 1, g_linkCount; // 0: alone
+static ULONG g_linkAddress[LINK_MAX];  // the cabinets' real addresses, network order
+
+static ULONG link_virtual(int cabinet)
+{
+    return LINK_NET | (ULONG)cabinet << 24;
+}
+
+// The cabinet a game's address is, 0 for none
+static int link_cabinet_of(ULONG ip)
+{
+    int n = (int)(ip >> 24);
+    return (ip & LINK_MASK) == LINK_NET && n >= 1 && n <= g_linkCount ? n : 0;
+}
+
+// The cabinet a real address is, 0 for none
+static int link_cabinet_real(ULONG ip)
+{
+    for (int i = 0; i < g_linkCount; i++)
+        if (g_linkAddress[i] == ip)
+            return i + 1;
+    return 0;
+}
+
+static void link_log(const char *what, const sockaddr *a, const sockaddr *to, int r, DWORD err)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) > 200)
+        return;
+    const unsigned char *b = (const unsigned char *)&((const sockaddr_in *)a)->sin_addr, *c = (const unsigned char *)&((const sockaddr_in *)to)->sin_addr;
+    wl_log("daytona: link %s %u.%u.%u.%u:%u -> %u.%u.%u.%u: %d (%lu)", what, b[0], b[1], b[2], b[3], ntohs(((const sockaddr_in *)a)->sin_port),
+           c[0], c[1], c[2], c[3], r, r < 0 ? err : 0);
+}
+
+static int is_inet(const sockaddr *a, int len)
+{
+    return a && len >= (int)sizeof(sockaddr_in) && a->sa_family == AF_INET;
+}
+
+// An address the game is given back (accept, recvfrom...): a cabinet's real one becomes its own
+static void link_to_game(sockaddr *a, const int *len)
+{
+    if (!g_linkCount || !len || !is_inet(a, *len))
+        return;
+    sockaddr_in *in = (sockaddr_in *)a;
+    if (int n = link_cabinet_real(in->sin_addr.s_addr))
+        in->sin_addr.s_addr = link_virtual(n);
+}
+
+static hostent *(WSAAPI *olink_gethostbyname)(const char *);
+static hostent *WSAAPI link_gethostbyname(const char *name)
+{
+    char own[256];
+    wl_busy_enter();
+    int mine = g_linkCount && name && !gethostname(own, sizeof own) && !_stricmp(name, own);
+    wl_busy_leave();
+    if (!mine)
+        return olink_gethostbyname(name);
+    static ULONG address;
+    static char *list[2] = {(char *)&address, NULL};
+    static char *aliases[1] = {NULL};
+    static char hostName[256];
+    static hostent h;
+    address = link_virtual(g_cabinet);
+    snprintf(hostName, sizeof hostName, "%s", own);
+    h.h_name = hostName;
+    h.h_aliases = aliases;
+    h.h_addrtype = AF_INET;
+    h.h_length = 4;
+    h.h_addr_list = list;
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 3)
+        wl_log("daytona: link: gethostbyname(\"%s\") -> 192.168.1.%d", name, g_cabinet);
+    return &h;
+}
+
+static int(WSAAPI *olink_bind)(SOCKET, const sockaddr *, int);
+static int WSAAPI link_bind(SOCKET s, const sockaddr *a, int len)
+{
+    if (!g_linkCount || !is_inet(a, len) || (((const sockaddr_in *)a)->sin_addr.s_addr & LINK_MASK) != LINK_NET)
+        return olink_bind(s, a, len);
+    sockaddr_in to;
+    memcpy(&to, a, sizeof to);
+    if (to.sin_addr.s_addr != link_virtual(g_cabinet))
+    {
+        link_log("bind refused", a, a, -1, WSAEADDRNOTAVAIL);
+        WSASetLastError(WSAEADDRNOTAVAIL);
+        return SOCKET_ERROR;
+    }
+    to.sin_addr.s_addr = g_linkAddress[g_cabinet - 1];
+    wl_busy_enter(); // the cabinet's real address: not refused by system.cpp
+    int r = olink_bind(s, (const sockaddr *)&to, sizeof to);
+    DWORD err = WSAGetLastError();
+    wl_busy_leave();
+    link_log("bind", a, (const sockaddr *)&to, r, err);
+    WSASetLastError(err);
+    return r;
+}
+
+static int(WSAAPI *olink_connect)(SOCKET, const sockaddr *, int);
+static int WSAAPI link_connect(SOCKET s, const sockaddr *a, int len)
+{
+    if (!g_linkCount || !is_inet(a, len) || (((const sockaddr_in *)a)->sin_addr.s_addr & LINK_MASK) != LINK_NET)
+        return olink_connect(s, a, len);
+    int n = link_cabinet_of(((const sockaddr_in *)a)->sin_addr.s_addr);
+    if (!n)
+    {
+        // The main PC tries the 8 addresses every 20 ms: nobody there
+        WSASetLastError(WSAECONNREFUSED);
+        return SOCKET_ERROR;
+    }
+    sockaddr_in to;
+    memcpy(&to, a, sizeof to);
+    to.sin_addr.s_addr = g_linkAddress[n - 1];
+    wl_busy_enter();
+    int r = olink_connect(s, (const sockaddr *)&to, sizeof to);
+    DWORD err = WSAGetLastError();
+    wl_busy_leave();
+    // A refused try every 20 ms until the other cabinet listens: the first ones only
+    static volatile LONG logged[LINK_MAX];
+    if (r == 0 || err == WSAEWOULDBLOCK || InterlockedIncrement(&logged[n - 1]) <= 5)
+        link_log("connect", a, (const sockaddr *)&to, r, err);
+    WSASetLastError(err);
+    return r;
+}
+
+static int(WSAAPI *olink_sendto)(SOCKET, const char *, int, int, const sockaddr *, int);
+static int WSAAPI link_sendto(SOCKET s, const char *buf, int size, int flags, const sockaddr *a, int len)
+{
+    if (!g_linkCount || !is_inet(a, len))
+        return olink_sendto(s, buf, size, flags, a, len);
+    ULONG ip = ((const sockaddr_in *)a)->sin_addr.s_addr;
+    int first, last;
+    if (ip == INADDR_BROADCAST || ip == (LINK_NET | ~LINK_MASK))
+        first = 1, last = g_linkCount;
+    else if ((ip & LINK_MASK) == LINK_NET)
+    {
+        first = last = link_cabinet_of(ip);
+        if (!first)
+            return size; // nobody there: lost, as on a network
+    }
+    else
+        return olink_sendto(s, buf, size, flags, a, len);
+    sockaddr_in to;
+    memcpy(&to, a, sizeof to);
+    int r = size;
+    DWORD err = 0;
+    wl_busy_enter();
+    for (int n = first; n <= last; n++)
+    {
+        to.sin_addr.s_addr = g_linkAddress[n - 1];
+        int sent = olink_sendto(s, buf, size, flags, (const sockaddr *)&to, sizeof to);
+        if (sent < 0 && first == last)
+            r = sent, err = WSAGetLastError();
+        static volatile LONG logged[LINK_MAX];
+        if (InterlockedIncrement(&logged[n - 1]) <= 10)
+            link_log("sendto", a, (const sockaddr *)&to, sent, WSAGetLastError());
+    }
+    wl_busy_leave();
+    WSASetLastError(err);
+    return r;
+}
+
+static int(WSAAPI *olink_recvfrom)(SOCKET, char *, int, int, sockaddr *, int *);
+static int WSAAPI link_recvfrom(SOCKET s, char *buf, int size, int flags, sockaddr *from, int *fromLen)
+{
+    int r = olink_recvfrom(s, buf, size, flags, from, fromLen);
+    if (r >= 0)
+    {
+        DWORD err = WSAGetLastError();
+        link_to_game(from, fromLen);
+        WSASetLastError(err);
+    }
+    return r;
+}
+
+static SOCKET(WSAAPI *olink_accept)(SOCKET, sockaddr *, int *);
+static SOCKET WSAAPI link_accept(SOCKET s, sockaddr *a, int *len)
+{
+    SOCKET r = olink_accept(s, a, len);
+    if (r != INVALID_SOCKET)
+    {
+        link_to_game(a, len);
+        if (g_linkCount && len && is_inet(a, *len))
+            link_log("accept", a, a, 0, 0);
+    }
+    return r;
+}
+
+static int(WSAAPI *olink_getpeername)(SOCKET, sockaddr *, int *);
+static int WSAAPI link_getpeername(SOCKET s, sockaddr *a, int *len)
+{
+    int r = olink_getpeername(s, a, len);
+    if (!r)
+        link_to_game(a, len);
+    return r;
+}
+
+static int(WSAAPI *olink_getsockname)(SOCKET, sockaddr *, int *);
+static int WSAAPI link_getsockname(SOCKET s, sockaddr *a, int *len)
+{
+    int r = olink_getsockname(s, a, len);
+    if (!r)
+        link_to_game(a, len);
+    return r;
+}
+
+// The link's settings: LINK's addresses, CABINET the cabinet's number (0: the first of LINK's
+// addresses that is this PC's)
+static void link_settings(void)
+{
+    char list[256];
+    wl_game_option("LINK", list, sizeof list);
+    g_cabinet = wl_game_option_int("CABINET");
+    char *next = NULL;
+    for (char *p = strtok_s(list, ",; ", &next); p && g_linkCount < LINK_MAX; p = strtok_s(NULL, ",; ", &next))
+    {
+        unsigned b[4];
+        char end;
+        if (sscanf_s(p, "%u.%u.%u.%u%c", &b[0], &b[1], &b[2], &b[3], &end, 1) != 4 || b[0] > 255 || b[1] > 255 || b[2] > 255 || b[3] > 255 ||
+            !b[0])
+            wl_log("daytona: link: \"%s\" is not an address, left out", p);
+        else
+            g_linkAddress[g_linkCount++] = b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24;
+    }
+    if (g_linkCount && g_cabinet < 1)
+    {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+        wl_busy_enter();
+        for (int i = 0; i < g_linkCount && g_cabinet < 1; i++)
+        {
+            SOCKET t = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+            sockaddr_in a = {};
+            a.sin_family = AF_INET;
+            a.sin_addr.s_addr = g_linkAddress[i];
+            if (t != INVALID_SOCKET && !bind(t, (const sockaddr *)&a, sizeof a))
+                g_cabinet = i + 1;
+            if (t != INVALID_SOCKET)
+                closesocket(t);
+        }
+        wl_busy_leave();
+        WSACleanup();
+        if (g_cabinet < 1)
+            wl_log("daytona: link: none of LINK's addresses is this PC's (CABINET not set): the cabinet stays alone");
+    }
+    if (g_linkCount && (g_cabinet < 1 || g_cabinet > g_linkCount))
+    {
+        if (g_cabinet >= 1)
+            wl_log("daytona: link: CABINET %d is not one of LINK's %d addresses: the cabinet stays alone", g_cabinet, g_linkCount);
+        g_linkCount = 0;
+    }
+    if (!g_linkCount)
+    {
+        g_cabinet = 1;
+        wl_log("daytona: cabinet 1 of 1, alone");
+        return;
+    }
+    ULONG ip = g_linkAddress[g_cabinet - 1];
+    wl_log("daytona: link: cabinet %d of %d (192.168.1.%d), its real address %lu.%lu.%lu.%lu", g_cabinet, g_linkCount, g_cabinet, ip & 0xFF,
+           ip >> 8 & 0xFF, ip >> 16 & 0xFF, ip >> 24);
+}
+
+static void link_patch(void)
+{
+    HMODULE exe = GetModuleHandleW(NULL);
+    // ws2_32's functions, imported by their number (ws2_32.lib's) or by their name
+    static const struct
+    {
+        int ordinal;
+        const char *name;
+        void *fn, **original;
+    } table[] = {
+        {52, "gethostbyname", (void *)link_gethostbyname, (void **)&olink_gethostbyname},
+        {2, "bind", (void *)link_bind, (void **)&olink_bind},
+        {4, "connect", (void *)link_connect, (void **)&olink_connect},
+        {20, "sendto", (void *)link_sendto, (void **)&olink_sendto},
+        {17, "recvfrom", (void *)link_recvfrom, (void **)&olink_recvfrom},
+        {1, "accept", (void *)link_accept, (void **)&olink_accept},
+        {5, "getpeername", (void *)link_getpeername, (void **)&olink_getpeername},
+        {6, "getsockname", (void *)link_getsockname, (void **)&olink_getsockname},
+    };
+    for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
+        if (!wl_patch_iat(exe, "WS2_32.dll", (const char *)(ULONG_PTR)table[i].ordinal, table[i].fn, table[i].original) &&
+            !wl_patch_iat(exe, "WS2_32.dll", table[i].name, table[i].fn, table[i].original))
+            wl_log("daytona: %s not in the import table: no link", table[i].name);
+}
+
+// ------------------------------------------------------------------------------
 
 static int ends_with(const char *s, const char *end)
 {
@@ -661,23 +979,21 @@ static int ends_with(const char *s, const char *end)
 
 static int ini_override(const char *file, const char *section, const char *key, char *value, size_t size)
 {
-    static const struct
-    {
-        const char *file, *section, *key, *value;
-    } table[] = {
-        {"config.ini", "FullHD", "ENABLE_FULL_SCREEN", "0"},
-        {"ShellData.ini", "Network", "NumCabinets", "1"},
-        // Alone, it is cabinet 1: a second cabinet's file (CabinetID = 2, the link's identity from
-        // TeknoParrot) made it wait for cabinet 1 on "network discovery" (racecab2)
-        {"ShellData.ini", "Network", "CabinetID", "1"},
-    };
-    for (int i = 0; i < (int)(sizeof table / sizeof table[0]); i++)
-        if (ends_with(file, table[i].file) && !_stricmp(section, table[i].section) && !_stricmp(key, table[i].key))
-        {
-            snprintf(value, size, "%s", table[i].value);
-            return 1;
-        }
-    return 0;
+    if (ends_with(file, "config.ini") && !_stricmp(section, "FullHD") && !_stricmp(key, "ENABLE_FULL_SCREEN"))
+        snprintf(value, size, "0");
+    else if (ends_with(file, "ShellData.ini") && !_stricmp(section, "Network") && !_stricmp(key, "NumCabinets"))
+        snprintf(value, size, "%d", g_linkCount ? g_linkCount : 1);
+    else if (ends_with(file, "ShellData.ini") && !_stricmp(section, "Network") && !_stricmp(key, "CabinetID"))
+        snprintf(value, size, "%d", g_cabinet);
+    else
+        return 0;
+    return 1;
+}
+
+static void daytona_settings(void)
+{
+    read_options();
+    link_settings();
 }
 
 int wl_game_daytona(const wchar_t *exePath, const char **name, const char **title)
@@ -703,6 +1019,9 @@ int wl_game_daytona(const wchar_t *exePath, const char **name, const char **titl
     g_shell.freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;
     read_calibration(dir);
     find_build();
+    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_on_settings(daytona_settings);
+    link_patch();
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_board);
     wl_system_set_process_handler(process_handler);

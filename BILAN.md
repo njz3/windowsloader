@@ -110,7 +110,18 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
 - Menu de service ❌ : le menu de test est celui de `Shell.exe`, non émulé.
 - Crédits / Shell ✅ : Shell émulé (TCP 127.0.0.1:18888) : crédits, défi de sécurité, SKU (la NSE
   l'attend).
-- À part : réseau local refusé, caméra refusée, carte graphique dédiée choisie sur un portable.
+- Link entre bornes 🔄 (30/10, `[Game.daytona3] LINK` et `CABINET`, voir le README) : le jeu cherche ses bornes
+  sur 192.168.1.0/24, en dur (`src\soc\ping.cpp`) : son adresse est le dernier octet de
+  `gethostbyname(gethostname())`, la borne 1 (`CabinetID`) est le maître, elle essaie 192.168.1.1 à 8 (sauf la
+  sienne) en TCP 26000, chaque autre borne y répond avec son `CabinetID`, puis le maître envoie la liste des
+  adresses ; la course passe ensuite par un battement de cœur (TCP), le classement (TCP 5888), une diffusion UDP sur
+  192.168.1.255 et les photos de la caméra (ImageComm ; sans caméra, la capture est coupée sans erreur).
+  windowsloader : la borne N est 192.168.1.N pour le jeu, ses échanges vont aux PC de `LINK` (gethostbyname, bind,
+  connect, sendto, recvfrom, accept, getpeername, getsockname de sa table d'importation) ; NumCabinets et CabinetID
+  lus d'après `LINK` et `CABINET`. Essayé sur ce PC avec un faux Daytona.exe qui fait ces appels (deux jeux,
+  127.0.0.1 et 127.0.0.2) : chaque borne a son adresse, le maître trouve la borne 2 et reçoit son CabinetID, les
+  diffusions passent dans les deux sens. Pas encore essayé avec le jeu ni sur les bornes (192.168.1.4 et .5).
+- À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)
 

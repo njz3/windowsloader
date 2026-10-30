@@ -145,6 +145,13 @@ must let in (`MK_AGP3_FINAL.exe`). As on the real cabinets, each one's PCB-ID mu
 test menu, ゲーム設定 → 基板ID, 1.10: Game options → Board ID; Enter, selector, Enter): E24-03
 « 基板ID重複エラー » otherwise.
 Without `LINK` the cabinet plays alone.
+Daytona Championship USA and its New Season Edition (`[Game.daytona3]`, `[Game.daytona3nse]`) link
+the same way: `LINK` lists the cabinets' PCs (up to 8, cabinet 1 first, the main one), the same line
+on each, and `CABINET` is found from it (or set). The game sees its cabinets at 192.168.1.N (N the
+cabinet's number) on the network it knows, whatever the PCs' real addresses; its TCP and UDP traffic
+(26000, 5888 and the others) goes between the listed PCs only, which the Windows firewall must let in
+(`Daytona.exe`). `[Network] NumCabinets` and `CabinetID` of `ShellData.ini` are read from them,
+the file is left as it is. Without `LINK` the cabinet plays alone (cabinet 1 of 1).
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's
