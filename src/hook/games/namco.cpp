@@ -639,9 +639,82 @@ static WlVirtualDevice g_com4 = {"COM4", NULL, com4_read, com4_write, com1_modem
 // be ready (+0x201450): the requests (attach, reset, LED, beep, URL) take the reader's number, a
 // callback and its context, and the library calls back callback(number, result, context) once
 // done; the game's callbacks (+0x2012c0, +0x201330) keep the result, 0 for done, -301 an error.
-// BngRwIsCmdExec is 1 while a request runs. Here every request is done at once; no card is ever
-// touched (BngRwReqWaitTouch -1, as OpenParrot's OpenBanapass answers it).
+// BngRwIsCmdExec is 1 while a request runs. Here every request is done at once (its callback
+// called right after, below); no card is ever touched (BngRwReqWaitTouch -1, as OpenParrot's
+// OpenBanapass answers it).
 typedef void(__cdecl *BngCallback)(int number, int result, void *context);
+
+// The callbacks are called from a thread of the library's own, as bngrw.dll does, once the request
+// has returned; never inside it. Called inside, Wangan Midnight 6 froze in its attract (racecab2,
+// 30/10): its request (+0x8cffa6, on the game's main thread) holds a lock its callback (+0x8cf780)
+// waits for, so the picture stopped for good after the reader's attach
+#define BNG_QUEUE 64
+static struct
+{
+    BngCallback callback;
+    int number;
+    void *context;
+} g_bngDone[BNG_QUEUE];
+static int g_bngHead, g_bngCount;
+static SRWLOCK g_bngLock = SRWLOCK_INIT;
+static CONDITION_VARIABLE g_bngWake = CONDITION_VARIABLE_INIT;
+
+static DWORD WINAPI bng_thread(LPVOID)
+{
+    for (;;)
+    {
+        AcquireSRWLockExclusive(&g_bngLock);
+        while (!g_bngCount)
+            SleepConditionVariableSRW(&g_bngWake, &g_bngLock, INFINITE, 0);
+        BngCallback callback = g_bngDone[g_bngHead].callback;
+        int number = g_bngDone[g_bngHead].number;
+        void *context = g_bngDone[g_bngHead].context;
+        g_bngHead = (g_bngHead + 1) % BNG_QUEUE;
+        g_bngCount--;
+        ReleaseSRWLockExclusive(&g_bngLock);
+        callback(number, 0, context);
+    }
+}
+
+static BOOL CALLBACK bng_start(PINIT_ONCE, PVOID, PVOID *)
+{
+    HANDLE t = CreateThread(NULL, 0, bng_thread, NULL, 0, NULL);
+    if (t)
+        CloseHandle(t);
+    else
+        wl_log("namco: the card reader's thread cannot start: its callbacks are called at once");
+    return t != NULL;
+}
+
+// The request done (result 0): its callback queued for the library's thread
+static void bng_done(UINT number, BngCallback callback, void *context)
+{
+    static INIT_ONCE once = INIT_ONCE_STATIC_INIT;
+    if (!callback)
+        return;
+    int queued = 0;
+    if (InitOnceExecuteOnce(&once, bng_start, NULL, NULL))
+    {
+        AcquireSRWLockExclusive(&g_bngLock);
+        if (g_bngCount < BNG_QUEUE)
+        {
+            int i = (g_bngHead + g_bngCount++) % BNG_QUEUE;
+            g_bngDone[i].callback = callback;
+            g_bngDone[i].number = (int)number;
+            g_bngDone[i].context = context;
+            queued = 1;
+        }
+        ReleaseSRWLockExclusive(&g_bngLock);
+        WakeConditionVariable(&g_bngWake);
+    }
+    if (!queued)
+    {
+        static int told;
+        if (!told++)
+            wl_log("namco: the card reader's callbacks: queue full, one called at once");
+        callback((int)number, 0, context);
+    }
+}
 
 static int WINAPI bng_init(void)
 {
@@ -652,8 +725,7 @@ static int WINAPI bng_init(void)
 static int WINAPI bng_attach(UINT number, char *port, int a, int b, BngCallback callback, void *context)
 {
     wl_log("namco: BngRwAttach %u \"%s\": attached", number, port ? port : "");
-    if (callback)
-        callback((int)number, 0, context);
+    bng_done(number, callback, context);
     return 1;
 }
 
@@ -679,15 +751,13 @@ static int WINAPI bng_set_led_power(UINT a, UINT b, UINT c)
 
 static int WINAPI bng_dev_reset(UINT number, BngCallback callback, void *context)
 {
-    if (callback)
-        callback((int)number, 0, context);
+    bng_done(number, callback, context);
     return 1;
 }
 
 static int WINAPI bng_request(UINT number, UINT value, BngCallback callback, void *context) // LED, beep
 {
-    if (callback)
-        callback((int)number, 0, context);
+    bng_done(number, callback, context);
     return 1;
 }
 
@@ -695,8 +765,7 @@ static int WINAPI bng_send_url(UINT number, int a, UINT b, int *c, char *d, char
 {
     if (number > 7 || !d)
         return -100;
-    if (callback)
-        callback((int)number, 0, context);
+    bng_done(number, callback, context);
     return 1;
 }
 
@@ -712,8 +781,7 @@ static unsigned int WINAPI bng_get_version(void)
 
 static int WINAPI bng_action(UINT number, UINT action, BngCallback callback, void *context)
 {
-    if (callback)
-        callback((int)number, 0, context);
+    bng_done(number, callback, context);
     return 1;
 }
 
