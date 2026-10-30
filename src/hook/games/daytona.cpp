@@ -48,6 +48,7 @@
 // (the players' photos) is refused by system.cpp too.
 
 #include <windows.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,7 +58,9 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
+#include "outputs.h"
 #include "segashell.h"
 #include "vdinput.h"
 
@@ -166,6 +169,7 @@ enum
 
 static HWND g_gameWindow;
 static unsigned g_port;
+static volatile LONG g_boardEffects; // the board's commands played (below): the port's byte only logged
 
 static void motor_byte(unsigned char b)
 {
@@ -174,13 +178,378 @@ static void motor_byte(unsigned char b)
     double f = q ? (15 - q) / 14.0 : 0;
     if (b & 0x10)
         f = -f; // to the right
-    wl_ffb_set(f);
+    if (!g_boardEffects)
+        wl_ffb_set(f);
     if (b != last && logged < 40)
     {
         logged++;
         wl_log("motor: port 0x%x <- 0x%02x, force %+.2f", g_port, b, f);
     }
     last = b;
+}
+
+// ------------------------------------------------------------------------------
+// The motor board's commands. The game is Daytona USA's Model 2 program made again: each frame it
+// still fills a Model 2 cabinet's outputs, the lamps' byte and the drive board's command (the
+// function at +0x1de100 in the 2017 program keeps a copy of each beside its other Model 2 bytes);
+// its src\soc\forcefeedback.cpp (+0x128c50) turns the command into the port's byte, a centring made
+// of constant forces a frame late which, with a cabinet's settings (GameData\config.ini [Wheel]
+// FORCE2_N 1, PERIOD1 0.1375: 0.86 at 14 % of the steering), swings a strong wheel from one side to
+// the other. Here the drive board itself is played, from that command and the wheel's position,
+// as sm2-emu plays Daytona USA's (its reading of the board's program, EPROM EPR-16488A: written
+// again for windowsloader from sm2-emu's description, github.com/dmanlfc/sm2-emu, Daniel Martin
+// (dmanlfc) and the sm2-emu contributors, GPL v3), with the cabinet's panel spring:
+//   0x        the forces on (0x0A, or a low nibble of 5 or more) or off
+//   1x        nothing; 20-27 hold: a brake against the wheel's movement; 28-2F nothing
+//   30-37     centring: dead within 2 steps of the board's 128 a side, full at 0x15
+//   38-3F     the same, dead within 7, full at 0x18
+//   40-47     uncentring: away from the centre; 50-57 to the left; 60-67 to the right
+//   7x        a boost of 2 to 9; 8x to Fx the board's own requests (no force)
+// The board's power follows its target by 1 a millisecond, at most 63, as a constant force (or a
+// brake when it has no side); the panel's spring is added. All the other way when the race says so
+// (its flag at +0x10 of its settings: the steering the game reads is turned over too). The command
+// and the lamps also go to the network outputs, as MAME sends Daytona USA's (RawDrive, RawLamps).
+// ------------------------------------------------------------------------------
+
+struct DaytonaBuild
+{
+    DWORD stamp;   // the program's PE time stamp
+    DWORD command; // the copy of the drive board's command, from the program's base
+    DWORD lamps;   // the copy of the lamps' byte
+    DWORD race;    // a pointer to the race's settings, the mirrored flag at +0x10
+    const char *name;
+};
+
+static const DaytonaBuild g_builds[] = {
+    {0x5a3b3168, 0x15b4684, 0x15b4683, 0x11b0148, "Daytona Championship USA"},
+    {0x5c7f7953, 0x15c8804, 0x15c8803, 0x11c22a0, "Daytona Championship USA - New Season Edition"},
+};
+static const DaytonaBuild *g_build;
+static volatile LONG g_dip, g_panel = 20; // [Game.daytona3] DRIVE_DIP (0..7), PANEL_SPRING (percent)
+
+// The game's memory, read without failing when it is not there (yet)
+static int read_byte(const BYTE *p, BYTE *out)
+{
+    __try
+    {
+        *out = *(volatile const BYTE *)p;
+        return 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static int read_dword(const BYTE *p, DWORD *out)
+{
+    __try
+    {
+        *out = *(volatile const DWORD *)p;
+        return 1;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return 0;
+    }
+}
+
+static int mirrored_race(const BYTE *base)
+{
+    DWORD p = 0;
+    BYTE b = 0;
+    return read_dword(base + g_build->race, &p) && p && read_byte((const BYTE *)(UINT_PTR)p + 0x10, &b) && b;
+}
+
+enum
+{
+    SIDE_NONE,
+    SIDE_LEFT,
+    SIDE_RIGHT
+};
+
+struct DriveBoard
+{
+    int on, effect, boost;
+    int side, power, target;  // the output: a side, a power 0..255 (63 at most out)
+    double tick;              // milliseconds, the board's interrupts
+    double leftCentre;        // when the wheel last left the centre
+    double sinceCentre, away; // how long it has been at the centre, away from it
+    int atCentre, swings, swinging;
+};
+
+// On from the start: the copy is read once a frame and a 0x0A followed by an effect in the same
+// frame would be missed (Daytona Championship USA's own translation has no on and off)
+static DriveBoard g_board_ = {1};
+
+// The cabinet's panel spring, -1..1 (> 0 pushing left), from the wheel's deflection (-32767..32767,
+// > 0 to the right): nothing within 1500, then up to full at 15500
+static double panel_spring(double deflection, double full)
+{
+    double a = deflection < 0 ? -deflection : deflection;
+    double f = a <= 1500 ? 0 : a >= 15500 ? full : full * (a - 1500) / 14000;
+    return deflection > 0 ? f : -f;
+}
+
+static void board_byte(DriveBoard *b, BYTE c)
+{
+    switch (c & 0xF0)
+    {
+    case 0x00:
+        b->on = c == 0x0A || (c & 7) >= 5;
+        if (!b->on)
+            b->boost = 0;
+        break;
+    case 0x70:
+        b->boost = ((c & 0x0E) >> 1) + 2;
+        break;
+    case 0x10:
+    case 0x20:
+    case 0x30:
+    case 0x40:
+    case 0x50:
+    case 0x60:
+        b->effect = c;
+        break;
+    default: // the board's requests: no force
+        break;
+    }
+}
+
+// A centring spring's power: dead within dead steps, full at full
+static int spring_power(const DriveBoard *b, int off, int dead, int full)
+{
+    int force = 2 * (b->effect & 7) + 4 * g_dip, slope = force >= 0x1E ? 3 : 2;
+    if (off >= full)
+        return force;
+    int p = slope * (off - dead) - b->boost;
+    return p < 0 ? 0 : p > force ? force : p;
+}
+
+// The wheel through the centre: ten quick swings and the springs let go, until it rests
+static void track_swings(DriveBoard *b, int centre, double ms)
+{
+    if (centre)
+    {
+        if (!b->atCentre)
+        {
+            double out = b->tick - b->leftCentre;
+            b->swings = out >= 0x31 && out <= 0x125 ? b->swings + 1 : 0;
+            if (b->swings >= 10)
+                b->swinging = 1;
+            b->sinceCentre = 0;
+        }
+        b->sinceCentre += ms;
+        b->away = 0;
+        if (b->sinceCentre >= 0x62)
+            b->swinging = b->swings = 0;
+    }
+    else
+    {
+        if (b->atCentre)
+            b->leftCentre = b->tick;
+        b->away += ms;
+        if (b->away >= (b->swinging ? 0x5B9 : 0x125))
+            b->swinging = b->swings = 0;
+    }
+    b->atCentre = centre;
+}
+
+// One step of the board, ms milliseconds after the last: its side and target, then its power
+static void board_step(DriveBoard *b, int counts, double ms, int breakaway)
+{
+    b->tick += ms;
+    int off = counts < 0 ? -counts : counts;
+    if (off > 128)
+        off = 128;
+    int side = counts >= 3 ? SIDE_RIGHT : counts <= -3 ? SIDE_LEFT : SIDE_NONE;
+    int base = off / 16 + breakaway + b->boost, n = b->effect & 7, dip = 4 * g_dip;
+    int newSide = SIDE_NONE, target = 0;
+    track_swings(b, side == SIDE_NONE, ms);
+    int e = b->effect & 0xF8;
+    if (!b->on || (b->effect & 0xF0) == 0x10)
+        ;
+    else if (e == 0x20)
+        target = 2 * n + dip + base; // the hold: a brake, no side
+    else if ((e == 0x30 || e == 0x38) && !b->swinging)
+    {
+        int dead = e == 0x30 ? 2 : 7, full = e == 0x30 ? 0x15 : 0x18;
+        if (off > dead)
+        {
+            newSide = counts > 0 ? SIDE_LEFT : SIDE_RIGHT; // to the centre
+            target = spring_power(b, off, dead, full) + base;
+        }
+        else if (off >= 1)
+            newSide = b->side, target = breakaway; // the centre: the side kept
+    }
+    else if (e == 0x40)
+        newSide = side == SIDE_RIGHT ? SIDE_RIGHT : SIDE_LEFT, target = 2 * n + dip + base + 10;
+    else if (e == 0x50 || e == 0x60)
+        newSide = e == 0x50 ? SIDE_LEFT : SIDE_RIGHT, target = 2 * n + dip + base + 10;
+    if ((e == 0x40 || e == 0x50 || e == 0x60) && b->side != SIDE_NONE && newSide != b->side)
+        b->power = 0; // a push the other way starts again from nothing
+    b->side = newSide;
+    b->target = target < 0 ? 0 : target > 255 ? 255 : target;
+    int step = (int)(ms + 0.5);
+    if (b->power < b->target)
+        b->power = b->power + step > b->target ? b->target : b->power + step;
+    else if (b->power > b->target)
+        b->power = b->power - step < b->target ? b->target : b->power - step;
+}
+
+static DWORD WINAPI board_thread(LPVOID)
+{
+    const BYTE *base = (const BYTE *)GetModuleHandleW(NULL);
+    const WlInput *steering = &g_inputs[IN_STEERING];
+    int lastCommand = -1, lastLamps = -1, logged = 0;
+    LARGE_INTEGER freq, last, now;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&last);
+    double lastDeflection = 0, sent = 0;
+    for (;;)
+    {
+        Sleep(4);
+        QueryPerformanceCounter(&now);
+        double ms = (now.QuadPart - last.QuadPart) * 1000.0 / freq.QuadPart;
+        last = now;
+        BYTE command, lamps;
+        if (!read_byte(base + g_build->command, &command) || !read_byte(base + g_build->lamps, &lamps))
+            continue;
+        // The network outputs, as MAME's Daytona USA: the drive board's bytes and the lamps
+        if (command != lastCommand)
+        {
+            wl_outputs_drive(&command, 1);
+            if (g_boardEffects && logged < 60)
+            {
+                logged++;
+                wl_log("motor: board command 0x%02x", command);
+            }
+        }
+        if (lamps != lastLamps)
+            wl_outputs_lamps(lamps, 8);
+        lastCommand = command;
+        lastLamps = lamps;
+        if (!g_boardEffects)
+            continue;
+
+        // The wheel as the game reads it, -32767..32767 to the right; turned over on a mirrored
+        // race's, as the game turns over its steering
+        int raw = wl_input_get(steering), half = raw >= steering->rawRest ? steering->rawHigh - steering->rawRest
+                                                                         : steering->rawRest - steering->rawLow;
+        double deflection = half > 0 ? (raw - steering->rawRest) * 32767.0 / half : 0;
+        int mirrored = mirrored_race(base);
+        double seen = mirrored ? -deflection : deflection;
+        int counts = (int)(seen * 128 / 32767);
+        // The panel spring at full strength (the board's power 63 is 1): PANEL_SPRING percent of
+        // Sega Rally's strongest torque (32), which the board's start finds its breakaway against
+        double panelFull = 32.0 / 63 * g_panel / 100;
+        int breakaway = (int)ceil(panel_spring(16 * 32767.0 / 128, panelFull) * 63 - 1e-9) - 1;
+        if (breakaway < 0)
+            breakaway = 0;
+        board_byte(&g_board_, command);
+        board_step(&g_board_, counts, ms, breakaway);
+        int power = g_board_.power > 0x3F ? 0x3F : g_board_.power;
+        double torque = 0;
+        if (g_board_.side != SIDE_NONE)
+            torque = power / 63.0 * (g_board_.side == SIDE_LEFT ? 1 : -1) * (mirrored ? -1 : 1);
+        else if (power > 0)
+        {
+            // A brake against the movement: the axis's change in a frame of the game (57.5 Hz)
+            double v = ms > 0 ? (deflection - lastDeflection) * (1000.0 / 57.5245) / ms : 0;
+            v = v < -1024 ? -1024 : v > 1024 ? 1024 : v;
+            torque = power / 63.0 * v / 1024;
+        }
+        lastDeflection = deflection;
+        // Sent when it changes by 256 in 32767 at least, or reaches or leaves 0 (sm2-emu's way):
+        // the brake's noise does not flood the wheel's driver
+        double out = torque + panel_spring(deflection, panelFull);
+        if (fabs(out - sent) * 32767 >= 256 || (out == 0) != (sent == 0))
+        {
+            sent = out;
+            wl_ffb_set(out);
+        }
+    }
+}
+
+// [Game.daytona3] FFB: BOARD the drive board played, PORT the port's byte (the game's own centring)
+static void apply_ffb(const char *value)
+{
+    LONG board = g_build && _stricmp(value, "PORT") != 0;
+    if (InterlockedExchange(&g_boardEffects, board) != board)
+    {
+        wl_ffb_set(0);
+        wl_log("motor: force feedback from %s", board ? "the drive board played from the game's commands" : "the port's byte");
+    }
+}
+
+static void apply_dip(const char *value)
+{
+    int v = atoi(value);
+    InterlockedExchange(&g_dip, v < 0 ? 0 : v > 7 ? 7 : v);
+}
+
+static void apply_panel(const char *value)
+{
+    int v = atoi(value);
+    InterlockedExchange(&g_panel, v < 0 ? 0 : v > 100 ? 100 : v);
+}
+
+static const WlOptionChoice g_ffbChoices[] = {
+    {"BOARD", WL_N("Carte moteur de la borne")},
+    {"PORT", WL_N("Octet du port parallèle")},
+    {NULL, NULL},
+};
+
+static const WlGameOption g_options[] = {
+    {"FFB", WL_N("Retour de force"),
+     WL_N("Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le "
+          "ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de "
+          "forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."),
+     WL_OPTION_CHOICE, g_ffbChoices, 0, 0, "BOARD", 0, apply_ffb},
+    {"DRIVE_DIP", WL_N("Puissance de la carte (interrupteurs)"),
+     WL_N("Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."), WL_OPTION_INT, NULL, 0, 7, "0", 0,
+     apply_dip},
+    {"PANEL_SPRING", WL_N("Ressort du panneau (%)"),
+     WL_N("Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."), WL_OPTION_INT, NULL, 0, 100, "20", 0,
+     apply_panel},
+};
+
+static void read_options(void)
+{
+    char v[16];
+    wl_game_option("DRIVE_DIP", v, sizeof v);
+    apply_dip(v);
+    wl_game_option("PANEL_SPRING", v, sizeof v);
+    apply_panel(v);
+    wl_game_option("FFB", v, sizeof v);
+    apply_ffb(v);
+}
+
+// The Model 2 lamps' byte, as MAME names Daytona USA's (bits 2 to 7)
+static const char *g_lampNames[8] = {"-", "-", "Start", "VR1 (red)", "VR2 (blue)", "VR3 (yellow)", "VR4 (green)", "Leader"};
+
+// The program's build, by its PE time stamp: the commands are read only from a known one
+static void find_build(void)
+{
+    const BYTE *base = (const BYTE *)GetModuleHandleW(NULL);
+    const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)(base + ((const IMAGE_DOS_HEADER *)base)->e_lfanew);
+    DWORD stamp = nt->FileHeader.TimeDateStamp;
+    for (size_t i = 0; i < sizeof g_builds / sizeof g_builds[0]; i++)
+        if (g_builds[i].stamp == stamp)
+            g_build = &g_builds[i];
+    if (!g_build)
+    {
+        wl_log("motor: unknown build (time stamp %08lx): the port's byte only", stamp);
+        return;
+    }
+    wl_log("motor: %s build %08lx, the drive board's command at +0x%lx", g_build->name, stamp, g_build->command);
+    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_on_settings(read_options);
+    wl_outputs_declare_drive();
+    wl_outputs_name_lamps(WL_N("la borne Model 2 (lampes)"), g_lampNames, 8);
+    HANDLE t = CreateThread(NULL, 0, board_thread, NULL, 0, NULL);
+    if (t)
+        CloseHandle(t);
 }
 
 static LRESULT CALLBACK wrapper_proc(HWND w, UINT msg, WPARAM wp, LPARAM lp)
@@ -333,6 +702,7 @@ int wl_game_daytona(const wchar_t *exePath, const char **name, const char **titl
     swprintf(ini, MAX_PATH, L"%s..\\ShellData\\ShellData.ini", dir);
     g_shell.freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;
     read_calibration(dir);
+    find_build();
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_board);
     wl_system_set_process_handler(process_handler);

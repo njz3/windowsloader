@@ -788,7 +788,7 @@ msgstr "Controls"
 msgid "Affichage"
 msgstr "Display"
 
-#: src/hook/menu.cpp:1645 src/launcher/picker.cpp:638
+#: src/hook/menu.cpp:1645 src/hook/games/daytona.cpp:495 src/launcher/picker.cpp:638
 msgid "Retour de force"
 msgstr "Force feedback"
 
@@ -969,6 +969,39 @@ msgstr "Dashboard (838-15415)"
 #: src/hook/games/alls.cpp:1654
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
+
+#: src/hook/games/daytona.cpp:489
+msgid "Carte moteur de la borne"
+msgstr "Cabinet's motor board"
+
+#: src/hook/games/daytona.cpp:490
+msgid "Octet du port parallèle"
+msgstr "Parallel port byte"
+
+#: src/hook/games/daytona.cpp:496
+msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
+msgstr "Cabinet's motor board: Daytona USA's board played from the game's commands and the wheel's position, with the panel spring (as sm2-emu does). Parallel port byte: the force the game sends to the motor, its centring made of constant forces from one frame to the next, which can make a strong wheel swing."
+
+#: src/hook/games/daytona.cpp:500
+msgid "Puissance de la carte (interrupteurs)"
+msgstr "Board power (DIP switches)"
+
+#: src/hook/games/daytona.cpp:501
+msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
+msgstr "The motor board's DIP switches: each step adds 4 to the effects' power."
+
+#: src/hook/games/daytona.cpp:503
+#, c-format
+msgid "Ressort du panneau (%)"
+msgstr "Panel spring (%)"
+
+#: src/hook/games/daytona.cpp:504
+msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
+msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre without the motor."
+
+#: src/hook/games/daytona.cpp:540
+msgid "la borne Model 2 (lampes)"
+msgstr "the Model 2 cabinet (lamps)"
 
 #: src/hook/games/konami.cpp:257
 msgid "la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"

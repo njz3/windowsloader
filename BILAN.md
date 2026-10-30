@@ -96,8 +96,14 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   (`day_race.py`, les deux éditions).
 - vJoy ✅ (originale) : `--controllers`, course pilotée par le script, effet de force constante lancé sur
   vJoy et mis à jour (`day_race.py wheel`). NSE ⚠️ : même code, non refait avec vJoy.
-- Retour de force ✅ : InpWrapper.exe (port parallèle) joué par une fenêtre cachée, octet décodé, sens
-  vérifié dans les menus et en course.
+- Retour de force ⚠️ : InpWrapper.exe (port parallèle) joué par une fenêtre cachée, octet décodé, sens
+  vérifié dans les menus et en course. Sur la borne, le volant oscillait de −90° à +90° vers 1 Hz : le
+  centrage du jeu, fait de forces constantes, monte à 0,86 en 14 % de la course (config.ini de la
+  borne). Désormais (`[Game.daytona3] FFB = BOARD`, défaut) la carte moteur de Daytona USA est jouée
+  comme sm2-emu la joue, d'après la commande Model 2 lue dans le jeu et la position du volant, avec le
+  ressort du panneau (options `DRIVE_DIP`, `PANEL_SPRING`) ; `PORT` pour l'ancien octet. Adresses
+  vérifiées dans les deux exécutables des bornes ; pas encore essayé à la borne. Sorties réseau :
+  `RawDrive` (la commande) et les lampes Model 2.
 - Affichage ✅ (originale) : 16 couples et fenêtres réduites justes à l'écran (fenêtre enfant pour
   l'image Direct3D 11). NSE ⚠️ : même code, non vérifié à l'écran.
 - Menu Tab ✅ (Direct3D 11).
