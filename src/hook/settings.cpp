@@ -244,3 +244,280 @@ const wchar_t *wl_settings_game_file(int create)
         wcscpy_s(g_file, MAX_PATH, g_gameFile); // the next saves go there
     return g_gameFile;
 }
+
+// ------------------------------------------------------------------------------
+// wl_ini_merge: the defaults' comments and keys into a settings file
+// ------------------------------------------------------------------------------
+
+// A file's lines, without their line ends
+struct IniLines
+{
+    char **line;
+    int count, cap;
+};
+
+static int lines_insert(IniLines *l, int at, const char *text, size_t len)
+{
+    if (l->count == l->cap)
+    {
+        int cap = l->cap ? l->cap * 2 : 64;
+        char **grown = (char **)realloc(l->line, cap * sizeof *grown);
+        if (!grown)
+            return 0;
+        l->line = grown;
+        l->cap = cap;
+    }
+    char *copy = (char *)malloc(len + 1);
+    if (!copy)
+        return 0;
+    memcpy(copy, text, len);
+    copy[len] = 0;
+    memmove(l->line + at + 1, l->line + at, (l->count - at) * sizeof *l->line);
+    l->line[at] = copy;
+    l->count++;
+    return 1;
+}
+
+static void lines_split(IniLines *l, const char *text)
+{
+    for (const char *p = text; *p;)
+    {
+        size_t n = strcspn(p, "\r\n");
+        lines_insert(l, l->count, p, n);
+        p += n;
+        if (*p == '\r')
+            p++;
+        if (*p == '\n')
+            p++;
+    }
+}
+
+static void lines_free(IniLines *l)
+{
+    for (int i = 0; i < l->count; i++)
+        free(l->line[i]);
+    free(l->line);
+}
+
+static const char *skip_blanks(const char *s)
+{
+    if ((unsigned char)s[0] == 0xEF && (unsigned char)s[1] == 0xBB && (unsigned char)s[2] == 0xBF) // UTF-8's mark
+        s += 3;
+    while (*s == ' ' || *s == '\t')
+        s++;
+    return s;
+}
+
+static int is_blank(const char *s)
+{
+    return !*skip_blanks(s);
+}
+
+static int is_comment(const char *s)
+{
+    s = skip_blanks(s);
+    return *s == '#' || *s == ';';
+}
+
+// "[Display]": its name in out
+static int is_section(const char *s, char *out, size_t size)
+{
+    s = skip_blanks(s);
+    const char *end = *s == '[' ? strchr(s, ']') : NULL;
+    if (!end)
+        return 0;
+    snprintf(out, size, "%.*s", (int)(end - s - 1), s + 1);
+    return 1;
+}
+
+// "KEY = value": KEY in out
+static int is_key(const char *s, char *out, size_t size)
+{
+    if (is_comment(s))
+        return 0;
+    s = skip_blanks(s);
+    const char *eq = strchr(s, '=');
+    if (!eq || *s == '[')
+        return 0;
+    size_t len = (size_t)(eq - s);
+    while (len && (s[len - 1] == ' ' || s[len - 1] == '\t'))
+        len--;
+    snprintf(out, size, "%.*s", (int)len, s);
+    return len != 0;
+}
+
+// The file's line of a section, -1 when it has none; *end the line after its section
+static int find_section(const IniLines *l, const char *name, int *end)
+{
+    char s[96];
+    for (int i = 0; i < l->count; i++)
+        if (is_section(l->line[i], s, sizeof s) && !_stricmp(s, name))
+        {
+            int j = i + 1;
+            while (j < l->count && !is_section(l->line[j], s, sizeof s))
+                j++;
+            *end = j;
+            return i;
+        }
+    return -1;
+}
+
+static int insert_lines(IniLines *l, int at, char *const *from, int n)
+{
+    for (int i = 0; i < n; i++)
+        lines_insert(l, at + i, from[i], strlen(from[i]));
+    return n;
+}
+
+int wl_ini_merge(const wchar_t *path, const char *defaults)
+{
+    char u[MAX_PATH * 2];
+    if (!path || !path[0])
+        return 0;
+    if (!exists(path))
+    {
+        FILE *f = _wfopen(path, L"wb");
+        if (!f)
+        {
+            wl_log("settings: cannot create %s", wl_u8(path, u, sizeof u));
+            return 0;
+        }
+        fputs(defaults, f);
+        fclose(f);
+        wl_log("settings: %s created with the defaults", wl_u8(path, u, sizeof u));
+        return 1;
+    }
+
+    FILE *f = _wfopen(path, L"rb");
+    if (!f)
+        return 0;
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char *text = size >= 0 ? (char *)malloc(size + 1) : NULL;
+    size_t got = text ? fread(text, 1, size, f) : 0;
+    fclose(f);
+    if (!text)
+        return 0;
+    text[got] = 0;
+    const char *firstEnd = strchr(text, '\n');
+    int crlf = !firstEnd || (firstEnd > text && firstEnd[-1] == '\r'); // the file's line ends kept
+    IniLines l = {0}, d = {0};
+    lines_split(&l, text);
+    lines_split(&d, defaults);
+    free(text);
+
+    int keys = 0, comments = 0;
+    char name[96], key[96], s[96];
+    // The defaults' heading comment (before their first section), when the file starts without one
+    int head = 0, first = 0;
+    while (head < d.count && is_comment(d.line[head]))
+        head++;
+    while (first < l.count && is_blank(l.line[first]))
+        first++;
+    if (head && (first == l.count || !is_comment(l.line[first])))
+    {
+        insert_lines(&l, 0, d.line, head);
+        lines_insert(&l, head, "", 0);
+        comments++;
+    }
+
+    char section[96] = "";
+    int commentStart = -1; // the defaults' comment lines above the current one
+    for (int i = 0; i < d.count; i++)
+    {
+        const char *line = d.line[i];
+        if (is_section(line, name, sizeof name))
+        {
+            snprintf(section, sizeof section, "%s", name);
+            commentStart = -1;
+            int end;
+            if (find_section(&l, section, &end) >= 0)
+                continue;
+            // A section missing: the defaults' one whole, at the end
+            int j = i + 1;
+            while (j < d.count && !is_section(d.line[j], name, sizeof name))
+                j++;
+            while (j > i + 1 && is_blank(d.line[j - 1]))
+                j--;
+            if (l.count && !is_blank(l.line[l.count - 1]))
+                lines_insert(&l, l.count, "", 0);
+            insert_lines(&l, l.count, d.line + i, j - i);
+            for (int k = i + 1; k < j; k++)
+                keys += is_key(d.line[k], key, sizeof key);
+            i = j - 1;
+            continue;
+        }
+        if (is_comment(line))
+        {
+            if (commentStart < 0)
+                commentStart = i;
+            continue;
+        }
+        int nComment = commentStart >= 0 ? i - commentStart : 0;
+        char *const *comment = d.line + (commentStart >= 0 ? commentStart : 0);
+        commentStart = -1;
+        if (!section[0] || !is_key(line, key, sizeof key))
+            continue;
+
+        int end, at = find_section(&l, section, &end), found = -1;
+        for (int k = at + 1; k < end && found < 0; k++)
+            if (is_key(l.line[k], name, sizeof name) && !_stricmp(name, key))
+                found = k;
+        if (found >= 0)
+        {
+            // The key there: the defaults' comment above it, unless it has one
+            if (!nComment || is_comment(l.line[found - 1]))
+                continue;
+            int pos = found;
+            if (!is_blank(l.line[found - 1]) && !is_section(l.line[found - 1], s, sizeof s))
+                lines_insert(&l, pos++, "", 0);
+            insert_lines(&l, pos, comment, nComment);
+            comments++;
+            continue;
+        }
+        // The key missing: added with its comment after the section's last line
+        int pos = end;
+        while (pos > at + 1 && is_blank(l.line[pos - 1]))
+            pos--;
+        if (nComment && !is_section(l.line[pos - 1], s, sizeof s))
+            lines_insert(&l, pos++, "", 0);
+        pos += insert_lines(&l, pos, comment, nComment);
+        lines_insert(&l, pos, line, strlen(line));
+        keys++;
+    }
+
+    int written = 0;
+    if (keys || comments)
+    {
+        // Written beside the file, then put in its place: a reader never sees half a file
+        wchar_t temp[MAX_PATH + 8];
+        swprintf(temp, MAX_PATH + 8, L"%s.new", path);
+        FILE *out = _wfopen(temp, L"wb");
+        if (out)
+        {
+            for (int i = 0; i < l.count; i++)
+                fprintf(out, "%s%s", l.line[i], crlf ? "\r\n" : "\n");
+            int ok = !ferror(out);
+            fclose(out);
+            written = ok && MoveFileExW(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+            if (!written)
+                DeleteFileW(temp);
+        }
+        if (written)
+            wl_log("settings: %s: %d settings and %d comments of the defaults added", wl_u8(path, u, sizeof u), keys, comments);
+        else
+            wl_log("settings: %s lacks %d settings and %d comments of the defaults, but cannot be written (error %lu)",
+                   wl_u8(path, u, sizeof u), keys, comments, GetLastError());
+    }
+    lines_free(&l);
+    lines_free(&d);
+    return written;
+}
+
+void wl_settings_merge(const char *defaults)
+{
+    wchar_t own[MAX_PATH];
+    if (wl_settings_common() || (game_file_path(own) && !_wcsicmp(own, g_file)))
+        wl_ini_merge(g_file, defaults);
+}

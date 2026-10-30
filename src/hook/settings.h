@@ -51,3 +51,13 @@ int wl_settings_write(const wchar_t *file, const char *section, const char *key,
 // The game's own file, <short name>.ini next to the settings file: made from a copy of the file
 // read when missing, then the file the next saves go to. Its path, or NULL (no game known)
 const wchar_t *wl_settings_game_file(int create);
+
+// A settings file as its defaults text (the file written new) has it, its values kept: written new
+// when missing; else each section and key it lacks is added with the comment the defaults give it,
+// and a key of the file without a comment above it gets that comment. The file's own lines, values
+// and order are kept; nothing is written when nothing is missing. 1 when the file was written
+int wl_ini_merge(const wchar_t *path, const char *defaults);
+
+// The settings file read (windowsloader.ini or the game's own) merged with the defaults; a -c file of
+// another name is left as it is
+void wl_settings_merge(const char *defaults);

@@ -79,6 +79,12 @@ The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and
 with another CRC32 is recognized and played all the same (a game is told by its program's name, the
 files beside it and, for a few, the program's time stamp).
 
+`windowsloader.ini` and `controls.ini` explain each of their settings in a comment above it, with its
+default. A missing file is written with the defaults; an existing one (or a game's own `<name>.ini`)
+gets at each start the settings and comments it lacks, the values already there and their order
+kept, and is left untouched when nothing is missing. A `-c` file of another name is left as it is.
+Comments are lines starting with `#`, with no `=` in them (Windows would read one as a setting).
+
 Started alone, without a game (a double click in the Explorer), `windowsloader.exe` opens the game
 picker, as linuxloader's: the games found in the games folder as a list, the chosen one's
 description beside it (platform, state, program, arguments, force feedback and link between

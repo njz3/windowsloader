@@ -737,114 +737,185 @@ static const char *section_of(const WlInput *in)
 // The pedals: a gamepad's triggers, or the first joystick's Y and Z from their middle to their low
 // end (BackForceFeeder's vJoy: the accelerator on Y-, the brake on Z-, at rest in the middle)
 static const char *g_defaults =
+    "# windowsloader controls, linuxloader's syntax (one file serves both). A line starting with # is a\r\n"
+    "# comment. The comments and actions missing are added back at the next start, the bindings written\r\n"
+    "# here are kept. The settings menu's controls page (Tab) binds them by pressing the input.\r\n"
+    "#\r\n"
+    "# ACTION followed by an equals sign and its bindings, separated by commas: any of them works;\r\n"
+    "# A + B: both pressed together. Empty: the action is not bound.\r\n"
+    "#   KEY_<name>                  a key (A to Z, 0 to 9, F1 to F24, KP0 to KP9, Left, Right, Up, Down,\r\n"
+    "#                               Space, Return, Escape, Backspace, LShift, RShift, LCtrl, RCtrl, LAlt,\r\n"
+    "#                               RAlt, Insert, Delete, Home, End, PageUp, PageDown, Comma, Period), read\r\n"
+    "#                               only while the game's window has the focus\r\n"
+    "#   JOY<n>_BUTTON_<b>           button b of player n's controller, numbered from 0 as SDL does (the\r\n"
+    "#                               button Windows and vJoy call 1 is JOY0_BUTTON_0)\r\n"
+    "#   JOY<n>_HAT<h>_UP            a hat's direction: _UP, _DOWN, _LEFT, _RIGHT\r\n"
+    "#   JOY<n>_AXIS_<a>             axis a, from 0 (X, Y, Z, RX, RY, RZ, sliders)\r\n"
+    "#   GC<n>_BUTTON_<name>         a gamepad's button: A, B, X, Y, BACK, START, GUIDE, LEFTSTICK,\r\n"
+    "#                               RIGHTSTICK, LEFTSHOULDER, RIGHTSHOULDER, DPADUP, DPADDOWN, DPADLEFT,\r\n"
+    "#                               DPADRIGHT\r\n"
+    "#   GC<n>_AXIS_<name>           a gamepad's axis: LEFTX, LEFTY, RIGHTX, RIGHTY, LEFTTRIGGER,\r\n"
+    "#                               RIGHTTRIGGER\r\n"
+    "# An axis can end with: _INVERTED (turned over); _POSITIVE or _NEGATIVE (half of it as a button,\r\n"
+    "# pressed past its middle); _POSITIVE_HALF or _NEGATIVE_HALF (half of it as a pedal, 0 at the middle);\r\n"
+    "# _POSITIVE_SIDE or _NEGATIVE_SIDE (the same for a pedal resting in the middle of its axis, as\r\n"
+    "# BackForceFeeder's vJoy pedals).\r\n"
+    "# <n> is the player, from 0: JOY0 and GC0 are player 1's controller ([ControllerGUIDs] P1_GUID), the\r\n"
+    "# other controllers follow in the order Windows gives them.\r\n"
+    "\r\n"
     "[Config]\r\n"
+    "# Dead zone of the steering wheel's axis, 0 to 32767 (32767 is the whole axis). Default: 500\r\n"
     "Steer_DeadZone = 500\r\n"
+    "\r\n"
+    "# Dead zone of the accelerator pedal's axis, 0 to 32767. Default: 500\r\n"
     "Gas_DeadZone = 500\r\n"
+    "\r\n"
+    "# Dead zone of the brake pedal's axis, 0 to 32767. Default: 500\r\n"
     "Brake_DeadZone = 500\r\n"
+    "\r\n"
+    "# Force feedback strength, in percent of the game's force. Default: 100\r\n"
     "FFB_Strength = 100\r\n"
+    "\r\n"
+    "# 1 turns the force feedback's direction over, for a wheel that pushes the wrong way. Default: 0\r\n"
     "FFB_Invert = 0\r\n"
+    "\r\n"
+    "# The device the force feedback goes to: AUTO (player 1's wheel) or a device's name as the system\r\n"
+    "# gives it (\"vJoy Device\"); while it is not connected, player 1's wheel. Default: AUTO\r\n"
     "FFB_Device = AUTO\r\n"
     "\r\n"
     "[Common]\r\n"
+    "# The cabinet's test button (the game's test menu). Default: KEY_T\r\n"
     "Test = KEY_T\r\n"
+    "\r\n"
+    "# Player 1's coin. Default: KEY_5\r\n"
     "P1_Coin = KEY_5\r\n"
+    "\r\n"
+    "# Player 1's start button. Default: KEY_1, GC0_BUTTON_START\r\n"
     "P1_Start = KEY_1, GC0_BUTTON_START\r\n"
+    "\r\n"
+    "# Player 1's service button. Default: KEY_S\r\n"
     "P1_Service = KEY_S\r\n"
+    "\r\n"
+    "# Ends the game and the programs started with it, as the settings menu's quit button. Default:\r\n"
+    "# KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10\r\n"
     "ExitGame = KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10\r\n"
     "\r\n"
     "[Driving]\r\n"
+    "# The steering wheel turned fully left, as a button. Default: KEY_Left\r\n"
     "P1_Steer_Left = KEY_Left\r\n"
+    "\r\n"
+    "# The steering wheel turned fully right, as a button. Default: KEY_Right\r\n"
     "P1_Steer_Right = KEY_Right\r\n"
+    "\r\n"
+    "# The accelerator pressed fully, as a button. Default: KEY_Up\r\n"
     "P1_Gas_Digital = KEY_Up\r\n"
+    "\r\n"
+    "# The brake pressed fully, as a button. Default: KEY_Down\r\n"
     "P1_Brake_Digital = KEY_Down\r\n"
+    "\r\n"
+    "# Changes the view (Sega Rally 3, Daytona...). Default: KEY_V, GC0_BUTTON_Y\r\n"
     "ViewChange = KEY_V, GC0_BUTTON_Y\r\n"
+    "\r\n"
+    "# Handbrake (Sega Rally 3, Battle Gear 4...). Default: KEY_Space, GC0_BUTTON_X\r\n"
     "Handbrake = KEY_Space, GC0_BUTTON_X\r\n"
+    "\r\n"
+    "# Gear up, sequential shifter. Default: KEY_A, GC0_BUTTON_RIGHTSHOULDER\r\n"
     "GearUp = KEY_A, GC0_BUTTON_RIGHTSHOULDER\r\n"
+    "\r\n"
+    "# Gear down, sequential shifter. Default: KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
     "GearDown = KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
+    "\r\n"
+    "# Hazard lights button (Taito games: Battle Gear 4...). Default: KEY_H\r\n"
     "Hazard = KEY_H\r\n"
+    "\r\n"
+    "# Overtake button (Taito games). Default: KEY_O, GC0_BUTTON_DPADUP\r\n"
     "Overtake = KEY_O, GC0_BUTTON_DPADUP\r\n"
+    "\r\n"
+    "# Nitro or boost button. Default: KEY_N, GC0_BUTTON_A\r\n"
     "Nitro = KEY_N, GC0_BUTTON_A\r\n"
+    "\r\n"
+    "# Nitro on the shifter (Taito games). Default: KEY_J\r\n"
     "ShiftNitro = KEY_J\r\n"
+    "\r\n"
+    "# The game's action button: an item, a weapon (GTI Club 3, Mario Kart DX). Default: KEY_C\r\n"
     "Action = KEY_C\r\n"
+    "\r\n"
+    "# Selection up, in the menus of the games that have selection buttons. Default: KEY_PageUp\r\n"
     "SelectUp = KEY_PageUp\r\n"
+    "\r\n"
+    "# Selection down. Default: KEY_PageDown\r\n"
     "SelectDown = KEY_PageDown\r\n"
+    "\r\n"
+    "# Selection left. Default: KEY_Home\r\n"
     "SelectLeft = KEY_Home\r\n"
+    "\r\n"
+    "# Selection right. Default: KEY_End\r\n"
     "SelectRight = KEY_End\r\n"
+    "\r\n"
+    "# Selection confirmed. Default: KEY_Return\r\n"
     "SelectEnter = KEY_Return\r\n"
+    "\r\n"
+    "# View button 1, red (Daytona, Initial D...). Default: KEY_B, GC0_BUTTON_A\r\n"
     "View1 = KEY_B, GC0_BUTTON_A\r\n"
+    "\r\n"
+    "# View button 2, blue (Daytona, Initial D...). Default: KEY_N, GC0_BUTTON_B\r\n"
     "View2 = KEY_N, GC0_BUTTON_B\r\n"
+    "\r\n"
+    "# View button 3, yellow (Daytona, Initial D...). Default: KEY_M, GC0_BUTTON_X\r\n"
     "View3 = KEY_M, GC0_BUTTON_X\r\n"
+    "\r\n"
+    "# View button 4, green (Daytona, Initial D...). Default: KEY_Comma, GC0_BUTTON_Y\r\n"
     "View4 = KEY_Comma, GC0_BUTTON_Y\r\n"
+    "\r\n"
+    "# H shifter, 1st gear (held while in gear). Default: KEY_Q\r\n"
     "Gear1 = KEY_Q\r\n"
+    "\r\n"
+    "# H shifter, 2nd gear. Default: KEY_W\r\n"
     "Gear2 = KEY_W\r\n"
+    "\r\n"
+    "# H shifter, 3rd gear. Default: KEY_E\r\n"
     "Gear3 = KEY_E\r\n"
+    "\r\n"
+    "# H shifter, 4th gear. Default: KEY_R\r\n"
     "Gear4 = KEY_R\r\n"
+    "\r\n"
+    "# H shifter, 5th gear. Default: KEY_Y\r\n"
     "Gear5 = KEY_Y\r\n"
+    "\r\n"
+    "# H shifter, 6th gear. Default: KEY_U\r\n"
     "Gear6 = KEY_U\r\n"
+    "\r\n"
+    "# The clutch pressed fully, as a button. Default: KEY_X\r\n"
     "P1_Clutch_Digital = KEY_X\r\n"
+    "\r\n"
+    "# Left foot pedal of a motorbike (Frenzy Express). Default: KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
     "PedalLeft = KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
+    "\r\n"
+    "# Right foot pedal of a motorbike (Frenzy Express). Default: KEY_X, GC0_BUTTON_RIGHTSHOULDER\r\n"
     "PedalRight = KEY_X, GC0_BUTTON_RIGHTSHOULDER\r\n"
+    "\r\n"
+    "# The steering wheel, an axis turned left to right (a gamepad's left stick, else the first\r\n"
+    "# controller's X). Default: GC0_AXIS_LEFTX, JOY0_AXIS_0\r\n"
     "P1_Steer = GC0_AXIS_LEFTX, JOY0_AXIS_0\r\n"
+    "\r\n"
+    "# The accelerator pedal: a gamepad's right trigger, else the first controller's Y from its middle\r\n"
+    "# (released) to its low end (pressed), as BackForceFeeder's vJoy. Default: GC0_AXIS_RIGHTTRIGGER,\r\n"
+    "# JOY0_AXIS_1_NEGATIVE_SIDE\r\n"
     "P1_Gas = GC0_AXIS_RIGHTTRIGGER, JOY0_AXIS_1_NEGATIVE_SIDE\r\n"
+    "\r\n"
+    "# The brake pedal: a gamepad's left trigger, else the first controller's Z from its middle (released)\r\n"
+    "# to its low end (pressed). Default: GC0_AXIS_LEFTTRIGGER, JOY0_AXIS_2_NEGATIVE_SIDE\r\n"
     "P1_Brake = GC0_AXIS_LEFTTRIGGER, JOY0_AXIS_2_NEGATIVE_SIDE\r\n"
     "\r\n"
-    "[ControllerGUIDs]\r\n";
+    "[ControllerGUIDs]\r\n"
+    "# P1_GUID, P2_GUID...: player <n>'s controller by its SDL GUID (the log gives each controller's), written\r\n"
+    "# by hand. None: the controllers in the order Windows gives them.\r\n";
 
 // A missing controls.ini is written with the defaults; an existing one gets the default lines it
-// lacks (a new action, a new setting), the user's own lines are left as they are
+// lacks (a new action, a new setting) and their comments, the user's own lines left as they are
 static void write_defaults(void)
 {
-    char p[MAX_PATH * 2];
-    if (GetFileAttributesW(g_ini) == INVALID_FILE_ATTRIBUTES)
-    {
-        FILE *f = _wfopen(g_ini, L"wb");
-        if (!f)
-        {
-            wl_log("controls: cannot create the default controls.ini");
-            return;
-        }
-        fputs(g_defaults, f);
-        fclose(f);
-        wl_log("controls: %s created with the default bindings", wl_u8(g_ini, p, sizeof p));
-        return;
-    }
-
-    char line[256], section[64] = "";
-    const char *d = g_defaults;
-    while (*d)
-    {
-        size_t n = strcspn(d, "\r\n");
-        snprintf(line, sizeof line, "%.*s", (int)n, d);
-        d += n;
-        while (*d == '\r' || *d == '\n')
-            d++;
-        char *eq = strchr(line, '=');
-        if (line[0] == '[')
-        {
-            snprintf(section, sizeof section, "%s", line + 1);
-            char *end = strchr(section, ']');
-            if (end)
-                *end = 0;
-            continue;
-        }
-        if (!eq || !section[0])
-            continue;
-        char *k = line, *v = eq + 1;
-        *eq = 0;
-        while (eq > k && eq[-1] == ' ')
-            *--eq = 0;
-        while (*v == ' ')
-            v++;
-        wchar_t ws[64], wk[96], wv[256], cur[8];
-        MultiByteToWideChar(CP_UTF8, 0, section, -1, ws, 64);
-        MultiByteToWideChar(CP_UTF8, 0, k, -1, wk, 96);
-        MultiByteToWideChar(CP_UTF8, 0, v, -1, wv, 256);
-        if (GetPrivateProfileStringW(ws, wk, L"\x01", cur, 8, g_ini) == 1 && cur[0] == 1)
-        {
-            WritePrivateProfileStringW(ws, wk, wv, g_ini);
-            wl_log("controls: [%s] %s = %s added to controls.ini", section, k, v);
-        }
-    }
+    wl_ini_merge(g_ini, g_defaults);
 }
 
 // [Common] ExitGame, linuxloader's: the game ends (Escape, as under TeknoParrot)
@@ -1096,7 +1167,7 @@ int wl_controls_default_row(const char *section, const char *key, char *out, siz
             continue;
         }
         char *eq = strchr(line, '=');
-        if (!eq || _stricmp(current, section))
+        if (!eq || line[0] == '#' || _stricmp(current, section))
             continue;
         *eq = 0;
         trim_both(line);
