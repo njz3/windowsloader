@@ -131,7 +131,12 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   chacune coupe vers 70 s, sans jamais rouvrir ; ensuite les données de course passent dans les deux sens (~60
   paquets/s), la traduction des adresses tient. Les images de la caméra partent en diffusion vers 192.168.1.255:3167 +
   numéro de borne. Les messages du jeu étaient perdus (2000 lignes de débogage prises par ses chargements `.nrfc`,
-  désormais écartées).
+  désormais écartées). Troisième essai (la borne 1 lancée 20 s avant) : le test réseau passe, « commLink OK » des
+  deux côtés, l'attraction affiche « LINK SYSTEM JUSQU'À 2 COUREURS » ; mais la borne 1, en fenêtre avec barre de
+  titre (`DISPLAY_MODE = WINDOW`, la 2 en BORDERLESS), se figeait 13 à 32 s dans la boucle modale du menu de la
+  fenêtre (Alt) : la borne 2 la déclarait perdue (« nodeID0:0 is timeout », « Network Disconnection ») et chacune
+  repartait seule. Le menu de la fenêtre n'est plus ouvert par Alt (vérifié sur Sega Rally 3 en fenêtre : plus de
+  gel) ; les boucles de déplacement et de taille de la fenêtre sont notées au journal.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)

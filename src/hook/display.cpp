@@ -775,6 +775,26 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_SYSCHAR && wp == VK_RETURN)
         return 0; // no beep for Alt+Enter
+    // Alt alone or with a letter opens the window's menu (SC_KEYMENU): Windows then runs its own
+    // modal loop in the game's DefWindowProc and the game's thread stops until a key or a click ends
+    // it (Daytona in a framed window: 13 to 32 s without a frame, its link to the other cabinet
+    // lost). Not for a game's window; the window's moves and sizes are logged, they stop it too
+    if (msg == WM_SYSCOMMAND && (wp & 0xFFF0) == SC_KEYMENU)
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 10)
+            wl_log("display: the window's menu (Alt, key 0x%Ix) not opened: it would stop the game", lp);
+        return 0;
+    }
+    if (msg == WM_ENTERMENULOOP || msg == WM_EXITMENULOOP || msg == WM_ENTERSIZEMOVE || msg == WM_EXITSIZEMOVE)
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 50)
+            wl_log("display: %s (the game stops meanwhile)", msg == WM_ENTERMENULOOP  ? "a menu opened on the window"
+                                                           : msg == WM_EXITMENULOOP   ? "the window's menu closed"
+                                                           : msg == WM_ENTERSIZEMOVE ? "the window moved or sized by the mouse or keyboard"
+                                                                                      : "the window's move or size ended");
+    }
     if (msg == g_applyMsg && g_applyMsg)
     {
         apply_mode();
