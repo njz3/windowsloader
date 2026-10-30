@@ -20,6 +20,14 @@
 void wl_ffb_set(double force);
 double wl_ffb_get(unsigned *serial); // serial changes with each new value
 
+// Effects the wheel holds by itself, beside the constant force, for a game whose cabinet's motor
+// board plays such effects: a spring pulling the wheel to its centre, 0 none to 1 the strongest
+// (below 0 pushing it away from the centre), and a vibration, 0 none to 1 the strongest, of a
+// period in milliseconds. The wheel answers its own position at once, where a spring made of
+// constant forces by the game answers a frame late, through the whole chain, and can swing it
+void wl_ffb_set_effects(double spring, double vibration, int periodMs);
+void wl_ffb_get_effects(double *spring, double *vibration, int *periodMs, unsigned *serial); // serial may be NULL
+
 struct WlFfbEvent
 {
     unsigned frame;

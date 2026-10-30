@@ -298,7 +298,8 @@ static SRWLOCK g_devicesLock = SRWLOCK_INIT;
 
 // ------------------------------------------------------------------------------
 // Force feedback: one constant effect, updated when the game's force changes (ffb.h), on one
-// device. [Config] of controls.ini: FFB_Strength (percent, 100), FFB_Invert (0/1), FFB_Device
+// device; with it a spring and a sine, made the first time a game gives them (wl_ffb_set_effects),
+// when the device has those effects. [Config] of controls.ini: FFB_Strength (percent, 100), FFB_Invert (0/1), FFB_Device
 // (AUTO, or empty: player 1's wheel; else a force feedback device's name as the system gives
 // it, compared whole without case or the spaces around; --set ForceFeedback.FFB_DEVICE=
 // overrides it, as Supermodel's, Flycast's, linuxloader's and sm2-emu's). The chosen device
@@ -310,6 +311,9 @@ static SRWLOCK g_devicesLock = SRWLOCK_INIT;
 
 static SDL_Haptic *g_haptic;
 static int g_hapticEffect = -1;
+static int g_springEffect = -1, g_sineEffect = -1; // ffb.h's effects the wheel holds, made at their first use
+static int g_springTried, g_sineTried;
+static unsigned g_effectsSerial;
 static int g_hapticPlayer = -1; // 0: the effects are on player 1's device; -1 another one or none
 static unsigned g_ffbSerial;
 static double g_ffbStrength = 1.0;
@@ -378,7 +382,8 @@ static void close_haptic(void)
     if (g_haptic)
         SDL_CloseHaptic(g_haptic);
     g_haptic = NULL;
-    g_hapticEffect = -1;
+    g_hapticEffect = g_springEffect = g_sineEffect = -1;
+    g_springTried = g_sineTried = 0;
     g_hapticPlayer = -1;
     ffb_lock();
     g_ffbPlaying[0] = 0;
@@ -435,6 +440,47 @@ static void constant_effect(SDL_HapticEffect *e, double level)
     e->constant.level = (Sint16)(level * 32767);
 }
 
+// ffb.h's spring: the wheel pulled to its centre, as hard on both sides (pushed away below 0)
+static void spring_effect(SDL_HapticEffect *e, double strength)
+{
+    memset(e, 0, sizeof *e);
+    e->type = SDL_HAPTIC_SPRING;
+    e->condition.direction.type = SDL_HAPTIC_CARTESIAN;
+    e->condition.direction.dir[0] = 1;
+    e->condition.length = SDL_HAPTIC_INFINITY;
+    e->condition.right_sat[0] = e->condition.left_sat[0] = (Uint16)((strength < 0 ? -strength : strength) * 65535);
+    e->condition.right_coeff[0] = e->condition.left_coeff[0] = (Sint16)(strength * 32767);
+}
+
+// ffb.h's vibration: a sine along the wheel's axis
+static void sine_effect(SDL_HapticEffect *e, double strength, int periodMs)
+{
+    memset(e, 0, sizeof *e);
+    e->type = SDL_HAPTIC_SINE;
+    e->periodic.direction.type = SDL_HAPTIC_CARTESIAN;
+    e->periodic.direction.dir[0] = 1;
+    e->periodic.length = SDL_HAPTIC_INFINITY;
+    e->periodic.period = (Uint16)(periodMs > 0 ? periodMs : 100);
+    e->periodic.magnitude = (Sint16)(strength * 32767);
+}
+
+// One of the effects beside the constant force, made and started when the device has it
+static int extra_effect(SDL_HapticEffect *e, unsigned feature, const char *name)
+{
+    if (!(SDL_GetHapticFeatures(g_haptic) & feature))
+    {
+        wl_log("controls: force feedback: %s has no %s effect", SDL_GetHapticName(g_haptic), name);
+        return -1;
+    }
+    int id = SDL_CreateHapticEffect(g_haptic, e);
+    if (id < 0 || !SDL_RunHapticEffect(g_haptic, id, 1))
+    {
+        wl_log("controls: force feedback: %s effect refused (%s)", name, SDL_GetError());
+        return -1;
+    }
+    return id;
+}
+
 static void open_haptic(void)
 {
     close_haptic();
@@ -481,6 +527,10 @@ static void open_haptic(void)
     }
     wl_ffb_get(&g_ffbSerial);
     g_ffbSerial--; // the current force is sent at the next update
+    double sp, vib;
+    int period;
+    wl_ffb_get_effects(&sp, &vib, &period, &g_effectsSerial);
+    g_effectsSerial--; // and the current effects
     const char *name = SDL_GetHapticName(g_haptic);
     ffb_lock();
     snprintf(g_ffbPlaying, sizeof g_ffbPlaying, "%s", name ? name : "?");
@@ -489,10 +539,36 @@ static void open_haptic(void)
            (int)(g_ffbStrength * 100), g_ffbInvert ? ", inverted" : "");
 }
 
+// ffb.h's spring and vibration, scaled by FFB_Strength, when they changed. Made the first time a
+// game asks for them: the other games' wheels get the constant force alone
+static void update_effects(void)
+{
+    double spring, vibration;
+    int period;
+    unsigned serial;
+    wl_ffb_get_effects(&spring, &vibration, &period, &serial);
+    if (serial == g_effectsSerial)
+        return;
+    g_effectsSerial = serial;
+    double k = g_ffbStrength > 1 ? 1 : g_ffbStrength;
+    SDL_HapticEffect e;
+    spring_effect(&e, spring * k);
+    if (g_springEffect >= 0)
+        SDL_UpdateHapticEffect(g_haptic, g_springEffect, &e);
+    else if (spring != 0 && !g_springTried++)
+        g_springEffect = extra_effect(&e, SDL_HAPTIC_SPRING, "spring");
+    sine_effect(&e, vibration * k, period);
+    if (g_sineEffect >= 0)
+        SDL_UpdateHapticEffect(g_haptic, g_sineEffect, &e);
+    else if (vibration > 0 && !g_sineTried++)
+        g_sineEffect = extra_effect(&e, SDL_HAPTIC_SINE, "sine");
+}
+
 static void update_haptic(void)
 {
     if (!g_haptic)
         return;
+    update_effects();
     unsigned serial;
     double f = wl_ffb_get(&serial);
     if (serial == g_ffbSerial)
@@ -1250,6 +1326,7 @@ void wl_controls_set_ffb(double strength, int invert)
     g_ffbStrength = strength;
     g_ffbInvert = invert;
     g_ffbSerial--; // the current force is sent again with the new settings
+    g_effectsSerial--;
     if (!g_ini[0])
         return;
     wchar_t v[16];

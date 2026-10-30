@@ -59,6 +59,36 @@ double wl_ffb_get(unsigned *serial)
     return f;
 }
 
+static double g_spring, g_vibration;
+static int g_period;
+static unsigned g_effectsSerial;
+
+void wl_ffb_set_effects(double spring, double vibration, int periodMs)
+{
+    spring = spring < -1 ? -1 : spring > 1 ? 1 : spring;
+    vibration = vibration < 0 ? 0 : vibration > 1 ? 1 : vibration;
+    AcquireSRWLockExclusive(&g_lock);
+    if (spring != g_spring || vibration != g_vibration || (vibration && periodMs != g_period))
+    {
+        g_spring = spring;
+        g_vibration = vibration;
+        g_period = periodMs;
+        g_effectsSerial++;
+    }
+    ReleaseSRWLockExclusive(&g_lock);
+}
+
+void wl_ffb_get_effects(double *spring, double *vibration, int *periodMs, unsigned *serial)
+{
+    AcquireSRWLockShared(&g_lock);
+    *spring = g_spring;
+    *vibration = g_vibration;
+    *periodMs = g_period;
+    if (serial)
+        *serial = g_effectsSerial;
+    ReleaseSRWLockShared(&g_lock);
+}
+
 int wl_ffb_drain(WlFfbEvent *out, int max)
 {
     AcquireSRWLockExclusive(&g_lock);
