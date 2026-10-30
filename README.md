@@ -251,7 +251,10 @@ texts. linuxloader's catalogues are made the same way, English being its source 
 The write folder (`--write-dir`, or `[Paths] WRITE_DIR`, relative to the launcher's folder or a full
 path; linuxloader's key): the launcher's folder and the games' are then only read, for a write
 filter (UWF) or games on a share. Its root holds `windowsloader.ini` and `controls.ini` (copied there
-the first time: change those, not the ones beside the launcher) and `windowsloader.log`;
+the first time: change those, not the ones beside the launcher; when one beside the launcher is newer
+than its copy, its changes are not read and the launcher's console, the log and the top of the menu's
+"Jeu" page say so, as linuxloader does) and `windowsloader.log`; while it is in use, the "Jeu" page
+also says so with the folder the game's writes go to;
 `WRITE_DIR\<game>` what the game writes, under its full path (`C:\Racecab\Games\X\save.bin` is
 `WRITE_DIR\wmmt5\C\Racecab\Games\X\save.bin`), so a game writing above its program's folder or on a
 drive redirected into it is taken too. The system's folders have their own: the user's AppData in
