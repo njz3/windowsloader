@@ -103,6 +103,9 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // WRITE_DIR\<game> made, the game's writes sent there from now on. Once the game and the settings
 // are known
 void wl_files_write_dir(void);
+// The write folder for the settings menu: 1 in use (*folder WRITE_DIR\<game>), 0 none (*folder L""),
+// -1 asked but it could not be made (*folder the one asked: the game writes in place)
+int wl_files_write_state(const wchar_t **folder);
 // A path with a folder as the write folder has it for reading: its copy there (in buf) when there
 // is one, else the path itself (LoadLibrary: a DLL the game wrote, in the temporary folder say)
 const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size);

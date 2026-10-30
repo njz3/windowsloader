@@ -253,7 +253,8 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 
 #define WL_PATH (MAX_PATH * 2)
 
-static wchar_t g_writeGame[MAX_PATH]; // WRITE_DIR\<game>, L"" when not in use
+static wchar_t g_writeGame[MAX_PATH];   // WRITE_DIR\<game>, L"" when not in use
+static wchar_t g_writeFailed[MAX_PATH]; // the one asked when it could not be made
 
 // The system's folders, each in a folder of its own in WRITE_DIR\<game>: appdata, temp,
 // programdata, windows, so a disk under a write filter (UWF) but for the write folder keeps them;
@@ -289,6 +290,12 @@ static const wchar_t *inside(const wchar_t *path, const wchar_t *folder)
     return path[n] ? NULL : path + n;
 }
 
+int wl_files_write_state(const wchar_t **folder)
+{
+    *folder = g_writeGame[0] ? g_writeGame : g_writeFailed;
+    return g_writeGame[0] ? 1 : g_writeFailed[0] ? -1 : 0;
+}
+
 void wl_files_write_dir(void)
 {
     wchar_t root[MAX_PATH];
@@ -320,6 +327,7 @@ void wl_files_write_dir(void)
     if (a == INVALID_FILE_ATTRIBUTES || !(a & FILE_ATTRIBUTE_DIRECTORY))
     {
         wl_log("files: the write folder %s cannot be made: the game writes in place", wl_u8(g_writeGame, u, sizeof u));
+        wcscpy_s(g_writeFailed, MAX_PATH, g_writeGame);
         g_writeGame[0] = 0;
         return;
     }

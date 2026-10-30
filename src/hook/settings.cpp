@@ -104,11 +104,46 @@ static void parse_overrides(void)
     }
 }
 
+// The write folder's settings files older than the launcher folder's ones (WL_ENV_OLDER), UTF-8
+static char g_older[2][2][MAX_PATH * 2];
+static int g_olderCount;
+
+static void read_older(void)
+{
+    static wchar_t all[4 * MAX_PATH + 8];
+    DWORD n = GetEnvironmentVariableW(WL_ENV_OLDER, all, sizeof all / sizeof all[0]);
+    if (!n || n >= sizeof all / sizeof all[0])
+        return;
+    wchar_t *ctx = NULL;
+    for (wchar_t *line = wcstok_s(all, L"\n", &ctx); line && g_olderCount < 2; line = wcstok_s(NULL, L"\n", &ctx))
+    {
+        wchar_t *bar = wcschr(line, L'|');
+        if (!bar)
+            continue;
+        *bar = 0;
+        wl_u8(line, g_older[g_olderCount][0], sizeof g_older[0][0]);
+        wl_u8(bar + 1, g_older[g_olderCount][1], sizeof g_older[0][1]);
+        wl_log("settings: %s, the one read, is older than %s: the changes made there since are not read (copy that file over "
+               "it, or change the one in the write folder)", g_older[g_olderCount][0], g_older[g_olderCount][1]);
+        g_olderCount++;
+    }
+}
+
+int wl_settings_older(int i, const char **copy, const char **first)
+{
+    if (i < 0 || i >= g_olderCount)
+        return 0;
+    *copy = g_older[i][0];
+    *first = g_older[i][1];
+    return 1;
+}
+
 void wl_settings_init(void)
 {
     char u[MAX_PATH * 2];
     if (!GetEnvironmentVariableW(WL_ENV_INI, g_file, MAX_PATH))
         g_file[0] = 0;
+    read_older();
     parse_overrides();
     wchar_t own[MAX_PATH];
     if (wl_settings_common() && game_file_path(own) && exists(own))

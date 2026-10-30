@@ -50,11 +50,17 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
     return is_folder(root) ? 1 : -1;
 }
 
-void wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size)
+int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size)
 {
     wchar_t there[MAX_PATH];
     swprintf(there, MAX_PATH, L"%s\\%s", root, name);
+    int older = 0;
+    WIN32_FILE_ATTRIBUTE_DATA first, copy;
     if (GetFileAttributesW(there) == INVALID_FILE_ATTRIBUTES && path[0] && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
         CopyFileW(path, there, TRUE);
+    else if (path[0] && _wcsicmp(path, there) && GetFileAttributesExW(path, GetFileExInfoStandard, &first) &&
+             GetFileAttributesExW(there, GetFileExInfoStandard, &copy))
+        older = CompareFileTime(&first.ftLastWriteTime, &copy.ftLastWriteTime) > 0;
     wcscpy_s(path, size, there);
+    return older;
 }

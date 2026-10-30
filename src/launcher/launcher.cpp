@@ -885,13 +885,29 @@ int wmain(int argc, wchar_t **argv)
     int write = wl_write_dir_root(selfDir, writeArg, iniPath, writeDir, MAX_PATH);
     if (write < 0)
         say("windowsloader: the write folder %s cannot be made: the game's folder is written as before\n", u8(writeDir));
+    // A file of the launcher's folder changed after its copy was made (a hand edit on a cabinet):
+    // the copy is still the one read; said here, in the game's log and in its menu (the DLL's)
+    static wchar_t older[4 * MAX_PATH + 8];
+    older[0] = 0;
     if (write > 0)
     {
-        wl_write_dir_file(writeDir, L"windowsloader.ini", iniPath, MAX_PATH);
-        wl_write_dir_file(writeDir, L"controls.ini", controlsPath, MAX_PATH);
+        wchar_t *paths[2] = {iniPath, controlsPath};
+        const wchar_t *names[2] = {L"windowsloader.ini", L"controls.ini"};
+        for (int f = 0; f < 2; f++)
+        {
+            wchar_t first[MAX_PATH];
+            wcscpy_s(first, MAX_PATH, paths[f]);
+            if (!wl_write_dir_file(writeDir, names[f], paths[f], MAX_PATH))
+                continue;
+            say("windowsloader: %s, the one read, is older than %s: the changes made there since are not read (copy that file "
+                "over it, or change the one in the write folder)\n", u8(paths[f]), u8(first));
+            size_t n = wcslen(older);
+            swprintf(older + n, sizeof older / sizeof older[0] - n, L"%s|%s\n", paths[f], first);
+        }
         if (!logGiven)
             swprintf(logPath, MAX_PATH, L"%s\\windowsloader.log", writeDir);
     }
+    SetEnvironmentVariableW(WL_ENV_OLDER, older[0] ? older : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write > 0 ? writeDir : NULL);
     SetEnvironmentVariableW(WL_ENV_LOG, logPath);
     SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");

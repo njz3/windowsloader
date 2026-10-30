@@ -1278,6 +1278,26 @@ static void page_game(void)
             ImGui::SameLine();
             ImGui::TextWrapped("%s", boards[i]);
         }
+    // The write folder (WRITE_DIR, --write-dir) when the game's writes are redirected; nothing otherwise
+    const wchar_t *folder;
+    if (wl_files_write_state(&folder) > 0)
+    {
+        char where[MAX_PATH * 2];
+        ImGui::Spacing();
+        ImGui::TextWrapped(wl_tr("Redirection d'écriture active, dossier : %s"), wl_u8(folder, where, sizeof where));
+    }
+    // A settings file of the launcher's folder changed after its copy in the write folder was made:
+    // the copy is the one read (a hand edit on a cabinet would otherwise go unseen)
+    const char *copy, *first;
+    for (int i = 0; wl_settings_older(i, &copy, &first); i++)
+    {
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+        ImGui::TextWrapped(wl_tr("%s, le fichier lu, est plus ancien que %s : les changements faits dans celui-ci depuis ne sont pas "
+                                 "lus. Copiez-le par-dessus, ou modifiez celui du dossier d'écriture."),
+                           copy, first);
+        ImGui::PopStyleColor();
+    }
     ImGui::Spacing();
     if (ImGui::Button(wl_tr("Reprendre (Tab)")))
         InterlockedExchange(&g_open, 0);

@@ -24,5 +24,7 @@
 // The root, absolute and made, from arg, else from iniPath's [Paths] WRITE_DIR (relative to the
 // launcher's folder selfDir): 1, 0 when there is none, -1 when it cannot be made (root says which)
 int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *iniPath, wchar_t *root, size_t size);
-// A settings file at the root: copied there from *path the first time; path becomes the root's
-void wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size);
+// A settings file at the root: copied there from *path the first time; path becomes the root's.
+// 1 when the copy kept is older than *path's file: the changes made there since are not read
+// (linuxloader warns the same way); 0 otherwise
+int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size);
