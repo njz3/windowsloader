@@ -80,7 +80,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Storm Racer G", "srg", "", {L"racing.exe"}, {0xE5A27313}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
      WL_N("Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Storm Rider", "stormrider", "1.2.6", {L"motobike.exe"}, {0xED34CEB0}, {L"motobikeio.dll"}, 0, NULL, "Wahlap (PC)", "2013", WL_GAME_WORK,
-     WL_N("Moto. Carte par motobikeio.dll ; s'arrête sur sa protection contre la copie (clé liée au disque), non prise en charge."),
+     WL_N("Moto. Carte par motobikeio.dll ; non pris en charge."),
      WL_FEATURE_NO, WL_FEATURE_NO},
     {"Initial D Arcade Stage Zero Ver.1.31", "idz", "1.31", {L"InitialD0_DX11_Nu.exe"}, {0xCF32AFCE}, {L"amdaemon.exe"}, 0x5BAB5915, NULL, WL_N("Sega Nu (64 bits)"), "2017",
      WL_GAME_PARTLY,

@@ -30,9 +30,6 @@
 // The game packs its buttons in one word (+0x433720), as Storm Racer G (Wahlap's too): the
 // control panel's byte as it is, and GetIoKeyData's bit 0 -> 0x200, 2 -> 0x100, 3 -> 0x20,
 // 4 -> 0x40. Which button is which: Storm Racer G's, to be seen in the game's test menu.
-//
-// The game also checks a copy protection (a dongle bound to the PC's disk) that windowsloader does
-// not handle: without it the game quits after loading.
 
 #include <windows.h>
 #include <stdio.h>

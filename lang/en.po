@@ -1187,8 +1187,8 @@ msgid "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."
 msgstr "USB board through usb_io.dll; black videos without the WMV decoder."
 
 #: src/launcher/gamelist.cpp:83
-msgid "Moto. Carte par motobikeio.dll ; s'arrête sur sa protection contre la copie (clé liée au disque), non prise en charge."
-msgstr "Motorbike. Board through motobikeio.dll; stops at its copy protection (a key tied to the disk), not supported."
+msgid "Moto. Carte par motobikeio.dll ; non pris en charge."
+msgstr "Motorbike. Board through motobikeio.dll; not supported."
 
 #: src/launcher/gamelist.cpp:85 src/launcher/gamelist.cpp:89
 msgid "Sega Nu (64 bits)"
