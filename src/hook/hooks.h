@@ -145,6 +145,10 @@ int wl_netenv_fake_ip(unsigned *ip); // that card's address (network order), 0 w
 // elect a host by broadcast hears itself and becomes the host, nothing leaves the PC
 void wl_system_loopback_broadcast(int on);
 
+// The PC's cameras given to the game, as [Emulation] CAMERA = true does (a module whose link needs
+// them: Daytona Championship USA's)
+void wl_system_allow_camera(const char *why);
+
 // A registry key of the cabinet's made up under HKEY_LOCAL_MACHINE (an ALLS's
 // "SYSTEM\SEGA\SystemProperty\static"): opened, read and written by the game in memory only.
 // REG_SZ data is an 8-bit string (size ignored); the others are size bytes.

@@ -120,7 +120,12 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   connect, sendto, recvfrom, accept, getpeername, getsockname de sa table d'importation) ; NumCabinets et CabinetID
   lus d'après `LINK` et `CABINET`. Essayé sur ce PC avec un faux Daytona.exe qui fait ces appels (deux jeux,
   127.0.0.1 et 127.0.0.2) : chaque borne a son adresse, le maître trouve la borne 2 et reçoit son CabinetID, les
-  diffusions passent dans les deux sens. Pas encore essayé avec le jeu ni sur les bornes (192.168.1.4 et .5).
+  diffusions passent dans les deux sens. Sur les bornes (30/10, Image borne, racecab1 et 2) : la découverte marche,
+  « POWER-ON TEST NETWORK » montre LINK ID 1 et 2 [GOOD], TOTAL MACHINE 2, puis chaque borne perd l'autre : la
+  caméra refusée au jeu (le propriétaire avait le même blocage sous TeknoParrot sans webcam ; les deux bornes en
+  ont une). Désormais le jeu en link a la caméra du PC (`[Emulation] CAMERA = true` pour les autres jeux), `TOTAL
+  CABINETS` de `GameSettings.ini` suit `LINK`, et le journal compte le trafic avec chaque borne toutes les 10 s
+  (paquets UDP, octets TCP, connexions TCP fermées) ; pas encore réessayé.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)

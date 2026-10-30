@@ -780,6 +780,127 @@ static int WSAAPI link_bind(SOCKET s, const sockaddr *a, int len)
     return r;
 }
 
+// The link's traffic, logged every 10 s at most: the packets and bytes this cabinet sent to and
+// received from each (UDP by address, TCP by its connected sockets), and its TCP connections that
+// end (closed, an error)
+static volatile LONG g_sentPackets[LINK_MAX], g_sentBytes[LINK_MAX], g_receivedPackets[LINK_MAX], g_receivedBytes[LINK_MAX];
+
+#define LINK_SOCKETS 64
+static struct
+{
+    volatile SOCKET s;
+    volatile LONG cabinet;
+} g_linkSockets[LINK_SOCKETS];
+
+static void link_socket(SOCKET s, int cabinet)
+{
+    int free = -1;
+    for (int i = 0; i < LINK_SOCKETS; i++)
+    {
+        if (g_linkSockets[i].cabinet && g_linkSockets[i].s == s)
+        {
+            g_linkSockets[i].cabinet = cabinet;
+            return;
+        }
+        if (!g_linkSockets[i].cabinet && free < 0)
+            free = i;
+    }
+    if (free >= 0)
+    {
+        g_linkSockets[free].s = s;
+        g_linkSockets[free].cabinet = cabinet;
+    }
+}
+
+static int link_socket_cabinet(SOCKET s)
+{
+    for (int i = 0; i < LINK_SOCKETS; i++)
+        if (g_linkSockets[i].cabinet && g_linkSockets[i].s == s)
+            return g_linkSockets[i].cabinet;
+    return 0;
+}
+
+static void link_count(int cabinet, int sent, int bytes)
+{
+    if (cabinet < 1 || cabinet > LINK_MAX || bytes < 0)
+        return;
+    InterlockedIncrement(sent ? &g_sentPackets[cabinet - 1] : &g_receivedPackets[cabinet - 1]);
+    InterlockedExchangeAdd(sent ? &g_sentBytes[cabinet - 1] : &g_receivedBytes[cabinet - 1], bytes);
+    static volatile LONG last;
+    LONG now = (LONG)GetTickCount(), was = last;
+    if (now - was < 10000 || InterlockedCompareExchange(&last, now, was) != was)
+        return;
+    char line[600];
+    int at = snprintf(line, sizeof line, "daytona: link traffic since the last count:");
+    for (int i = 0; i < g_linkCount && at < (int)sizeof line; i++)
+        at += snprintf(line + at, sizeof line - at, " cabinet %d: sent %ld (%ld bytes), received %ld (%ld bytes);", i + 1,
+                       InterlockedExchange(&g_sentPackets[i], 0), InterlockedExchange(&g_sentBytes[i], 0),
+                       InterlockedExchange(&g_receivedPackets[i], 0), InterlockedExchange(&g_receivedBytes[i], 0));
+    wl_log("%s", line);
+}
+
+static void link_tcp_end(SOCKET s, int cabinet, const char *what, DWORD err)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 100)
+        wl_log("daytona: link TCP with cabinet %d (socket %Iu): %s (%lu)", cabinet, (ULONG_PTR)s, what, err);
+}
+
+static int(WSAAPI *olink_send)(SOCKET, const char *, int, int);
+static int WSAAPI link_send(SOCKET s, const char *buf, int size, int flags)
+{
+    int r = olink_send(s, buf, size, flags);
+    int n = g_linkCount ? link_socket_cabinet(s) : 0;
+    if (n)
+    {
+        DWORD err = WSAGetLastError();
+        if (r >= 0)
+            link_count(n, 1, r);
+        else if (err != WSAEWOULDBLOCK)
+            link_tcp_end(s, n, "send failed", err);
+        WSASetLastError(err);
+    }
+    return r;
+}
+
+static int(WSAAPI *olink_recv)(SOCKET, char *, int, int);
+static int WSAAPI link_recv(SOCKET s, char *buf, int size, int flags)
+{
+    int r = olink_recv(s, buf, size, flags);
+    int n = g_linkCount ? link_socket_cabinet(s) : 0;
+    if (n)
+    {
+        DWORD err = WSAGetLastError();
+        if (r > 0)
+            link_count(n, 0, r);
+        else if (r == 0)
+            link_tcp_end(s, n, "closed by the other cabinet", 0);
+        else if (err != WSAEWOULDBLOCK && err != WSAETIMEDOUT)
+            link_tcp_end(s, n, "recv failed", err);
+        else if (err == WSAETIMEDOUT)
+        {
+            static volatile LONG logged;
+            if (InterlockedIncrement(&logged) <= 20)
+                link_tcp_end(s, n, "recv timed out", err);
+        }
+        WSASetLastError(err);
+    }
+    return r;
+}
+
+static int(WSAAPI *olink_closesocket)(SOCKET);
+static int WSAAPI link_closesocket(SOCKET s)
+{
+    if (int n = g_linkCount ? link_socket_cabinet(s) : 0)
+    {
+        link_tcp_end(s, n, "closed by this cabinet", 0);
+        for (int i = 0; i < LINK_SOCKETS; i++)
+            if (g_linkSockets[i].cabinet && g_linkSockets[i].s == s)
+                g_linkSockets[i].cabinet = 0;
+    }
+    return olink_closesocket(s);
+}
+
 static int(WSAAPI *olink_connect)(SOCKET, const sockaddr *, int);
 static int WSAAPI link_connect(SOCKET s, const sockaddr *a, int len)
 {
@@ -799,6 +920,8 @@ static int WSAAPI link_connect(SOCKET s, const sockaddr *a, int len)
     int r = olink_connect(s, (const sockaddr *)&to, sizeof to);
     DWORD err = WSAGetLastError();
     wl_busy_leave();
+    if (r == 0 || err == WSAEWOULDBLOCK)
+        link_socket(s, n);
     // A refused try every 20 ms until the other cabinet listens: the first ones only
     static volatile LONG logged[LINK_MAX];
     if (r == 0 || err == WSAEWOULDBLOCK || InterlockedIncrement(&logged[n - 1]) <= 5)
@@ -833,6 +956,7 @@ static int WSAAPI link_sendto(SOCKET s, const char *buf, int size, int flags, co
     {
         to.sin_addr.s_addr = g_linkAddress[n - 1];
         int sent = olink_sendto(s, buf, size, flags, (const sockaddr *)&to, sizeof to);
+        link_count(n, 1, sent);
         if (sent < 0 && first == last)
             r = sent, err = WSAGetLastError();
         static volatile LONG logged[LINK_MAX];
@@ -851,6 +975,8 @@ static int WSAAPI link_recvfrom(SOCKET s, char *buf, int size, int flags, sockad
     if (r >= 0)
     {
         DWORD err = WSAGetLastError();
+        if (g_linkCount && fromLen && is_inet(from, *fromLen))
+            link_count(link_cabinet_real(((const sockaddr_in *)from)->sin_addr.s_addr), 0, r);
         link_to_game(from, fromLen);
         WSASetLastError(err);
     }
@@ -863,6 +989,9 @@ static SOCKET WSAAPI link_accept(SOCKET s, sockaddr *a, int *len)
     SOCKET r = olink_accept(s, a, len);
     if (r != INVALID_SOCKET)
     {
+        if (g_linkCount && len && is_inet(a, *len))
+            if (int n = link_cabinet_real(((const sockaddr_in *)a)->sin_addr.s_addr))
+                link_socket(r, n);
         link_to_game(a, len);
         if (g_linkCount && len && is_inet(a, *len))
             link_log("accept", a, a, 0, 0);
@@ -942,6 +1071,10 @@ static void link_settings(void)
     ULONG ip = g_linkAddress[g_cabinet - 1];
     wl_log("daytona: link: cabinet %d of %d (192.168.1.%d), its real address %lu.%lu.%lu.%lu", g_cabinet, g_linkCount, g_cabinet, ip & 0xFF,
            ip >> 8 & 0xFF, ip >> 16 & 0xFF, ip >> 24);
+    // The link exchanges the players' pictures (ImageComm): without the cabinet's camera, each cabinet
+    // loses the other on "POWER-ON TEST NETWORK" after finding it (racecab1 and 2; the same under
+    // TeknoParrot without a camera)
+    wl_system_allow_camera("Daytona's link sends the players' pictures to the other cabinets");
 }
 
 static void link_patch(void)
@@ -962,6 +1095,9 @@ static void link_patch(void)
         {1, "accept", (void *)link_accept, (void **)&olink_accept},
         {5, "getpeername", (void *)link_getpeername, (void **)&olink_getpeername},
         {6, "getsockname", (void *)link_getsockname, (void **)&olink_getsockname},
+        {19, "send", (void *)link_send, (void **)&olink_send},
+        {16, "recv", (void *)link_recv, (void **)&olink_recv},
+        {3, "closesocket", (void *)link_closesocket, (void **)&olink_closesocket},
     };
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (!wl_patch_iat(exe, "WS2_32.dll", (const char *)(ULONG_PTR)table[i].ordinal, table[i].fn, table[i].original) &&
@@ -985,6 +1121,9 @@ static int ini_override(const char *file, const char *section, const char *key, 
         snprintf(value, size, "%d", g_linkCount ? g_linkCount : 1);
     else if (ends_with(file, "ShellData.ini") && !_stricmp(section, "Network") && !_stricmp(key, "CabinetID"))
         snprintf(value, size, "%d", g_cabinet);
+    // The cabinets of the link as the cabinet's test menu writes them (+0x11932e), beside the others
+    else if (ends_with(file, "GameSettings.ini") && !_stricmp(section, "GameSettings") && !_stricmp(key, "TOTAL CABINETS") && g_linkCount)
+        snprintf(value, size, "%d", g_linkCount);
     else
         return 0;
     return 1;

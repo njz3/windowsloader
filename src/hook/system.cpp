@@ -28,6 +28,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 #include "ioports.h"
 #include "log.h"
 #include "outputs.h"
+#include "settings.h"
 
 static const char *where_of(const void *caller, char *buf, size_t size)
 {
@@ -1240,9 +1241,30 @@ static int WINAPI hGetSystemMetrics(int index)
 
 // ------------------------------------------------------------------------------
 // The PC's camera: some cabinets photograph their player (Daytona Championship USA's face
-// pictures through Video for Windows, Mario Kart Arcade GP DX's through Media Foundation). A game
-// running on someone's PC gets no camera.
+// pictures through Video for Windows and DirectShow, Mario Kart Arcade GP DX's through Media
+// Foundation). A game running on someone's PC gets no camera, unless [Emulation] CAMERA = true (a
+// cabinet with its camera: Daytona's link sends the players' pictures to the other cabinets).
 // ------------------------------------------------------------------------------
+
+static volatile LONG g_cameraAllowed = -1;
+
+void wl_system_allow_camera(const char *why)
+{
+    if (InterlockedExchange(&g_cameraAllowed, 1) != 1)
+        wl_log("camera: the PC's cameras given to the game (%s)", why);
+}
+
+static int camera_allowed(void)
+{
+    volatile LONG &allowed = g_cameraAllowed;
+    if (allowed < 0)
+    {
+        InterlockedExchange(&allowed, wl_settings_get_bool("Emulation", "CAMERA", 0));
+        if (allowed)
+            wl_log("camera: the PC's cameras given to the game ([Emulation] CAMERA = true)");
+    }
+    return allowed;
+}
 
 static void camera_refused(const char *what, const void *caller)
 {
@@ -1257,6 +1279,8 @@ static void camera_refused(const char *what, const void *caller)
 static HWND(WINAPI *ocapCreateCaptureWindowA)(LPCSTR, DWORD, int, int, int, int, HWND, int);
 static HWND WINAPI hcapCreateCaptureWindowA(LPCSTR name, DWORD style, int x, int y, int w, int h, HWND parent, int id)
 {
+    if (camera_allowed())
+        return ocapCreateCaptureWindowA(name, style, x, y, w, h, parent, id);
     camera_refused("capCreateCaptureWindow", WL_CALLER);
     return NULL;
 }
@@ -1264,6 +1288,8 @@ static HWND WINAPI hcapCreateCaptureWindowA(LPCSTR name, DWORD style, int x, int
 static HWND(WINAPI *ocapCreateCaptureWindowW)(LPCWSTR, DWORD, int, int, int, int, HWND, int);
 static HWND WINAPI hcapCreateCaptureWindowW(LPCWSTR name, DWORD style, int x, int y, int w, int h, HWND parent, int id)
 {
+    if (camera_allowed())
+        return ocapCreateCaptureWindowW(name, style, x, y, w, h, parent, id);
     camera_refused("capCreateCaptureWindow", WL_CALLER);
     return NULL;
 }
@@ -1271,6 +1297,8 @@ static HWND WINAPI hcapCreateCaptureWindowW(LPCWSTR name, DWORD style, int x, in
 static BOOL(WINAPI *ocapGetDriverDescriptionA)(UINT, LPSTR, int, LPSTR, int);
 static BOOL WINAPI hcapGetDriverDescriptionA(UINT index, LPSTR name, int nameSize, LPSTR ver, int verSize)
 {
+    if (camera_allowed())
+        return ocapGetDriverDescriptionA(index, name, nameSize, ver, verSize);
     camera_refused("capGetDriverDescription", WL_CALLER);
     return FALSE;
 }
@@ -1278,6 +1306,8 @@ static BOOL WINAPI hcapGetDriverDescriptionA(UINT index, LPSTR name, int nameSiz
 static BOOL(WINAPI *ocapGetDriverDescriptionW)(UINT, LPWSTR, int, LPWSTR, int);
 static BOOL WINAPI hcapGetDriverDescriptionW(UINT index, LPWSTR name, int nameSize, LPWSTR ver, int verSize)
 {
+    if (camera_allowed())
+        return ocapGetDriverDescriptionW(index, name, nameSize, ver, verSize);
     camera_refused("capGetDriverDescription", WL_CALLER);
     return FALSE;
 }
@@ -1287,7 +1317,7 @@ static BOOL WINAPI hcapGetDriverDescriptionW(UINT index, LPWSTR name, int nameSi
 static HRESULT(WINAPI *oMFEnumDeviceSources)(void *, void ***, UINT32 *);
 static HRESULT WINAPI hMFEnumDeviceSources(void *attributes, void ***sources, UINT32 *count)
 {
-    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || camera_allowed())
         return oMFEnumDeviceSources(attributes, sources, count);
     camera_refused("MFEnumDeviceSources", WL_CALLER);
     if (sources)
@@ -1300,7 +1330,7 @@ static HRESULT WINAPI hMFEnumDeviceSources(void *attributes, void ***sources, UI
 static HRESULT(WINAPI *oMFCreateDeviceSource)(void *, void **);
 static HRESULT WINAPI hMFCreateDeviceSource(void *attributes, void **source)
 {
-    if (wl_busy() || wl_is_system_caller(WL_CALLER))
+    if (wl_busy() || wl_is_system_caller(WL_CALLER) || camera_allowed())
         return oMFCreateDeviceSource(attributes, source);
     camera_refused("MFCreateDeviceSource", WL_CALLER);
     if (source)
@@ -1370,7 +1400,7 @@ static HRESULT(WINAPI *oCoCreateInstance)(REFCLSID, LPUNKNOWN, DWORD, REFIID, LP
 static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx, REFIID iid, LPVOID *out)
 {
     int nested = wl_busy();
-    if (!nested && !wl_is_system_caller(WL_CALLER) && IsEqualCLSID(cls, g_systemDeviceEnum))
+    if (!nested && !wl_is_system_caller(WL_CALLER) && IsEqualCLSID(cls, g_systemDeviceEnum) && !camera_allowed())
     {
         camera_refused("CoCreateInstance(SystemDeviceEnum)", WL_CALLER);
         if (out)
