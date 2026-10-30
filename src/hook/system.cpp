@@ -1254,14 +1254,34 @@ static int WINAPI hGetSystemMetrics(int index)
 // ------------------------------------------------------------------------------
 // The PC's camera: some cabinets photograph their player (Daytona Championship USA's face
 // pictures through Video for Windows and DirectShow, Mario Kart Arcade GP DX's through Media
-// Foundation). A game running on someone's PC gets no camera, unless [Emulation] CAMERA = true (a
-// cabinet with its camera: Daytona's link sends the players' pictures to the other cabinets).
+// Foundation). [Emulation] CAMERA: AUTO (the default) gives no camera, unless the game's module
+// asks for it (Daytona's link sends the players' pictures to the other cabinets); true always
+// gives the PC's cameras (a cabinet with its camera), false never (a link without cameras).
 // ------------------------------------------------------------------------------
 
-static volatile LONG g_cameraAllowed = -1;
+static volatile LONG g_cameraAllowed = -1, g_cameraAsked;
+
+// The setting, read once: 1 true, 0 false, -1 AUTO
+static int camera_setting(void)
+{
+    static volatile LONG setting = -2;
+    if (setting == -2)
+    {
+        char v[16];
+        wl_settings_get("Emulation", "CAMERA", "AUTO", v, sizeof v);
+        InterlockedExchange(&setting, !_stricmp(v, "AUTO") ? -1 : wl_settings_get_bool("Emulation", "CAMERA", 0));
+    }
+    return setting;
+}
 
 void wl_system_allow_camera(const char *why)
 {
+    if (camera_setting() == 0)
+    {
+        wl_log("camera: no camera for the game, although %s ([Emulation] CAMERA = false)", why);
+        return;
+    }
+    InterlockedExchange(&g_cameraAsked, 1);
     if (InterlockedExchange(&g_cameraAllowed, 1) != 1)
         wl_log("camera: the PC's cameras given to the game (%s)", why);
 }
@@ -1271,8 +1291,8 @@ static int camera_allowed(void)
     volatile LONG &allowed = g_cameraAllowed;
     if (allowed < 0)
     {
-        InterlockedExchange(&allowed, wl_settings_get_bool("Emulation", "CAMERA", 0));
-        if (allowed)
+        InterlockedExchange(&allowed, camera_setting() == 1 || g_cameraAsked);
+        if (camera_setting() == 1)
             wl_log("camera: the PC's cameras given to the game ([Emulation] CAMERA = true)");
     }
     return allowed;

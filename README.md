@@ -152,8 +152,8 @@ cabinet's number) on the network it knows, whatever the PCs' real addresses; its
 (26000, 5888 and the others) goes between the listed PCs only, which the Windows firewall must let in
 (`Daytona.exe`). `[Network] NumCabinets` and `CabinetID` of `ShellData.ini` are read from them,
 the file is left as it is. The link sends the players' pictures to the other cabinets: linked, the
-game gets the PC's camera (each cabinet needs its own, as under TeknoParrot; without it each cabinet
-loses the other on "POWER-ON TEST NETWORK"). Without `LINK` the cabinet plays alone (cabinet 1 of 1).
+game gets the PC's camera (`[Emulation] CAMERA = false` to try it without). Without `LINK` the
+cabinet plays alone (cabinet 1 of 1).
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's
@@ -182,8 +182,9 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 `COM<n>`: a wheel's or a motor's board). The same choices are in the "Options du jeu" page, part
 "Cartes".
 
-A game gets no camera, unless `[Emulation] CAMERA = true` (a cabinet's camera for the players'
-pictures); Daytona Championship USA's link gives it the camera by itself.
+`[Emulation] CAMERA`: `AUTO` (the default) gives a game no camera, unless its link needs one
+(Daytona Championship USA's link gives it the camera by itself); `true` always gives it the PC's
+cameras (a cabinet's camera for the players' pictures); `false` never, even linked.
 
 **Tab** pauses the game and opens the settings menu, Tab again closes it (F10 until October 2026;
 Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows): the game and its cabinet's boards (how the

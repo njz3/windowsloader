@@ -136,7 +136,10 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   titre (`DISPLAY_MODE = WINDOW`, la 2 en BORDERLESS), se figeait 13 à 32 s dans la boucle modale du menu de la
   fenêtre (Alt) : la borne 2 la déclarait perdue (« nodeID0:0 is timeout », « Network Disconnection ») et chacune
   repartait seule. Le menu de la fenêtre n'est plus ouvert par Alt (vérifié sur Sega Rally 3 en fenêtre : plus de
-  gel) ; les boucles de déplacement et de taille de la fenêtre sont notées au journal.
+  gel) ; les boucles de déplacement et de taille de la fenêtre sont notées au journal (l'Alt venait de l'outil de
+  test d'Image borne). Le premier essai, sans caméra, avait le même retard de la borne 1 : la caméra n'est peut-être
+  pas nécessaire ; `[Emulation] CAMERA` vaut AUTO (caméra donnée en link), true ou false (jamais, même en link) pour
+  l'essayer.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)
