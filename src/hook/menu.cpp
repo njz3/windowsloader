@@ -1475,16 +1475,22 @@ static void page_game_options(void)
             if (ImGui::Checkbox(wl_tr(o->label), &on))
                 snprintf(value, WL_OPTION_VALUE_SIZE, "%s", on ? "true" : "false");
         }
+        else if (o->type == WL_OPTION_TEXT)
+        {
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
+            ImGui::InputText(wl_tr(o->label), value, WL_OPTION_VALUE_SIZE);
+        }
         else if (o->type == WL_OPTION_CHOICE)
         {
+            const WlOptionChoice *choices = o->list ? o->list() : o->choices;
             const char *shown = value;
-            for (const WlOptionChoice *c = o->choices; c && c->value; c++)
+            for (const WlOptionChoice *c = choices; c && c->value; c++)
                 if (!_stricmp(c->value, value))
                     shown = wl_tr(c->label);
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
             if (ImGui::BeginCombo(wl_tr(o->label), shown))
             {
-                for (const WlOptionChoice *c = o->choices; c && c->value; c++)
+                for (const WlOptionChoice *c = choices; c && c->value; c++)
                     if (ImGui::Selectable(wl_tr(c->label), !_stricmp(c->value, value)))
                         snprintf(value, WL_OPTION_VALUE_SIZE, "%s", c->value);
                 ImGui::EndCombo();

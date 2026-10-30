@@ -1254,9 +1254,9 @@ static int WINAPI hGetSystemMetrics(int index)
 // ------------------------------------------------------------------------------
 // The PC's camera: some cabinets photograph their player (Daytona Championship USA's face
 // pictures through Video for Windows and DirectShow, Mario Kart Arcade GP DX's through Media
-// Foundation). [Emulation] CAMERA: AUTO (the default) gives no camera, unless the game's module
-// asks for it (Daytona's link sends the players' pictures to the other cabinets); true always
-// gives the PC's cameras (a cabinet with its camera), false never (a link without cameras).
+// Foundation). [Emulation] CAMERA: AUTO (the default) gives no camera, unless the game's own
+// camera option (camera.h, [Game.<name>] CAMERA) chooses one; true always gives the PC's cameras;
+// false never (a game with an emulated camera gets that one).
 // ------------------------------------------------------------------------------
 
 static volatile LONG g_cameraAllowed = -1, g_cameraAsked;

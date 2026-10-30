@@ -66,7 +66,8 @@ enum
 {
     WL_OPTION_BOOL,   // a box
     WL_OPTION_CHOICE, // a list
-    WL_OPTION_INT     // a slider, min..max
+    WL_OPTION_INT,    // a slider, min..max
+    WL_OPTION_TEXT    // a field (a path)
 };
 
 struct WlOptionChoice
@@ -86,6 +87,8 @@ struct WlGameOption
     const char *def;               // the default, as written in the file
     int nextStart;                 // 1: taken at the game's next start
     void (*apply)(const char *value); // the others: told each change, or NULL
+    // WL_OPTION_CHOICE: the list made when the menu shows it (the PC's cameras), in place of choices
+    const WlOptionChoice *(*list)(void);
 };
 
 // Given by the module while it recognizes its game
@@ -103,4 +106,4 @@ char *wl_game_option_edit(int i); // WL_OPTION_VALUE_SIZE bytes
 const char *wl_game_option_started(int i);
 const char *wl_game_option_section(void); // "Game.bg4"
 int wl_game_options_save(const wchar_t *file);
-#define WL_OPTION_VALUE_SIZE 64
+#define WL_OPTION_VALUE_SIZE 260 // a path

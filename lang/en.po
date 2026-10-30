@@ -18,6 +18,30 @@ msgstr "Automatic (%s)"
 msgid "Automatique (langue de Windows)"
 msgstr "Automatic (Windows language)"
 
+#: src/hook/camera.cpp:31
+msgid "Caméra"
+msgstr "Camera"
+
+#: src/hook/camera.cpp:33
+msgid "Les photos des joueurs (le link de Daytona ne tient pas sans caméra). Auto : la caméra du PC, sinon l'image fixe. Image fixe : une caméra émulée qui montre l'image ci-dessous. Ou une caméra du PC par son nom (l'image fixe si elle ne s'ouvre pas)."
+msgstr "The players' pictures (Daytona's link does not hold without a camera). Auto: the PC's camera, else the still picture. Still picture: an emulated camera showing the picture below. Or a camera of the PC by its name (the still picture if it does not open)."
+
+#: src/hook/camera.cpp:35
+msgid "Image fixe (JPG ou PNG)"
+msgstr "Still picture (JPG or PNG)"
+
+#: src/hook/camera.cpp:36
+msgid "Le chemin de l'image de la caméra émulée ; vide : une image noire."
+msgstr "The path of the emulated camera's picture; empty: a black picture."
+
+#: src/hook/camera.cpp:40
+msgid "Auto (la caméra du PC, sinon l'image fixe)"
+msgstr "Auto (the PC's camera, else the still picture)"
+
+#: src/hook/camera.cpp:41
+msgid "Image fixe"
+msgstr "Still picture"
+
 #: src/hook/game.cpp:26
 msgid "jeu inconnu"
 msgstr "unknown game"
@@ -325,7 +349,7 @@ msgstr "The game is driven by the agent (--agent): the controllers are not read,
 msgid "Périphériques"
 msgstr "Devices"
 
-#: src/hook/menu.cpp:1023 src/hook/menu.cpp:1593
+#: src/hook/menu.cpp:1023 src/hook/menu.cpp:1599
 msgid "Nom"
 msgstr "Name"
 
@@ -557,7 +581,7 @@ msgstr "game's setting"
 msgid "Gardé par « Sauvegarder » dans [Display] du fichier de réglages."
 msgstr "Kept by \"Save\" in [Display] of the settings file."
 
-#: src/hook/menu.cpp:1274 src/hook/menu.cpp:1287 src/hook/menu.cpp:1544
+#: src/hook/menu.cpp:1274 src/hook/menu.cpp:1287 src/hook/menu.cpp:1550
 #, c-format
 msgid "Impossible d'écrire %s"
 msgstr "Cannot write %s"
@@ -660,143 +684,143 @@ msgstr "(no file)"
 msgid "Aucune option pour ce jeu."
 msgstr "No option for this game."
 
-#: src/hook/menu.cpp:1503
+#: src/hook/menu.cpp:1509
 msgid "(au prochain lancement)"
 msgstr "(at the next start)"
 
-#: src/hook/menu.cpp:1524
+#: src/hook/menu.cpp:1530
 msgid "Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou « Sauvegarder pour ce jeu »), puis relancez le jeu."
 msgstr "Some changes take effect only at the next start of the game: save them (\"Save\" or \"Save for this game\"), then start the game again."
 
-#: src/hook/menu.cpp:1533
+#: src/hook/menu.cpp:1539
 msgid "Le serveur précédent s'arrête encore : réessayez dans un instant."
 msgstr "The previous server is still stopping: try again in a moment."
 
-#: src/hook/menu.cpp:1540 src/hook/menu.cpp:1647
+#: src/hook/menu.cpp:1546 src/hook/menu.cpp:1653
 msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"
 msgstr "No settings file (started without windowsloader.exe): for this time only"
 
-#: src/hook/menu.cpp:1542
+#: src/hook/menu.cpp:1548
 #, c-format
 msgid "[Outputs] OUTPUTS_NETWORK = %s, enregistré dans %s"
 msgstr "[Outputs] OUTPUTS_NETWORK = %s, saved to %s"
 
-#: src/hook/menu.cpp:1557
+#: src/hook/menu.cpp:1563
 msgid "Envoyer les sorties réseau (OUTPUTS_NETWORK)"
 msgstr "Send the network outputs (OUTPUTS_NETWORK)"
 
-#: src/hook/menu.cpp:1566
+#: src/hook/menu.cpp:1572
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."
 msgstr "Network outputs on: TCP port %d, %d client(s) connected, start announced to 127.0.0.1:%d (UDP)."
 
-#: src/hook/menu.cpp:1569
+#: src/hook/menu.cpp:1575
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."
 msgstr "Network outputs on: TCP port %d, %d client(s) connected."
 
-#: src/hook/menu.cpp:1572
+#: src/hook/menu.cpp:1578
 #, c-format
 msgid "Sorties réseau : ouverture du port TCP %d..."
 msgstr "Network outputs: opening TCP port %d..."
 
-#: src/hook/menu.cpp:1574
+#: src/hook/menu.cpp:1580
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d est déjà pris par un autre programme."
 msgstr "Network outputs off: TCP port %d is already taken by another program."
 
-#: src/hook/menu.cpp:1576
+#: src/hook/menu.cpp:1582
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d n'a pas pu être ouvert (erreur %d)."
 msgstr "Network outputs off: TCP port %d could not be opened (error %d)."
 
-#: src/hook/menu.cpp:1578
+#: src/hook/menu.cpp:1584
 msgid "Sorties réseau coupées. Les valeurs ci-dessous sont celles que le jeu donne."
 msgstr "Network outputs off. The values below are the ones the game gives."
 
-#: src/hook/menu.cpp:1579
+#: src/hook/menu.cpp:1585
 msgid "Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."
 msgstr "Lines \"name = value\" ended by \\r, as MAME sends them (BackForceFeeder, MAMEHooker)."
 
-#: src/hook/menu.cpp:1594
+#: src/hook/menu.cpp:1600
 msgid "Type"
 msgstr "Type"
 
-#: src/hook/menu.cpp:1595
+#: src/hook/menu.cpp:1601
 msgid "Valeur"
 msgstr "Value"
 
-#: src/hook/menu.cpp:1596
+#: src/hook/menu.cpp:1602
 msgid "Description"
 msgstr "Description"
 
-#: src/hook/menu.cpp:1619
+#: src/hook/menu.cpp:1625
 msgid "Ce jeu n'envoie ni lampes ni carte moteur pour l'instant."
 msgstr "This game sends neither lamps nor motor board data yet."
 
-#: src/hook/menu.cpp:1624
+#: src/hook/menu.cpp:1630
 #, c-format
 msgid "windowsloader %s %s (%d bits)"
 msgstr "windowsloader %s %s (%d-bit)"
 
-#: src/hook/menu.cpp:1625
+#: src/hook/menu.cpp:1631
 msgid "Benjamin Maurin - njz3, licence GPL v3."
 msgstr "Benjamin Maurin - njz3, GPL v3 license."
 
-#: src/hook/menu.cpp:1627
+#: src/hook/menu.cpp:1633
 msgid "Avec :"
 msgstr "With:"
 
-#: src/hook/menu.cpp:1629
+#: src/hook/menu.cpp:1635
 msgid "MinHook, Tsuda Kageyu (BSD 2 clauses)"
 msgstr "MinHook, Tsuda Kageyu (BSD 2-clause)"
 
-#: src/hook/menu.cpp:1632
+#: src/hook/menu.cpp:1638
 msgid "Conventions de linuxloader : controls.ini, menu Tab, mode agent."
 msgstr "linuxloader's conventions: controls.ini, Tab menu, agent mode."
 
-#: src/hook/menu.cpp:1637
+#: src/hook/menu.cpp:1643
 msgid "Langue"
 msgstr "Language"
 
-#: src/hook/menu.cpp:1640
+#: src/hook/menu.cpp:1646
 msgid "Langue de l'interface"
 msgstr "Interface language"
 
-#: src/hook/menu.cpp:1645
+#: src/hook/menu.cpp:1651
 #, c-format
 msgid "[Launcher] LANGUAGE = %s, enregistré dans %s"
 msgstr "[Launcher] LANGUAGE = %s, saved to %s"
 
-#: src/hook/menu.cpp:1653
+#: src/hook/menu.cpp:1659
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr "The games' texts given at their start (network outputs) change language at the next start. Another language: a lang\\<code>.po file next to the launcher (see README.md)."
 
-#: src/hook/menu.cpp:1682
+#: src/hook/menu.cpp:1688
 msgid "Jeu"
 msgstr "Game"
 
-#: src/hook/menu.cpp:1683
+#: src/hook/menu.cpp:1689
 msgid "Options du jeu"
 msgstr "Game options"
 
-#: src/hook/menu.cpp:1684
+#: src/hook/menu.cpp:1690
 msgid "Contrôles"
 msgstr "Controls"
 
-#: src/hook/menu.cpp:1685
+#: src/hook/menu.cpp:1691
 msgid "Affichage"
 msgstr "Display"
 
-#: src/hook/menu.cpp:1686 src/hook/games/daytona.cpp:505 src/launcher/picker.cpp:638
+#: src/hook/menu.cpp:1692 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:638
 msgid "Retour de force"
 msgstr "Force feedback"
 
-#: src/hook/menu.cpp:1687
+#: src/hook/menu.cpp:1693
 msgid "Sorties et réseau"
 msgstr "Outputs and network"
 
-#: src/hook/menu.cpp:1688
+#: src/hook/menu.cpp:1694
 msgid "À propos"
 msgstr "About"
 
@@ -970,44 +994,44 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
-#: src/hook/games/daytona.cpp:499
+#: src/hook/games/daytona.cpp:501
 msgid "Carte moteur de la borne"
 msgstr "Cabinet's motor board"
 
-#: src/hook/games/daytona.cpp:500
+#: src/hook/games/daytona.cpp:502
 msgid "Octet du port parallèle"
 msgstr "Parallel port byte"
 
-#: src/hook/games/daytona.cpp:506
+#: src/hook/games/daytona.cpp:508
 msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
 msgstr "Cabinet's motor board: Daytona USA's board played from the game's commands and the wheel's position, with the panel spring (as sm2-emu does). Parallel port byte: the force the game sends to the motor, its centring made of constant forces from one frame to the next, which can make a strong wheel swing."
 
-#: src/hook/games/daytona.cpp:510
+#: src/hook/games/daytona.cpp:512
 msgid "Puissance de la carte (interrupteurs)"
 msgstr "Board power (DIP switches)"
 
-#: src/hook/games/daytona.cpp:511
+#: src/hook/games/daytona.cpp:513
 msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
 msgstr "The motor board's DIP switches: each step adds 4 to the effects' power."
 
-#: src/hook/games/daytona.cpp:513
+#: src/hook/games/daytona.cpp:515
 #, c-format
 msgid "Ressort du panneau (%)"
 msgstr "Panel spring (%)"
 
-#: src/hook/games/daytona.cpp:514
+#: src/hook/games/daytona.cpp:516
 msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
 msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre without the motor."
 
-#: src/hook/games/daytona.cpp:516 src/hook/games/namco.cpp:1243
+#: src/hook/games/daytona.cpp:518 src/hook/games/namco.cpp:1243
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/hook/games/daytona.cpp:517 src/hook/games/namco.cpp:1244
+#: src/hook/games/daytona.cpp:519 src/hook/games/namco.cpp:1244
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
-#: src/hook/games/daytona.cpp:552
+#: src/hook/games/daytona.cpp:555
 msgid "la borne Model 2 (lampes)"
 msgstr "the Model 2 cabinet (lamps)"
 

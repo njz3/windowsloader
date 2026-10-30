@@ -139,7 +139,14 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   gel) ; les boucles de déplacement et de taille de la fenêtre sont notées au journal (l'Alt venait de l'outil de
   test d'Image borne). Le premier essai, sans caméra, avait le même retard de la borne 1 : la caméra n'est peut-être
   pas nécessaire ; `[Emulation] CAMERA` vaut AUTO (caméra donnée en link), true ou false (jamais, même en link) pour
-  l'essayer.
+  l'essayer. Cinquième essai (31/10, borne 1 en BORDERLESS) : **course à deux réussie avec les webcams** (salon « 2/2
+  PRÊT », circuit choisi ensemble, positions 1/2 et 2/2, mêmes temps) ; sans caméra, le link tombe juste après
+  « commLink OK » (une connexion TCP sans données ferme au bout de 11 attentes), comme sous TeknoParrot. Désormais une
+  caméra émulée : l'objet `cv::VideoCapture` d'OpenCV 2.4 que le jeu crée (+0x642df0, NSE +0x6484f0) devient celui de
+  windowsloader, ouvert, ses images une image fixe 320x240 (noire, ou `CAMERA_PICTURE`) ; option du jeu `CAMERA` = AUTO
+  (la caméra du PC, sinon l'émulée), PICTURE, ou le nom d'une caméra du PC (liste dans « Options du jeu »), commune aux
+  jeux qui ont une caméra (`camera.cpp`). Vérifié hors jeu (l'objet appelé comme le jeu l'appelle, l'image lue par WIC,
+  les deux caméras de ce PC listées) ; pas encore essayé sur les bornes.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)

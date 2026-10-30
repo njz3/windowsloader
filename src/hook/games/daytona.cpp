@@ -55,6 +55,7 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "camera.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -218,12 +219,13 @@ struct DaytonaBuild
     DWORD command; // the copy of the drive board's command, from the program's base
     DWORD lamps;   // the copy of the lamps' byte
     DWORD race;    // a pointer to the race's settings, the mirrored flag at +0x10
+    DWORD camera;  // cv::VideoCapture::VideoCapture(int), OpenCV 2.4 linked in the program
     const char *name;
 };
 
 static const DaytonaBuild g_builds[] = {
-    {0x5a3b3168, 0x15b4684, 0x15b4683, 0x11b0148, "Daytona Championship USA"},
-    {0x5c7f7953, 0x15c8804, 0x15c8803, 0x11c22a0, "Daytona Championship USA - New Season Edition"},
+    {0x5a3b3168, 0x15b4684, 0x15b4683, 0x11b0148, 0x642df0, "Daytona Championship USA"},
+    {0x5c7f7953, 0x15c8804, 0x15c8803, 0x11c22a0, 0x6484f0, "Daytona Championship USA - New Season Edition"},
 };
 static const DaytonaBuild *g_build;
 static volatile LONG g_dip, g_panel = 20; // [Game.daytona3] DRIVE_DIP (0..7), PANEL_SPRING (percent)
@@ -517,6 +519,7 @@ static const WlGameOption g_options[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+    WL_CAMERA_OPTIONS,
 };
 
 static void read_options(void)
@@ -1071,10 +1074,6 @@ static void link_settings(void)
     ULONG ip = g_linkAddress[g_cabinet - 1];
     wl_log("daytona: link: cabinet %d of %d (192.168.1.%d), its real address %lu.%lu.%lu.%lu", g_cabinet, g_linkCount, g_cabinet, ip & 0xFF,
            ip >> 8 & 0xFF, ip >> 16 & 0xFF, ip >> 24);
-    // The link exchanges the players' pictures (ImageComm): without the cabinet's camera, each cabinet
-    // loses the other on "POWER-ON TEST NETWORK" after finding it (racecab1 and 2; the same under
-    // TeknoParrot without a camera)
-    wl_system_allow_camera("Daytona's link sends the players' pictures to the other cabinets");
 }
 
 static void link_patch(void)
@@ -1129,10 +1128,152 @@ static int ini_override(const char *file, const char *section, const char *key, 
     return 1;
 }
 
+// ------------------------------------------------------------------------------
+// The camera: the PC's, or an emulated one (camera.h)
+// ------------------------------------------------------------------------------
+
+// The link sends each cabinet's player's pictures to the others (OpenCVMgrImpl, ImageComm):
+// without a camera, each cabinet drops the other right after "commLink OK" and both stay on
+// "POWER-ON TEST NETWORK" (racecab1 and 2; the same under TeknoParrot without a webcam). The game
+// opens it as an OpenCV 2.4 cv::VideoCapture (+0x16ab3b: new, then VideoCapture(700), DirectShow's
+// camera 0), sets 320x240 and its rate, asks isOpened(), then a thread takes "cap >> frame" into
+// an empty cv::Mat about 20 times a second (+0x16bf50). The camera of [Game.daytona3] CAMERA is
+// opened instead (its rank in DirectShow's list); the emulated one is an object of windowsloader's,
+// open, its frames the still picture from camera.cpp's buffer, which the Mat points at without a
+// reference count: nothing for the game to free.
+struct CvMat24 // cv::Mat of OpenCV 2.4, 32-bit
+{
+    int flags, dims, rows, cols;
+    unsigned char *data;
+    int *refcount;
+    unsigned char *datastart, *dataend, *datalimit;
+    void *allocator;
+    int *sizep;
+    size_t *stepp;
+    size_t stepbuf[2];
+};
+
+#define CAMERA_W 320
+#define CAMERA_H 240
+static unsigned char *g_cameraFrame; // BGR, as OpenCV's
+
+static void camera_frame(CvMat24 *m)
+{
+    static volatile LONG logged;
+    if (m->refcount && InterlockedIncrement(&logged) == 1)
+        wl_log("camera: the game's frame had data of its own, replaced (left to the game)");
+    m->flags = 0x42FF0000 | 0x4000 | 16; // Mat's magic, continuous, CV_8UC3
+    m->dims = 2;
+    m->rows = CAMERA_H;
+    m->cols = CAMERA_W;
+    m->data = m->datastart = g_cameraFrame;
+    m->dataend = m->datalimit = g_cameraFrame + CAMERA_W * CAMERA_H * 3;
+    m->refcount = NULL;
+    m->allocator = NULL;
+    m->sizep = &m->rows;
+    m->stepp = m->stepbuf;
+    m->stepbuf[0] = CAMERA_W * 3;
+    m->stepbuf[1] = 3;
+}
+
+// Its virtual functions, in cv::VideoCapture's order (MSVC: open(int) before open(string));
+// __fastcall stands for __thiscall, edx unused
+static void *__fastcall cam_destroy(void *self, void *, int)
+{
+    return self;
+}
+
+static bool __fastcall cam_open(void *, void *, const void *)
+{
+    return true;
+}
+
+static bool __fastcall cam_true(void *, void *)
+{
+    return true;
+}
+
+static void __fastcall cam_release(void *, void *)
+{
+}
+
+static bool __fastcall cam_retrieve(void *, void *, CvMat24 *m, int)
+{
+    camera_frame(m);
+    return true;
+}
+
+static void *__fastcall cam_take(void *self, void *, CvMat24 *m)
+{
+    camera_frame(m);
+    return self;
+}
+
+static bool __fastcall cam_read(void *, void *, CvMat24 *m)
+{
+    camera_frame(m);
+    return true;
+}
+
+static bool __fastcall cam_set(void *, void *, int, double)
+{
+    return true;
+}
+
+static double __fastcall cam_get(void *, void *, int prop)
+{
+    return prop == 3 ? CAMERA_W : prop == 4 ? CAMERA_H : prop == 5 ? 20 : 0;
+}
+
+static void *const g_cameraVtable[11] = {
+    (void *)cam_destroy,  (void *)cam_open, (void *)cam_open, (void *)cam_true, (void *)cam_release, (void *)cam_true,
+    (void *)cam_retrieve, (void *)cam_take, (void *)cam_read, (void *)cam_set,  (void *)cam_get,
+};
+
+static void *(__fastcall *o_camera_ctor)(void *, void *, int);
+static void *__fastcall camera_ctor(void *self, void *edx, int device)
+{
+    int rank = wl_camera_device();
+    if (rank != WL_CAMERA_EMULATED)
+    {
+        int wanted = rank >= 0 ? 700 + rank : device; // 700: DirectShow's, OpenCV's CV_CAP_DSHOW
+        o_camera_ctor(self, edx, wanted);
+        typedef bool(__fastcall * IsOpened)(void *, void *);
+        if (((IsOpened)(*(void ***)self)[3])(self, NULL))
+        {
+            wl_log("camera: the PC's camera %d given to the game", wanted - 700);
+            return self;
+        }
+        wl_log("camera: the PC's camera %d did not open: the emulated one", wanted - 700);
+    }
+    g_cameraFrame = (unsigned char *)wl_camera_picture(CAMERA_W, CAMERA_H);
+    if (!g_cameraFrame)
+        return self; // left as the game made it: no camera
+    void **object = (void **)self;
+    object[0] = (void *)g_cameraVtable;
+    object[1] = object[2] = NULL;
+    return self;
+}
+
+static void camera_patch(void)
+{
+    if (!g_build || sizeof(void *) != 4 || sizeof(CvMat24) != 0x38)
+        return;
+    BYTE *base = (BYTE *)GetModuleHandleW(NULL);
+    static const BYTE prologue[] = {0x55, 0x8B, 0xEC, 0x6A, 0xFF, 0x68};
+    if (memcmp(base + g_build->camera, prologue, sizeof prologue))
+    {
+        wl_log("camera: cv::VideoCapture(int) not where expected (+0x%lx): no emulated camera", g_build->camera);
+        return;
+    }
+    wl_hook_code(base + g_build->camera, (void *)camera_ctor, (void **)&o_camera_ctor, "cv::VideoCapture::VideoCapture(int), the camera");
+}
+
 static void daytona_settings(void)
 {
     read_options();
     link_settings();
+    wl_camera_settings();
 }
 
 int wl_game_daytona(const wchar_t *exePath, const char **name, const char **title)
@@ -1161,6 +1302,7 @@ int wl_game_daytona(const wchar_t *exePath, const char **name, const char **titl
     wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
     wl_game_on_settings(daytona_settings);
     link_patch();
+    camera_patch();
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vdinput_register(&g_board);
     wl_system_set_process_handler(process_handler);
