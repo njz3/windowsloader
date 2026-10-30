@@ -162,11 +162,49 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
 // Set-up, once: ImGui, its fonts sized for the picture, the window procedure
 // ------------------------------------------------------------------------------
 
+// The mouse wheel: WM_MOUSEWHEEL waits in the game's queue while the menu is open (its loop does
+// not run), so a low-level hook on a thread of ours reads it, in this process's windows only, and
+// keeps it from the game while the menu is open; feed_mouse gives it to ImGui (the pages scroll)
+static volatile LONG g_wheelY, g_wheelX; // WHEEL_DELTA a notch
+
+static LRESULT CALLBACK wheel_hook(int code, WPARAM wp, LPARAM lp)
+{
+    if (code == HC_ACTION && g_open && (wp == WM_MOUSEWHEEL || wp == WM_MOUSEHWHEEL) && foreground_is_ours())
+    {
+        short delta = (short)HIWORD(((const MSLLHOOKSTRUCT *)lp)->mouseData);
+        InterlockedExchangeAdd(wp == WM_MOUSEWHEEL ? &g_wheelY : &g_wheelX, delta);
+        return 1;
+    }
+    return CallNextHookEx(NULL, code, wp, lp);
+}
+
+static DWORD WINAPI wheel_thread(void *)
+{
+    HMODULE self = NULL;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)wheel_hook, &self);
+    wl_busy_enter(); // windowsloader's own hook, not the game's (system.cpp)
+    HHOOK h = SetWindowsHookExW(WH_MOUSE_LL, wheel_hook, self, 0);
+    wl_busy_leave();
+    if (!h)
+    {
+        wl_log("menu: no mouse wheel hook (error %lu)", GetLastError());
+        return 0;
+    }
+    wl_log("menu: the mouse wheel read by a low-level hook");
+    MSG m;
+    while (GetMessageW(&m, NULL, 0, 0) > 0)
+        DispatchMessageW(&m);
+    return 0;
+}
+
 static int setup_imgui(HWND wnd)
 {
     g_wnd = wnd ? wnd : GetActiveWindow();
     if (!g_wnd)
         return 0;
+    HANDLE t = CreateThread(NULL, 0, wheel_thread, NULL, 0, NULL);
+    if (t)
+        CloseHandle(t);
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -257,6 +295,9 @@ static void feed_mouse(void)
     int swap = GetSystemMetrics(SM_SWAPBUTTON);
     io.AddMouseButtonEvent(0, fg && (GetAsyncKeyState(swap ? VK_RBUTTON : VK_LBUTTON) & 0x8000));
     io.AddMouseButtonEvent(1, fg && (GetAsyncKeyState(swap ? VK_LBUTTON : VK_RBUTTON) & 0x8000));
+    LONG wy = InterlockedExchange(&g_wheelY, 0), wx = InterlockedExchange(&g_wheelX, 0);
+    if (wy || wx)
+        io.AddMouseWheelEvent(-(float)wx / WHEEL_DELTA, (float)wy / WHEEL_DELTA); // ImGui's x: as its Win32 backend
 }
 
 // ------------------------------------------------------------------------------
