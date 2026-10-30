@@ -1169,6 +1169,10 @@ int wl_game_daytona(const wchar_t *exePath, const char **name, const char **titl
     // opens "../GameData/\debug.txt"), some 70 MB each time, again and again once it is short of
     // memory
     wl_files_cap("\\debug.txt", 32ull << 20);
+    // Its debug messages: thousands of asset loads ("Loaded nrt/dx11/....nrfc, QueSize 529") filled
+    // the log's 2000 before the link's own messages
+    static const char *const quiet[] = {".nrfc", NULL};
+    wl_system_quiet_debug(quiet);
     wl_segashell_start(&g_shell);
     return 1;
 }

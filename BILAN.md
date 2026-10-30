@@ -125,7 +125,13 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   caméra refusée au jeu (le propriétaire avait le même blocage sous TeknoParrot sans webcam ; les deux bornes en
   ont une). Désormais le jeu en link a la caméra du PC (`[Emulation] CAMERA = true` pour les autres jeux), `TOTAL
   CABINETS` de `GameSettings.ini` suit `LINK`, et le journal compte le trafic avec chaque borne toutes les 10 s
-  (paquets UDP, octets TCP, connexions TCP fermées) ; pas encore réessayé.
+  (paquets UDP, octets TCP, connexions TCP fermées). Deuxième essai : même écran. Les journaux montrent que la borne 1
+  charge bien plus lentement (25 à 40 images/s, figée 5,8 s ; la borne 2 à 60) : la borne 2 attend son battement de
+  cœur (TCP 25000) dès 40 s, la borne 1 seulement à 57 s ; reliées, la borne 1 n'envoie presque rien pendant 12 s et
+  chacune coupe vers 70 s, sans jamais rouvrir ; ensuite les données de course passent dans les deux sens (~60
+  paquets/s), la traduction des adresses tient. Les images de la caméra partent en diffusion vers 192.168.1.255:3167 +
+  numéro de borne. Les messages du jeu étaient perdus (2000 lignes de débogage prises par ses chargements `.nrfc`,
+  désormais écartées).
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)

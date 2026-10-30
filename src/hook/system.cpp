@@ -1145,8 +1145,20 @@ static UINT WINAPI hSendInput(UINT count, LPINPUT inputs, int size)
 // Messages from the game
 // ------------------------------------------------------------------------------
 
+// The 2000 first messages; those holding one of the module's quiet strings are left out and not
+// counted (Daytona's thousands of asset loads, "....nrfc, QueSize 529", hid its network messages)
+static const char *const *g_quietDebug;
+
+void wl_system_quiet_debug(const char *const *strings)
+{
+    g_quietDebug = strings;
+}
+
 static void OutputDebugString_log(const char *text)
 {
+    for (const char *const *q = g_quietDebug; q && *q; q++)
+        if (strstr(text, *q))
+            return;
     static volatile LONG logged;
     if (InterlockedIncrement(&logged) <= 2000)
         wl_log("debug: %s", text);

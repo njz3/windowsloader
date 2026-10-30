@@ -149,6 +149,10 @@ void wl_system_loopback_broadcast(int on);
 // them: Daytona Championship USA's)
 void wl_system_allow_camera(const char *why);
 
+// The game's debug messages (OutputDebugString) holding one of these strings are not logged (a
+// game's noise): a list ended by NULL, kept by the module
+void wl_system_quiet_debug(const char *const *strings);
+
 // A registry key of the cabinet's made up under HKEY_LOCAL_MACHINE (an ALLS's
 // "SYSTEM\SEGA\SystemProperty\static"): opened, read and written by the game in memory only.
 // REG_SZ data is an 8-bit string (size ignored); the others are size bytes.
