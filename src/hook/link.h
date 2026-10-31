@@ -30,6 +30,11 @@ void wl_link_virtual_net(const char *net);
 // which Windows' dpnet.dll resolves itself, a VPN's address possibly first): its gethostname gives
 // its address of LINK ("192.168.1.4")
 void wl_link_name_is_address(void);
+// Windows' DirectPlay (dpnet.dll, loaded by the game's CoCreateInstance: D1GP, Wasteland Racers,
+// Wacky Races, Valve Limit R) linked: it finds the PC's cards (GetAdaptersAddresses,
+// GetAdaptersInfo, gethostbyname of its name) as the game does, the card of LINK alone, so it
+// listens there and not on a VPN's. Called after each CoCreateInstance (system.cpp), once
+void wl_link_dpnet(void);
 // This cabinet's number, 1.. (CABINET, or its PC's place in LINK); 1 alone
 int wl_link_cabinet(void);
 int wl_link_count(void);

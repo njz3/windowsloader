@@ -188,10 +188,12 @@ static const WlGameOption g_gridOptions[] = {
      WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
 };
 
-// GRID linked: the LAN discovery's reads traced (its server's on its port 12001, +0x66ca40, which
-// answers a cabinet's search only when every field read matches its own; its searcher's of the
-// answers, +0x66c680), each value read and whether the read held, and the server's own values once.
-// The cabinets' searches went unanswered (31/10, link9 and link10) with the same values on both
+// GRID linked: its LAN discovery server (its port 12001, +0x66ca40) answers a cabinet's search only
+// when every field read matches its own; the searches say territory 0 and track pack 0, its server
+// holds 0xFFFFFFFF for both (ShellData.ini's Territory and TrackPack empty): no search was answered
+// on the cabinets (31/10, link9 to link11). The server's are made the searches' (0), the reply then
+// carrying what its searcher expects. Its reads traced (its server's, its searcher's of the answers,
+// +0x66c680): each value read and whether the read held, and the server's values once
 static int(__fastcall *oGridReadU32)(void *reader, void *edx, DWORD *value);
 static int(__fastcall *oGridReadBool)(void *reader, void *edx, unsigned char *value);
 static int(__fastcall *oGridServerPoll)(void *server, void *edx, int arg);
@@ -230,18 +232,19 @@ static int __fastcall grid_read_bool(void *reader, void *edx, unsigned char *val
 
 static int __fastcall grid_server_poll(void *server, void *edx, int arg)
 {
-    const DWORD *s = (const DWORD *)server;
-    static void *told[4];
-    for (int i = 0; i < 4; i++)
-        if (told[i] == server)
-            break;
-        else if (!told[i] && s[2] == 1 && s[5])
-        {
-            told[i] = server;
-            wl_log("link: GRID's discovery server %p on, its values: title 0x%08lX, version 0x%08lX, territory 0x%08lX, track pack 0x%08lX, flag %u",
+    DWORD *s = (DWORD *)server;
+    if (s[2] == 1 && s[5] && (s[8] == 0xFFFFFFFF || s[9] == 0xFFFFFFFF))
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 10)
+            wl_log("link: GRID's discovery server %p on: title 0x%08lX, version 0x%08lX, territory 0x%08lX, track pack 0x%08lX, flag %u; "
+                   "0xFFFFFFFF (none) made 0, as its searches say",
                    server, s[6], s[7], s[8], s[9], ((const unsigned char *)server)[0x28]);
-            break;
-        }
+        if (s[8] == 0xFFFFFFFF)
+            s[8] = 0;
+        if (s[9] == 0xFFFFFFFF)
+            s[9] = 0;
+    }
     return oGridServerPoll(server, edx, arg);
 }
 

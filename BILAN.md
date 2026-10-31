@@ -324,6 +324,10 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   champs aux siens (les mêmes valeurs, faites par la même fonction) et ne répond pas. Linké, le journal trace
   maintenant chaque lecture du serveur de découverte (+0x66ca40) et de la recherche (+0x66c680), et les valeurs du
   serveur, pour voir laquelle échoue sur les bornes.
+- Essai link11 (31/10) : la trace montre le champ rejeté : le serveur de découverte a territoire et track pack à
+  0xFFFFFFFF (aucun : Territory et TrackPack vides dans ShellData.ini), les recherches disent 0. Linké, windowsloader
+  met ces deux valeurs du serveur à 0 (à chaque passage de son attente, +0x66ca40) : il répond alors aux
+  recherches, et sa réponse porte les valeurs que le chercheur attend. Pas encore essayé sur les bornes.
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
@@ -542,6 +546,9 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
   hébergeait. `[Game.wacky] LINK` / `CABINET` (1 à 4) : LINKID = la place dans LINK moins un, HOSTADDR = le
   premier PC de LINK (Launcher.exe+0x3320) ; seul, LINKID 0 comme avant. Essayé sur ce PC : LINKID et HOSTADDR
   pris ; la copie s'arrête ensuite faute de ses données. Lancer la borne 1 d'abord.
+- Link sur les bornes ✅ (31/10, link11) : NETWORK-ID 1 et 2 pris dans LINK ; Start sur la borne 1 (« Waiting for
+  drivers ») puis sur la 2 (« JOIN THE GAME NOW! ») : le choix des voitures au même décompte, la course à deux (le
+  repère 2P sur la voiture de l'autre borne).
 ## Let's Go Safari (Sega RingWide, 2014)
 
 `GameSampR_RingWide.exe` (copie `games\lgs`), x86, Direct3D 9, 1280×720. Son menu de service est un programme à part,
@@ -672,6 +679,10 @@ embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page �
   +0x11c980, la première édition +0xe4870). `[Game.bg4] CABINET` reste le type de borne (STANDARD / PRO) : la place
   vient de l'adresse du PC dans LINK. Essayé sur ce PC : le réglage pris ; le jeu n'a pas ouvert son réseau dans
   la minute. NESYS (le service en ligne de Tuned) : le mettre sur OFF.
+- Link sur les bornes ✅ (31/10, link11) : MACHINE NO 1 et 2 pris dans LINK ; environ 60 paquets de 432 octets par
+  seconde dès l'attract ; « 参加人数 » 2, le choix du circuit au même décompte, la course à deux (PL.1, PL.2), sans
+  LAN CUT ERROR. NESYS laissé tel quel. La première édition (bg4eng) : 2 participants affichés aussi, essai arrêté au
+  choix du constructeur.
 ## Battle Gear 4 (Taito Type X+, 2006, première édition)
 
 `game.exe _MTS_FULL_SCREEN_` dans `games/bg4`, v2.03 GBR (« BATTLE GEAR 4 V2.03 GBR, May 18 2006 »), x86,
@@ -1069,6 +1080,10 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   TeamViewer des bornes (7.x) pouvant venir d'abord ; puis elle relance une élection que l'hôte, déjà en ligne,
   ignore. Linké, le nom du PC donné au jeu (gethostname) est son adresse de LINK : l'hôte annonce 192.168.1.4. Le
   relevé des fils à 113 s était la vidéo d'attract (DirectShow), pas un blocage.
+- Link sur les bornes ✅ (31/10, link11) : Nitro sur la borne 1 (STARTING SERVER), puis sur la borne 2 pendant le
+  choix du circuit de la 1 : la 2 passe directement au choix de la voiture ; même chargement, course à deux
+  (2e et 1re), temps au tour cohérents. DirectPlay écoutait aussi sur la carte VPN (UDP 5600 sur 7.x) : linké,
+  dpnet.dll ne voit plus que la carte de LINK (link12).
 ## Mario Kart Arcade GP DX 1.18 (Namco System ES3)
 
 `MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 (le 9Ex qu'il crée ne dessine rien). Module
@@ -1546,6 +1561,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   la borne 1 héberge, la 2 est le client, quoi que dise le menu (le saut vers la recherche du client, +0x84cb9).
   Le jeu donne aussi au PC une adresse 192.168.x.y (AddIPAddress, refusé, sans effet). Essayé sur ce PC : HOST et
   CLIENT pris.
+- Essai link11 sur les bornes (31/10) ❌ : « Unable to compete. » sur les deux, pas de LINK BATTLE au choix du mode.
+  DirectPlay écoutait sur UDP 55555 sur la carte VPN TeamViewer (7.x) et, sur la borne 2, pas sur 192.168.1.5 : sa
+  recherche de l'hôte (diffusion) ne partait pas sur le réseau des bornes. Linké, dpnet.dll (chargé par le
+  CoCreateInstance du jeu) ne voit plus que la carte de LINK : GetAdaptersAddresses et GetAdaptersInfo (qu'il
+  trouve par GetProcAddress), gethostbyname du nom du PC ; ses bind sont journalisés (link12).
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
@@ -1585,6 +1605,9 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   (AddIPAddress, refusé). `[Game.vlimitr] LINK` / `CABINET` (1 à 4) : ces deux adresses deviennent les PC 1 et 3 de
   LINK, et le NETWORK-ID la place dans LINK, remis après chaque lecture de d:\expdat (+0xafb0). Essayé sur ce PC
   (copie avec un data\bin2 vide) : NETWORK-ID et adresses pris ; la copie s'arrête ensuite faute de ses données.
+- Link sur les bornes ✅ (31/10, link11) : NETWORK-ID 1 et 2 pris dans LINK ; Coin+Start sur la borne 1, la 2 affiche
+  « 2-PLAYER GAME AVAILABLE », puis Coin+Start sur la 2 (« WAIT! CHALLENGER(S) STILL SELECTING ») ; la course à deux
+  (1er et 3e). Dans un dossier d'écriture neuf, le jeu demande d'abord « PLEASE CALIBRATE I/O DEVICE ».
 ## Direct3D 8 (d3d8to9)
 
 windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,

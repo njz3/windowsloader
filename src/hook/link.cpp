@@ -20,6 +20,7 @@
 //                                                       and the loopback (a cabinet's VPN left out)
 //   gethostbyname of the PC's own name               -> its address of LINK alone
 //   gethostname (wl_link_name_is_address)            -> its address of LINK as text
+// and Windows' DirectPlay's (dpnet.dll: wl_link_dpnet) the same cards and the same name.
 // A broadcast to a port where the game has several UDP sockets (GRID: its party's LAN discovery
 // server and its session on 12001) goes as a broadcast on LINK's network: a datagram sent to a PC
 // reaches only one of them, a broadcast each.
@@ -803,6 +804,45 @@ static ULONG WINAPI l_GetAdaptersAddresses(ULONG family, ULONG flags, PVOID rese
 static int patch(HMODULE exe, const char *dll, int ordinal, const char *name, void *fn, void **original)
 {
     return (ordinal && wl_patch_iat(exe, dll, (const char *)(ULONG_PTR)ordinal, fn, original)) || wl_patch_iat(exe, dll, name, fn, original);
+}
+
+// dpnet.dll finds iphlpapi's functions by name
+static FARPROC(WINAPI *o_dpnetGetProcAddress)(HMODULE, LPCSTR);
+static FARPROC WINAPI l_dpnetGetProcAddress(HMODULE mod, LPCSTR name)
+{
+    FARPROC f = o_dpnetGetProcAddress(mod, name);
+    if (!f || !g_count || (ULONG_PTR)name < 0x10000)
+        return f;
+    if (!strcmp(name, "GetAdaptersAddresses"))
+    {
+        if (!o_GetAdaptersAddresses)
+            o_GetAdaptersAddresses = (ULONG(WINAPI *)(ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG))f;
+        return (FARPROC)l_GetAdaptersAddresses;
+    }
+    if (!strcmp(name, "GetAdaptersInfo"))
+    {
+        if (!o_GetAdaptersInfo)
+            o_GetAdaptersInfo = (DWORD(WINAPI *)(PIP_ADAPTER_INFO, PULONG))f;
+        return (FARPROC)l_GetAdaptersInfo;
+    }
+    return f;
+}
+
+void wl_link_dpnet(void)
+{
+    static volatile LONG done;
+    HMODULE dpnet = g_count ? GetModuleHandleW(L"dpnet.dll") : NULL;
+    if (!dpnet || InterlockedExchange(&done, 1))
+        return;
+    char found[160] = "";
+    int at = 0;
+    if (patch(dpnet, "WS2_32.dll", 0, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname))
+        at += snprintf(found + at, sizeof found - at, "gethostbyname ");
+    if (patch(dpnet, "WS2_32.dll", 0, "bind", (void *)l_bind, (void **)&o_bind))
+        at += snprintf(found + at, sizeof found - at, "bind ");
+    if (patch(dpnet, "KERNEL32.dll", 0, "GetProcAddress", (void *)l_dpnetGetProcAddress, (void **)&o_dpnetGetProcAddress))
+        at += snprintf(found + at, sizeof found - at, "GetProcAddress (GetAdaptersAddresses, GetAdaptersInfo)");
+    wl_log("link: Windows' DirectPlay (dpnet.dll) loaded, its functions taken: %s", found[0] ? found : "none");
 }
 
 static void link_patch(HMODULE exe)

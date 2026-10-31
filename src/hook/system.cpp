@@ -26,6 +26,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 
 #include "hooks.h"
 #include "ioports.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 #include "settings.h"
@@ -1450,6 +1451,8 @@ static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx
     HRESULT hr = oCoCreateInstance(cls, outer, ctx, iid, out);
     if (SUCCEEDED(hr) && out && *out && !outer && IsEqualCLSID(cls, g_filterGraph))
         hook_filter_graph((IUnknown *)*out);
+    if (SUCCEEDED(hr))
+        wl_link_dpnet(); // DirectPlay's, linked (link.h)
     if (SUCCEEDED(hr) && out && *out && IsEqualCLSID(cls, g_directInput) &&
         (IsEqualIID(iid, g_directInputA) || IsEqualIID(iid, g_directInput2A) || IsEqualIID(iid, g_directInput7A)))
         wl_dinput_legacy(*out);
