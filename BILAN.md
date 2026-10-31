@@ -302,7 +302,12 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   importe `DK2win32.dll`, la bibliothèque d'une clé matérielle Dinkey, absente de la copie (installée dans le
   système de la borne). Il faudrait émuler cette clé.
 - Crédits ✅ : free play (`ShellData.ini`).
-
+- Link entre bornes 🔄 (31/10) : la « party » du moteur Neon de Codemasters : les bornes se trouvent par une
+  diffusion UDP sur 12000 (le chercheur trouve aussi la session de sa propre borne), puis UDP et TCP sur 7342 ;
+  `[Network] CabinetID` de ShellData.ini, 1 hôte, 2 à 6 clients (le plus petit héberge) ; l'adresse qu'il annonce
+  est la première de gethostbyname(nom du PC) qui n'est pas 127.0.0.1. `[Game.grid] LINK` / `CABINET` (1 à 6) :
+  CabinetID d'après LINK, et `link.cpp` donne désormais à gethostbyname(nom du PC) l'adresse de LINK seule. Pas
+  essayé (la copie n'a pas les données du jeu).
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
@@ -418,7 +423,14 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   avec la recopie GDI (noir à l'écran avant, 47 images/s).
 - Menu de service ✅ : `gametest.exe` : GAME TEST MENU, test d'entrées, réglages du jeu, comptabilité,
   navigation par les boutons Test et Service de la carte.
-
+- Link entre bornes 🔄 (31/10) : UDP seulement (Winsock 1 par numéro) : synchronisation sur 47616 et 47872 en
+  diffusion vers 192.168.88.255, présence de partie vers 255.255.255.255:48879. Le jeu se donne lui-même l'adresse
+  192.168.88.<CABINET ID> (CABINET ID de son menu de test, dans la SRAM), pas celle de la plateforme. `[Game.ssasr]
+  LINK` / `CABINET` : ces adresses sont traduites (`wl_link_virtual_net`, `link.cpp`) : 192.168.88.k est le PC k de
+  LINK, 192.168.88.255 une diffusion vers chacun ; son bind sur 192.168.88.k se fait sur l'adresse du PC dans LINK ;
+  ce qui vient du PC k vient pour lui de 192.168.88.k. Le CABINET ID du menu de test doit être la place de la borne
+  dans LINK (le journal le signale sinon). Pas essayé (la copie n'a pas les données : le jeu s'arrête à 5 s, avec ou
+  sans LINK).
 ## Sega Racing Classic (Sega RingEdge, 2009)
 
 `d1a.exe` (`d1a.exe -t` : le menu de service), x86, Direct3D 9, 1280×720. Sur les bornes dans `C:\Sega Racing
@@ -1002,7 +1014,13 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   quitte le jeu), prix de la partie (VIEW), jeu gratuit, statistiques.
 - Crédits ✅ : jeu gratuit (réglage de la copie) : le jeu met le prix d'une partie dans le compteur de la carte
   (`SetCoin(8, …)`, le compteur du bit COIN) puis le relit (`GetCoin(8)`) ; une pièce compte une fois par appui.
-
+- Link entre bornes 🔄 (31/10) : deux couches dans Arcade.exe : l'élection de l'hôte par diffusion UDP sur 2070
+  (Winsock 1 par numéro ; « Host Election:<adresse> », la plus petite adresse héberge, chaque borne entendant la
+  sienne ; son identité est la première adresse de gethostbyname(nom du PC)), puis la course en DirectPlay 8
+  (dpnet.dll de Windows, qui atteint le réseau local lui-même). `[Game.wasteland] LINK` : diffusions vers les PC de
+  LINK, le sien compris, et son adresse, son identité, celle de LINK ; seul, il s'entend lui-même comme avant.
+  Essayé seul sur ce PC : bind 2070, gethostbyname du PC → l'adresse de LINK ; le jeu s'arrête ensuite faute de
+  ses données (copie sans données).
 ## Mario Kart Arcade GP DX 1.18 (Namco System ES3)
 
 `MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 (le 9Ex qu'il crée ne dessine rien). Module

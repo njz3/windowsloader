@@ -18,6 +18,9 @@
 //   the PC's cards (WSAIoctl SIO_GET_INTERFACE_LIST, GetAdaptersInfo, GetAdaptersAddresses)
 //                                                    -> the card holding this PC's address of LINK,
 //                                                       and the loopback (a cabinet's VPN left out)
+//   gethostbyname of the PC's own name               -> its address of LINK alone
+// A game whose cabinets have addresses of their own (wl_link_virtual_net: net.k for cabinet k)
+// has them translated both ways: net.k is LINK's PC k, net.255 a broadcast.
 // The log notes each bind, listen, connect and accept, the first packets with each PC on each
 // local port (ports, size, first bytes), counts the traffic with each PC every 10 s, and the TCP connections that end.
 // Its calls go through system.cpp's hooks as windowsloader's own, which let them by.
@@ -38,6 +41,7 @@
 
 static int g_count, g_cabinet = 1;
 static ULONG g_address[LINK_MAX]; // network order, cabinet 1's first
+static ULONG g_virtualNet;        // a game's own addresses (wl_link_virtual_net): their first three bytes, network order; 0 none
 
 int wl_link_count(void)
 {
@@ -137,6 +141,34 @@ static int local(ULONG ip)
 static int broadcast(ULONG ip)
 {
     return ip == INADDR_BROADCAST || (ip >> 24) == 0xFF;
+}
+
+void wl_link_virtual_net(const char *net)
+{
+    unsigned b[3];
+    g_virtualNet = net && sscanf_s(net, "%u.%u.%u", &b[0], &b[1], &b[2]) == 3 ? (b[0] | b[1] << 8 | b[2] << 16) : 0;
+    if (g_virtualNet && g_count)
+        wl_log("link: the game's own addresses %s.k: cabinet k is LINK's PC k", net);
+}
+
+// The game's address net.k: LINK's PC k (net.255: the broadcast); others as they are
+static ULONG to_real(ULONG ip)
+{
+    if (!g_virtualNet || (ip & 0x00FFFFFF) != g_virtualNet)
+        return ip;
+    ULONG k = ip >> 24;
+    if (k == 255)
+        return INADDR_BROADCAST;
+    return k >= 1 && (int)k <= g_count ? g_address[k - 1] : ip;
+}
+
+// LINK's PC k as the game knows it: net.k
+static void to_game(sockaddr *a)
+{
+    sockaddr_in *in = (sockaddr_in *)a;
+    int pc = g_virtualNet ? pc_of(in->sin_addr.s_addr) : 0;
+    if (pc)
+        in->sin_addr.s_addr = g_virtualNet | (ULONG)pc << 24;
 }
 
 static volatile LONG g_sent[LINK_MAX], g_sentBytes[LINK_MAX], g_got[LINK_MAX], g_gotBytes[LINK_MAX];
@@ -241,6 +273,19 @@ static void tcp_end(SOCKET s, int pc, const char *what, DWORD err)
 static int(WSAAPI *o_bind)(SOCKET, const sockaddr *, int);
 static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
 {
+    sockaddr_in mine;
+    if (g_count && g_virtualNet && is_inet(a, len) && (((const sockaddr_in *)a)->sin_addr.s_addr & 0x00FFFFFF) == g_virtualNet)
+    {
+        ULONG k = ((const sockaddr_in *)a)->sin_addr.s_addr >> 24;
+        static volatile LONG warned;
+        if ((int)k != g_cabinet && !InterlockedExchange(&warned, 1))
+            wl_log("link: the game calls itself cabinet %lu, LINK's place is %d: set its own number (its test menu) to %d", k, g_cabinet,
+                   g_cabinet);
+        memcpy(&mine, a, sizeof mine);
+        mine.sin_addr.s_addr = g_address[g_cabinet - 1];
+        a = (const sockaddr *)&mine;
+        len = sizeof mine;
+    }
     int r = o_bind(s, a, len);
     DWORD err = WSAGetLastError();
     if (g_count && is_inet(a, len))
@@ -276,6 +321,11 @@ static int WSAAPI l_connect(SOCKET s, const sockaddr *a, int len)
 {
     if (!g_count || !is_inet(a, len))
         return o_connect(s, a, len);
+    sockaddr_in real;
+    memcpy(&real, a, sizeof real);
+    real.sin_addr.s_addr = to_real(real.sin_addr.s_addr);
+    a = (const sockaddr *)&real;
+    len = sizeof real;
     const sockaddr_in *to = (const sockaddr_in *)a;
     int pc = pc_of(to->sin_addr.s_addr);
     if (!pc && !local(to->sin_addr.s_addr))
@@ -315,6 +365,8 @@ static SOCKET WSAAPI l_accept(SOCKET s, sockaddr *a, int *len)
         wl_log("link: accept %s:%u (%s)", ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port), pc ? "a PC of LINK" : "not of LINK");
         if (pc)
             socket_pc(r, pc);
+        if (a)
+            to_game(a);
     }
     return r;
 }
@@ -326,7 +378,9 @@ static int WSAAPI l_sendto(SOCKET s, const char *buf, int n, int flags, const so
         return o_sendto(s, buf, n, flags, a, len);
     sockaddr_in to;
     memcpy(&to, a, sizeof to);
-    ULONG ip = to.sin_addr.s_addr;
+    ULONG ip = to.sin_addr.s_addr = to_real(to.sin_addr.s_addr);
+    a = (const sockaddr *)&to;
+    len = sizeof to;
     if (broadcast(ip))
     {
         // Each PC of LINK, its own too (a broadcast comes back to its sender)
@@ -382,6 +436,7 @@ static int WSAAPI l_recvfrom(SOCKET s, char *buf, int n, int flags, sockaddr *fr
             {
                 count(pc, 0, r);
                 packet("received from", pc, (const sockaddr_in *)f, s, buf, r);
+                to_game(f);
             }
             WSASetLastError(err);
             return r;
@@ -450,6 +505,38 @@ static int WSAAPI l_closesocket(SOCKET s)
 static ULONG own(void)
 {
     return g_count ? g_address[g_cabinet - 1] : 0;
+}
+
+// The PC's own name: its LINK address alone. GRID advertises the first address of
+// gethostbyname(gethostname()) that is not 127.0.0.1, Wasteland Racers takes the first as its
+// cabinet's identity (the lowest hosts): a VPN's or a virtual card's would be given otherwise.
+// Other names (the game's servers) go through
+static hostent *(WSAAPI *o_gethostbyname)(const char *);
+static hostent *WSAAPI l_gethostbyname(const char *name)
+{
+    char me[256] = "";
+    wl_busy_enter();
+    int mine = g_count && name && !gethostname(me, sizeof me) && (!_stricmp(name, me) || !name[0]);
+    wl_busy_leave();
+    if (!mine)
+        return o_gethostbyname(name);
+    static ULONG address;
+    static char *list[2] = {(char *)&address, NULL};
+    static char *aliases[1] = {NULL};
+    static char hostName[256];
+    static hostent h;
+    address = own();
+    snprintf(hostName, sizeof hostName, "%s", me);
+    h.h_name = hostName;
+    h.h_aliases = aliases;
+    h.h_addrtype = AF_INET;
+    h.h_length = 4;
+    h.h_addr_list = list;
+    static volatile LONG logged;
+    char t[20];
+    if (InterlockedIncrement(&logged) <= 3)
+        wl_log("link: gethostbyname(\"%s\"), this PC: %s alone", name, ip_text(address, t, sizeof t));
+    return &h;
 }
 
 static int(WSAAPI *o_WSAIoctl)(SOCKET, DWORD, LPVOID, DWORD, LPVOID, DWORD, LPDWORD, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
@@ -563,6 +650,7 @@ static void link_patch(HMODULE exe)
         {"WS2_32.dll", 16, "recv", (void *)l_recv, (void **)&o_recv},
         {"WS2_32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"WS2_32.dll", 0, "WSAIoctl", (void *)l_WSAIoctl, (void **)&o_WSAIoctl},
+        {"WS2_32.dll", 52, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
         // Winsock 1's (Sega Rally 3, by number): the same functions, the same numbers
         {"WSOCK32.dll", 2, "bind", (void *)l_bind, (void **)&o_bind},
         {"WSOCK32.dll", 13, "listen", (void *)l_listen, (void **)&o_listen},
@@ -573,6 +661,7 @@ static void link_patch(HMODULE exe)
         {"WSOCK32.dll", 19, "send", (void *)l_send, (void **)&o_send},
         {"WSOCK32.dll", 16, "recv", (void *)l_recv, (void **)&o_recv},
         {"WSOCK32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
+        {"WSOCK32.dll", 52, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
         {"IPHLPAPI.DLL", 0, "GetAdaptersInfo", (void *)l_GetAdaptersInfo, (void **)&o_GetAdaptersInfo},
         {"IPHLPAPI.DLL", 0, "GetAdaptersAddresses", (void *)l_GetAdaptersAddresses, (void **)&o_GetAdaptersAddresses},
     };

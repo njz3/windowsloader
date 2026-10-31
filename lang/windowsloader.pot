@@ -1006,11 +1006,11 @@ msgstr ""
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr ""
 
-#: src/hook/games/codemasters.cpp:168 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1066 src/hook/games/segarally3.cpp:180
 msgid "Numéro de la borne (link)"
 msgstr ""
 
-#: src/hook/games/codemasters.cpp:169 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:1247
+#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:1247 src/hook/games/segarally3.cpp:181
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr ""
 
@@ -1077,20 +1077,24 @@ msgstr ""
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr ""
 
-#: src/hook/games/namco.cpp:1739 src/hook/games/namco.cpp:1810
+#: src/hook/games/namco.cpp:1742 src/hook/games/namco.cpp:1813
 msgid "Carte du moteur du volant"
 msgstr ""
 
-#: src/hook/games/namco.cpp:1856
+#: src/hook/games/namco.cpp:1859
 msgid "Lecteur de cartes"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1051
+#: src/hook/games/ringedge.cpp:1052 src/hook/games/ringedge.cpp:1063
 msgid "Jeu gratuit"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1052
+#: src/hook/games/ringedge.cpp:1053 src/hook/games/ringedge.cpp:1064
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
+msgstr ""
+
+#: src/hook/games/ringedge.cpp:1067
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr ""
 
 #: src/hook/games/stormracer.cpp:633
@@ -1126,7 +1130,7 @@ msgstr ""
 msgid "Carte du volant"
 msgstr ""
 
-#: src/hook/games/triotech.cpp:362
+#: src/hook/games/triotech.cpp:374
 msgid "la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)"
 msgstr ""
 

@@ -34,6 +34,10 @@
 //   numbering (+0x194920 names them): it quits when its GAME_MSG_LAUNCHED_OK is not acknowledged.
 // - ShellData.ini may say two linked cabinets: the game is told one (ShellData_single.ini's
 //   NumCabinets); GRID waits for the other and stops on purpose (+0x1ab9e5).
+// - Their link between cabinets (link.h, [Game.<name>] LINK): CabinetID of ShellData.ini from it.
+//   GRID's is its "party": 1 hosts, 2 to 6 join (the lower hosts); its cabinets found by a
+//   broadcast on UDP 12000 (its LAN discovery, the searcher finding its own session too), then
+//   UDP and TCP on 7342; the address it advertises from gethostbyname(its PC's name).
 
 #include <windows.h>
 #include <stdio.h>
@@ -176,6 +180,14 @@ static void showdown_settings(void)
     wl_link_settings(GetModuleHandleW(NULL));
 }
 
+// GRID's: cabinets 1 to 6
+static const WlGameOption g_gridOptions[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
+};
+
 // Showdown's shell commands (+0x194920)
 static const char *const g_showdownMsgs[] = {
     "GAME_MSG_NOP", "GAME_MSG_ACK", "UNDEFINED", "GAME_MSG_LAUNCHED_OK", "GAME_MSG_ASSETS_LOADED", "GAME_MSG_CREDITUSED",
@@ -293,6 +305,8 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
         // this PC; the write is taken out
         static const unsigned char crash[] = {0x89, 0x00}, nop2[] = {0x90, 0x90};
         wl_patch_code((void *)0x5AB9E5, crash, nop2, 2, "the deliberate stop");
+        wl_game_set_options(g_gridOptions, (int)(sizeof g_gridOptions / sizeof g_gridOptions[0]));
+        wl_game_on_settings(showdown_settings);
     }
     return 1;
 }

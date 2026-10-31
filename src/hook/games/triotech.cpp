@@ -41,6 +41,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdinput.h"
@@ -341,6 +342,17 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
+// The cabinets elect a host by broadcast on UDP 2070 ("Finding Server...": "Host Election:<its
+// address>", the lowest address hosts, each hearing its own), then race in DirectPlay 8 (dpnet.dll,
+// Windows' own, which reaches the local network itself). Linked ([Game.wasteland] LINK, link.h):
+// the broadcasts go to LINK's PCs, its own included, and its address, its identity, is LINK's
+// (gethostbyname of its name). Alone, it hears itself (system.cpp's loopback broadcast)
+static void wasteland_settings(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        wl_system_loopback_broadcast(1);
+}
+
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -360,8 +372,7 @@ int wl_game_triotech(const wchar_t *exePath, const char **name, const char **tit
     swprintf(inputs, MAX_PATH, L"%sInputs.xml", dir);
     read_lamp_names(inputs);
     wl_outputs_name_lamps(WL_N("la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)"), g_lampNames, TT_LAMPS);
-    // The cabinets elect a host by broadcast on UDP 2070 ("Finding Server..."): alone, it hears itself
-    wl_system_loopback_broadcast(1);
+    wl_game_on_settings(wasteland_settings);
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
         wl_log("game: SDC2.dll's functions (the cabinet's board) given by windowsloader");
     return 1;

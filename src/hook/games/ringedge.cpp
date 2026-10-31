@@ -38,6 +38,7 @@
 #include "inputs.h"
 #include "jvs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "pcp.h"
 #include "vdev.h"
@@ -1053,6 +1054,27 @@ static const WlGameOption g_creditOptions[] = {
      WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
 };
 
+// Sonic & Sega All-Stars Racing's link between cabinets (link.h, [Game.ssasr] LINK): UDP only, its
+// sync on 47616 and 47872 broadcast to 192.168.88.255, its match presence to 255.255.255.255:48879.
+// It gives itself 192.168.88.<CABINET ID> (its test menu's, in the SRAM), not the platform's
+// address: those addresses are LINK's PCs (wl_link_virtual_net), the CABINET ID of each cabinet
+// its place in LINK
+static const WlGameOption g_ssrOptions[] = {
+    {"FREE_PLAY", WL_N("Jeu gratuit"),
+     WL_N("Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."),
+     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void ssr_settings(void)
+{
+    if (wl_link_settings(GetModuleHandleW(NULL)))
+        wl_link_virtual_net("192.168.88");
+}
+
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
      L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
@@ -1108,7 +1130,12 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     wl_game_set_boards(controls, g_game->inputs == g_srcInputs ? "Motor board: Sega drive board, Model 2/3 commands (read in the game's data)"
                                  : lgs                         ? "Motor board: none, the JVS board's vibration output played as a shake"
                                                                : "Motor board: Sega-like servoboard (COM1)");
-    if (g_game->freePlayOption)
+    if (!strcmp(g_game->name, "ssasr"))
+    {
+        wl_game_set_options(g_ssrOptions, COUNT(g_ssrOptions));
+        wl_game_on_settings(ssr_settings);
+    }
+    else if (g_game->freePlayOption)
         wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));
 
     wchar_t table[MAX_PATH];

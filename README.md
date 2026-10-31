@@ -155,12 +155,17 @@ the file is left as it is. The link sends the players' pictures to the other cab
 hold without a camera: the game's `CAMERA` option (below) gives it the PC's or an emulated one.
 Without `LINK` the cabinet plays alone (cabinet 1 of 1).
 Ford Racing Full Blown (`[Game.fordracing]`), GTI Club: Supermini Festa! (`[Game.gticlub3]`), DiRT
-Showdown (`[Game.showdown]`) and Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4, its
-`[Network] CabinetID` of ShellData.ini read from `LINK`; Winsock 1's functions taken too) find their cabinets on their network by a broadcast, then talk to each
+Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4, its
+`[Network] CabinetID` of ShellData.ini read from `LINK`; Winsock 1's functions taken too), GRID
+(`[Game.grid]`, cabinets 1 to 6, 1 hosts), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
+address hosts, its race in DirectPlay) and Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
+gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
+ID must be the cabinet's place in `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
 broadcast is sent to each of them, any other address of the network is refused, and the game sees
-only the PC's card of `LINK` (a VPN's left out). Ford Racing's `CabinetPostion` and Showdown's
+only the PC's card of `LINK` (a VPN's left out), and its own name resolves to its address of `LINK`
+alone. Ford Racing's `CabinetPostion` and Showdown's
 `[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
 menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
 and accept, the first packets with each PC on each port, the traffic every 10 s). The four raced

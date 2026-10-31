@@ -21,6 +21,11 @@
 // sockets made the link's (its import table's: ws2_32 by number or by name, iphlpapi); alone, they
 // stay system.cpp's (off the local network). Returns the cabinets' count, 0 alone
 int wl_link_settings(HMODULE exe);
+// A game that gives its cabinets addresses of its own, net.k for cabinet k (Sonic & Sega All-Stars
+// Racing: 192.168.88.<its CABINET ID>): net.k is LINK's PC k, net.255 a broadcast to each of them;
+// its bind on net.k is on this PC's address of LINK, what it hears from PC k comes from net.k.
+// The game's own number (its test menu's) must then be its place in LINK. net: "192.168.88"
+void wl_link_virtual_net(const char *net);
 // This cabinet's number, 1.. (CABINET, or its PC's place in LINK); 1 alone
 int wl_link_cabinet(void);
 int wl_link_count(void);
