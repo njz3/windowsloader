@@ -160,10 +160,11 @@ other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on eac
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
 broadcast is sent to each of them, any other address of the network is refused, and the game sees
 only the PC's card of `LINK` (a VPN's left out). Ford Racing's `CabinetPostion` and Showdown's
-`[Network] NumCabinets` / `CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is
-its test menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind,
-connect and accept, the first packets with each PC, the traffic every 10 s). Not yet tried on
-linked cabinets.
+`[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
+menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
+and accept, the first packets with each PC on each port, the traffic every 10 s). Ford Racing and
+GTI Club raced two linked cabinets (racecab1 and 2); Showdown's cabinets join one session but
+each races alone so far.
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's

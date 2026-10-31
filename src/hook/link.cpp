@@ -18,8 +18,8 @@
 //   the PC's cards (WSAIoctl SIO_GET_INTERFACE_LIST, GetAdaptersInfo, GetAdaptersAddresses)
 //                                                    -> the card holding this PC's address of LINK,
 //                                                       and the loopback (a cabinet's VPN left out)
-// The log notes each bind, listen, connect and accept, the first packets with each PC (ports,
-// size, first bytes), counts the traffic with each PC every 10 s, and the TCP connections that end.
+// The log notes each bind, listen, connect and accept, the first packets with each PC on each
+// local port (ports, size, first bytes), counts the traffic with each PC every 10 s, and the TCP connections that end.
 // Its calls go through system.cpp's hooks as windowsloader's own, which let them by.
 
 #include <winsock2.h>
@@ -160,17 +160,29 @@ static void count(int pc, int sent, int bytes)
     wl_log("%s", line);
 }
 
-// The first packets with each PC, each way: ports, size, first bytes
+// The first packets with each PC, each way and on each local port (a game's later sessions open
+// ports of their own: DiRT Showdown's race on 1000 after its cabinets' 1001): ports, size, first bytes
+#define LINK_PORTS 16
 static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, const char *data, int n)
 {
-    static volatile LONG logged[LINK_MAX][2];
-    if (pc < 1 || pc > LINK_MAX || InterlockedIncrement(&logged[pc - 1][what[0] == 's']) > 25)
+    static volatile LONG ports[LINK_MAX][2][LINK_PORTS], logged[LINK_MAX][2][LINK_PORTS];
+    if (pc < 1 || pc > LINK_MAX)
         return;
     sockaddr_in me = {};
     int len = sizeof me;
     wl_busy_enter();
     getsockname(s, (sockaddr *)&me, &len);
     wl_busy_leave();
+    LONG port = ntohs(me.sin_port) + 1; // 0: a free slot
+    int way = what[0] == 's', i = 0;
+    for (; i < LINK_PORTS; i++)
+    {
+        LONG was = InterlockedCompareExchange(&ports[pc - 1][way][i], port, 0);
+        if (!was || was == port)
+            break;
+    }
+    if (i == LINK_PORTS || InterlockedIncrement(&logged[pc - 1][way][i]) > 25)
+        return;
     char hex[3 * 16 + 1] = "", t[20];
     for (int i = 0; data && i < n && i < 16; i++)
         snprintf(hex + 3 * i, sizeof hex - 3 * i, "%02x ", (unsigned char)data[i]);
