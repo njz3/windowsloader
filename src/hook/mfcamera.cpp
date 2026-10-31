@@ -381,6 +381,184 @@ public:
 };
 
 // ------------------------------------------------------------------------------
+// A camera of the PC: its reader as the game reads it. Mario Kart DX turns Media Foundation's
+// converters off (MF_READWRITE_DISABLE_CONVERTERS) and takes the camera's first native format only
+// (GetNativeMediaType 0), RGB32, RGB24, YUY2 or NV12: a webcam whose first is MJPG was "not found"
+// (racecab2's DV20, E08-01). The converters are allowed again, the camera set to a format the game
+// knows (one of its own, YUY2 at 640x480 first; else decoded to YUY2, NV12 or RGB32), and that
+// format given as its first native one; the rest is the camera's reader
+// ------------------------------------------------------------------------------
+
+static const GUID *const g_known[] = {&MFVideoFormat_YUY2, &MFVideoFormat_NV12, &MFVideoFormat_RGB32, &MFVideoFormat_RGB24};
+
+static void type_text(IMFMediaType *t, char *out, size_t size)
+{
+    GUID sub = {};
+    UINT64 frame = 0;
+    t->GetGUID(MF_MT_SUBTYPE, &sub);
+    t->GetUINT64(MF_MT_FRAME_SIZE, &frame);
+    char cc[5] = {(char)(sub.Data1 & 0xFF), (char)(sub.Data1 >> 8 & 0xFF), (char)(sub.Data1 >> 16 & 0xFF), (char)(sub.Data1 >> 24), 0};
+    for (int i = 0; i < 4; i++)
+        if (cc[i] < 32 || cc[i] > 126)
+            cc[i] = '?';
+    if (sub == MFVideoFormat_RGB32)
+        strcpy_s(cc, "RGB32"); // a D3DFORMAT number, not a FourCC
+    else if (sub == MFVideoFormat_RGB24)
+        strcpy_s(cc, "RGB24");
+    snprintf(out, size, "%s %ux%u", cc, (unsigned)(frame >> 32), (unsigned)(frame & 0xFFFFFFFF));
+}
+
+static int known(const GUID &sub)
+{
+    for (size_t i = 0; i < sizeof g_known / sizeof g_known[0]; i++)
+        if (sub == *g_known[i])
+            return (int)i;
+    return -1;
+}
+
+class PcReader : public IMFSourceReader
+{
+    volatile LONG m_refs = 1;
+    IMFSourceReader *m_r;
+    IMFMediaType *m_first = NULL; // the format given as the first native one
+
+    static int first_video(DWORD stream)
+    {
+        return stream == 0 || stream == (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM;
+    }
+
+public:
+    explicit PcReader(IMFSourceReader *r) : m_r(r)
+    {
+        const DWORD video = (DWORD)MF_SOURCE_READER_FIRST_VIDEO_STREAM;
+        // The camera's formats, the best the game knows: its own kind first, then the nearest to 640x480
+        IMFMediaType *best = NULL, *t;
+        int bestKind = 99;
+        UINT64 bestFrame = 0, firstFrame = 0;
+        char text[48];
+        for (DWORD i = 0; i < 64 && SUCCEEDED(m_r->GetNativeMediaType(video, i, &t)); i++)
+        {
+            GUID sub = {};
+            UINT64 frame = 0;
+            t->GetGUID(MF_MT_SUBTYPE, &sub);
+            t->GetUINT64(MF_MT_FRAME_SIZE, &frame);
+            if (!i)
+                firstFrame = frame;
+            if (i < 24)
+            {
+                type_text(t, text, sizeof text);
+                wl_log("camera: the PC's camera, native format %lu: %s", i, text);
+            }
+            int kind = known(sub);
+            auto distance = [](UINT64 f) { return _abs64((LONGLONG)(f >> 32) - 640) + _abs64((LONGLONG)(f & 0xFFFFFFFF) - 480); };
+            if (kind >= 0 && (kind < bestKind || (kind == bestKind && distance(frame) < distance(bestFrame))))
+            {
+                if (best)
+                    best->Release();
+                best = t;
+                bestKind = kind;
+                bestFrame = frame;
+                continue;
+            }
+            t->Release();
+        }
+        if (best && SUCCEEDED(m_r->SetCurrentMediaType(video, NULL, best)))
+            m_first = best;
+        else
+        {
+            if (best)
+                best->Release();
+            // None the game knows: decoded (the converters allowed), the camera's first size
+            if (!firstFrame)
+                firstFrame = (UINT64)640 << 32 | 480;
+            for (size_t k = 0; k < 3 && !m_first; k++)
+            {
+                IMFMediaType *want;
+                if (FAILED(pMFCreateMediaType(&want)))
+                    break;
+                want->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+                want->SetGUID(MF_MT_SUBTYPE, *g_known[k]);
+                want->SetUINT64(MF_MT_FRAME_SIZE, firstFrame);
+                if (SUCCEEDED(m_r->SetCurrentMediaType(video, NULL, want)))
+                    m_r->GetCurrentMediaType(video, &m_first);
+                want->Release();
+            }
+        }
+        // The game reads the format's stride (MF_MT_DEFAULT_STRIDE) and gives up without it: a copy
+        // with one when the camera's has none
+        UINT32 stride;
+        IMFMediaType *copy;
+        if (m_first && FAILED(m_first->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride)) && SUCCEEDED(pMFCreateMediaType(&copy)))
+        {
+            GUID sub = {};
+            UINT64 frame = 0;
+            m_first->CopyAllItems(copy);
+            m_first->GetGUID(MF_MT_SUBTYPE, &sub);
+            m_first->GetUINT64(MF_MT_FRAME_SIZE, &frame);
+            UINT32 w = (UINT32)(frame >> 32);
+            copy->SetUINT32(MF_MT_DEFAULT_STRIDE, sub == MFVideoFormat_RGB32 ? w * 4 : sub == MFVideoFormat_RGB24 ? (w * 3 + 3) & ~3u
+                                                                              : sub == MFVideoFormat_YUY2  ? w * 2
+                                                                                                            : w);
+            m_first->Release();
+            m_first = copy;
+        }
+        if (m_first)
+        {
+            type_text(m_first, text, sizeof text);
+            wl_log("camera: the PC's camera read as %s (given to the game as its first format)", text);
+        }
+        else
+            wl_log("camera: no format of the PC's camera the game knows: the game's own choice");
+    }
+    ~PcReader()
+    {
+        if (m_first)
+            m_first->Release();
+        m_r->Release();
+    }
+    STDMETHODIMP QueryInterface(REFIID iid, void **out) override
+    {
+        if (iid == __uuidof(IUnknown) || iid == __uuidof(IMFSourceReader))
+        {
+            *out = static_cast<IMFSourceReader *>(this);
+            AddRef();
+            return S_OK;
+        }
+        return m_r->QueryInterface(iid, out);
+    }
+    STDMETHODIMP_(ULONG) AddRef() override { return InterlockedIncrement(&m_refs); }
+    STDMETHODIMP_(ULONG) Release() override
+    {
+        ULONG r = InterlockedDecrement(&m_refs);
+        if (!r)
+            delete this;
+        return r;
+    }
+    STDMETHODIMP GetStreamSelection(DWORD s, BOOL *on) override { return m_r->GetStreamSelection(s, on); }
+    STDMETHODIMP SetStreamSelection(DWORD s, BOOL on) override { return m_r->SetStreamSelection(s, on); }
+    STDMETHODIMP GetNativeMediaType(DWORD s, DWORD index, IMFMediaType **out) override
+    {
+        if (!m_first || !first_video(s))
+            return m_r->GetNativeMediaType(s, index, out);
+        if (index)
+            return MF_E_NO_MORE_TYPES;
+        m_first->AddRef();
+        *out = m_first;
+        return S_OK;
+    }
+    STDMETHODIMP GetCurrentMediaType(DWORD s, IMFMediaType **out) override { return m_r->GetCurrentMediaType(s, out); }
+    STDMETHODIMP SetCurrentMediaType(DWORD s, DWORD *reserved, IMFMediaType *t) override { return m_r->SetCurrentMediaType(s, reserved, t); }
+    STDMETHODIMP SetCurrentPosition(REFGUID f, REFPROPVARIANT p) override { return m_r->SetCurrentPosition(f, p); }
+    STDMETHODIMP ReadSample(DWORD s, DWORD f, DWORD *i, DWORD *fl, LONGLONG *t, IMFSample **sample) override
+    {
+        return m_r->ReadSample(s, f, i, fl, t, sample);
+    }
+    STDMETHODIMP Flush(DWORD s) override { return m_r->Flush(s); }
+    STDMETHODIMP GetServiceForStream(DWORD s, REFGUID g, REFIID i, LPVOID *o) override { return m_r->GetServiceForStream(s, g, i, o); }
+    STDMETHODIMP GetPresentationAttribute(DWORD s, REFGUID g, PROPVARIANT *v) override { return m_r->GetPresentationAttribute(s, g, v); }
+};
+
+// ------------------------------------------------------------------------------
 // The game's two functions
 // ------------------------------------------------------------------------------
 
@@ -432,7 +610,10 @@ static HRESULT STDAPICALLTYPE cam_MFEnumDeviceSources(IMFAttributes *attributes,
                 found[at] = t;
                 *list = found;
                 *count = n;
-                wl_log("camera: the PC's %u camera(s) listed for the game, camera %d first", n, at);
+                // The game asks again each frame while it has no camera: the first times only
+                static volatile LONG logged;
+                if (InterlockedIncrement(&logged) <= 3)
+                    wl_log("camera: the PC's %u camera(s) listed for the game, camera %d first", n, at);
                 return hr;
             }
             wl_log("camera: \"%s\" not among the PC's %u cameras: the emulated one", name, n);
@@ -466,7 +647,22 @@ static HRESULT STDAPICALLTYPE cam_MFCreateSourceReaderFromMediaSource(IMFMediaSo
 {
     IUnknown *mine = NULL;
     if (!source || FAILED(source->QueryInterface(IID_WlEmulatedSource, (void **)&mine)))
-        return o_MFCreateSourceReaderFromMediaSource(source, attributes, reader);
+    {
+        // A camera of the PC: the converters allowed (MJPG decoded), its reader as the game reads it
+        if (attributes)
+        {
+            attributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, FALSE);
+            attributes->SetUINT32(MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, TRUE);
+        }
+        HRESULT hr = o_MFCreateSourceReaderFromMediaSource(source, attributes, reader);
+        if (FAILED(hr) || !reader || !*reader || !mfplat())
+        {
+            wl_log("camera: the PC's camera's reader: 0x%08lx", hr);
+            return hr;
+        }
+        *reader = new PcReader(*reader);
+        return hr;
+    }
     mine->Release();
     IMFSourceReaderCallback *callback = NULL;
     if (attributes)
