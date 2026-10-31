@@ -1574,6 +1574,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   socket sur 192.168.1.5 ; toujours pas de LINK BATTLE. dpnet.dll importe WS2_32 par numéro : ses bind et
   gethostbyname n'étaient pas pris ; ils le sont désormais par l'adresse de la fonction, et ses envois (WSASendTo)
   sont journalisés (link13), pour voir si la recherche du client part et si l'hôte répond.
+- Essai link13 (31/10) ❌ : la recherche du client part (diffusion vers 55555), l'hôte répond (vers 192.168.1.5:2302) ;
+  le client appelle ensuite Connect (synchrone, son port 55555), ouvre deux fois 192.168.1.5:55555, puis plus rien
+  n'est envoyé ni d'un côté ni de l'autre ; pas de LINK BATTLE (il faut deux joueurs, +0x98768). Linké, le journal
+  donne désormais les messages du jeu sur son réseau (sa fonction d'affichage, vide dans cette version, +0xa87c0),
+  le résultat et la durée de sa connexion (+0x84ac0), et les envois et bind IPv6 de DirectPlay (link14).
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits

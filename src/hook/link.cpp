@@ -403,6 +403,14 @@ static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
     }
     int r = o_bind(s, a, len);
     DWORD err = WSAGetLastError();
+    if (g_count && a && a->sa_family == AF_INET6 && len >= (int)sizeof(sockaddr_in6))
+    {
+        static volatile LONG logged6;
+        char from[300];
+        if (InterlockedIncrement(&logged6) <= 20)
+            wl_log("link: bind IPv6 port %u -> %d (%lu), socket %Iu [%s]", ntohs(((const sockaddr_in6 *)a)->sin6_port), r, r ? err : 0, (ULONG_PTR)s,
+                   callers(WL_CALLER, from, sizeof from));
+    }
     if (g_count && is_inet(a, len))
     {
         int udp = udp_socket(s), port = ntohs(((const sockaddr_in *)a)->sin_port);
@@ -835,9 +843,33 @@ static int WSAAPI l_WSASendTo(SOCKET s, LPWSABUF bufs, DWORD n, LPDWORD sent, DW
                               LPWSAOVERLAPPED_COMPLETION_ROUTINE done)
 {
     int r = o_WSASendTo(s, bufs, n, sent, flags, to, toLen, ov, done);
-    if (!g_count || !is_inet(to, toLen) || !bufs || !n)
+    if (!g_count || !to || !bufs || !n)
         return r;
     DWORD err = WSAGetLastError();
+    sockaddr_in mapped = {};
+    if (to->sa_family == AF_INET6 && toLen >= (int)sizeof(sockaddr_in6))
+    {
+        // IPv6 (a dual socket's): ::ffff:a.b.c.d is IPv4's a.b.c.d
+        const sockaddr_in6 *in6 = (const sockaddr_in6 *)to;
+        if (!IN6_IS_ADDR_V4MAPPED(&in6->sin6_addr))
+        {
+            static volatile LONG logged6;
+            if (InterlockedIncrement(&logged6) <= 10)
+                wl_log("link: DirectPlay sent to an IPv6 address, port %u: %lu bytes -> %d (%lu)", ntohs(in6->sin6_port), bufs[0].len, r, r ? err : 0);
+            WSASetLastError(err);
+            return r;
+        }
+        mapped.sin_family = AF_INET;
+        mapped.sin_port = in6->sin6_port;
+        memcpy(&mapped.sin_addr, &in6->sin6_addr.s6_addr[12], 4);
+        to = (const sockaddr *)&mapped;
+        toLen = sizeof mapped;
+    }
+    if (!is_inet(to, toLen))
+    {
+        WSASetLastError(err);
+        return r;
+    }
     const sockaddr_in *in = (const sockaddr_in *)to;
     int pc = pc_of(in->sin_addr.s_addr);
     if (pc)
@@ -902,6 +934,7 @@ void wl_link_dpnet(void)
         {"WS2_32.dll", "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
         {"WS2_32.dll", "bind", (void *)l_bind, (void **)&o_bind},
         {"WS2_32.dll", "WSASendTo", (void *)l_WSASendTo, (void **)&o_WSASendTo},
+        {"WS2_32.dll", "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"KERNEL32.dll", "GetProcAddress", (void *)l_dpnetGetProcAddress, (void **)&o_dpnetGetProcAddress},
     };
     char found[160] = "";

@@ -720,10 +720,47 @@ static void wacky_settings(void)
 // by a broadcast. Who hosts is its test menu's NETWORK CONFIGURATION (d:\config00.bin, HOST by
 // default on each): linked, cabinet 1 hosts and 2 is the client, whatever the menu says (its
 // choice, +0x84cb9: the jump to the client's search, never taken or always)
+// Its network's own messages ("I'm client!", "error: msConnectHost()"), printed by a function
+// left empty in its build (+0xa87c0, a ret): logged. Its connection to the host (+0x84ac0, after
+// the host is found) logged with its result and its time
+static void __cdecl d1gp_print(const char *format, ...)
+{
+    static volatile LONG logged;
+    if (!format || InterlockedIncrement(&logged) > 200)
+        return;
+    char line[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(line, sizeof line, format, args);
+    va_end(args);
+    size_t n = strlen(line);
+    while (n && (line[n - 1] == '\n' || line[n - 1] == '\r'))
+        line[--n] = 0;
+    wl_log("game: D1GP says \"%s\"", line);
+}
+
+static int(__cdecl *oD1gpConnect)(void);
+static int __cdecl d1gp_connect(void)
+{
+    wl_log("game: D1GP connects to the host it found (DirectPlay Connect, synchronous)");
+    DWORD start = GetTickCount();
+    int r = oD1gpConnect();
+    wl_log("game: D1GP's connection -> 0x%08X after %lu ms", (unsigned)r, GetTickCount() - start);
+    return r;
+}
+
 static void d1gp_settings(void)
 {
     if (!wl_link_settings(GetModuleHandleW(NULL)))
         return;
+    static const unsigned char printWas[5] = {0xC3, 0xCC, 0xCC, 0xCC, 0xCC};
+    unsigned char jump[5] = {0xE9};
+    LONG to = (LONG)((ULONG_PTR)d1gp_print - (0x4A87C0 + 5));
+    memcpy(jump + 1, &to, 4);
+    wl_patch_code((void *)0x4A87C0, printWas, jump, sizeof jump, "its network's messages logged");
+    static const unsigned char connectWas[5] = {0x83, 0xEC, 0x4C, 0xA1, 0xD8};
+    if (!memcmp((void *)0x484AC0, connectWas, sizeof connectWas))
+        wl_hook_code((void *)0x484AC0, (void *)d1gp_connect, (void **)&oD1gpConnect, "its connection to the host (+0x84ac0)");
     static const unsigned char was[2] = {0x75, 0x4A}, never[2] = {0x90, 0x90}, always[1] = {0xEB};
     if (wl_link_cabinet() == 1)
         wl_patch_code((void *)0x484CB9, was, never, sizeof never, "linked: this cabinet hosts (CONNECTION METHOD = HOST)");
