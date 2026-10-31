@@ -799,6 +799,17 @@ tc.dat` de TeknoParrot) le sont,
 - Crédits ✅ : pièces JVS.
 - Pas de carte de volant sur un port série : son retour de force passe sans doute par les sorties
   analogiques du JVS (commande 0x33, 6 voies).
+- Link entre bornes 🔄 (01/11, `[Game.chasehq2] LINK` et `CABINET`, 2 bornes) : DirectPlay 8 (dpnet.dll de Windows,
+  UDP 13400, `LINKPORTR` pour l'hôte et `LINKPORTS` pour le client dans `chq2.ini`). Au démarrage, « NETWORK
+  CHECKING ... » (+0x65bf0) : le numéro de réseau (bits 17-18 du mot de réglages, +0x130bf28 ; `LINKHOST` 1 le met à
+  0, 0 à 1) 0 héberge la session (« HOST OR SINGLE »), les autres se connectent à `HOSTADDR` (192.168.65.110 par
+  défaut, que le jeu donne au PC de l'hôte : AddIPAddress, refusé), en Connect synchrone, et hébergent eux-mêmes
+  si l'hôte ne répond pas (« HOST FOUND » sinon). `chq2.ini` lu par les mêmes fonctions que le wr.ini de Wacky Races
+  (+0x1fa0 un nombre, +0x1f30 un texte). Linké : `LINKHOST` 1 sur la borne 1 seulement, `HOSTADDR` le premier PC de
+  LINK, le numéro de réseau la place dans LINK moins un ; la vérification réseau notée au journal (numéro, résultat,
+  durée). Essayé sur ce PC, le programme seul (sans ses données) : les interceptions posées, LINK pris (borne 2 de
+  2) ; le jeu s'arrête avant le réseau (« GRAPHICS SYSTEM ERROR », pas de données). Essai link22 sur les bornes
+  demandé.
 
 ## Affichage sur ce PC (Direct3D 9 et 11)
 

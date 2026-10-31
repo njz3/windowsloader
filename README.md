@@ -172,9 +172,11 @@ broadcast is sent to each of them, any other address of the network is refused, 
 only the PC's card of `LINK` (a VPN's left out), and its own name resolves to its address of `LINK`
 alone. A broadcast to a port where the game has several UDP sockets (GRID) goes as a broadcast on
 `LINK`'s network, which reaches each of them. Wacky Races (`[Game.wacky]`), D1GP (`[Game.d1gp]`, 2
-cabinets, LINK BATTLE in Mode Select) and Valve Limit R (`[Game.vlimitr]`) link through Windows' DirectPlay: cabinet 1 of
-`LINK` hosts, the others join it at its address (their test menu's NETWORK-ID or CONNECTION METHOD
-is taken from `LINK`); Windows' DirectPlay feature must be on and the firewall let the game in.
+cabinets, LINK BATTLE in Mode Select), Valve Limit R (`[Game.vlimitr]`) and Chase H.Q. 2 (`[Game.chasehq2]`, 2
+cabinets, not yet tried on the cabinets) link through Windows' DirectPlay: cabinet 1 of
+`LINK` hosts, the others join it at its address (their test menu's NETWORK-ID or CONNECTION METHOD,
+or Chase H.Q. 2's LINKHOST and HOSTADDR, taken from `LINK`); Windows' DirectPlay feature must be on and
+the firewall let the game in.
 Ford Racing's `CabinetPostion` and Showdown's
 `[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
 menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
