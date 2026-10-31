@@ -318,6 +318,12 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   sur le réseau de LINK (192.168.1.255 d'après la carte de LINK), les PC de LINK hors de ce réseau un par un ; le
   journal donne pour chaque bind le type de socket et le code du jeu qui l'appelle, et chaque fermeture d'un
   socket UDP. Pas encore essayé sur les bornes.
+- Essai link10 (31/10) ❌ : un seul socket du jeu sur 12001 (le premier, fermé 1 ms après, puis un autre) : la diffusion
+  sur le réseau ne s'applique pas. La recherche décodée (flux de bits, un bit d'en-tête, chaque champ précédé d'une
+  étiquette de 5 bits) : 0x35A6CB40, titre 0x1370, territoire 0, track pack 0 ; le serveur la reçoit, compare ces
+  champs aux siens (les mêmes valeurs, faites par la même fonction) et ne répond pas. Linké, le journal trace
+  maintenant chaque lecture du serveur de découverte (+0x66ca40) et de la recherche (+0x66c680), et les valeurs du
+  serveur, pour voir laquelle échoue sur les bornes.
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
@@ -1051,6 +1057,13 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   LINK, le sien compris, et son adresse, son identité, celle de LINK ; seul, il s'entend lui-même comme avant.
   Essayé seul sur ce PC : bind 2070, gethostbyname du PC → l'adresse de LINK ; le jeu s'arrête ensuite faute de
   ses données (copie sans données).
+- Essai link9 sur les bornes (31/10) ❌ : l'élection marche (les nombres sont les adresses entières, le journal n'en
+  montrait que 16 octets ; il écrit désormais un paquet texte en clair) ; la borne 2 voit l'hôte (« PRESS ANY
+  BUTTON TO JOIN ») mais sa connexion DirectPlay (client et serveur, UDP 5600) reste sans réponse : elle se connecte
+  au nom du PC de l'hôte (« Host Changed:<n>:<nom>:Online »), que dpnet.dll résout lui-même, l'adresse du VPN
+  TeamViewer des bornes (7.x) pouvant venir d'abord ; puis elle relance une élection que l'hôte, déjà en ligne,
+  ignore. Linké, le nom du PC donné au jeu (gethostname) est son adresse de LINK : l'hôte annonce 192.168.1.4. Le
+  relevé des fils à 113 s était la vidéo d'attract (DirectShow), pas un blocage.
 ## Mario Kart Arcade GP DX 1.18 (Namco System ES3)
 
 `MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 (le 9Ex qu'il crée ne dessine rien). Module

@@ -342,14 +342,19 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
-// The cabinets elect a host by broadcast on UDP 2070 ("Finding Server...": "Host Election:<its
-// address>", the lowest address hosts, each hearing its own), then race in DirectPlay 8 (dpnet.dll,
-// Windows' own, which reaches the local network itself). Linked ([Game.wasteland] LINK, link.h):
-// the broadcasts go to LINK's PCs, its own included, and its address, its identity, is LINK's
-// (gethostbyname of its name). Alone, it hears itself (system.cpp's loopback broadcast)
+// The cabinets elect a host by broadcast on UDP 2070 ("Host Election:<its address as a number>",
+// the lowest hosts, each hearing its own; the winner then says "Host Changed:<its number>:<its PC's
+// name>:Online" each second), then race in DirectPlay 8 (client and server, Windows' dpnet.dll,
+// UDP 5600): the others connect to the winner's name, which dpnet resolves itself (a cabinet's VPN
+// address may come first: on the cabinets, 31/10, the second never reached the first). Linked
+// ([Game.wasteland] LINK, link.h): the broadcasts go to LINK's PCs, its own included, its address
+// is LINK's, and its PC's name, for the game, that address ("192.168.1.4"): the others connect to
+// it. Alone, it hears itself (system.cpp's loopback broadcast)
 static void wasteland_settings(void)
 {
-    if (!wl_link_settings(GetModuleHandleW(NULL)))
+    if (wl_link_settings(GetModuleHandleW(NULL)))
+        wl_link_name_is_address();
+    else
         wl_system_loopback_broadcast(1);
 }
 

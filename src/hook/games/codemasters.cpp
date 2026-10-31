@@ -188,6 +188,81 @@ static const WlGameOption g_gridOptions[] = {
      WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
 };
 
+// GRID linked: the LAN discovery's reads traced (its server's on its port 12001, +0x66ca40, which
+// answers a cabinet's search only when every field read matches its own; its searcher's of the
+// answers, +0x66c680), each value read and whether the read held, and the server's own values once.
+// The cabinets' searches went unanswered (31/10, link9 and link10) with the same values on both
+static int(__fastcall *oGridReadU32)(void *reader, void *edx, DWORD *value);
+static int(__fastcall *oGridReadBool)(void *reader, void *edx, unsigned char *value);
+static int(__fastcall *oGridServerPoll)(void *server, void *edx, int arg);
+
+static const char *grid_reader(const void *caller)
+{
+    ULONG_PTR at = (ULONG_PTR)caller;
+    return at >= 0xA6CA40 && at < 0xA6CC27 ? "server" : at >= 0xA6C680 && at < 0xA6C990 ? "searcher" : NULL;
+}
+
+static int __fastcall grid_read_u32(void *reader, void *edx, DWORD *value)
+{
+    const void *caller = WL_CALLER;
+    int r = oGridReadU32(reader, edx, value);
+    static volatile LONG logged;
+    const char *who = grid_reader(caller);
+    char where[64];
+    if (who && InterlockedIncrement(&logged) <= 200)
+        wl_log("link: GRID's discovery %s read a number at %s: %s, 0x%08lX (its reader's checks %d, error %d)", who, wl_where(caller, where, sizeof where),
+               (r & 0xFF) ? "held" : "failed", value ? *value : 0, ((unsigned char *)reader)[0x1D], ((unsigned char *)reader)[0x1C]);
+    return r;
+}
+
+static int __fastcall grid_read_bool(void *reader, void *edx, unsigned char *value)
+{
+    const void *caller = WL_CALLER;
+    int r = oGridReadBool(reader, edx, value);
+    static volatile LONG logged;
+    const char *who = grid_reader(caller);
+    char where[64];
+    if (who && InterlockedIncrement(&logged) <= 60)
+        wl_log("link: GRID's discovery %s read a flag at %s: %s, %u (its reader's checks %d, error %d)", who, wl_where(caller, where, sizeof where),
+               (r & 0xFF) ? "held" : "failed", value ? *value : 0, ((unsigned char *)reader)[0x1D], ((unsigned char *)reader)[0x1C]);
+    return r;
+}
+
+static int __fastcall grid_server_poll(void *server, void *edx, int arg)
+{
+    const DWORD *s = (const DWORD *)server;
+    static void *told[4];
+    for (int i = 0; i < 4; i++)
+        if (told[i] == server)
+            break;
+        else if (!told[i] && s[2] == 1 && s[5])
+        {
+            told[i] = server;
+            wl_log("link: GRID's discovery server %p on, its values: title 0x%08lX, version 0x%08lX, territory 0x%08lX, track pack 0x%08lX, flag %u",
+                   server, s[6], s[7], s[8], s[9], ((const unsigned char *)server)[0x28]);
+            break;
+        }
+    return oGridServerPoll(server, edx, arg);
+}
+
+static void grid_trace(void)
+{
+    static const unsigned char u32Was[6] = {0x51, 0x56, 0x6A, 0x06, 0x8B, 0xF1}, boolWas[6] = {0x51, 0x56, 0x6A, 0x01, 0x8B, 0xF1},
+                               pollWas[6] = {0x81, 0xEC, 0x40, 0x04, 0x00, 0x00};
+    if (!memcmp((void *)0x740700, u32Was, 6))
+        wl_hook_code((void *)0x740700, (void *)grid_read_u32, (void **)&oGridReadU32, "its stream's number reads (+0x340700), the LAN discovery's traced");
+    if (!memcmp((void *)0x73F700, boolWas, 6))
+        wl_hook_code((void *)0x73F700, (void *)grid_read_bool, (void **)&oGridReadBool, "its stream's flag reads (+0x33f700), the LAN discovery's traced");
+    if (!memcmp((void *)0xA6CA40, pollWas, 6))
+        wl_hook_code((void *)0xA6CA40, (void *)grid_server_poll, (void **)&oGridServerPoll, "its LAN discovery server's poll (+0x66ca40)");
+}
+
+static void grid_settings(void)
+{
+    if (wl_link_settings(GetModuleHandleW(NULL)))
+        grid_trace();
+}
+
 // Showdown's shell commands (+0x194920)
 static const char *const g_showdownMsgs[] = {
     "GAME_MSG_NOP", "GAME_MSG_ACK", "UNDEFINED", "GAME_MSG_LAUNCHED_OK", "GAME_MSG_ASSETS_LOADED", "GAME_MSG_CREDITUSED",
@@ -306,7 +381,7 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
         static const unsigned char crash[] = {0x89, 0x00}, nop2[] = {0x90, 0x90};
         wl_patch_code((void *)0x5AB9E5, crash, nop2, 2, "the deliberate stop");
         wl_game_set_options(g_gridOptions, (int)(sizeof g_gridOptions / sizeof g_gridOptions[0]));
-        wl_game_on_settings(showdown_settings);
+        wl_game_on_settings(grid_settings);
     }
     return 1;
 }

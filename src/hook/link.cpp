@@ -19,6 +19,7 @@
 //                                                    -> the card holding this PC's address of LINK,
 //                                                       and the loopback (a cabinet's VPN left out)
 //   gethostbyname of the PC's own name               -> its address of LINK alone
+//   gethostname (wl_link_name_is_address)            -> its address of LINK as text
 // A broadcast to a port where the game has several UDP sockets (GRID: its party's LAN discovery
 // server and its session on 12001) goes as a broadcast on LINK's network: a datagram sent to a PC
 // reaches only one of them, a broadcast each.
@@ -46,6 +47,7 @@
 static int g_count, g_cabinet = 1;
 static ULONG g_address[LINK_MAX]; // network order, cabinet 1's first
 static ULONG g_virtualNet;        // a game's own addresses (wl_link_virtual_net): their first three bytes, network order; 0 none
+static int g_nameIsAddress;       // wl_link_name_is_address
 
 int wl_link_count(void)
 {
@@ -234,8 +236,16 @@ static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, 
     char hex[3 * 16 + 1] = "", t[20];
     for (int i = 0; data && i < n && i < 16; i++)
         snprintf(hex + 3 * i, sizeof hex - 3 * i, "%02x ", (unsigned char)data[i]);
-    wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes %s", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
-           ntohs(me.sin_port), n, hex);
+    // A text (Wasteland Racers' "Host Election:3232235780"): up to its end or 80 characters
+    int text = 0;
+    while (data && text < n && text < 80 && data[text] >= 0x20 && data[text] < 0x7F)
+        text++;
+    if (text >= 8 && (text == n || text == 80 || !data[text]))
+        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes \"%.*s\"", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t),
+               ntohs(peer->sin_port), ntohs(me.sin_port), n, text, data);
+    else
+        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes %s", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
+               ntohs(me.sin_port), n, hex);
 }
 
 static void refused(const char *what, const sockaddr_in *a)
@@ -676,6 +686,33 @@ static hostent *WSAAPI l_gethostbyname(const char *name)
     return &h;
 }
 
+void wl_link_name_is_address(void)
+{
+    g_nameIsAddress = 1;
+    char t[20];
+    if (g_count)
+        wl_log("link: the PC's name, for the game, is its address of LINK (%s)", ip_text(own(), t, sizeof t));
+}
+
+static int(WSAAPI *o_gethostname)(char *, int);
+static int WSAAPI l_gethostname(char *name, int size)
+{
+    if (!g_count || !g_nameIsAddress || !name)
+        return o_gethostname(name, size);
+    char t[20];
+    ip_text(own(), t, sizeof t);
+    if (size <= (int)strlen(t))
+    {
+        WSASetLastError(WSAEFAULT);
+        return SOCKET_ERROR;
+    }
+    memcpy(name, t, strlen(t) + 1);
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 3)
+        wl_log("link: gethostname -> \"%s\"", name);
+    return 0;
+}
+
 static int(WSAAPI *o_WSAIoctl)(SOCKET, DWORD, LPVOID, DWORD, LPVOID, DWORD, LPDWORD, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
 static int WSAAPI l_WSAIoctl(SOCKET s, DWORD code, LPVOID in, DWORD inSize, LPVOID out, DWORD outSize, LPDWORD returned, LPWSAOVERLAPPED ov,
                              LPWSAOVERLAPPED_COMPLETION_ROUTINE done)
@@ -788,6 +825,7 @@ static void link_patch(HMODULE exe)
         {"WS2_32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"WS2_32.dll", 0, "WSAIoctl", (void *)l_WSAIoctl, (void **)&o_WSAIoctl},
         {"WS2_32.dll", 52, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
+        {"WS2_32.dll", 57, "gethostname", (void *)l_gethostname, (void **)&o_gethostname},
         // Winsock 1's (Sega Rally 3, by number): the same functions, the same numbers
         {"WSOCK32.dll", 2, "bind", (void *)l_bind, (void **)&o_bind},
         {"WSOCK32.dll", 13, "listen", (void *)l_listen, (void **)&o_listen},
@@ -799,6 +837,7 @@ static void link_patch(HMODULE exe)
         {"WSOCK32.dll", 16, "recv", (void *)l_recv, (void **)&o_recv},
         {"WSOCK32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"WSOCK32.dll", 52, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
+        {"WSOCK32.dll", 57, "gethostname", (void *)l_gethostname, (void **)&o_gethostname},
         {"IPHLPAPI.DLL", 0, "GetAdaptersInfo", (void *)l_GetAdaptersInfo, (void **)&o_GetAdaptersInfo},
         {"IPHLPAPI.DLL", 0, "GetAdaptersAddresses", (void *)l_GetAdaptersAddresses, (void **)&o_GetAdaptersAddresses},
     };
