@@ -320,13 +320,15 @@ Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22
   et recopiée par GDI (voir « Affichage sur ce PC »).
 - Menu de service ❌ : coquille Sega Europe (`shell\Shell.exe`, clé Dinkey `DK2WIN32.DLL`).
 - Crédits ✅ : free play.
-- Link entre bornes 🔄 (31/10) : ws2_32 importé (en partie par numéro), ses cartes par GetAdaptersAddresses.
+- Link entre bornes ✅ (31/10) : ws2_32 importé (en partie par numéro), ses cartes par GetAdaptersAddresses.
   `[Game.showdown] LINK` / `CABINET` (`link.cpp`, comme Ford Racing) ; `[Network] CabinetID` de ShellData.ini d'après
   LINK (le jeu ne lit pas de NumCabinets). Essai sur les bornes : les bornes se trouvent (diffusion UDP sur 1240, 38
   octets, réponse de 75), se relient au démarrage (TCP et UDP sur 1001, échos de 8 octets toutes les 0,3 s), puis la
   partie MULTI-PLAYER ouvre une session (la borne 1 sur 1000 et 1250, la borne 2 s'y connecte), les deux passent par
-  les mêmes étapes du Shell, le trafic monte en course (environ 1,6 Ko/s de la 1 vers la 2) ; mais chaque borne court
-  seule (1/8 contre l'IA). Le journal note désormais les paquets de chaque port, pour voir ceux de la course.
+  les mêmes étapes du Shell, le trafic monte en course (environ 1,6 Ko/s de la 1 vers la 2). Course à deux (Image
+  borne, Knockout) : 6 IA et 2 joueurs, les mêmes points sur les deux bornes, chacune voit l'autre joueur (« AAA ») ;
+  pas d'écran d'attente d'adversaires. Le journal note les paquets de chaque port (les ports temporaires de Windows,
+  un par diffusion, ensemble).
 
 ## K.O. Drive (Sega RingWide, 2013)
 

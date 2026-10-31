@@ -173,7 +173,9 @@ static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, 
     wl_busy_enter();
     getsockname(s, (sockaddr *)&me, &len);
     wl_busy_leave();
-    LONG port = ntohs(me.sin_port) + 1; // 0: a free slot
+    // 0: a free slot; Windows' temporary ports (49152 and up, a socket of its own for each of
+    // Showdown's broadcasts) all in one
+    LONG port = ntohs(me.sin_port) >= 49152 ? 49152 : ntohs(me.sin_port) + 1;
     int way = what[0] == 's', i = 0;
     for (; i < LINK_PORTS; i++)
     {
