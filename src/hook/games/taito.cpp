@@ -701,7 +701,7 @@ static char *__cdecl wacky_text(const char *name)
     return found;
 }
 
-// Linked (Wacky Races, Valve Limit R: cabinets 1 to 4, their NETWORK-ID; D1GP: 1 and 2)
+// Linked (Wacky Races, Valve Limit R: cabinets 1 to 4, their NETWORK-ID; D1GP, Chase H.Q. 2: 1 and 2)
 #define LINK_OPTION(most)                                                                                                                                      \
     {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "                    \
@@ -714,6 +714,56 @@ static void wacky_settings(void)
 {
     if (wl_link_settings(GetModuleHandleW(NULL)))
         wl_log("game: Wacky Races linked: NETWORK-ID %d (%s)", wl_link_cabinet(), wl_link_cabinet() == 1 ? "it hosts the race" : "it joins cabinet 1");
+}
+
+// Chase H.Q. 2's link: DirectPlay (Windows' dpnet.dll), 2 cabinets, UDP 13400 (chq2.ini's LINKPORTR
+// for the host, LINKPORTS for the client). Its network ID (bits 17-18 of its settings word, +0x130bf28;
+// chq2.ini's LINKHOST 1 makes it 0, 0 makes it 1) chooses at start ("NETWORK CHECKING ...", +0x65bf0):
+// 0 hosts the session, the others connect to HOSTADDR (192.168.65.110 by default, the address it gives
+// the host's PC: AddIPAddress, refused) and host themselves when it does not answer. chq2.ini read by
+// the same functions as Wacky Races' wr.ini (+0x1fa0 a number, +0x1f30 a text). Linked, LINKHOST is 1
+// on cabinet 1 only, HOSTADDR LINK's first PC, and the network ID LINK's place less one
+#define CHQ2_SETTINGS ((volatile DWORD *)0x170BF28)
+static int(__cdecl *oChq2Setting)(const char *name, int *value);
+static int __cdecl chq2_setting(const char *name, int *value)
+{
+    if (wl_link_count() && !strcmp(name, "LINKHOST"))
+    {
+        *value = wl_link_cabinet() == 1;
+        return 1;
+    }
+    return oChq2Setting(name, value);
+}
+
+static char *(__cdecl *oChq2Text)(const char *name);
+static char *__cdecl chq2_text(const char *name)
+{
+    static char host[16];
+    if (wl_link_count() && !strcmp(name, "HOSTADDR") && wl_link_address(1, host, sizeof host))
+        return host;
+    return oChq2Text(name);
+}
+
+static int(__fastcall *oChq2Network)(void *self, void *edx);
+static int __fastcall chq2_network(void *self, void *edx)
+{
+    if (wl_link_count())
+        *CHQ2_SETTINGS = (*CHQ2_SETTINGS & ~0x60000u) | (DWORD)((wl_link_cabinet() - 1) & 3) << 17;
+    DWORD id = *CHQ2_SETTINGS >> 17 & 3, start = GetTickCount();
+    wl_log("game: Chase H.Q. 2's network check, network ID %lu (%s)", id, id ? "it connects to the host" : "it hosts");
+    int r = oChq2Network(self, edx);
+    wl_log("game: Chase H.Q. 2's network check -> %d (%s) after %lu ms", r,
+           r == 2   ? "connected to the host"
+           : r == 1 ? "hosting (alone, or waiting for the others)"
+                    : "no session",
+           GetTickCount() - start);
+    return r;
+}
+
+static void chq2_settings(void)
+{
+    if (wl_link_settings(GetModuleHandleW(NULL)))
+        wl_log("game: Chase H.Q. 2 linked: cabinet %d (%s)", wl_link_cabinet(), wl_link_cabinet() == 1 ? "it hosts the race" : "it joins cabinet 1");
 }
 
 // D1GP's link: DirectPlay (Windows' dpnet.dll), 2 cabinets, UDP 55555, the client finding the host
@@ -947,6 +997,17 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         static const unsigned char jne = 0x75, jmp = 0xEB;
         wl_patch_code((void *)0x4107E3, &jne, &jmp, 1, "calibration skipped");
         wl_hooks_add(g_chq2Hooks, sizeof g_chq2Hooks / sizeof g_chq2Hooks[0]);
+        static const unsigned char lookupWas[8] = {0x53, 0x8B, 0x5C, 0x24, 0x0C, 0x55, 0x8B, 0x6C};
+        static const unsigned char textWas[8] = {0x55, 0x8B, 0x6C, 0x24, 0x08, 0x56, 0x57, 0xBF};
+        static const unsigned char networkWas[8] = {0x83, 0xEC, 0x14, 0xA1, 0x60, 0x72, 0x5D, 0x00};
+        if (!memcmp((void *)0x401FA0, lookupWas, sizeof lookupWas))
+            wl_hook_code((void *)0x401FA0, (void *)chq2_setting, (void **)&oChq2Setting, "chq2.ini's settings (+0x1fa0): LINKHOST from LINK");
+        if (!memcmp((void *)0x401F30, textWas, sizeof textWas))
+            wl_hook_code((void *)0x401F30, (void *)chq2_text, (void **)&oChq2Text, "chq2.ini's text settings (+0x1f30): HOSTADDR from LINK");
+        if (!memcmp((void *)0x465BF0, networkWas, sizeof networkWas))
+            wl_hook_code((void *)0x465BF0, (void *)chq2_network, (void **)&oChq2Network, "its network check (+0x65bf0): network ID from LINK");
+        wl_game_set_options(g_link2Options, sizeof g_link2Options / sizeof g_link2Options[0]);
+        wl_game_on_settings(chq2_settings);
         return 1;
     }
     if (d1gp)
