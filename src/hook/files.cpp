@@ -381,7 +381,9 @@ static void temp_setup(void)
     wchar_t t[MAX_PATH];
     if (!GetTempPathW(MAX_PATH, t))
         return;
-    swprintf(g_tempGame, MAX_PATH, L"%swindowsloader-nosave-%lu", t, GetCurrentProcessId());
+    // The launcher's: one for the game and its companions (amdaemon), which share their files
+    if (!GetEnvironmentVariableW(WL_ENV_NOSAVE, g_tempGame, MAX_PATH) || !g_tempGame[0])
+        swprintf(g_tempGame, MAX_PATH, L"%swindowsloader-nosave-%lu", t, GetCurrentProcessId());
     char names[512];
     wl_settings_get("Paths", "TEMP_WRITES", "", names, sizeof names);
     wl_files_temp_writes(names);
@@ -671,8 +673,10 @@ const wchar_t *wl_files_write_path(const wchar_t *path, wchar_t *buf, size_t siz
 }
 
 // CreateFile's: written (write access, a creation) goes to the write folder, read comes from it when
-// the file is there. A folder's handle is taken where the folder is
-static const wchar_t *ov_create(const wchar_t *path, DWORD access, DWORD *disp, wchar_t *buf)
+// the file is there. A folder's handle is taken where the folder is. A write folder that cannot be
+// written: a file there opened for writing without being made anew (Frenzy Express' font, opened
+// read and write, only read) opened read-only in its place: the game reads it, its writes fail
+static const wchar_t *ov_create(const wchar_t *path, DWORD *access, DWORD *disp, wchar_t *buf)
 {
     wchar_t full[WL_PATH];
     if (!overlay_path(path, full, buf))
@@ -680,11 +684,28 @@ static const wchar_t *ov_create(const wchar_t *path, DWORD access, DWORD *disp, 
     DWORD there = attributes(buf), first = attributes(full);
     if (is_dir(there) || is_dir(first))
         return there != INVALID_FILE_ATTRIBUTES ? buf : path;
-    int writes = (access & (GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE)) ||
-                 *disp == CREATE_NEW || *disp == CREATE_ALWAYS || *disp == TRUNCATE_EXISTING ||
+    const DWORD writing = GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE;
+    int writes = (*access & writing) || *disp == CREATE_NEW || *disp == CREATE_ALWAYS || *disp == TRUNCATE_EXISTING ||
                  (*disp == OPEN_ALWAYS && there == INVALID_FILE_ATTRIBUTES && first == INVALID_FILE_ATTRIBUTES);
     if (!writes)
         return there != INVALID_FILE_ATTRIBUTES ? buf : path;
+    if (g_writeDenied && !(g_tempGame[0] && inside(buf, g_tempGame)) && first != INVALID_FILE_ATTRIBUTES &&
+        (*disp == OPEN_EXISTING || *disp == OPEN_ALWAYS))
+    {
+        if (*access & GENERIC_ALL)
+            *access |= GENERIC_READ;
+        *access &= ~(writing | WRITE_DAC | WRITE_OWNER);
+        if (!*access)
+            *access = GENERIC_READ;
+        *disp = OPEN_EXISTING;
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 50)
+        {
+            char u[WL_PATH * 2];
+            wl_log("files: %s opened read-only: the write folder cannot be written, its writes fail", wl_u8(full, u, sizeof u));
+        }
+        return path;
+    }
     if (*disp == CREATE_NEW && there == INVALID_FILE_ATTRIBUTES && first != INVALID_FILE_ATTRIBUTES)
         return path; // it exists: CREATE_NEW fails there, as it should
     if (*disp == TRUNCATE_EXISTING && there == INVALID_FILE_ATTRIBUTES && first != INVALID_FILE_ATTRIBUTES)
@@ -721,7 +742,7 @@ static const char *ov_writeA(const char *path, int keep, char *buf, size_t size)
     return to_ansi(ov_write(w, keep, o), w, path, buf, size);
 }
 
-static const char *ov_createA(const char *path, DWORD access, DWORD *disp, char *buf, size_t size)
+static const char *ov_createA(const char *path, DWORD *access, DWORD *disp, char *buf, size_t size)
 {
     wchar_t w[WL_PATH], o[WL_PATH];
     if (!g_writeGame[0] || !to_wide(path, w))
@@ -753,9 +774,21 @@ static int refused(const wchar_t *path, const char *what)
         return 0; // a device, a pipe
     if (inside(disk, g_writeRoot) || (g_tempGame[0] && inside(disk, g_tempGame)))
         return 0;
-    static volatile LONG logged;
-    if (InterlockedIncrement(&logged) <= 30)
+    // Each path once (the files to name in TEMP_WRITES for a game that stops without them)
+    static unsigned g_seen[256];
+    static volatile LONG seen, logged;
+    unsigned hash = 2166136261u;
+    for (const wchar_t *c = disk; *c; c++)
+        hash = (hash ^ (unsigned)towlower(*c)) * 16777619u;
+    int known = 0;
+    LONG n = seen < 256 ? seen : 256;
+    for (LONG i = 0; i < n && !known; i++)
+        known = g_seen[i] == hash;
+    if (!known && InterlockedIncrement(&logged) <= 300)
     {
+        LONG at = InterlockedIncrement(&seen) - 1;
+        if (at < 256)
+            g_seen[at] = hash;
         char u[WL_PATH * 2];
         wl_log("files: %s \"%s\" refused: the write folder cannot be written, nothing is written elsewhere", what, wl_u8(disk, u, sizeof u));
     }
@@ -1026,7 +1059,7 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
     if (!nested)
     {
         name = redir(name, rbuf, sizeof rbuf);
-        name = ov_createA(name, access, &disp, obuf, sizeof obuf);
+        name = ov_createA(name, &access, &disp, obuf, sizeof obuf);
     }
     wchar_t wname[WL_PATH];
     if (g_writeDenied && name && to_wide(name, wname) && create_writes(wname, access, disp) && refused(wname, "CreateFile"))
@@ -1068,7 +1101,7 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
     {
         name = redirW(name, rbuf, MAX_PATH * 2);
         if (g_writeGame[0])
-            name = ov_create(name, access, &disp, obuf);
+            name = ov_create(name, &access, &disp, obuf);
     }
     if (g_writeDenied && name && create_writes(name, access, disp) && refused(name, "CreateFile"))
         return INVALID_HANDLE_VALUE;

@@ -806,8 +806,8 @@ static void clean_working_copies(int atEnd)
         int alive = p && WaitForSingleObject(p, 0) == WAIT_TIMEOUT;
         if (p)
             CloseHandle(p);
-        if (alive)
-            continue; // another game's, running
+        if (alive && !(atEnd && pid == GetCurrentProcessId()))
+            continue; // another game's, running (this run's own removed at its end)
         swprintf(dir, MAX_PATH + 64, L"\\\\?\\%s%s", temp, d.cFileName); // its paths may be long
         remove_tree(dir);
         removed++;
@@ -996,6 +996,14 @@ int wmain(int argc, wchar_t **argv)
     SetEnvironmentVariableW(WL_ENV_OLDER, older[0] ? older : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write ? writeDir : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DENIED, write < 0 ? L"1" : NULL);
+    // Its essential files' working copies (the DLL's files.cpp): one folder for the game and its
+    // companions, named after this launcher, removed at the end
+    static wchar_t nosave[MAX_PATH];
+    nosave[0] = 0;
+    wchar_t tempDir[MAX_PATH];
+    if (write < 0 && GetTempPathW(MAX_PATH, tempDir))
+        swprintf(nosave, MAX_PATH, L"%s" NOSAVE L"%lu", tempDir, GetCurrentProcessId());
+    SetEnvironmentVariableW(WL_ENV_NOSAVE, nosave[0] ? nosave : NULL);
     SetEnvironmentVariableW(WL_ENV_LOG, logPath);
     SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");
     swprintf(num, 16, L"%d", ioLimit);

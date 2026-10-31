@@ -825,6 +825,12 @@ Les trois fonctions de linuxloader qui manquaient, avec ses clés :
   partie, effacées par le lanceur à la fin et à son lancement suivant (dossiers dont le processus n'existe plus) ;
   rien d'autre n'y va. Vérifié : Wangan Midnight 5 passe (ses 12 BK_*.bin dans les copies, 60 images/s jusqu'au
   bout), le dossier temporaire vidé à la fin (un dossier laissé par un faux plantage aussi), son dossier inchangé.
+  Le dossier des copies est celui du lanceur (`windowsloader-nosave-<pid du lanceur>`, `WINDOWSLOADER_NOSAVE`) : le
+  jeu et ses compagnons (amdaemon) partagent leurs fichiers. Un fichier qui existe, ouvert en écriture sans être
+  recréé (Frenzy Express ouvre ses polices `glonts\*.tga` en lecture-écriture : « ascii.tga is NOT FOUND », le jeu
+  arrêté sur la boîte de message), s'ouvre en lecture seule à sa place : le jeu le lit, ses écritures échouent ;
+  Frenzy Express va ainsi jusqu'à son attract. Le journal note une fois chaque chemin refusé (300 au plus) : les
+  fichiers à nommer dans `TEMP_WRITES`.
 - `[Outputs] OUTPUTS_NETWORK` : serveur TCP (8000) au protocole de MAME pour BackForceFeeder, annonce UDP
   (8001) ; les lampes de la carte JVS, `RawDrive` (les octets de la carte moteur Sega, ou pour les autres
   cartes les trames de la carte servo Sega faites de la force), `mame_stop` à la fin.
