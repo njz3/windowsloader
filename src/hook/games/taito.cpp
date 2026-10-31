@@ -766,6 +766,32 @@ static int __cdecl d1gp_settings_read(void)
     return r;
 }
 
+// Mode Select's conditions for LINK BATTLE (+0x98768): 2 players or more (+0x852d0: the players
+// DirectPlay made, [+0x21f610], with [+0x21f5f5] 0), the other cabinet's word (+0x226ef0, received
+// with its method, +0x93c84) not 0, +0x226de4 0, and the other cabinet's method (+0x1fea10) not this
+// one's (+0x229086): logged when they change, as Mode Select asks
+static int(__cdecl *oD1gpPlayers)(void);
+static int __cdecl d1gp_players(void)
+{
+    int r = oD1gpPlayers();
+    ULONG_PTR caller = (ULONG_PTR)WL_CALLER;
+    if (caller == 0x49876D)
+    {
+        static int last[6] = {-1, -1, -1, -1, -1, -1};
+        int now[6] = {r, *(volatile int *)0x626EF0, *(volatile unsigned char *)0x626DE4, *(volatile int *)0x5FEA10, *(volatile short *)0x629086,
+                      *(volatile unsigned char *)0x61F5F5};
+        static volatile LONG logged;
+        if (memcmp(now, last, sizeof now) && InterlockedIncrement(&logged) <= 40)
+        {
+            memcpy(last, now, sizeof now);
+            wl_log("game: D1GP's Mode Select: players %d, the other's word %d, flag %d, the other's method %d, this one's %d, "
+                   "players' flag %d (LINK BATTLE: players 2+, word not 0, flag 0, methods different)",
+                   now[0], now[1], now[2], now[3], now[4], now[5]);
+        }
+    }
+    return r;
+}
+
 static void d1gp_settings(void)
 {
     if (!wl_link_settings(GetModuleHandleW(NULL)))
@@ -775,6 +801,9 @@ static void d1gp_settings(void)
     LONG to = (LONG)((ULONG_PTR)d1gp_print - (0x4A87C0 + 5));
     memcpy(jump + 1, &to, 4);
     wl_patch_code((void *)0x4A87C0, printWas, jump, sizeof jump, "its network's messages logged");
+    static const unsigned char playersWas[5] = {0xE8, 0x3B, 0xFB, 0xFF, 0xFF};
+    if (!memcmp((void *)0x4852D0, playersWas, sizeof playersWas))
+        wl_hook_code((void *)0x4852D0, (void *)d1gp_players, (void **)&oD1gpPlayers, "its players' count (+0x852d0), Mode Select's conditions logged");
     static const unsigned char readWas[6] = {0x81, 0xEC, 0x04, 0x01, 0x00, 0x00};
     if (!memcmp((void *)0x4A4120, readWas, sizeof readWas))
         wl_hook_code((void *)0x4A4120, (void *)d1gp_settings_read, (void **)&oD1gpSettingsRead,

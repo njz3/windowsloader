@@ -516,6 +516,11 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   ses structures ont leurs champs (numéros des chaînes). Essayé sur ce PC : « AAL », « NEC », la sauvegarde lue
   (CRC vide à la première fois), wl_sram.bin et wl_eeprom.bin faits dans le dossier d'écriture ; Initial D 6 lit
   toujours sa SRAM (une structure de remplissage de type 126 le gênait : abandonnée).
+- Link sur les bornes ✅ (31/10, link17) : GAME ASSIGNMENTS gardé (`d1a.exe -t` : MAIN, TOTAL NODES 2 ; SUB, CAR
+  NUMBER 2). Sur une sauvegarde vierge, le premier réglage se perd (la séance reconstruit les enregistrements) :
+  régler une seconde fois, il tient ensuite. La plateforme donne 192.168.75.1 et .2 ; le SUB écrit au port 26666
+  du MAIN, puis 26665 dans les deux sens, environ 60 paquets par seconde ; le choix du circuit au même décompte, la
+  course à deux (2e et 1re sur 2), chaque borne voit la voiture de l'autre et son numéro sur la carte.
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
 `bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
@@ -1612,6 +1617,9 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   CONNECTION METHOD (+0x8e6e0 : la valeur reçue, +0x93c84, comparée au réglage +0x5e de config00.bin) ; les deux
   bornes gardaient HOST (le réglage d'usine), seul le saut était changé. Linké, le réglage lui-même est celui de
   LINK après chaque lecture de config00.bin (+0xa4120 : HOST sur la borne 1, CLIENT sur les autres) (link18).
+- Essai link18 (31/10) ❌ : CONNECTION METHOD pris (HOST, CLIENT), la connexion réussie, toujours pas de LINK
+  BATTLE. Linké, le journal donne les conditions de Mode Select quand elles changent (le nombre de joueurs, le mot
+  et la méthode reçus de l'autre borne, les deux drapeaux) (link19).
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
