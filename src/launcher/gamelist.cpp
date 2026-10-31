@@ -52,7 +52,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Sonic & Sega All-Stars Racing", "ssasr", "", {L"game.exe"}, {0xCEDBD852}, {L"SBVH_Table.dat"}, 0, NULL, "Sega RingWide", "2011", WL_GAME_PLAYS,
      WL_N("Carte JVS (pilote mxjvs), carte de pilotage. Menu de service : gametest.exe."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Sega Racing Classic", "src", "", {L"d1a.exe"}, {0xFC87F309}, {L"rom\\SBTN_Table.dat"}, 0, NULL, "Sega RingEdge", "2009", WL_GAME_PLAYS,
-     WL_N("Carte JVS, levier en H ; carte moteur Model 2/3 lue dans les données du jeu."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
+     WL_N("Carte JVS, levier en H ; la carte moteur de Sega Rally (Model 2) jouée d'après la commande du jeu."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Let's Go Safari", "lgs", "", {L"GameSampR_RingWide.exe"}, {0x02E0DDB6}, {NULL}, 0, NULL, "Sega RingWide", "2014", WL_GAME_PLAYS,
      WL_N("Carte JVS 837-14895 ; la vibration jouée en secousse. Menu de service : GameTestR_RingWide.exe."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Battle Gear 4 Tuned", "bg4", "2.8", {L"game.exe", L"game4.exe"}, {0xD379A14B, 0x041ABD56}, {L"game.inf", L"data\\drivedata"}, 0x4675EF6F, L"_MTS_FULL_SCREEN_", "Taito Type X+",

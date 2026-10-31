@@ -1028,7 +1028,7 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1103 src/hook/games/ringedge.cpp:1122 src/hook/games/segarally3.cpp:180
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1189 src/hook/games/ringedge.cpp:1215 src/hook/games/segarally3.cpp:180
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
@@ -1048,7 +1048,7 @@ msgstr "Parallel port byte"
 msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
 msgstr "Cabinet's motor board: Daytona USA's board played from the game's commands and the wheel's position, with the panel spring (as sm2-emu does). Parallel port byte: the force the game sends to the motor, its centring made of constant forces from one frame to the next, which can make a strong wheel swing."
 
-#: src/hook/games/daytona.cpp:512
+#: src/hook/games/daytona.cpp:512 src/hook/games/ringedge.cpp:1208
 msgid "Puissance de la carte (interrupteurs)"
 msgstr "Board power (DIP switches)"
 
@@ -1056,12 +1056,12 @@ msgstr "Board power (DIP switches)"
 msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
 msgstr "The motor board's DIP switches: each step adds 4 to the effects' power."
 
-#: src/hook/games/daytona.cpp:515
+#: src/hook/games/daytona.cpp:515 src/hook/games/ringedge.cpp:1212
 #, c-format
 msgid "Ressort du panneau (%)"
 msgstr "Panel spring (%)"
 
-#: src/hook/games/daytona.cpp:516
+#: src/hook/games/daytona.cpp:516 src/hook/games/ringedge.cpp:1213
 msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
 msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre without the motor."
 
@@ -1107,19 +1107,23 @@ msgstr "Wheel's motor board"
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
-#: src/hook/games/ringedge.cpp:1089 src/hook/games/ringedge.cpp:1100
+#: src/hook/games/ringedge.cpp:1175 src/hook/games/ringedge.cpp:1186
 msgid "Jeu gratuit"
 msgstr "Free play"
 
-#: src/hook/games/ringedge.cpp:1090 src/hook/games/ringedge.cpp:1101
+#: src/hook/games/ringedge.cpp:1176 src/hook/games/ringedge.cpp:1187
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr "Unchecked: one game per coin. The game's test menu does not have this setting (the cabinet's system has it)."
 
-#: src/hook/games/ringedge.cpp:1104
+#: src/hook/games/ringedge.cpp:1190
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The CABINET ID of the game's test menu must be the same."
 
-#: src/hook/games/ringedge.cpp:1123
+#: src/hook/games/ringedge.cpp:1209
+msgid "Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 le maximum du volant)."
+msgstr "Switches 1 to 3 of the drive board (Sega Rally's): each step adds 1 to every torque's power (32 is the wheel's maximum)."
+
+#: src/hook/games/ringedge.cpp:1216
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The game's test menu, GAME ASSIGNMENTS: cabinet 1 as MAIN (TOTAL NODES: the number of cabinets), cabinet k as SUB, CAR NUMBER k."
 
@@ -1152,7 +1156,7 @@ msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and 
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/hook/games/taito.cpp:966 src/hook/games/taito.cpp:994
+#: src/hook/games/taito.cpp:984 src/hook/games/taito.cpp:1012
 msgid "Carte du volant"
 msgstr "Wheel's board"
 
@@ -1238,8 +1242,8 @@ msgid "Carte JVS (pilote mxjvs), carte de pilotage. Menu de service : gametest.e
 msgstr "JVS board (mxjvs driver), servoboard. Service menu: gametest.exe."
 
 #: src/launcher/gamelist.cpp:55
-msgid "Carte JVS, levier en H ; carte moteur Model 2/3 lue dans les données du jeu."
-msgstr "JVS board, H-shifter; Model 2/3 drive board read from the game's data."
+msgid "Carte JVS, levier en H ; la carte moteur de Sega Rally (Model 2) jouée d'après la commande du jeu."
+msgstr "JVS board, H shifter; Sega Rally's drive board (Model 2) played from the game's command."
 
 #: src/launcher/gamelist.cpp:57
 msgid "Carte JVS 837-14895 ; la vibration jouée en secousse. Menu de service : GameTestR_RingWide.exe."
@@ -1472,6 +1476,9 @@ msgstr "windowsloader %s %s — game selection"
 #: src/launcher/picker.cpp:793
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
+
+#~ msgid "Carte JVS, levier en H ; carte moteur Model 2/3 lue dans les données du jeu."
+#~ msgstr "JVS board, H-shifter; Model 2/3 drive board read from the game's data."
 
 #~ msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement."
 #~ msgstr "The log, for debugging: beside the launcher, or in the write folder when there is one, made anew at each start."

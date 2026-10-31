@@ -40,6 +40,7 @@
 #include "lang.h"
 #include "link.h"
 #include "log.h"
+#include "outputs.h"
 #include "pcp.h"
 #include "vdev.h"
 
@@ -688,55 +689,140 @@ static unsigned short src_shifter(void)
     return bits[gear - 1];
 }
 
-// Sega Racing Classic's drive board: the game keeps its one-byte command, the Model 2 and 3
-// boards', in its data (VA 0x834C19, as FFBArcadePlugin's SegaRacingClassic.cpp reads it; the
-// executable has a fixed base); nothing sends it out here. The high nibble the effect, the low its
-// step (0 the strongest, 7 the weakest): 9x roll right, Ax roll left, Bx uncentering (a shake),
-// Cx centering (a spring), Dx clutch (a friction). Played as the constant force ffb.cpp takes,
-// from the wheel's position: > 0 pushes left.
+// Sega Racing Classic's drive board. The game keeps its one-byte command in its data (VA
+// 0x834C19, as FFBArcadePlugin's SegaRacingClassic.cpp reads it; the executable has a fixed base);
+// nothing sends it out here. It is Sega Rally Championship's board (Model 2, EPR-17891): the game
+// streams a torque each frame, and the board is played from that byte and the wheel's position,
+// as sm2-emu plays Sega Rally's (its reading of the board's program: written again for
+// windowsloader from sm2-emu's description, github.com/dmanlfc/sm2-emu, Daniel Martin (dmanlfc) and
+// the sm2-emu contributors, GPL v3), with the cabinet's panel spring (the same panel as Daytona
+// USA's: an AC motor and a power clutch):
+//   80-9F     a torque to the right, power (low 5 bits) + 1 out of 32
+//   C0-DF     a torque to the left, the same
+//   40-5F     a brake against the wheel's movement, the same power
+//   10-17     the torque chopped: off half the time and a quarter stronger the other half, its half
+//             period 2^(n+1) of the board's milliseconds; 10 stops it
+//   00        no force
+//   the others: the board's own requests (the cabinets' logs: AD, BD, EF, F5 in the attract), no
+//   change
+// A power of 32 is the wheel's full force; DRIVE_DIP (the board's switches 1-3, 0..7) adds to every
+// power; a torque pushing the wheel away from the centre also gets the power the board's start-up
+// calibration finds against the panel spring (30 counts of 128 to the right, 32 to the left), at most
+// the spring's own force there: a PC wheel has no gears to drag. The command also goes to the
+// network outputs, as MAME sends Sega Rally's (RawDrive).
 #define SRC_DRIVE_COMMAND 0x834C19
+
+static volatile LONG g_srcSteering = 128;            // the wheel as the JVS board gives it, 0..255
+static volatile LONG g_srcDip, g_srcPanel = 20;      // [Game.src] DRIVE_DIP (0..7), PANEL_SPRING (percent)
+
+// The panel spring, -1..1 (> 0 pushing left), from the wheel's deflection (-32767..32767, > 0 to
+// the right): nothing within 1500, then up to full at 15500
+static double src_panel_spring(double deflection, double full)
+{
+    double a = deflection < 0 ? -deflection : deflection;
+    double f = a <= 1500 ? 0 : a >= 15500 ? full : full * (a - 1500) / 14000;
+    return deflection > 0 ? f : -f;
+}
+
+static DWORD WINAPI src_board_thread(LPVOID)
+{
+    int effect = 0x00, chop = 0, logged = 0;
+    unsigned char last = 0;
+    double sent = 0, lastDeflection = 0, chopTime = 0;
+    LARGE_INTEGER freq, before, now;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&before);
+    for (;;)
+    {
+        Sleep(4);
+        QueryPerformanceCounter(&now);
+        double ms = (now.QuadPart - before.QuadPart) * 1000.0 / freq.QuadPart;
+        before = now;
+        unsigned char c = *(volatile unsigned char *)SRC_DRIVE_COMMAND;
+        if (c != last)
+        {
+            wl_outputs_drive(&c, 1);
+            if (logged < 300)
+            {
+                logged++;
+                wl_log("driveboard: command %02x", c);
+            }
+            last = c;
+        }
+        // The command: a torque, a brake or nothing replaces the effect; 1x the chopping
+        if (c == 0x00 || (c & 0xE0) == 0x80 || (c & 0xE0) == 0xC0 || (c & 0xE0) == 0x40)
+            effect = c;
+        else if ((c & 0xF8) == 0x10)
+            chop = c & 7;
+
+        double deflection = (g_srcSteering - 128) * 32767.0 / 128;
+        double panel = g_srcPanel / 100.0;
+        double force = 0;
+        int power = (effect & 0x1F) + 1 + g_srcDip;
+        if ((effect & 0xE0) == 0x80 || (effect & 0xE0) == 0xC0)
+        {
+            int left = (effect & 0xE0) == 0xC0;
+            double f = power / 32.0;
+            // Away from the centre: the calibration's power, at most the spring's there
+            if (left ? deflection <= 0 : deflection >= 0)
+            {
+                double calib = src_panel_spring((left ? 32 : 30) * 32767.0 / 128, panel);
+                double spring = src_panel_spring(deflection, panel);
+                f += (spring < 0 ? -spring : spring) < calib ? (spring < 0 ? -spring : spring) : calib;
+            }
+            if (chop)
+            {
+                double half = (double)(2 << chop); // the board's milliseconds
+                chopTime += ms;
+                if (half >= 8) // slower than this loop: on and off
+                    f = ((long long)(chopTime / half) & 1) ? 0 : f * 5 / 4;
+                else // faster: its mean
+                    f = f * 5 / 8;
+            }
+            force = left ? f : -f;
+        }
+        else if ((effect & 0xE0) == 0x40)
+        {
+            // A brake: against the wheel's movement, its full power at 1024 a frame (57.5 Hz)
+            double v = ms > 0 ? (deflection - lastDeflection) * (1000.0 / 57.5245) / ms : 0;
+            v = v < -1024 ? -1024 : v > 1024 ? 1024 : v;
+            force = power / 32.0 * v / 1024;
+        }
+        lastDeflection = deflection;
+        double out = force + src_panel_spring(deflection, panel);
+        out = out < -1 ? -1 : out > 1 ? 1 : out;
+        // Sent when it changes by 256 in 32767 at least, or reaches or leaves 0
+        if ((out - sent) * 32767 >= 256 || (sent - out) * 32767 >= 256 || (out == 0) != (sent == 0))
+        {
+            sent = out;
+            wl_ffb_set(out);
+        }
+    }
+}
 
 static void src_drive_board(int steering)
 {
-    static int last = 128, logged;
-    static unsigned char was;
-    static DWORD start;
-    unsigned char c = *(volatile unsigned char *)SRC_DRIVE_COMMAND;
-    if (c != was && logged < 300)
-    {
-        logged++;
-        wl_log("driveboard: command %02x", c);
-    }
-    was = c;
-    double at = (steering - 128) / 128.0, speed = (steering - last) / 16.0; // > 0 turned / turning right
-    last = steering;
-    double step = (8 - (c & 0x0F)) / 8.0, force = 0;
-    if ((c & 0x0F) > 7)
-        step = 0;
-    switch (c >> 4)
-    {
-    case 0x9:
-        force = -step; // roll right
-        break;
-    case 0xA:
-        force = step; // roll left
-        break;
-    case 0xB:
-    {
-        if (!start)
-            start = GetTickCount();
-        double t = (GetTickCount() - start) / 1000.0;
-        force = step * 0.5 * (((int)(t * 20) & 1) ? 1 : -1); // a 10 Hz shake
-        break;
-    }
-    case 0xC:
-        force = step * at; // back to the centre
-        break;
-    case 0xD:
-        force = step * (speed > 1 ? 1 : speed < -1 ? -1 : speed); // against the wheel's motion
-        break;
-    }
-    wl_ffb_set(force);
+    static volatile LONG started;
+    InterlockedExchange(&g_srcSteering, steering);
+    if (InterlockedExchange(&started, 1))
+        return;
+    wl_log("driveboard: Sega Rally's board (EPR-17891) played from the game's command at 0x%X", SRC_DRIVE_COMMAND);
+    wl_outputs_declare_drive();
+    HANDLE t = CreateThread(NULL, 0, src_board_thread, NULL, 0, NULL);
+    if (t)
+        CloseHandle(t);
+}
+
+static void src_apply_dip(const char *value)
+{
+    int v = atoi(value);
+    InterlockedExchange(&g_srcDip, v < 0 ? 0 : v > 7 ? 7 : v);
+}
+
+static void src_apply_panel(const char *value)
+{
+    int v = atoi(value);
+    InterlockedExchange(&g_srcPanel, v < 0 ? 0 : v > 100 ? 100 : v);
 }
 
 // Let's Go Safari's outputs (its output test): byte 0 bit 7 the coin blocker (set: off), 2 the
@@ -1119,6 +1205,13 @@ static void ssr_settings(void)
 // place in LINK>. Its test menu (GAME ASSIGNMENTS) must agree: START UP MODE MAIN on LINK's PC 1,
 // TOTAL NODES LINK's count; SUB on PC k, CAR NUMBER k (as its menu shows it)
 static const WlGameOption g_srcOptions[] = {
+    {"DRIVE_DIP", WL_N("Puissance de la carte (interrupteurs)"),
+     WL_N("Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 "
+          "le maximum du volant)."),
+     WL_OPTION_INT, NULL, 0, 7, "0", 0, src_apply_dip},
+    {"PANEL_SPRING", WL_N("Ressort du panneau (%)"),
+     WL_N("Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."), WL_OPTION_INT, NULL, 0, 100, "20", 0,
+     src_apply_panel},
     {"CABINET", WL_N("Numéro de la borne (link)"),
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k "
@@ -1168,6 +1261,11 @@ static void src_amlib_messages(void)
 static void src_settings(void)
 {
     src_amlib_messages();
+    char v[16];
+    wl_game_option("DRIVE_DIP", v, sizeof v);
+    src_apply_dip(v);
+    wl_game_option("PANEL_SPRING", v, sizeof v);
+    src_apply_panel(v);
     if (!wl_link_settings(GetModuleHandleW(NULL)))
         return;
     wl_link_virtual_net("192.168.75");
@@ -1231,7 +1329,7 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     int lgs = g_game->inputs == g_lgsInputs;
     snprintf(controls, sizeof controls, "Controls on JVS board, Sega %s, JVS 3.0 (%s)", lgs ? "837-14895" : "837-14572",
              !strcmp(g_game->jvsPort, "\\\\.\\mxjvs") ? "mxjvs driver" : g_game->jvsPort);
-    wl_game_set_boards(controls, g_game->inputs == g_srcInputs ? "Motor board: Sega drive board, Model 2/3 commands (read in the game's data)"
+    wl_game_set_boards(controls, g_game->inputs == g_srcInputs ? "Motor board: Sega Rally's drive board (Model 2, EPR-17891), its command read in the game's data"
                                  : lgs                         ? "Motor board: none, the JVS board's vibration output played as a shake"
                                                                : "Motor board: Sega-like servoboard (COM1)");
     if (!strcmp(g_game->name, "ssasr"))

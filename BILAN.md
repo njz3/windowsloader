@@ -477,11 +477,17 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
     windowsloader, choisi par `Gear1` à `Gear4` ou passé par `GearUp` / `GearDown` ;
   - volant (00H à gauche), accélérateur, frein ; partie : pièces, choix du circuit et de la boîte (automatique
     ou manuelle 4) à l'accélérateur (« STEP TO CHOOSE »), course.
-- Retour de force ⚠️ : la carte moteur des Model 2 et 3, une commande d'un octet que le jeu garde dans ses
-  données (VA 0x834C19, l'adresse que lit FFBArcadePlugin) et n'envoie nulle part ici (ni JVS, ni port série,
-  ni E/S). Lue à chaque échange JVS et jouée en force constante d'après la position du volant : 9x roulis à
-  droite, Ax à gauche, Bx secousse, Cx ressort de centrage, Dx frottement (le chiffre bas, 0 le plus fort).
-  En course : centrage C4, volant à 60 % à gauche → −0,30 (vers la droite), à droite → +0,30.
+- Retour de force 🔄 (31/10) : une commande d'un octet que le jeu garde dans ses données (VA 0x834C19, l'adresse
+  que lit FFBArcadePlugin) et n'envoie nulle part ici (ni JVS, ni port série, ni E/S). C'est la carte de Sega
+  Rally Championship (Model 2, EPR-17891), pas celle de Daytona USA : les commandes vues sur les bornes (C4-C7,
+  D8-DF, 8E, 9D en course ; AD, BD, EF, F5 à l'attract) sont ses couples de 5 bits, pas les 0x-7x de Daytona ; la
+  lecture précédente (9x, Ax, Bx, Cx, Dx sur 3 bits) jouait D8-DF à 0. Jouée comme sm2-emu joue celle de Sega
+  Rally (sa description, réécrite) : 80-9F couple à droite, C0-DF à gauche, puissance (5 bits bas) + 1 sur 32,
+  32 le maximum du volant ; 40-5F frein contre le mouvement ; 10-17 couple haché ; 00 rien ; les autres sans
+  effet. Le ressort du panneau (celui de Daytona, `PANEL_SPRING`, 20 % par défaut) ; `DRIVE_DIP` (les
+  interrupteurs 1 à 3, 0 à 7 ajoutés à chaque puissance) ; un couple vers l'extérieur reçoit aussi la puissance
+  de calibrage de la carte contre le ressort. Un fil à 4 ms ; la commande aussi aux sorties réseau (RawDrive).
+  Essayé sur ce PC : la carte démarre, les options lues ; pas encore ressenti sur un volant ni sur les bornes.
 - Menu Tab ✅ : la vraie touche Tab, la fenêtre au premier plan : ouvert, puis refermé.
 - Menu de service ✅ : `d1a.exe -t` : GAME TEST MODE, comptabilité, test d'entrées, navigation par Service et
   Test. Au démarrage du menu, un premier appui sur Service peut se perdre.
