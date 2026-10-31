@@ -62,6 +62,7 @@ static int g_count;
 static wchar_t g_selfDir[MAX_PATH], g_selfPath[MAX_PATH], g_ini[MAX_PATH], g_gamesDir[MAX_PATH];
 static wchar_t g_logDir[MAX_PATH]; // windowsloader.log's: this program's folder, or the write folder
 static int g_iniReadOnly;          // a write folder that cannot be written: g_ini only read (writedir.h)
+static bool g_log = true;          // [Launcher] LOG: the games' log (writedir.h), from the next start
 static int g_focusSelected = 1; // the keyboard's focus to put back on the chosen game
 static ULONGLONG g_keysFrom;     // the shortcuts wait until then: Escape still held from the game does not quit
 static char g_message[4096];     // shown over the picker until closed (a game that would not start)
@@ -395,9 +396,14 @@ static void play(HWND wnd, const Entry *e)
     {
         char dir[MAX_PATH * 3];
         u8(g_logDir, dir, sizeof dir);
-        snprintf(g_message, sizeof g_message,
-                 wl_tr("Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."), (long)code,
-                 tail.text, tail.len ? "\n" : "", dir);
+        if (g_log)
+            snprintf(g_message, sizeof g_message,
+                     wl_tr("Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."), (long)code,
+                     tail.text, tail.len ? "\n" : "", dir);
+        else
+            snprintf(g_message, sizeof g_message,
+                     wl_tr("Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sPas de journal : cocher « Journal » et relancer le jeu."), (long)code,
+                     tail.text, tail.len ? "\n" : "");
     }
     ImGui::GetIO().ClearInputKeys(); // the keys the game had are not the picker's
     g_keysFrom = GetTickCount64() + 600;
@@ -671,6 +677,18 @@ static int draw(int *selected, int *action)
             WritePrivateProfileStringW(L"Launcher", L"LANGUAGE", wide(wl_lang_setting(), setting, 16), g_ini);
         g_retitle = 1;
     }
+    // The games' log, windowsloader.log ([Launcher] LOG): from the next start
+    ImGui::SameLine();
+    if (ImGui::Checkbox(wl_tr("Journal"), &g_log) && !g_iniReadOnly)
+        WritePrivateProfileStringW(L"Launcher", L"LOG", g_log ? L"true" : L"false", g_ini);
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+    {
+        char dir[MAX_PATH * 3];
+        u8(g_logDir, dir, sizeof dir);
+        ImGui::SetTooltip(wl_tr("Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage).\n"
+                                "Pris en compte au prochain lancement d'un jeu."),
+                          dir);
+    }
     ImGui::PopItemFlag();
     ImGui::SameLine();
     ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"));
@@ -750,6 +768,7 @@ int wl_picker_run(void)
     char setting[16];
     GetPrivateProfileStringW(L"Launcher", L"LANGUAGE", L"AUTO", language, 16, g_ini);
     u8(language, setting, sizeof setting);
+    g_log = wl_log_setting(g_ini) != 0;
     wl_lang_init(g_selfDir, setting, NULL);
 
     // Started from the Explorer, the console is ours alone: it goes away

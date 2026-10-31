@@ -33,3 +33,9 @@ unsigned long wl_write_dir_error(void);
 // 1 when the copy kept is older than *path's file: the changes made there since are not read
 // (linuxloader warns the same way); 0 otherwise; -1 when the copy fails (path left as it was)
 int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size);
+
+// [Launcher] LOG of the settings file: the log, windowsloader.log, written (1, the default) or not
+// (false, 0, no, off). It is beside the launcher, or at the write folder's root when there is one,
+// made anew at each start; --log names another. Changed in the picker or the game's menu, it counts
+// from the next start
+int wl_log_setting(const wchar_t *iniPath);

@@ -631,11 +631,11 @@ msgstr ""
 msgid "Redirection d'écriture active, dossier : %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1358 src/hook/menu.cpp:1778
+#: src/hook/menu.cpp:1358 src/hook/menu.cpp:1807
 msgid "Impossible d'écrire dans le dossier d'écriture"
 msgstr ""
 
-#: src/hook/menu.cpp:1360 src/hook/menu.cpp:1781
+#: src/hook/menu.cpp:1360 src/hook/menu.cpp:1810
 msgid "Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne sont pas écrits."
 msgstr ""
 
@@ -808,31 +808,52 @@ msgstr ""
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr ""
 
+#: src/hook/menu.cpp:1684 src/launcher/picker.cpp:682
+msgid "Journal"
+msgstr ""
+
+#: src/hook/menu.cpp:1693
+msgid "Écrire le journal (windowsloader.log)"
+msgstr ""
+
+#: src/hook/menu.cpp:1698
+#, c-format
+msgid "[Launcher] LOG = %s, enregistré dans %s : au prochain lancement"
+msgstr ""
+
+#: src/hook/menu.cpp:1701
+msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : non enregistré"
+msgstr ""
+
 #: src/hook/menu.cpp:1707
+msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement."
+msgstr ""
+
+#: src/hook/menu.cpp:1736
 msgid "Jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1708
+#: src/hook/menu.cpp:1737
 msgid "Options du jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1709
+#: src/hook/menu.cpp:1738
 msgid "Contrôles"
 msgstr ""
 
-#: src/hook/menu.cpp:1710
+#: src/hook/menu.cpp:1739
 msgid "Affichage"
 msgstr ""
 
-#: src/hook/menu.cpp:1711 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:642
+#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:648
 msgid "Retour de force"
 msgstr ""
 
-#: src/hook/menu.cpp:1712
+#: src/hook/menu.cpp:1741
 msgid "Sorties et réseau"
 msgstr ""
 
-#: src/hook/menu.cpp:1713
+#: src/hook/menu.cpp:1742
 msgid "À propos"
 msgstr ""
 
@@ -1006,7 +1027,7 @@ msgstr ""
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr ""
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1083 src/hook/games/ringedge.cpp:1102 src/hook/games/segarally3.cpp:180
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1103 src/hook/games/ringedge.cpp:1122 src/hook/games/segarally3.cpp:180
 msgid "Numéro de la borne (link)"
 msgstr ""
 
@@ -1085,19 +1106,19 @@ msgstr ""
 msgid "Lecteur de cartes"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1069 src/hook/games/ringedge.cpp:1080
+#: src/hook/games/ringedge.cpp:1089 src/hook/games/ringedge.cpp:1100
 msgid "Jeu gratuit"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1070 src/hook/games/ringedge.cpp:1081
+#: src/hook/games/ringedge.cpp:1090 src/hook/games/ringedge.cpp:1101
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1084
+#: src/hook/games/ringedge.cpp:1104
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1103
+#: src/hook/games/ringedge.cpp:1123
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
 msgstr ""
 
@@ -1130,7 +1151,7 @@ msgstr ""
 msgid "Garder le rapport (borne Pro)"
 msgstr ""
 
-#: src/hook/games/taito.cpp:914 src/hook/games/taito.cpp:942
+#: src/hook/games/taito.cpp:966 src/hook/games/taito.cpp:994
 msgid "Carte du volant"
 msgstr ""
 
@@ -1311,12 +1332,12 @@ msgstr ""
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr ""
 
-#: src/launcher/picker.cpp:353
+#: src/launcher/picker.cpp:354
 #, c-format
 msgid "Impossible de lancer %s (erreur %lu)."
 msgstr ""
 
-#: src/launcher/picker.cpp:399
+#: src/launcher/picker.cpp:401
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1324,106 +1345,121 @@ msgid ""
 "%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."
 msgstr ""
 
-#: src/launcher/picker.cpp:420
+#: src/launcher/picker.cpp:405
+#, c-format
+msgid ""
+"Le jeu s'est arrêté aussitôt (code %ld).\n"
+"\n"
+"%s%sPas de journal : cocher « Journal » et relancer le jeu."
+msgstr ""
+
+#: src/launcher/picker.cpp:426
 msgid "Dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:526
+#: src/launcher/picker.cpp:532
 msgid "Jouable"
 msgstr ""
 
-#: src/launcher/picker.cpp:529
+#: src/launcher/picker.cpp:535
 msgid "Jouable, avec des réserves"
 msgstr ""
 
-#: src/launcher/picker.cpp:532
+#: src/launcher/picker.cpp:538
 msgid "En cours : ne se joue pas encore"
 msgstr ""
 
-#: src/launcher/picker.cpp:539
+#: src/launcher/picker.cpp:545
 msgid "oui"
 msgstr ""
 
-#: src/launcher/picker.cpp:539
+#: src/launcher/picker.cpp:545
 msgid "en partie (voir BILAN.md)"
 msgstr ""
 
-#: src/launcher/picker.cpp:539
+#: src/launcher/picker.cpp:545
 msgid "non"
 msgstr ""
 
-#: src/launcher/picker.cpp:577
+#: src/launcher/picker.cpp:583
 #, c-format
 msgid "%d jeux dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:577
+#: src/launcher/picker.cpp:583
 #, c-format
 msgid "%d jeu dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:584
+#: src/launcher/picker.cpp:590
 #, c-format
 msgid "Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par windowsloader devient une ligne de la liste."
 msgstr ""
 
-#: src/launcher/picker.cpp:638
+#: src/launcher/picker.cpp:644
 msgid "Plateforme"
 msgstr ""
 
-#: src/launcher/picker.cpp:639
+#: src/launcher/picker.cpp:645
 msgid "Dossier"
 msgstr ""
 
-#: src/launcher/picker.cpp:640
+#: src/launcher/picker.cpp:646
 msgid "Programme"
 msgstr ""
 
-#: src/launcher/picker.cpp:641
+#: src/launcher/picker.cpp:647
 msgid "Arguments"
 msgstr ""
 
-#: src/launcher/picker.cpp:643
+#: src/launcher/picker.cpp:649
 msgid "Link"
 msgstr ""
 
-#: src/launcher/picker.cpp:644
+#: src/launcher/picker.cpp:650
 msgid "Émulé"
 msgstr ""
 
-#: src/launcher/picker.cpp:647
+#: src/launcher/picker.cpp:653
 msgid "Jouer (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:656
+#: src/launcher/picker.cpp:662
 msgid "Dossier des jeux (Tab)"
 msgstr ""
 
-#: src/launcher/picker.cpp:659
+#: src/launcher/picker.cpp:665
 msgid "Actualiser (F5)"
 msgstr ""
 
-#: src/launcher/picker.cpp:662
+#: src/launcher/picker.cpp:668
 msgid "Quitter (Échap)"
 msgstr ""
 
-#: src/launcher/picker.cpp:676
+#: src/launcher/picker.cpp:688
+#, c-format
+msgid ""
+"Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage).\n"
+"Pris en compte au prochain lancement d'un jeu."
+msgstr ""
+
+#: src/launcher/picker.cpp:694
 msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:686
+#: src/launcher/picker.cpp:704
 msgid "Le jeu n'a pas démarré"
 msgstr ""
 
-#: src/launcher/picker.cpp:693
+#: src/launcher/picker.cpp:711
 msgid "OK (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:725
+#: src/launcher/picker.cpp:743
 #, c-format
 msgid "windowsloader %s %s — choix du jeu"
 msgstr ""
 
-#: src/launcher/picker.cpp:774
+#: src/launcher/picker.cpp:793
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr ""

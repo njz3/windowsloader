@@ -1678,6 +1678,35 @@ static void page_about(void)
     ImGui::TextDisabled("%s", wl_tr("Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. "
                                     "Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."));
     ImGui::PopTextWrapPos();
+
+    // The log ([Launcher] LOG of the launcher's file): from the next start
+    ImGui::Spacing();
+    ImGui::SeparatorText(wl_tr("Journal"));
+    static int logRead;
+    static bool logOn = true;
+    static char logStatus[MAX_PATH * 2 + 64];
+    if (!logRead)
+    {
+        logOn = wl_settings_get_bool("Launcher", "LOG", 1) != 0;
+        logRead = 1;
+    }
+    if (ImGui::Checkbox(wl_tr("Écrire le journal (windowsloader.log)"), &logOn))
+    {
+        char u[MAX_PATH * 2];
+        const wchar_t *file = wl_settings_launcher_file();
+        if (wl_settings_write(file, "Launcher", "LOG", logOn ? "true" : "false"))
+            snprintf(logStatus, sizeof logStatus, wl_tr("[Launcher] LOG = %s, enregistré dans %s : au prochain lancement"), logOn ? "true" : "false",
+                     wl_u8(file, u, sizeof u));
+        else
+            snprintf(logStatus, sizeof logStatus, "%s", wl_tr("Pas de fichier de réglages (lancé sans windowsloader.exe) : non enregistré"));
+        wl_log("menu: LOG = %s, from the next start", logOn ? "true" : "false");
+    }
+    ImGui::PushTextWrapPos(0);
+    if (logStatus[0])
+        ImGui::TextDisabled("%s", logStatus);
+    ImGui::TextDisabled("%s", wl_tr("Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, "
+                                    "refait à chaque lancement."));
+    ImGui::PopTextWrapPos();
 }
 
 static void draw_menu(void)

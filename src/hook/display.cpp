@@ -196,7 +196,11 @@ static const char *g_defaults =
     "# The picker's and the settings menu's language: AUTO (Windows' own: French, else its lang\\<code>.po when\r\n"
     "# there is one, else English), fr, en, or the code of another lang\\<code>.po beside the launcher.\r\n"
     "# Default: AUTO\r\n"
-    "LANGUAGE = AUTO\r\n";
+    "LANGUAGE = AUTO\r\n"
+    "\r\n"
+    "# The log, windowsloader.log (for debugging), beside the launcher, or at the write folder's root, made\r\n"
+    "# anew at each start: false for none. From the next start. Default: true\r\n"
+    "LOG = true\r\n";
 
 // The names without case, a space for the underscore ("4:3 crop", as linuxloader reads them)
 static int name_index(const char *const *names, int count, const char *value, int def)

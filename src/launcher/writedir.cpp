@@ -86,6 +86,13 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
     return probe(root) ? 1 : -2;
 }
 
+int wl_log_setting(const wchar_t *iniPath)
+{
+    wchar_t v[16];
+    GetPrivateProfileStringW(L"Launcher", L"LOG", L"true", v, 16, iniPath);
+    return _wcsicmp(v, L"false") && _wcsicmp(v, L"0") && _wcsicmp(v, L"no") && _wcsicmp(v, L"off");
+}
+
 int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size)
 {
     wchar_t there[MAX_PATH];

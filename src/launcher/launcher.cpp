@@ -98,7 +98,8 @@ static void usage(void)
         "       %s alone opens the game picker (the games of the games folder, see README.md)\n"
         "\n"
         "Options:\n"
-        "  --log <file>     log written by the game side (default: windowsloader.log in the current folder)\n"
+        "  --log <file>     log written by the game side (default: windowsloader.log beside this launcher, or at the\n"
+        "                   write folder's root; none with [Launcher] LOG = false)\n"
         "  --fullscreen     let the game switch the display to full screen (default: kept in a window)\n"
         "  --timeout <s>    stop the game after <s> seconds (for tests)\n"
         "  --iolimit <n>    max reads/writes logged per device handle (default: 500)\n"
@@ -914,6 +915,10 @@ int wmain(int argc, wchar_t **argv)
     parent_dir(gameDir);
     GetModuleFileNameW(NULL, selfDir, MAX_PATH);
     parent_dir(selfDir);
+    // The log beside this launcher, made anew at each start (the folder it is started from may be
+    // any)
+    if (!logGiven)
+        swprintf(logPath, MAX_PATH, L"%s\\windowsloader.log", selfDir);
 
     int bits = pe_bits(gamePath);
     if (bits < 0)
@@ -993,6 +998,10 @@ int wmain(int argc, wchar_t **argv)
         if (!logGiven)
             logPath[0] = 0;
     }
+    // [Launcher] LOG = false (the picker's and the game's menu's "Journal"): no log file
+    int logOff = !logGiven && !wl_log_setting(iniPath);
+    if (logOff)
+        logPath[0] = 0;
     SetEnvironmentVariableW(WL_ENV_OLDER, older[0] ? older : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write ? writeDir : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DENIED, write < 0 ? L"1" : NULL);
@@ -1033,7 +1042,8 @@ int wmain(int argc, wchar_t **argv)
 
     clean_working_copies(0);
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
-    say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), logPath[0] ? u8(logPath) : "none (the write folder cannot be written)",
+    say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir),
+        logPath[0] ? u8(logPath) : logOff ? "none ([Launcher] LOG = false)" : "none (the write folder cannot be written)",
         windowed ? "windowed" : "full screen allowed");
     if (write > 0)
         say("  writes: %s\\<game> (the game's folder only read)\n", u8(writeDir));
