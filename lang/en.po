@@ -1007,7 +1007,7 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1066 src/hook/games/segarally3.cpp:180
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1071 src/hook/games/ringedge.cpp:1090 src/hook/games/segarally3.cpp:180
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
@@ -1074,7 +1074,7 @@ msgstr "intensity (0-15)"
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:594
+#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:595
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
@@ -1086,17 +1086,21 @@ msgstr "Wheel's motor board"
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
-#: src/hook/games/ringedge.cpp:1052 src/hook/games/ringedge.cpp:1063
+#: src/hook/games/ringedge.cpp:1057 src/hook/games/ringedge.cpp:1068
 msgid "Jeu gratuit"
 msgstr "Free play"
 
-#: src/hook/games/ringedge.cpp:1053 src/hook/games/ringedge.cpp:1064
+#: src/hook/games/ringedge.cpp:1058 src/hook/games/ringedge.cpp:1069
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr "Unchecked: one game per coin. The game's test menu does not have this setting (the cabinet's system has it)."
 
-#: src/hook/games/ringedge.cpp:1067
+#: src/hook/games/ringedge.cpp:1072
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The CABINET ID of the game's test menu must be the same."
+
+#: src/hook/games/ringedge.cpp:1091
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k - 1."
+msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The game's test menu, GAME ASSIGNMENTS: cabinet 1 as MAIN (TOTAL NODES: the number of cabinets), cabinet k as SUB, CAR NUMBER k - 1."
 
 #: src/hook/games/stormracer.cpp:633
 msgid "la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"
@@ -1107,27 +1111,27 @@ msgstr "the USB I/O board, UsbIO_SetLedLightStatu (usb_io.dll)"
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr "PWM light %d of the USB I/O board, UsbIO_SetPWMLightStatu (usb_io.dll), 0 off to 255"
 
-#: src/hook/games/taito.cpp:583
+#: src/hook/games/taito.cpp:584
 msgid "Standard"
 msgstr "Standard"
 
-#: src/hook/games/taito.cpp:584
+#: src/hook/games/taito.cpp:585
 msgid "Pro"
 msgstr "Pro"
 
-#: src/hook/games/taito.cpp:589
+#: src/hook/games/taito.cpp:590
 msgid "Borne"
 msgstr "Cabinet"
 
-#: src/hook/games/taito.cpp:590
+#: src/hook/games/taito.cpp:591
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and H-shifter (a second I/O board). The game changes its own settings at the next start and closes once: start it again."
 
-#: src/hook/games/taito.cpp:593
+#: src/hook/games/taito.cpp:594
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/hook/games/taito.cpp:745 src/hook/games/taito.cpp:771
+#: src/hook/games/taito.cpp:872 src/hook/games/taito.cpp:900
 msgid "Carte du volant"
 msgstr "Wheel's board"
 

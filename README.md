@@ -158,14 +158,22 @@ Ford Racing Full Blown (`[Game.fordracing]`), GTI Club: Supermini Festa! (`[Game
 Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4, its
 `[Network] CabinetID` of ShellData.ini read from `LINK`; Winsock 1's functions taken too), GRID
 (`[Game.grid]`, cabinets 1 to 6, 1 hosts), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
-address hosts, its race in DirectPlay) and Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
+address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
-ID must be the cabinet's place in `LINK`) find their cabinets on their network by a broadcast, then talk to each
+ID must be the cabinet's place in `LINK`), Sega Racing Classic (`[Game.src]`: its 192.168.75.k
+are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES the count, cabinet
+k SUB with CAR NUMBER k - 1) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
 broadcast is sent to each of them, any other address of the network is refused, and the game sees
 only the PC's card of `LINK` (a VPN's left out), and its own name resolves to its address of `LINK`
-alone. Ford Racing's `CabinetPostion` and Showdown's
+alone. A broadcast to a port where the game has several UDP sockets (GRID) goes as a broadcast on
+`LINK`'s network, which reaches each of them. Wacky Races (`[Game.wacky]`), D1GP (`[Game.d1gp]`, 2
+cabinets) and Valve Limit R (`[Game.vlimitr]`) link through Windows' DirectPlay: cabinet 1 of
+`LINK` hosts, the others join it at its address (their test menu's NETWORK-ID or CONNECTION METHOD
+is taken from `LINK`); Windows' DirectPlay feature must be on and the firewall let the game in.
+Ford Racing's `CabinetPostion` and Showdown's
 `[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
 menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
 and accept, the first packets with each PC on each port, the traffic every 10 s). The four raced

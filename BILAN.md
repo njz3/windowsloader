@@ -308,6 +308,16 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   est la première de gethostbyname(nom du PC) qui n'est pas 127.0.0.1. `[Game.grid] LINK` / `CABINET` (1 à 6) :
   CabinetID d'après LINK, et `link.cpp` donne désormais à gethostbyname(nom du PC) l'adresse de LINK seule. Pas
   essayé (la copie n'a pas les données du jeu).
+- Link, essais link9 sur les bornes (31/10) ❌ : chaque borne court seule (menu SINGLE PLAYER). La « party » se
+  forme dès l'attract : chaque borne héberge, cherche (24 octets en diffusion vers UDP 12001 toutes les 10 s) et
+  la plus petite CabinetID garde la session ; 12001/7343 sont la party, 12000/7342 la course ; le jeu ne lit que
+  `[Network] CabinetID` (jamais NumCabinets). Les recherches arrivaient (les deux, la sienne comprise) mais aucun
+  serveur ne répondait : la borne a deux sockets UDP sur 12001 (son serveur de découverte et sa session) et un
+  datagramme envoyé à un PC n'en atteint qu'un (essayé sur ce PC : un envoi à l'adresse va à un seul socket, une
+  diffusion aux deux). `link.cpp` : une diffusion vers un port où le jeu a plusieurs sockets UDP part en diffusion
+  sur le réseau de LINK (192.168.1.255 d'après la carte de LINK), les PC de LINK hors de ce réseau un par un ; le
+  journal donne pour chaque bind le type de socket et le code du jeu qui l'appelle, et chaque fermeture d'un
+  socket UDP. Pas encore essayé sur les bornes.
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
@@ -457,7 +467,13 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   Test. Au démarrage du menu, un premier appui sur Service peut se perdre.
 - vJoy ✅ : course avec les manettes ouvertes (vJoy en joueur 1), retour de force sur le joueur 1 (accord de
   linuxloader).
-
+- Link entre bornes 🔄 (31/10) : UDP seulement (Winsock par nom, d1a.exe, « comm_lib » de Sega) : le nœud k (MAIN 0,
+  les SUB leur CAR NUMBER) est 192.168.75.(1 + k) ; les SUB écrivent au port 26666 de MAIN, MAIN répond avec les
+  adresses des nœuds, puis chacun envoie ses images à chaque nœud sur 26665. `[Game.src] LINK` / `CABINET` (1 à 4) :
+  ces adresses sont les PC de LINK (`wl_link_virtual_net("192.168.75")`) ; linké, la carte réseau a son lien
+  (query_nic_status 0) et query_ip_address répond 192.168.75.<place dans LINK>, le jeu ne demande donc pas de
+  changer d'adresse. Menu de test, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la
+  borne k en SUB, CAR NUMBER k - 1 (le journal le rappelle). Pas essayé (la copie n'a pas ses données).
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
 `bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
@@ -508,7 +524,13 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
 - Menu de service ✅ (I/O CHECK). Le jeu affiche « STEERING HAS NOT CALIBRATED » : l'étalonnage du volant dans son
   menu de test reste à faire.
 - Menu Tab ✅ (mode agent). À voir : vJoy, les pièces (le jeu est en FREE PLAY).
-
+- Link entre bornes 🔄 (31/10) : DirectPlay 8 (dpnet.dll de Windows, UDP 13405, session « wracesnet », 4 au plus) :
+  le NETWORK-ID 1 (LINKID 0) héberge, les autres se connectent à HOSTADDR (192.168.66.110 par défaut, l'adresse
+  que le jeu donne au PC, refusée) et hébergent eux-mêmes si l'hôte ne répond pas. windowsloader répondait
+  LINKID 0 quand wr.ini n'en a pas, ce qui passait aussi devant le NETWORK-ID du menu de test : chaque borne
+  hébergeait. `[Game.wacky] LINK` / `CABINET` (1 à 4) : LINKID = la place dans LINK moins un, HOSTADDR = le
+  premier PC de LINK (Launcher.exe+0x3320) ; seul, LINKID 0 comme avant. Essayé sur ce PC : LINKID et HOSTADDR
+  pris ; la copie s'arrête ensuite faute de ses données. Lancer la borne 1 d'abord.
 ## Let's Go Safari (Sega RingWide, 2014)
 
 `GameSampR_RingWide.exe` (copie `games\lgs`), x86, Direct3D 9, 1280×720. Son menu de service est un programme à part,
@@ -630,7 +652,15 @@ embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page �
 - Restent : vJoy et le menu Tab non refaits en Pro (le même code qu'en Tuned) ; l'identité de la seconde
   carte est celle de la première (celle de la vraie borne inconnue) ; le côté de chaque capteur de la grille
   est supposé (le jeu s'en accommode : il pousse dans les deux sens).
-
+- Link entre bornes 🔄 (31/10), les deux éditions (pas entre elles : leurs paquets diffèrent) : Winsock 1 par
+  numéro dans game.exe ; chaque borne diffuse son état (432 octets à chaque image, UDP 8821, vers x.y.z.255 de la
+  première adresse de sa première carte), doit entendre le sien, puis se connecte en TCP 9573 aux adresses lues
+  dans les paquets ; son MACHINE NO (menu de test, NETWORK SETTING, D:\config.bin) doit être différent sur chaque
+  borne. `[Game.bg4] LINK` / `[Game.bg4eng] LINK` : diffusions vers chaque PC de LINK, la carte de LINK seule
+  (GetAdaptersInfo), et le MACHINE NO est la place dans LINK, remis après chaque lecture des réglages (Tuned
+  +0x11c980, la première édition +0xe4870). `[Game.bg4] CABINET` reste le type de borne (STANDARD / PRO) : la place
+  vient de l'adresse du PC dans LINK. Essayé sur ce PC : le réglage pris ; le jeu n'a pas ouvert son réseau dans
+  la minute. NESYS (le service en ligne de Tuned) : le mettre sur OFF.
 ## Battle Gear 4 (Taito Type X+, 2006, première édition)
 
 `game.exe _MTS_FULL_SCREEN_` dans `games/bg4`, v2.03 GBR (« BATTLE GEAR 4 V2.03 GBR, May 18 2006 »), x86,
@@ -1492,7 +1522,12 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   force.
 - Menu de service ✅ : TEST MODE (bouton Test), VIEW CHANGE descend, SHIFT DOWN remonte, START choisit ; test d'E/S.
 - Crédits ⚠️ : pièces JVS comptées ; le lecteur de cartes et le distributeur de cartes (« CARD VENDOR ») absents.
-
+- Link entre bornes 🔄 (31/10) : deux bornes, DirectPlay 8 (dpnet.dll de Windows, UDP 55555) : l'hôte attend, le
+  client le trouve par une diffusion puis s'y connecte. Qui héberge est le menu de test (NETWORK CONFIGURATION,
+  CONNECTION METHOD, d:\config00.bin, HOST par défaut sur chaque borne). `[Game.d1gp] LINK` / `CABINET` (1 ou 2) :
+  la borne 1 héberge, la 2 est le client, quoi que dise le menu (le saut vers la recherche du client, +0x84cb9).
+  Le jeu donne aussi au PC une adresse 192.168.x.y (AddIPAddress, refusé, sans effet). Essayé sur ce PC : HOST et
+  CLIENT pris.
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
@@ -1527,7 +1562,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
 - Crédits ✅ : pièce JVS.
 - Garde-fous ajoutés pour lui (et D1GP) : adresses IP du PC (AddIPAddress, DeleteIPAddress), suppression de clés du
   registre, HKEY_CLASSES_ROOT et HKEY_USERS en lecture seule comme HKLM.
-
+- Link entre bornes 🔄 (31/10) : DirectPlay 8 (dpnet.dll de Windows, UDP 13400, 4 bornes) : le NETWORK-ID 1
+  héberge, les autres se connectent à 192.168.64.100 (puis les impairs à .102), adresses que le jeu donne au PC
+  (AddIPAddress, refusé). `[Game.vlimitr] LINK` / `CABINET` (1 à 4) : ces deux adresses deviennent les PC 1 et 3 de
+  LINK, et le NETWORK-ID la place dans LINK, remis après chaque lecture de d:\expdat (+0xafb0). Essayé sur ce PC
+  (copie avec un data\bin2 vide) : NETWORK-ID et adresses pris ; la copie s'arrête ensuite faute de ses données.
 ## Direct3D 8 (d3d8to9)
 
 windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,

@@ -31,6 +31,7 @@
 #include "inputs.h"
 #include "jvs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "settings.h"
 #include "vdev.h"
@@ -594,8 +595,49 @@ static const WlGameOption g_bg4Options[] = {
      WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
 };
 
+// Battle Gear 4's link (link.h, [Game.bg4] / [Game.bg4eng] LINK), both editions, 4 cabinets, the
+// two editions apart (their packets' magic differ): each cabinet broadcasts its state (432 bytes
+// each frame, UDP 8821, to x.y.z.255 of its first card's first address), must hear its own, and
+// opens TCP 9573 to the others' addresses read in those packets; its MACHINE NO (the test menu's
+// NETWORK SETTING, D:\config.bin) is its place in LINK, set after each read of its settings
+// (Tuned +0x11c980, the first edition +0xe4870). [Game.bg4] CABINET is Tuned's cabinet type
+// (STANDARD / PRO): the place is LINK's, from the PC's address
+static int(__fastcall *oBg4Load)(void *self, void *edx);
+static volatile WORD *g_bg4Machine;
+static volatile DWORD *g_bg4MachineCopy;
+static int __fastcall bg4_load(void *self, void *edx)
+{
+    int r = oBg4Load(self, edx);
+    if (wl_link_count() && wl_link_cabinet() <= 4)
+    {
+        *g_bg4Machine = (WORD)(wl_link_cabinet() - 1);
+        *g_bg4MachineCopy = (DWORD)(wl_link_cabinet() - 1);
+    }
+    return r;
+}
+
+static void bg4_link(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        return;
+    if (wl_link_cabinet() > 4)
+    {
+        wl_log("game: Battle Gear 4 links 4 cabinets at most: this one, LINK's %d, stays as its test menu says", wl_link_cabinet());
+        return;
+    }
+    int tuned = g_bg4 == BG4_TUNED;
+    static const unsigned char tunedWas[8] = {0x53, 0x56, 0x57, 0x68, 0xA0, 0xCD, 0x76, 0x00}, firstWas[8] = {0x55, 0x56, 0x57, 0x68, 0x68, 0x09, 0x73, 0x00};
+    void *load = (void *)(ULONG_PTR)(tuned ? 0x51C980 : 0x4E4870);
+    g_bg4Machine = (volatile WORD *)(ULONG_PTR)(tuned ? 0x8D0B34 : 0x82FAAC);
+    g_bg4MachineCopy = (volatile DWORD *)(ULONG_PTR)(tuned ? 0x8DEB0C : 0x83DA8C);
+    if (!memcmp(load, tuned ? tunedWas : firstWas, 8))
+        wl_hook_code(load, (void *)bg4_load, (void **)&oBg4Load, "its settings' read: MACHINE NO from LINK");
+    wl_log("game: Battle Gear 4 linked: MACHINE NO %d", wl_link_cabinet());
+}
+
 static void bg4_settings(void)
 {
+    bg4_link();
     char v[32];
     wl_game_option("CABINET", v, sizeof v);
     if (_stricmp(v, "PRO"))
@@ -631,18 +673,94 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
-// Wacky Races' settings from wr.ini, by name (a number): LINKID, the cabinet's network ID less one,
-// is 0 when the file has none
+// Wacky Races' settings from wr.ini, by name (a number): LINKID, the cabinet's network ID less one
+// (the test menu's NETWORK-ID otherwise), is 0 when the file has none, LINK's place less one when
+// linked (link.h, [Game.wacky] LINK: cabinet 1 hosts)
 static int(__cdecl *oWackySetting)(const char *name, int *value);
 static int __cdecl wacky_setting(const char *name, int *value)
 {
     int found = oWackySetting(name, value);
     if (!found && !strcmp(name, "LINKID"))
     {
-        *value = 0;
+        *value = wl_link_count() ? wl_link_cabinet() - 1 : 0;
         return 1;
     }
     return found;
+}
+
+// Its text settings (a pointer to the value, NULL none): HOSTADDR, the address the others connect
+// to, LINK's first PC when linked; the game's own otherwise is 192.168.66.110, which it gives the
+// PC itself (AddIPAddress, refused: system.cpp)
+static char *(__cdecl *oWackyText)(const char *name);
+static char *__cdecl wacky_text(const char *name)
+{
+    char *found = oWackyText(name);
+    static char host[20];
+    if (!found && wl_link_count() && !strcmp(name, "HOSTADDR") && wl_link_address(1, host, sizeof host))
+        return host;
+    return found;
+}
+
+// Linked (Wacky Races, Valve Limit R: cabinets 1 to 4, their NETWORK-ID; D1GP: 1 and 2)
+#define LINK_OPTION(most)                                                                                                                                      \
+    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "                    \
+          "dans le fichier)."),                                                                                                                                \
+     WL_OPTION_INT, NULL, 0, most, "0", 1, NULL}
+static const WlGameOption g_link4Options[] = {LINK_OPTION(4)};
+static const WlGameOption g_link2Options[] = {LINK_OPTION(2)};
+
+static void wacky_settings(void)
+{
+    if (wl_link_settings(GetModuleHandleW(NULL)))
+        wl_log("game: Wacky Races linked: NETWORK-ID %d (%s)", wl_link_cabinet(), wl_link_cabinet() == 1 ? "it hosts the race" : "it joins cabinet 1");
+}
+
+// D1GP's link: DirectPlay (Windows' dpnet.dll), 2 cabinets, UDP 55555, the client finding the host
+// by a broadcast. Who hosts is its test menu's NETWORK CONFIGURATION (d:\config00.bin, HOST by
+// default on each): linked, cabinet 1 hosts and 2 is the client, whatever the menu says (its
+// choice, +0x84cb9: the jump to the client's search, never taken or always)
+static void d1gp_settings(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        return;
+    static const unsigned char was[2] = {0x75, 0x4A}, never[2] = {0x90, 0x90}, always[1] = {0xEB};
+    if (wl_link_cabinet() == 1)
+        wl_patch_code((void *)0x484CB9, was, never, sizeof never, "linked: this cabinet hosts (CONNECTION METHOD = HOST)");
+    else
+        wl_patch_code((void *)0x484CB9, was, always, sizeof always, "linked: this cabinet is the client (CONNECTION METHOD = CLIENT)");
+}
+
+// Valve Limit R's link: DirectPlay (Windows' dpnet.dll), 4 cabinets, UDP 13400. Its NETWORK-ID
+// (the test menu's, d:\expdat, bits 20-22 of its first word less one) chooses: 1 hosts, the others
+// connect to 192.168.64.100 (then the odd ones to .102), the addresses it gives the PCs
+// (AddIPAddress, refused: system.cpp). Linked, they are LINK's PCs 1 and 3, and its NETWORK-ID its
+// place in LINK, set again after each read of its settings (+0xafb0)
+#define VLR_SETTINGS ((volatile DWORD *)0x581E40)
+static int(__fastcall *oVlrRead)(void *self, void *edx, int backup);
+static int __fastcall vlr_read(void *self, void *edx, int backup)
+{
+    int r = oVlrRead(self, edx, backup);
+    if (wl_link_count())
+        *VLR_SETTINGS = (*VLR_SETTINGS & ~0x700000u) | (DWORD)((wl_link_cabinet() - 1) & 7) << 20;
+    return r;
+}
+
+static void vlimitr_settings(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        return;
+    static const unsigned char readWas[12] = {0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8, 0x81, 0xEC, 0x84, 0x0F, 0x00, 0x00};
+    if (!memcmp((void *)0x40AFB0, readWas, sizeof readWas))
+        wl_hook_code((void *)0x40AFB0, (void *)vlr_read, (void **)&oVlrRead, "its settings' read (launcher.exe+0xafb0): NETWORK-ID from LINK");
+    static const char host1[16] = "192.168.64.100", host3[16] = "192.168.64.102";
+    char address[16] = "";
+    if (wl_link_address(1, address, sizeof address))
+        wl_patch_code((void *)0x4CB248, host1, address, sizeof address, "the host's address: LINK's PC 1");
+    memset(address, 0, sizeof address);
+    if (wl_link_address(3, address, sizeof address))
+        wl_patch_code((void *)0x4CB258, host3, address, sizeof address, "the second host's address: LINK's PC 3");
+    wl_log("game: Valve Limit R linked: NETWORK-ID %d (%s)", wl_link_cabinet(), wl_link_cabinet() == 1 ? "it hosts the race" : "it joins cabinet 1");
 }
 
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
@@ -722,18 +840,27 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     if (d1gp)
     {
         wl_vdinput_register(&g_d1gpWheel);
+        wl_game_set_options(g_link2Options, sizeof g_link2Options / sizeof g_link2Options[0]);
+        wl_game_on_settings(d1gp_settings);
         g_d1gp = 1;
         return 1;
     }
     if (wacky)
     {
-        // The cabinets are linked by DirectPlay: network ID 1 (LINKID 0) hosts the race, the
-        // others connect to it (192.168.66.110) and wait there, the game stuck at its second frame.
-        // Alone, it is the host, unless wr.ini says otherwise
+        // The cabinets are linked by DirectPlay (Windows' dpnet.dll, UDP 13405, session
+        // "wracesnet", 4 at most): network ID 1 (LINKID 0) hosts the race, the others connect to
+        // it (HOSTADDR, 192.168.66.110 by default) and host themselves when it does not answer.
+        // Alone, it is the host, unless wr.ini says otherwise; linked, its ID is its place in LINK
+        // and HOSTADDR LINK's first PC
         static const unsigned char lookupWas[8] = {0x53, 0x8B, 0x5C, 0x24, 0x0C, 0x55, 0x8B, 0x6C};
-        void *lookup = (void *)0x403390;
+        static const unsigned char textWas[8] = {0x55, 0x8B, 0x6C, 0x24, 0x08, 0x56, 0x57, 0xBF};
+        void *lookup = (void *)0x403390, *text = (void *)0x403320;
         if (!memcmp(lookup, lookupWas, sizeof lookupWas))
             wl_hook_code(lookup, (void *)wacky_setting, (void **)&oWackySetting, "wr.ini's settings (Launcher.exe+0x3390): LINKID 0 by default");
+        if (!memcmp(text, textWas, sizeof textWas))
+            wl_hook_code(text, (void *)wacky_text, (void **)&oWackyText, "wr.ini's text settings (Launcher.exe+0x3320): HOSTADDR from LINK");
+        wl_game_set_options(g_link4Options, sizeof g_link4Options / sizeof g_link4Options[0]);
+        wl_game_on_settings(wacky_settings);
         g_wacky = 1;
         return 1;
     }
@@ -743,6 +870,8 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         InitializeCriticalSection(&g_wheelLock);
         wl_vdev_register(&g_wheel);
         wl_vdev_label("COM1", WL_N("Carte du volant"));
+        wl_game_set_options(g_link4Options, sizeof g_link4Options / sizeof g_link4Options[0]);
+        wl_game_on_settings(vlimitr_settings);
         g_vlimitr = 1;
         return 1;
     }
@@ -775,6 +904,8 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         wl_game_set_options(g_bg4Options, sizeof g_bg4Options / sizeof g_bg4Options[0]);
         wl_game_on_settings(bg4_settings);
     }
+    else
+        wl_game_on_settings(bg4_link);
     g_bg4 = bg4;
     return 1;
 }

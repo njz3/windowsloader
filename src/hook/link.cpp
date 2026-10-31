@@ -19,6 +19,9 @@
 //                                                    -> the card holding this PC's address of LINK,
 //                                                       and the loopback (a cabinet's VPN left out)
 //   gethostbyname of the PC's own name               -> its address of LINK alone
+// A broadcast to a port where the game has several UDP sockets (GRID: its party's LAN discovery
+// server and its session on 12001) goes as a broadcast on LINK's network: a datagram sent to a PC
+// reaches only one of them, a broadcast each.
 // A game whose cabinets have addresses of their own (wl_link_virtual_net: net.k for cabinet k)
 // has them translated both ways: net.k is LINK's PC k, net.255 a broadcast.
 // The log notes each bind, listen, connect and accept, the first packets with each PC on each
@@ -30,6 +33,7 @@
 #include <iphlpapi.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "game.h"
@@ -51,6 +55,16 @@ int wl_link_count(void)
 int wl_link_cabinet(void)
 {
     return g_cabinet;
+}
+
+static const char *ip_text(ULONG ip, char *buf, size_t size);
+
+int wl_link_address(int k, char *buf, size_t size)
+{
+    if (k < 1 || k > g_count)
+        return 0;
+    ip_text(g_address[k - 1], buf, size);
+    return 1;
 }
 
 static const char *ip_text(ULONG ip, char *buf, size_t size)
@@ -259,6 +273,96 @@ static int pc_socket(SOCKET s)
     return 0;
 }
 
+// The game's UDP sockets bound, and their ports
+static struct
+{
+    volatile SOCKET s;
+    volatile LONG port; // 0: a free slot
+} g_udp[SOCKETS];
+
+static int udp_socket(SOCKET s)
+{
+    int type = 0, len = sizeof type;
+    wl_busy_enter();
+    int r = getsockopt(s, SOL_SOCKET, SO_TYPE, (char *)&type, &len);
+    wl_busy_leave();
+    return !r && type == SOCK_DGRAM;
+}
+
+static void udp_bound(SOCKET s, int port)
+{
+    for (int i = 0; i < SOCKETS; i++)
+        if (!g_udp[i].port || g_udp[i].s == s)
+        {
+            g_udp[i].s = s;
+            g_udp[i].port = port;
+            return;
+        }
+}
+
+static int udp_closed(SOCKET s)
+{
+    int port = 0;
+    for (int i = 0; i < SOCKETS; i++)
+        if (g_udp[i].port && g_udp[i].s == s)
+        {
+            port = g_udp[i].port;
+            g_udp[i].port = 0;
+        }
+    return port;
+}
+
+static int udp_sockets(int port)
+{
+    int n = 0;
+    for (int i = 0; i < SOCKETS; i++)
+        n += g_udp[i].port == port;
+    return n;
+}
+
+// The broadcast address of this PC's card of LINK (192.168.1.255); 0 not found
+static ULONG g_netMask; // that card's network mask
+static ULONG link_broadcast(void)
+{
+    static ULONG found;
+    static volatile LONG done;
+    if (InterlockedExchange(&done, 1))
+        return found;
+    typedef DWORD(WINAPI * Table)(PMIB_IPADDRTABLE, PULONG, BOOL);
+    HMODULE iphlp = LoadLibraryW(L"iphlpapi.dll");
+    Table table = iphlp ? (Table)GetProcAddress(iphlp, "GetIpAddrTable") : NULL;
+    ULONG size = 0;
+    if (table && table(NULL, &size, FALSE) == ERROR_INSUFFICIENT_BUFFER)
+    {
+        MIB_IPADDRTABLE *t = (MIB_IPADDRTABLE *)malloc(size);
+        if (t && table(t, &size, FALSE) == NO_ERROR)
+            for (DWORD i = 0; i < t->dwNumEntries; i++)
+                if (t->table[i].dwAddr == g_address[g_cabinet - 1])
+                {
+                    g_netMask = t->table[i].dwMask;
+                    found = t->table[i].dwAddr | ~g_netMask;
+                }
+        free(t);
+    }
+    char a[20], b[20];
+    wl_log("link: this PC's card of LINK (%s): its network's broadcast %s", ip_text(g_address[g_cabinet - 1], a, sizeof a),
+           found ? ip_text(found, b, sizeof b) : "not found");
+    return found;
+}
+
+// The game's code that called a hook (first, its return address) and, when the stack's frames
+// lead back to it, the code that called that one: "GRID.exe+0x2e150 < GRID.exe+0x2c9b1"
+static __declspec(noinline) const char *callers(const void *first, char *buf, size_t size)
+{
+    void *calls[3];
+    USHORT n = RtlCaptureStackBackTrace(2, 3, calls, NULL);
+    char where[96];
+    int at = snprintf(buf, size, "%s", wl_where(first, where, sizeof where));
+    for (USHORT i = 1; n && calls[0] == first && i < n && at < (int)size; i++)
+        at += snprintf(buf + at, size - at, " < %s", wl_where(calls[i], where, sizeof where));
+    return buf;
+}
+
 static void tcp_end(SOCKET s, int pc, const char *what, DWORD err)
 {
     static volatile LONG logged;
@@ -290,9 +394,12 @@ static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
     DWORD err = WSAGetLastError();
     if (g_count && is_inet(a, len))
     {
-        char t[20];
-        wl_log("link: bind %s:%u -> %d (%lu)", ip_text(((const sockaddr_in *)a)->sin_addr.s_addr, t, sizeof t), ntohs(((const sockaddr_in *)a)->sin_port), r,
-               r ? err : 0);
+        int udp = udp_socket(s), port = ntohs(((const sockaddr_in *)a)->sin_port);
+        if (!r && udp)
+            udp_bound(s, port);
+        char t[20], from[300];
+        wl_log("link: bind %s:%u -> %d (%lu), %s socket %Iu [%s]", ip_text(((const sockaddr_in *)a)->sin_addr.s_addr, t, sizeof t), port, r, r ? err : 0,
+               udp ? "UDP" : "TCP", (ULONG_PTR)s, callers(WL_CALLER, from, sizeof from));
     }
     WSASetLastError(err);
     return r;
@@ -386,8 +493,31 @@ static int WSAAPI l_sendto(SOCKET s, const char *buf, int n, int flags, const so
         // Each PC of LINK, its own too (a broadcast comes back to its sender)
         int r = n;
         DWORD err = 0;
+        int port = ntohs(to.sin_port), shared = udp_sockets(port);
+        ULONG network = shared > 1 ? link_broadcast() : 0;
+        if (network)
+        {
+            // Several of the game's sockets on that port (its own PC's, the others' the same):
+            // a broadcast on LINK's network reaches each; the PCs of LINK outside it one by one
+            static volatile LONG told;
+            if (!InterlockedExchange(&told, 1))
+                wl_log("link: %d of the game's sockets on port %u: its broadcasts to it go as a broadcast on LINK's network", shared, port);
+            to.sin_addr.s_addr = network;
+            int sent = o_sendto(s, buf, n, flags, (const sockaddr *)&to, sizeof to);
+            if (sent < 0)
+                err = WSAGetLastError();
+            for (int i = 0; i < g_count; i++)
+                if ((g_address[i] & g_netMask) == (network & g_netMask))
+                {
+                    to.sin_addr.s_addr = g_address[i];
+                    count(i + 1, 1, sent);
+                    packet("sent (broadcast on the network) to", i + 1, &to, s, buf, sent);
+                }
+        }
         for (int i = 0; i < g_count; i++)
         {
+            if (network && (g_address[i] & g_netMask) == (network & g_netMask))
+                continue;
             to.sin_addr.s_addr = g_address[i];
             int sent = o_sendto(s, buf, n, flags, (const sockaddr *)&to, sizeof to);
             if (sent < 0)
@@ -488,6 +618,13 @@ static int WSAAPI l_recv(SOCKET s, char *buf, int n, int flags)
 static int(WSAAPI *o_closesocket)(SOCKET);
 static int WSAAPI l_closesocket(SOCKET s)
 {
+    if (int port = g_count ? udp_closed(s) : 0)
+    {
+        static volatile LONG logged;
+        char from[300];
+        if (InterlockedIncrement(&logged) <= 50)
+            wl_log("link: closesocket of UDP socket %Iu (port %u) [%s]", (ULONG_PTR)s, port, callers(WL_CALLER, from, sizeof from));
+    }
     if (int pc = g_count ? pc_socket(s) : 0)
     {
         tcp_end(s, pc, "closed by this cabinet", 0);

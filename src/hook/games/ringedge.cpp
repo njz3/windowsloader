@@ -68,6 +68,7 @@ struct RingGame
 
 static const RingGame *g_game;
 static wchar_t g_dir[MAX_PATH];
+static char g_linkAddress[40]; // linked, query_ip_address's answer: "ip_address=192.168.75.2"
 
 // ------------------------------------------------------------------------------
 // SRAM: 512 KB kept in a file beside the game
@@ -948,6 +949,10 @@ static int pcp_answer(const char *request, char *response, size_t size)
         for (int i = 0; i < (int)(sizeof ops / sizeof ops[0]); i++)
             if (!strcmp(value, ops[i].operation))
                 fields = ops[i].fields;
+        // Linked, the address the game gives itself (Sega Racing Classic, which asks for it when
+        // the card has its link, below): it then does not ask for another
+        if (g_linkAddress[0] && !strcmp(value, "query_ip_address"))
+            fields = g_linkAddress;
         // The DHCP client: Sonic & Sega All-Stars Racing (+0x4169f0) starts it (status=1) and waits
         // for its status 3, an address obtained, before it asks for the address
         static int dhcp;
@@ -958,7 +963,7 @@ static int pcp_answer(const char *request, char *response, size_t size)
             wl_pcp_value(request, "status", status, sizeof status);
             dhcp = atoi(status) ? 3 : 0;
         }
-        if (!strcmp(value, "query_nic_status") && g_game->linkUp)
+        if (!strcmp(value, "query_nic_status") && (g_game->linkUp || g_linkAddress[0]))
             fields = "status=0";
         if (!strcmp(value, "query_dhcp_status"))
         {
@@ -1075,6 +1080,33 @@ static void ssr_settings(void)
         wl_link_virtual_net("192.168.88");
 }
 
+// Sega Racing Classic's link (link.h, [Game.src] LINK), 4 cabinets, UDP only: its node k (MAIN 0,
+// the SUBs their CAR NUMBER) is 192.168.75.(1 + k); the SUBs send to MAIN's UDP 26666, MAIN answers
+// with the nodes' addresses, then each sends its frames to every node's UDP 26665. Those addresses
+// are LINK's PCs (wl_link_virtual_net); the address it asks the platform for is 192.168.75.<its
+// place in LINK>. Its test menu (GAME ASSIGNMENTS) must agree: START UP MODE MAIN on LINK's PC 1,
+// TOTAL NODES LINK's count; SUB on PC k, CAR NUMBER k - 1
+static const WlGameOption g_srcOptions[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k "
+          "en SUB, CAR NUMBER k - 1."),
+     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
+};
+
+static void src_settings(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        return;
+    wl_link_virtual_net("192.168.75");
+    int k = wl_link_cabinet();
+    snprintf(g_linkAddress, sizeof g_linkAddress, "ip_address=192.168.75.%d", k);
+    if (k == 1)
+        wl_log("game: Sega Racing Classic linked, cabinet 1: its test menu's START UP MODE must be MAIN, TOTAL NODES %d", wl_link_count());
+    else
+        wl_log("game: Sega Racing Classic linked, cabinet %d: its test menu's START UP MODE must be SUB, CAR NUMBER %d", k, k - 1);
+}
+
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
      L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
@@ -1134,6 +1166,11 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     {
         wl_game_set_options(g_ssrOptions, COUNT(g_ssrOptions));
         wl_game_on_settings(ssr_settings);
+    }
+    else if (!strcmp(g_game->name, "src"))
+    {
+        wl_game_set_options(g_srcOptions, COUNT(g_srcOptions));
+        wl_game_on_settings(src_settings);
     }
     else if (g_game->freePlayOption)
         wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));

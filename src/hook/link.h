@@ -29,3 +29,5 @@ void wl_link_virtual_net(const char *net);
 // This cabinet's number, 1.. (CABINET, or its PC's place in LINK); 1 alone
 int wl_link_cabinet(void);
 int wl_link_count(void);
+// LINK's PC k (1..) as text ("192.168.1.4"); 0 when there is none
+int wl_link_address(int k, char *buf, size_t size);

@@ -1006,7 +1006,7 @@ msgstr ""
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr ""
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1066 src/hook/games/segarally3.cpp:180
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1071 src/hook/games/ringedge.cpp:1090 src/hook/games/segarally3.cpp:180
 msgid "Numéro de la borne (link)"
 msgstr ""
 
@@ -1073,7 +1073,7 @@ msgstr ""
 msgid "Garder le rapport"
 msgstr ""
 
-#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:594
+#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:595
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr ""
 
@@ -1085,16 +1085,20 @@ msgstr ""
 msgid "Lecteur de cartes"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1052 src/hook/games/ringedge.cpp:1063
+#: src/hook/games/ringedge.cpp:1057 src/hook/games/ringedge.cpp:1068
 msgid "Jeu gratuit"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1053 src/hook/games/ringedge.cpp:1064
+#: src/hook/games/ringedge.cpp:1058 src/hook/games/ringedge.cpp:1069
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1067
+#: src/hook/games/ringedge.cpp:1072
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
+msgstr ""
+
+#: src/hook/games/ringedge.cpp:1091
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k - 1."
 msgstr ""
 
 #: src/hook/games/stormracer.cpp:633
@@ -1106,27 +1110,27 @@ msgstr ""
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr ""
 
-#: src/hook/games/taito.cpp:583
+#: src/hook/games/taito.cpp:584
 msgid "Standard"
 msgstr ""
 
-#: src/hook/games/taito.cpp:584
+#: src/hook/games/taito.cpp:585
 msgid "Pro"
 msgstr ""
 
-#: src/hook/games/taito.cpp:589
+#: src/hook/games/taito.cpp:590
 msgid "Borne"
 msgstr ""
 
-#: src/hook/games/taito.cpp:590
+#: src/hook/games/taito.cpp:591
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr ""
 
-#: src/hook/games/taito.cpp:593
+#: src/hook/games/taito.cpp:594
 msgid "Garder le rapport (borne Pro)"
 msgstr ""
 
-#: src/hook/games/taito.cpp:745 src/hook/games/taito.cpp:771
+#: src/hook/games/taito.cpp:872 src/hook/games/taito.cpp:900
 msgid "Carte du volant"
 msgstr ""
 
