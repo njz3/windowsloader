@@ -750,7 +750,8 @@ Direct3D 9, 800×600. Le module de Tuned (`taito.cpp`), qui reconnaît cette éd
 - Menu de service ✅ : TEST MODE (bouton Test), SHIFT UP descend, SHIFT DOWN remonte, START choisit ; EXIT ferme le
   jeu (la borne redémarre).
 - Crédits ⚠️ : le jeu est en « FREE PLAY » dans cette copie ; la pièce n'a pas été vue créditer.
-
+- Link sur les bornes ✅ (31/10, release 20261031-2) : MACHINE NO 1 et 2 pris dans LINK, « The number of entrants »
+  2, Race Mode 1/2 ; la course à deux (6e et 7e sur 7), chaque borne voit la voiture de l'autre.
 ## Chase H.Q. 2 (Taito Type X2, 2007)
 
 `game.exe` (avec `chq2.ini`), x86, Direct3D 9 (RenderWare, back buffer 10 bits A2R10G10B10), 800×600.
