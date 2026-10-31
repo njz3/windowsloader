@@ -1434,6 +1434,12 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
   avec les manettes, 26 à 29 sans, sur trop peu de course pour conclure.
 - Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), un essai au vrai
   volant, le test du retour de force.
+- Copie sur un lecteur que le jeu redirige ✅ (31/10, signalé par un utilisateur, jeu dans D:\games\…) : « Failed
+  to open descriptor file '../../../Todoroki/Todoroki.uproject' », le jeu cherchait ses fichiers sous la redirection
+  de D: (D:\games\…\D\games\…\App). Le dossier qui contient les dossiers de la redirection (celui du jeu) reste
+  désormais à sa place, pour toutes les redirections de lecteurs (`files.cpp`) ; le journal le dit une fois. Rejoué
+  sur ce PC avec la copie vue en D: (`subst`) : 45 s de jeu, D:\games\swdc lu en place, E: et Y: toujours dans AMFS
+  et Y.
 
 Avant (23/10) :
 - Lancement ⚠️ : amdaemon démarre sans erreur (registre `SystemProperty` inventé en mémoire, clé `\??\FddDriver`,

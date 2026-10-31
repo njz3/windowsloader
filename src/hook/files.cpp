@@ -147,12 +147,18 @@ static void cap_forget(HANDLE h)
 // Fixed folders redirected (wl_files_redirect): C:\Sega, a Taito Type X's D:\ and E:\...
 // ------------------------------------------------------------------------------
 
+// A copy on the drive it redirects (SWDC in D:\games\SWDC, its D:\ in D:\games\SWDC\D): the
+// folder holding the redirection's own folder, the game's, is left alone, else the game's own
+// files are looked for under the redirection's folder (D:\games\SWDC\D\games\SWDC\App\...); that
+// folder itself when the one holding it is a drive's root
 static struct
 {
     char from[MAX_PATH], to[MAX_PATH];
     wchar_t toW[MAX_PATH];
     size_t len;
     int prefix; // the text replaced as it is, no separator added (wl_files_redirect_prefix)
+    wchar_t keep[MAX_PATH]; // the game's folder, not redirected
+    volatile LONG told;
 } g_redirs[8];
 static int g_redirCount;
 
@@ -168,8 +174,37 @@ static void add_redirect(const char *from, const char *to, int prefix)
     g_redirs[g_redirCount].len = len;
     g_redirs[g_redirCount].prefix = prefix;
     MultiByteToWideChar(CP_ACP, 0, g_redirs[g_redirCount].to, -1, g_redirs[g_redirCount].toW, MAX_PATH);
+    wchar_t *keep = g_redirs[g_redirCount].keep;
+    if (!GetFullPathNameW(g_redirs[g_redirCount].toW, MAX_PATH, keep, NULL))
+        keep[0] = 0;
+    size_t k = wcslen(keep);
+    while (k > 3 && keep[k - 1] == L'\\')
+        keep[--k] = 0;
+    wchar_t *slash = wcsrchr(keep, L'\\');
+    if (slash && slash - keep > 2)
+        *slash = 0;
     wl_log("files: %s redirected to %s%s", g_redirs[g_redirCount].from, g_redirs[g_redirCount].to, prefix ? " (as a prefix)" : "");
     g_redirCount++;
+}
+
+// The path in redirection r's kept folder (the game's)
+static int kept(int r, const wchar_t *path)
+{
+    const wchar_t *keep = g_redirs[r].keep;
+    size_t i = 0;
+    while (keep[i] && path[i] && towlower(path[i] == L'/' ? L'\\' : path[i]) == towlower(keep[i]))
+        i++;
+    if (!keep[0] || keep[i] || (path[i] && path[i] != L'\\' && path[i] != L'/'))
+        return 0;
+    if (!InterlockedExchange(&g_redirs[r].told, 1))
+        wl_log("files: %ls left in its place (the game's folder, on the drive %s redirects)", keep, g_redirs[r].from);
+    return 1;
+}
+
+static int keptA(int r, const char *path)
+{
+    wchar_t w[MAX_PATH * 2];
+    return MultiByteToWideChar(CP_ACP, 0, path, -1, w, MAX_PATH * 2) && kept(r, w);
 }
 
 void wl_files_redirect(const char *from, const char *to)
@@ -208,7 +243,7 @@ static const char *redir(const char *path, char *buf, size_t size)
             i++;
         const char *rest = path + i;
         int relative = *rest && *rest != '\\' && *rest != '/';
-        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix))
+        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix) || keptA(r, path))
             continue;
         snprintf(buf, size, relative && !g_redirs[r].prefix ? "%s\\%s" : "%s%s", g_redirs[r].to, rest);
         return buf;
@@ -225,7 +260,7 @@ static const wchar_t *redirW(const wchar_t *path, wchar_t *buf, size_t size)
             i++;
         const wchar_t *rest = path + i;
         int relative = *rest && *rest != L'\\' && *rest != L'/';
-        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix))
+        if (i < g_redirs[r].len || (relative && !is_drive(r) && !g_redirs[r].prefix) || kept(r, path))
             continue;
         swprintf(buf, size, relative && !g_redirs[r].prefix ? L"%s\\%s" : L"%s%s", g_redirs[r].toW, rest);
         return buf;
