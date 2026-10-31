@@ -827,8 +827,8 @@ msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : non enregis
 msgstr "No settings file (started without windowsloader.exe): not saved"
 
 #: src/hook/menu.cpp:1707
-msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement."
-msgstr "The log, for debugging: beside the launcher, or in the write folder when there is one, made anew at each start."
+msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement ; le précédent gardé dans windowsloader.old.log."
+msgstr "The log, for debugging: beside the launcher, or in the write folder when there is one, made anew at each start; the one before kept in windowsloader.old.log."
 
 #: src/hook/menu.cpp:1736
 msgid "Jeu"
@@ -1446,11 +1446,11 @@ msgstr "Quit (Escape)"
 #: src/launcher/picker.cpp:688
 #, c-format
 msgid ""
-"Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage).\n"
-"Pris en compte au prochain lancement d'un jeu."
+"Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage) ;\n"
+"le précédent gardé dans windowsloader.old.log. Pris en compte au prochain lancement d'un jeu."
 msgstr ""
-"The games' log, %s\\windowsloader.log, made anew at each start (for debugging).\n"
-"Taken into account at a game's next start."
+"The games' log, %s\\windowsloader.log, made anew at each start (for debugging);\n"
+"the one before kept in windowsloader.old.log. Taken into account at a game's next start."
 
 #: src/launcher/picker.cpp:694
 msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
@@ -1472,6 +1472,16 @@ msgstr "windowsloader %s %s — game selection"
 #: src/launcher/picker.cpp:793
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
+
+#~ msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement."
+#~ msgstr "The log, for debugging: beside the launcher, or in the write folder when there is one, made anew at each start."
+
+#~ msgid ""
+#~ "Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage).\n"
+#~ "Pris en compte au prochain lancement d'un jeu."
+#~ msgstr ""
+#~ "The games' log, %s\\windowsloader.log, made anew at each start (for debugging).\n"
+#~ "Taken into account at a game's next start."
 
 #~ msgid "Sorties réseau coupées : [Outputs] OUTPUTS_NETWORK = true pour les envoyer (au prochain lancement). Les valeurs ci-dessous sont celles que le jeu donne."
 #~ msgstr "Network outputs off: [Outputs] OUTPUTS_NETWORK = true to send them (at the next start). The values below are the ones the game gives."

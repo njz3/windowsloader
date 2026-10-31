@@ -685,8 +685,8 @@ static int draw(int *selected, int *action)
     {
         char dir[MAX_PATH * 3];
         u8(g_logDir, dir, sizeof dir);
-        ImGui::SetTooltip(wl_tr("Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage).\n"
-                                "Pris en compte au prochain lancement d'un jeu."),
+        ImGui::SetTooltip(wl_tr("Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage) ;\n"
+                                "le précédent gardé dans windowsloader.old.log. Pris en compte au prochain lancement d'un jeu."),
                           dir);
     }
     ImGui::PopItemFlag();

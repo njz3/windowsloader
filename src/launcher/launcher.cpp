@@ -99,7 +99,8 @@ static void usage(void)
         "\n"
         "Options:\n"
         "  --log <file>     log written by the game side (default: windowsloader.log beside this launcher, or at the\n"
-        "                   write folder's root; none with [Launcher] LOG = false)\n"
+        "                   write folder's root; none with [Launcher] LOG = false); the one before kept as\n"
+        "                   <name>.old.log\n"
         "  --fullscreen     let the game switch the display to full screen (default: kept in a window)\n"
         "  --timeout <s>    stop the game after <s> seconds (for tests)\n"
         "  --iolimit <n>    max reads/writes logged per device handle (default: 500)\n"
@@ -213,6 +214,21 @@ static int pe_console(const wchar_t *path)
         console = *(WORD *)(nt + 4 + sizeof(IMAGE_FILE_HEADER) + 68) == IMAGE_SUBSYSTEM_WINDOWS_CUI;
     CloseHandle(f);
     return console;
+}
+
+// The log of the run before kept: x.log renamed x.old.log (the one before it gone), the new one
+// made by the game's side
+static void keep_previous_log(const wchar_t *path)
+{
+    if (!path[0] || GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES)
+        return;
+    wchar_t old[MAX_PATH];
+    wcsncpy_s(old, MAX_PATH, path, _TRUNCATE);
+    size_t n = wcslen(old);
+    if (n >= 4 && !_wcsicmp(old + n - 4, L".log"))
+        old[n - 4] = 0;
+    wcscat_s(old, MAX_PATH, L".old.log");
+    MoveFileExW(path, old, MOVEFILE_REPLACE_EXISTING);
 }
 
 // Strips the file name: "C:\a\b.exe" -> "C:\a"
@@ -1013,6 +1029,7 @@ int wmain(int argc, wchar_t **argv)
     if (write < 0 && GetTempPathW(MAX_PATH, tempDir))
         swprintf(nosave, MAX_PATH, L"%s" NOSAVE L"%lu", tempDir, GetCurrentProcessId());
     SetEnvironmentVariableW(WL_ENV_NOSAVE, nosave[0] ? nosave : NULL);
+    keep_previous_log(logPath);
     SetEnvironmentVariableW(WL_ENV_LOG, logPath);
     SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");
     swprintf(num, 16, L"%d", ioLimit);
@@ -1078,6 +1095,7 @@ int wmain(int argc, wchar_t **argv)
             wcscat_s(compLog, MAX_PATH, c ? L"-companion2.log" : L"-companion.log");
         else
             compLog[0] = 0; // no log
+        keep_previous_log(compLog);
         SetEnvironmentVariableW(WL_ENV_LOG, compLog);
         SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);

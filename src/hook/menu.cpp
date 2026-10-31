@@ -1705,7 +1705,7 @@ static void page_about(void)
     if (logStatus[0])
         ImGui::TextDisabled("%s", logStatus);
     ImGui::TextDisabled("%s", wl_tr("Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, "
-                                    "refait à chaque lancement."));
+                                    "refait à chaque lancement ; le précédent gardé dans windowsloader.old.log."));
     ImGui::PopTextWrapPos();
 }
 

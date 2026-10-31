@@ -56,7 +56,8 @@ windowsloader [options] <game.exe> [game arguments...]
 windowsloader               (alone: the game picker)
 
   --log <file>     log written by the game side (default: windowsloader.log beside the launcher, or at
-                   the write folder's root; none with [Launcher] LOG = false)
+                   the write folder's root; none with [Launcher] LOG = false;
+                   the one before kept as <name>.old.log)
   --fullscreen     let the game switch the display to full screen (default: kept in a window)
   --timeout <s>    stop the game after <s> seconds (for tests)
   --iolimit <n>    max reads/writes logged per device handle (default: 500)
@@ -282,7 +283,8 @@ does).
 `windowsloader.log`, a text file for debugging (what the game opens, its devices, the link, the
 force feedback...), is written beside `windowsloader.exe`, or at the write folder's root when there
 is one (`[Paths] WRITE_DIR` or `--write-dir`), made anew at each start, whatever the folder the
-launcher is started from. `[Launcher] LOG = false` writes none: the picker's "Journal" box and the
+launcher is started from; the one before is kept as `windowsloader.old.log` (the same for a
+companion's `-companion.log`). `[Launcher] LOG = false` writes none: the picker's "Journal" box and the
 settings menu's (its last page) change it, from the next start. `--log <file>` names another file.
 A write folder that cannot be written writes none either.
 
