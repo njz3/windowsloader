@@ -25,12 +25,12 @@ const WlKnownGame g_wlKnownGames[] = {
      WL_N("Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Daytona Championship USA", "daytona3", "171221", {L"Daytona.exe"}, {0x08823BEF}, {NULL}, 0, NULL, "Sega (PC)", "2017", WL_GAME_PLAYS,
      WL_N("Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."),
-     WL_FEATURE_YES, WL_FEATURE_PARTLY},
+     WL_FEATURE_YES, WL_FEATURE_YES},
     // The New Season Edition (2019): its own program, the same name. Told apart by the DLL from its
     // Install.ini; here the line above comes first and the picker shows both editions as it
     {"Daytona Championship USA New Season Edition", "daytona3nse", "190306", {L"Daytona.exe"}, {0x9650CBB4}, {NULL}, 0, NULL, "Sega (PC)",
      "2019", WL_GAME_PLAYS, WL_N("Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."),
-     WL_FEATURE_YES, WL_FEATURE_PARTLY},
+     WL_FEATURE_YES, WL_FEATURE_YES},
     {"Ford Racing Full Blown", "fordracing", "", {L"fordracing.exe"}, {0xEB788677}, {NULL}, 0, NULL, "Sega (PC)", "2006", WL_GAME_PLAYS,
      WL_N("Carte d'E/S USB (Happ UGCI) ; moteur par le port parallèle. Menu de service : GameShell.exe."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Initial D Arcade Stage 6 AA", "initiald6", "", {L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, {0x0C422DA1, 0xBF55277C}, {NULL}, 0, NULL, "Sega RingEdge", "2011",
@@ -74,7 +74,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Mario Kart Arcade GP DX 1.10", "mkdx", "1.10", {L"MK_AGP3_FINAL.exe"}, {0x4D386327}, {NULL}, 0, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
-     WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_PARTLY},
+     WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
      WL_N("E/S et volant UNIS, clé de la borne."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Storm Racer G", "srg", "", {L"racing.exe"}, {0xE5A27313}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,

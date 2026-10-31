@@ -161,6 +161,13 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   l'éclairé) ; si elle ne donne aucune image pendant 3 s, l'émulée la remplace. Essai sur les bornes (camera4) : la
   DV20 donne du BGR 320x240, noir dans la salle éteinte (les cases photo noires venaient de là) ; course à deux en link.
   Une caméra noire est gardée (le visage vient avec la lumière). Vérifié hors jeu avec une fausse caméra.
+- Link sur les bornes ✅ (31/10, release 20261031-5, borne 1 lancée d'abord, les deux en BORDERLESS) :
+  - caméra émulée (d3emu, `CAMERA = PICTURE` pour cet essai) : « camera: emulated, a black picture » sur les deux,
+    salon « 2/2 PRÊT », même circuit (Daytona International Speedway, 8 tours), positions 2/2 et 1/2, podium à deux ;
+    le trafic compté toutes les 10 s pendant 10 min, aucune déconnexion : un PC sans webcam se linke ;
+  - New Season Edition (d3nse, `CAMERA = AUTO`, les webcams) : « cabinet 1 of 2 » / « 2 of 2 », le SKU du Shell,
+    salon « 2/2 PRÊT », mêmes comptes à rebours, la course à deux, aucune déconnexion.
+  Les deux éditions sont marquées « oui » pour le link dans la liste des jeux.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)
@@ -1227,6 +1234,10 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
   pièces et Start sur les deux, « Deux Joueurs VERSUS / CO-OP » proposé, course ensemble au Château de Peach, le
   même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Sur les deux bornes (27/10, Image
   borne, Board ID 1 et 2) : « Deux Joueurs VERSUS / CO-OP » proposé sur les deux, la course pas encore lancée.
+- Link sur les bornes ✅ (31/10, mkdx110, release 20261031-5, par le RunWindowsLoaderLinkGame.cmd de l'image) :
+  « Connexion impossible au service BanaPassport » puis Continue sur les deux, « Deux Joueurs VERSUS », le même
+  circuit (Château de Peach, « En attente d'autres joueurs » puis « Confirmé! »), la course à deux : même chrono
+  (250, puis 233/232), 1er et 2e sur 2, les deux karts sur chaque carte. Marqué « oui » dans la liste des jeux.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 
