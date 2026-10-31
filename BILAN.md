@@ -1682,6 +1682,10 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   choisit), I/O CHECK, ACCEL and BRAKE CALIBRATION : chaque étape (Push Full, Release) dure environ 5 s et part
   seule après START, le frein environ 14 s après ; « Calibration succeeded » pour les deux, SAVE AND EXIT ; au
   lancement suivant, l'attract directement.
+- Link revérifié sur les bornes ✅ (31/10, vlr3, release 20261031-4), depuis que DirectPlay ne voit plus que la carte
+  de LINK : « 2-PLAYER GAME AVAILABLE » sur la borne 2 ; Coin+Start sur la 1 puis sur la 2, chacune choisit sa
+  passagère et sa voiture avec son propre compte à rebours, puis la même grille de départ, la voiture de la borne 1
+  à côté de celle de la 2. Le dossier d'écriture du link de la borne 2 n'a pas demandé d'étalonnage.
 ## Direct3D 8 (d3d8to9)
 
 windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,
