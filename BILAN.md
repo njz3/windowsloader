@@ -818,8 +818,13 @@ Les trois fonctions de linuxloader qui manquaient, avec ses clés :
   un dossier refusé en écriture (icacls) : le texte à 6 s, plus à 24 s, aucun fichier changé dans les dossiers
   du lanceur et du jeu ; un dossier d'écriture normal : comme avant. Le texte aussi sur Mario Kart DX 1.18
   (Direct3D 10), Wangan Midnight 5 (Direct3D 11, 64 bits) et Initial D 6 (OpenGL), leurs dossiers inchangés.
-  Wangan Midnight 5 s'arrête après 9 images : ses fichiers de comptabilité (`F:/BK_*.bin`) ne s'ouvrent pas,
-  « bookkeep: file broken » (le « tant pis » de la règle).
+  Wangan Midnight 5 s'arrêtait après 9 images : ses fichiers de comptabilité (`F:/BK_*.bin`) ne s'ouvraient pas,
+  « bookkeep: file broken ». Désormais (comme linuxloader), les fichiers sans lesquels un jeu ne tourne pas,
+  nommés par un filtre sur leur nom (`[Paths] TEMP_WRITES` et le module du jeu : `*BK_*.bin` pour Wangan), vont
+  dans des copies de travail dans `%TEMP%\windowsloader-nosave-<pid>`, faites depuis leur place, relues pendant la
+  partie, effacées par le lanceur à la fin et à son lancement suivant (dossiers dont le processus n'existe plus) ;
+  rien d'autre n'y va. Vérifié : Wangan Midnight 5 passe (ses 12 BK_*.bin dans les copies, 60 images/s jusqu'au
+  bout), le dossier temporaire vidé à la fin (un dossier laissé par un faux plantage aussi), son dossier inchangé.
 - `[Outputs] OUTPUTS_NETWORK` : serveur TCP (8000) au protocole de MAME pour BackForceFeeder, annonce UDP
   (8001) ; les lampes de la carte JVS, `RawDrive` (les octets de la carte moteur Sega, ou pour les autres
   cartes les trames de la carte servo Sega faites de la force), `mame_stop` à la fin.

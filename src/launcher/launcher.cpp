@@ -751,6 +751,74 @@ static void agent_to_stdout(HANDLE pipe)
 // Main
 // ------------------------------------------------------------------------------
 
+// The working copies of the games run with a write folder that cannot be written (the DLL's
+// files.cpp: %TEMP%\windowsloader-nosave-<pid>, the files a game cannot run without): removed once
+// their process is gone, at each start (a game that crashed or was stopped) and at the end
+#define NOSAVE L"windowsloader-nosave-"
+
+static void remove_tree(const wchar_t *dir)
+{
+    static wchar_t pattern[1024];
+    swprintf(pattern, 1024, L"%s\\*", dir);
+    WIN32_FIND_DATAW d;
+    HANDLE h = FindFirstFileW(pattern, &d);
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (!wcscmp(d.cFileName, L".") || !wcscmp(d.cFileName, L".."))
+                continue;
+            wchar_t *p = (wchar_t *)malloc(1024 * sizeof(wchar_t));
+            if (!p)
+                break;
+            swprintf(p, 1024, L"%s\\%s", dir, d.cFileName);
+            if ((d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && !(d.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                remove_tree(p);
+            else
+            {
+                SetFileAttributesW(p, FILE_ATTRIBUTE_NORMAL);
+                DeleteFileW(p);
+            }
+            free(p);
+        } while (FindNextFileW(h, &d));
+        FindClose(h);
+    }
+    RemoveDirectoryW(dir);
+}
+
+static void clean_working_copies(int atEnd)
+{
+    wchar_t temp[MAX_PATH], pattern[MAX_PATH + 32], dir[MAX_PATH + 64];
+    if (!GetTempPathW(MAX_PATH, temp))
+        return;
+    swprintf(pattern, MAX_PATH + 32, L"%s" NOSAVE L"*", temp);
+    WIN32_FIND_DATAW d;
+    HANDLE h = FindFirstFileW(pattern, &d);
+    if (h == INVALID_HANDLE_VALUE)
+        return;
+    int removed = 0;
+    do
+    {
+        if (!(d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            continue;
+        DWORD pid = wcstoul(d.cFileName + wcslen(NOSAVE), NULL, 10);
+        HANDLE p = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : NULL;
+        int alive = p && WaitForSingleObject(p, 0) == WAIT_TIMEOUT;
+        if (p)
+            CloseHandle(p);
+        if (alive)
+            continue; // another game's, running
+        swprintf(dir, MAX_PATH + 64, L"\\\\?\\%s%s", temp, d.cFileName); // its paths may be long
+        remove_tree(dir);
+        removed++;
+    } while (FindNextFileW(h, &d));
+    FindClose(h);
+    if (removed)
+        say(atEnd ? "windowsloader: the game's working copies removed from the temporary folder (%d folder(s))\n"
+                  : "windowsloader: %d folder(s) of working copies left by an earlier run removed from the temporary folder\n",
+            removed);
+}
+
 int wmain(int argc, wchar_t **argv)
 {
     // Without a game: the picker, which runs the chosen game through this program again
@@ -955,6 +1023,7 @@ int wmain(int argc, wchar_t **argv)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
     game_option_args(gamePath, cmd, argc, argv, i + 1, iniPath, setsLen ? sets : NULL);
 
+    clean_working_copies(0);
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), logPath[0] ? u8(logPath) : "none (the write folder cannot be written)",
         windowed ? "windowed" : "full screen allowed");
@@ -1152,6 +1221,7 @@ int wmain(int argc, wchar_t **argv)
     else
         say("windowsloader: game exited with code %lu (0x%08lX).\n", code, code);
 
+    clean_working_copies(1);
     if (job)
         CloseHandle(job);
     SetConsoleOutputCP(oldCP);

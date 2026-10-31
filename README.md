@@ -317,7 +317,12 @@ own fail, and there is no log (but `--log`'s). The reason is on the launcher's c
 debugger's output (DebugView); over the game, for 20 s from its first frame, without a message box
 or a pause: "Cannot write to the write folder", the folder, "Nothing is saved: the settings and the
 game saves are read from the usual folders and not written." (the same text in Supermodel's and
-Flycast's njz3 forks), and in the Tab menu's game page.
+Flycast's njz3 forks), and in the Tab menu's game page. The files a game cannot run without, named by
+a filter on their names (`[Paths] TEMP_WRITES`, wildcards with `;` between them, and the game's
+module: Wangan Midnight's bookkeeping `*BK_*.bin`, which it stops without), are written instead to
+working copies in Windows' temporary folder (`%TEMP%\windowsloader-nosave-<pid>`, made from their
+first place), read back during the run, and removed by the launcher at the end, or at its next start
+after a crash; nothing else is written there (as linuxloader's working copies).
 
 Network outputs (`[Outputs] OUTPUTS_NETWORK = true`, linuxloader's keys and protocol, MAME's, as in the
 njz3 forks of Supermodel and sm2-emu): a TCP server on `OUTPUTS_NETWORK_PORT` (8000) sends

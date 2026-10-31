@@ -1726,6 +1726,9 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         *name = w->name;
         *title = w->title;
         wl_log("game: %s (Namco System ES3X)", *title);
+        // Its bookkeeping (F:\BK_*.bin, the copy's FBK_*.bin; 6: TP\BK_WM6_*.bin), which it stops
+        // without ("bookkeep: file broken"): written even when the write folder cannot be (files.cpp)
+        wl_files_temp_writes("*BK_*.bin");
         wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)", "Motor board: Namco motor board (COM1)");
         char probe[4];
         g_wmmt5Probe = GetEnvironmentVariableA("WL_WMMT5_PROBE", probe, sizeof probe) != 0;

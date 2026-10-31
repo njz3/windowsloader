@@ -112,6 +112,9 @@ void wl_files_allow_writes(int on);
 // A write folder that cannot be written: 1 when a write of path is refused (outside it), for
 // windowsloader's own writes made before the file hooks are on (the settings' defaults)
 int wl_files_write_refused(const wchar_t *path);
+// Then the files a game cannot run without, by their names' wildcards (";" between them,
+// "*BK_*.bin"): written to working copies in Windows' temporary folder, removed at the end
+void wl_files_temp_writes(const char *names);
 // A path with a folder as the write folder has it for reading: its copy there (in buf) when there
 // is one, else the path itself (LoadLibrary: a DLL the game wrote, in the temporary folder say)
 const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size);

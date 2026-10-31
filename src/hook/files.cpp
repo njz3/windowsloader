@@ -27,6 +27,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
+#include "settings.h"
 #include "vdev.h"
 #include "vhid.h"
 #include "wlshared.h"
@@ -254,7 +255,13 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // game's files are read in their places, its writes fail there (the owner's rule for all his
 // emulators, 31/10/2026: "les écritures sont perdues et on n'écrit pas dans les dossiers protégés
 // quoi qu'il se passe"). windowsloader's own writes too (its settings, the game's NVRAM): any write
-// on a disk outside the write folder is refused, but the agent's pictures
+// on a disk outside the write folder is refused, but the agent's pictures. Some files a game cannot
+// start without (Wangan Midnight's bookkeeping, F:\BK_*.bin: "bookkeep: file broken", the game
+// stopped) are named by a filter on their names ([Paths] TEMP_WRITES and the game's module,
+// wl_files_temp_writes): those are written to working copies in Windows' temporary folder,
+// %TEMP%\windowsloader-nosave-<pid>, made from their first place, read back by the game during its
+// run, then removed by the launcher (at the end, and at the next start after a crash), as
+// linuxloader does (its writeDir.c): nothing kept, nothing written in the usual places
 // ------------------------------------------------------------------------------
 
 #define WL_PATH (MAX_PATH * 2)
@@ -264,6 +271,9 @@ static wchar_t g_writeFailed[MAX_PATH]; // the one that cannot be written (WRITE
 static wchar_t g_writeRoot[MAX_PATH];   // WRITE_DIR
 static int g_writeDenied;               // it cannot be written: every write outside it refused
 static __declspec(thread) int g_writeAllowed; // windowsloader's own file the agent asked for
+static wchar_t g_tempGame[MAX_PATH];    // then: the working copies' folder, %TEMP%\windowsloader-nosave-<pid>
+static wchar_t g_tempNames[1024];       // the files written there: their names' wildcards, ';' between them
+static __declspec(thread) int g_tempForced; // wl_files_write_path: a board's memory windowsloader keeps
 
 // The system's folders, each in a folder of its own in WRITE_DIR\<game>: appdata, temp,
 // programdata, windows, so a disk under a write filter (UWF) but for the write folder keeps them;
@@ -308,6 +318,76 @@ int wl_files_write_state(const wchar_t **folder)
 void wl_files_allow_writes(int on)
 {
     g_writeAllowed = on;
+}
+
+void wl_files_temp_writes(const char *names)
+{
+    if (!names || !names[0])
+        return;
+    size_t n = wcslen(g_tempNames);
+    if (n && n + 1 < sizeof g_tempNames / sizeof g_tempNames[0])
+        g_tempNames[n++] = L';';
+    MultiByteToWideChar(CP_UTF8, 0, names, -1, g_tempNames + n, (int)(sizeof g_tempNames / sizeof g_tempNames[0] - n));
+}
+
+// A name and a wildcard (* and ?), without case
+static int wild(const wchar_t *name, const wchar_t *pat, const wchar_t *end)
+{
+    for (; pat < end; pat++, name++)
+    {
+        if (*pat == L'*')
+        {
+            for (const wchar_t *n = name;; n++)
+            {
+                if (wild(n, pat + 1, end))
+                    return 1;
+                if (!*n)
+                    return 0;
+            }
+        }
+        if (!*name || (*pat != L'?' && towlower(*pat) != towlower(*name)))
+            return 0;
+    }
+    return !*name;
+}
+
+// A file the game cannot run without, whose writes go to a working copy (the filter on its name)
+static int essential(const wchar_t *full)
+{
+    if (g_tempForced)
+        return 1;
+    const wchar_t *name = wcsrchr(full, L'\\');
+    name = name ? name + 1 : full;
+    for (const wchar_t *p = g_tempNames; *p;)
+    {
+        while (*p == L';' || *p == L' ')
+            p++;
+        const wchar_t *end = p;
+        while (*end && *end != L';')
+            end++;
+        const wchar_t *last = end;
+        while (last > p && last[-1] == L' ')
+            last--;
+        if (last > p && wild(name, p, last))
+            return 1;
+        p = end;
+    }
+    return 0;
+}
+
+// The working copies' folder: the essential files named ([Paths] TEMP_WRITES and the game's)
+static void temp_setup(void)
+{
+    wchar_t t[MAX_PATH];
+    if (!GetTempPathW(MAX_PATH, t))
+        return;
+    swprintf(g_tempGame, MAX_PATH, L"%swindowsloader-nosave-%lu", t, GetCurrentProcessId());
+    char names[512];
+    wl_settings_get("Paths", "TEMP_WRITES", "", names, sizeof names);
+    wl_files_temp_writes(names);
+    char u[MAX_PATH * 2], f[sizeof g_tempNames * 3];
+    wl_log("files: the files %s written to working copies in %s, removed at the end (nothing else written)",
+           g_tempNames[0] ? wl_u8(g_tempNames, f, sizeof f) : "(none named)", wl_u8(g_tempGame, u, sizeof u));
 }
 
 // A file made, written and removed in the folder: 0 when all three went, else the error
@@ -402,6 +482,11 @@ void wl_files_write_dir(void)
         add_rule(v, L"appdata\\Local");
     if (GetTempPathW(MAX_PATH, v))
         add_rule(v, L"temp");
+    if (g_writeDenied)
+    {
+        temp_setup();
+        add_rule(g_tempGame, NULL); // left alone, as the write folder
+    }
     if (!g_writeDenied)
         wl_log("files: the write folder %s: the game's writes go there (AppData in appdata, the temporary folder in temp, ProgramData in "
                "programdata, Windows' in windows, the rest under its drive's letter), its folders are only read",
@@ -423,16 +508,18 @@ static int overlay_path(const wchar_t *path, wchar_t *full, wchar_t *over)
             rule = i, longest = wcslen(g_rules[i].folder);
     if (rule >= 0 && !g_rules[rule].sub)
         return 0;
+    // A write folder that cannot be written: an essential file's working copy instead
+    const wchar_t *base = g_writeDenied && g_tempGame[0] && essential(full) ? g_tempGame : g_writeGame;
     int n;
     if (rule >= 0)
     {
         const wchar_t *rest = inside(full, g_rules[rule].folder);
-        n = swprintf(over, WL_PATH, L"%s\\%s%s%s", g_writeGame, g_rules[rule].sub, *rest ? L"\\" : L"", rest);
+        n = swprintf(over, WL_PATH, L"%s\\%s%s%s", base, g_rules[rule].sub, *rest ? L"\\" : L"", rest);
     }
     else if (iswalpha(full[0]) && full[1] == L':' && full[2] == L'\\')
-        n = swprintf(over, WL_PATH, L"%s\\%c%s%s", g_writeGame, towupper(full[0]), full[3] ? L"\\" : L"", full + 3);
+        n = swprintf(over, WL_PATH, L"%s\\%c%s%s", base, towupper(full[0]), full[3] ? L"\\" : L"", full + 3);
     else if (full[0] == L'\\' && full[1] == L'\\')
-        n = swprintf(over, WL_PATH, L"%s\\UNC\\%s", g_writeGame, full + 2);
+        n = swprintf(over, WL_PATH, L"%s\\UNC\\%s", base, full + 2);
     else
         return 0;
     if (n <= 0)
@@ -539,8 +626,8 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
     wchar_t full[WL_PATH];
     if (!overlay_path(path, full, buf))
         return path;
-    if (g_writeDenied)
-        return buf;
+    if (g_writeDenied && !(g_tempGame[0] && inside(buf, g_tempGame)))
+        return buf; // there, where it fails
     if (!make_parents(buf))
     {
         static volatile LONG logged;
@@ -575,7 +662,9 @@ const wchar_t *wl_files_write_path(const wchar_t *path, wchar_t *buf, size_t siz
     wchar_t over[WL_PATH];
     if (!g_writeGame[0] || !path || (!wcschr(path, L'\\') && !wcschr(path, L'/')))
         return path;
+    g_tempForced = 1; // windowsloader's own (a board's memory): a working copy when nothing can be written
     const wchar_t *r = ov_write(path, 1, over);
+    g_tempForced = 0;
     if (r == path || wcscpy_s(buf, size, r))
         return path;
     return buf;
@@ -662,7 +751,7 @@ static int refused(const wchar_t *path, const char *what)
         disk = full + 4;
     else if (full[0] == L'\\' && full[1] == L'\\' && (full[2] == L'.' || full[2] == L'?'))
         return 0; // a device, a pipe
-    if (inside(disk, g_writeRoot))
+    if (inside(disk, g_writeRoot) || (g_tempGame[0] && inside(disk, g_tempGame)))
         return 0;
     static volatile LONG logged;
     if (InterlockedIncrement(&logged) <= 30)
