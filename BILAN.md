@@ -1630,6 +1630,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   dans un dossier d'écriture neuf, config00.bin manque et le jeu remet ses réglages d'usine (+0xa3fa0) après sa
   lecture. Linké, la méthode est remise d'après LINK aussi après ces réglages d'usine et quand Mode Select vérifie
   ses conditions (link20). Le mot reçu de l'autre borne : 1 sur la borne 1, 0 sur la 2.
+- Link sur les bornes ✅ (31/10, link20) : Mode Select des deux côtés : 2 joueurs, les méthodes différentes (HOST
+  sur la borne 1, CLIENT sur la 2), le mot reçu de l'autre ; « Mode Select — Battle » (Compete for speed!, Drift
+  Battle!), puis le choix du circuit (Town Race), de la voiture et de la boîte en mode Battle aux mêmes décomptes ;
+  la course à deux (Order 1/2 et 2/2, la distance au rival, la voiture de l'autre visible). Sur la borne 1, un
+  Start de plus à « Will you use a card? ».
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
