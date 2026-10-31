@@ -726,7 +726,8 @@ static void wacky_settings(void)
 static void __cdecl d1gp_print(const char *format, ...)
 {
     static volatile LONG logged;
-    if (!format || InterlockedIncrement(&logged) > 200)
+    static char last[256];
+    if (!format || logged > 300)
         return;
     char line[256];
     va_list args;
@@ -736,6 +737,10 @@ static void __cdecl d1gp_print(const char *format, ...)
     size_t n = strlen(line);
     while (n && (line[n - 1] == '\n' || line[n - 1] == '\r'))
         line[--n] = 0;
+    if (!strcmp(line, last)) // its retries, each the same
+        return;
+    snprintf(last, sizeof last, "%s", line);
+    InterlockedIncrement(&logged);
     wl_log("game: D1GP says \"%s\"", line);
 }
 
