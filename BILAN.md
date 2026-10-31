@@ -1703,6 +1703,37 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   de LINK : « 2-PLAYER GAME AVAILABLE » sur la borne 2 ; Coin+Start sur la 1 puis sur la 2, chacune choisit sa
   passagère et sa voiture avec son propre compte à rebours, puis la même grille de départ, la voiture de la borne 1
   à côté de celle de la 2. Le dossier d'écriture du link de la borne 2 n'a pas demandé d'étalonnage.
+## Link des jeux restants (étude du 01/11/2026)
+
+Les programmes seuls copiés de `\\racecab1\C\racecab\Games` dans `emulateurs\linkstudy\<jeu>` (hors du dépôt, sans les
+données ; Storm Rider et Frenzy Express sont déjà dans `games`). Première lecture : les importations réseau et les textes
+des programmes, pas encore de décompilation.
+
+- Chase H.Q. 2 : a un link (à faire, le plus proche de ce qui existe). DirectPlay 8 (CLSID de DirectPlay8Peer dans
+  game.exe, CoCreateInstance), comme Wacky Races et Valve Limit R ; jusqu'à 4 bornes (G1 à G4), NETWORK-ID 1 l'hôte,
+  2 le client (« YOU MUST SET UP THE OTHER MACHINE(HOST) WITH NETWORK-ID=1 ») ; réglages dans `D:\chq2.ini` :
+  LINKHOST, LINKPORTR, LINKPORTS, HOSTADDR (le HOSTADDR de Wacky) ; le jeu donne au PC les adresses 192.168.65.110
+  à 113 (AddIPAddress, refusé), comme les 192.168.64.100 et 102 de Valve Limit R. `taito.cpp` et `link.cpp` ont déjà
+  ces pièces.
+- K.O. Drive : a un link (à faire). La bibliothèque de link de Sega de Sega Racing Classic et de Daytona (« POWER-ON
+  NETWORK TEST », « LINK ID %d », GROUP ID, TOTAL MACHINE, « nodeID:%d is timeout », « commSync », « race_owner ») sur
+  192.168.99.0/24, UDP et TCP (WSAEventSelect) ; son adresse par amNetwork (amLib RingWide), à laquelle `ringedge.cpp`
+  répond déjà pour Sega Racing Classic.
+- Storm Racer G : a un link (à faire). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
+  multicast (234.7.7.7 par défaut), une hôte, les autres la rejoignent (« Start connect to host: %s »), les joueurs par
+  adresse IP, la version du jeu comparée, les photos des joueurs échangées ; jusqu'à 8 joueurs. Réglages `network` :
+  `hostNum`, `host`, `mcast` ; GetAdaptersAddresses pour la carte. Nouveau pour `link.cpp` : le multicast.
+- Storm Rider : a un link (à faire). motobike.exe : « Find Server », « CreateServer », « JoinServer », la recherche
+  essaie 192.168.0.%d (et 192.168.0.241), TCP et UDP ; jusqu'à 4 motos (écrans « link_2 » à « link_4 »). Les adresses
+  en dur, à traduire vers celles de LINK comme Daytona (192.168.1.N).
+- Crazy Ride : a sans doute un link (à faire, le plus long). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
+  multicast 234.2.2.1 et TCP (BIND_InitSocket_Recv/Send, BIND_InitTCPSocketListen, BIND_Send_TCP), appelé depuis les
+  Blueprints (écran « NewPlayerJoinTile », « OnPlayerJoin », « MachineId ») : les ports et la logique sont dans le pak
+  du jeu.
+- Frenzy Express : pas de link. Aucun programme ni DLL du jeu n'importe ou ne nomme de bibliothèque réseau.
+- Let's Go Safari : pas de link entre bornes (deux joueurs sur une borne). Le programme n'a qu'un client TCP (connect,
+  send, recv : les services de la plateforme, keychip et PCP, par amLib), ni écoute ni UDP.
+
 ## Direct3D 8 (d3d8to9)
 
 windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,
