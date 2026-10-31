@@ -1096,7 +1096,7 @@ msgstr "Unchecked: one game per coin. The game's test menu does not have this se
 
 #: src/hook/games/ringedge.cpp:1067
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
-msgstr ""
+msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The CABINET ID of the game's test menu must be the same."
 
 #: src/hook/games/stormracer.cpp:633
 msgid "la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"
