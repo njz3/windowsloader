@@ -1620,6 +1620,10 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
 - Essai link18 (31/10) ❌ : CONNECTION METHOD pris (HOST, CLIENT), la connexion réussie, toujours pas de LINK
   BATTLE. Linké, le journal donne les conditions de Mode Select quand elles changent (le nombre de joueurs, le mot
   et la méthode reçus de l'autre borne, les deux drapeaux) (link19).
+- Essai link19 (31/10) ❌ : Mode Select voit 2 joueurs, mais CONNECTION METHOD reste HOST (0) sur la borne 2 :
+  dans un dossier d'écriture neuf, config00.bin manque et le jeu remet ses réglages d'usine (+0xa3fa0) après sa
+  lecture. Linké, la méthode est remise d'après LINK aussi après ces réglages d'usine et quand Mode Select vérifie
+  ses conditions (link20). Le mot reçu de l'autre borne : 1 sur la borne 1, 0 sur la 2.
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits

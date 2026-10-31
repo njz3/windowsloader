@@ -754,16 +754,30 @@ static int __cdecl d1gp_connect(void)
     return r;
 }
 
-// Its settings' read (d:\config00.bin, +0xa4120): linked, CONNECTION METHOD (+0x5e of its settings,
-// 0 HOST, 1 CLIENT) is LINK's (cabinet 1 hosts) after each. Mode Select offers LINK BATTLE only when
-// the other cabinet says the other method (+0x8e6e0): both HOST by default, it never did (31/10)
+// Its settings' read (d:\config00.bin, +0xa4120) and their factory values (+0xa3fa0, which its start
+// also sets when the file is not there: a new write folder): linked, CONNECTION METHOD (+0x5e of its
+// settings, 0 HOST, 1 CLIENT) is LINK's (cabinet 1 hosts) after each, and when Mode Select asks.
+// Mode Select offers LINK BATTLE only when the other cabinet says the other method (+0x8e6e0): both
+// HOST by default, it never did (31/10)
+static void d1gp_method(void)
+{
+    if (wl_link_count())
+        *(volatile short *)0x629086 = (short)(wl_link_cabinet() == 1 ? 0 : 1);
+}
+
 static int(__cdecl *oD1gpSettingsRead)(void);
 static int __cdecl d1gp_settings_read(void)
 {
     int r = oD1gpSettingsRead();
-    if (wl_link_count())
-        *(volatile short *)0x629086 = (short)(wl_link_cabinet() == 1 ? 0 : 1);
+    d1gp_method();
     return r;
+}
+
+static void(__cdecl *oD1gpFactory)(void);
+static void __cdecl d1gp_factory(void)
+{
+    oD1gpFactory();
+    d1gp_method();
 }
 
 // Mode Select's conditions for LINK BATTLE (+0x98768): 2 players or more (+0x852d0: the players
@@ -773,6 +787,7 @@ static int __cdecl d1gp_settings_read(void)
 static int(__cdecl *oD1gpPlayers)(void);
 static int __cdecl d1gp_players(void)
 {
+    d1gp_method();
     int r = oD1gpPlayers();
     ULONG_PTR caller = (ULONG_PTR)WL_CALLER;
     if (caller == 0x49876D)
@@ -804,6 +819,9 @@ static void d1gp_settings(void)
     static const unsigned char playersWas[5] = {0xE8, 0x3B, 0xFB, 0xFF, 0xFF};
     if (!memcmp((void *)0x4852D0, playersWas, sizeof playersWas))
         wl_hook_code((void *)0x4852D0, (void *)d1gp_players, (void **)&oD1gpPlayers, "its players' count (+0x852d0), Mode Select's conditions logged");
+    static const unsigned char factoryWas[6] = {0x53, 0x68, 0x98, 0x00, 0x00, 0x00};
+    if (!memcmp((void *)0x4A3FA0, factoryWas, sizeof factoryWas))
+        wl_hook_code((void *)0x4A3FA0, (void *)d1gp_factory, (void **)&oD1gpFactory, "its factory settings (+0xa3fa0): CONNECTION METHOD from LINK");
     static const unsigned char readWas[6] = {0x81, 0xEC, 0x04, 0x01, 0x00, 0x00};
     if (!memcmp((void *)0x4A4120, readWas, sizeof readWas))
         wl_hook_code((void *)0x4A4120, (void *)d1gp_settings_read, (void **)&oD1gpSettingsRead,
