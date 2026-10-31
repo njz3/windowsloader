@@ -27,6 +27,37 @@ static int is_folder(const wchar_t *path)
     return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
+static unsigned long g_error;
+
+unsigned long wl_write_dir_error(void)
+{
+    return g_error;
+}
+
+// A file made, written and removed in the folder: 1 when all three went
+static int probe(const wchar_t *folder)
+{
+    wchar_t p[MAX_PATH];
+    swprintf(p, MAX_PATH, L"%s\\windowsloader-probe-%lu.tmp", folder, GetCurrentProcessId());
+    HANDLE f = CreateFileW(p, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+    {
+        g_error = GetLastError();
+        return 0;
+    }
+    DWORD n = 0;
+    BOOL ok = WriteFile(f, "windowsloader", 13, &n, NULL) && n == 13;
+    if (!ok)
+        g_error = GetLastError();
+    CloseHandle(f);
+    if (!DeleteFileW(p))
+    {
+        g_error = GetLastError();
+        ok = FALSE;
+    }
+    return ok;
+}
+
 int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *iniPath, wchar_t *root, size_t size)
 {
     wchar_t v[MAX_PATH] = L"";
@@ -46,8 +77,13 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
     size_t length = wcslen(root);
     while (length > 3 && (root[length - 1] == L'\\' || root[length - 1] == L'/'))
         root[--length] = 0;
-    SHCreateDirectoryExW(NULL, root, NULL);
-    return is_folder(root) ? 1 : -1;
+    int made = SHCreateDirectoryExW(NULL, root, NULL);
+    if (!is_folder(root))
+    {
+        g_error = (unsigned long)made;
+        return -1;
+    }
+    return probe(root) ? 1 : -2;
 }
 
 int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size)
@@ -57,7 +93,13 @@ int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, s
     int older = 0;
     WIN32_FILE_ATTRIBUTE_DATA first, copy;
     if (GetFileAttributesW(there) == INVALID_FILE_ATTRIBUTES && path[0] && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
-        CopyFileW(path, there, TRUE);
+    {
+        if (!CopyFileW(path, there, TRUE))
+        {
+            g_error = GetLastError();
+            return -1;
+        }
+    }
     else if (path[0] && _wcsicmp(path, there) && GetFileAttributesExW(path, GetFileExInfoStandard, &first) &&
              GetFileAttributesExW(there, GetFileExInfoStandard, &copy))
         older = CompareFileTime(&first.ftLastWriteTime, &copy.ftLastWriteTime) > 0;

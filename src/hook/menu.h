@@ -35,6 +35,9 @@ void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present); // a Direct3D
 // Initial D 6 to 8), before the game's frame is swapped
 typedef BOOL(WINAPI *WlSwapFn)(HDC);
 void wl_menu_swap_gl(HDC dc, WlSwapFn swap);
+// Right before the game's frame is swapped (its picture where the display puts it): the notice of a
+// write folder that cannot be written drawn over it (the Direct3D ones draw it from their present)
+void wl_menu_notice_gl(HDC dc);
 
 // Before IDirect3DDevice9::Reset: the menu's device objects are released
 void wl_menu_device_reset(void);

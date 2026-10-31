@@ -91,7 +91,9 @@ static HANDLE g_shotDone;
 int wl_write_bmp(const char *path, const unsigned char *pixels, int pitch, int w, int h, int rgba)
 {
     wl_busy_enter(); // windowsloader's own file, where the agent asked: not the game's (no write folder)
+    wl_files_allow_writes(1);
     FILE *f = fopen(path, "wb");
+    wl_files_allow_writes(0);
     wl_busy_leave();
     if (!f)
         return 0;

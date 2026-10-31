@@ -104,8 +104,14 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // are known
 void wl_files_write_dir(void);
 // The write folder for the settings menu: 1 in use (*folder WRITE_DIR\<game>), 0 none (*folder L""),
-// -1 asked but it could not be made (*folder the one asked: the game writes in place)
+// -1 asked but it cannot be written (*folder the one that cannot: nothing is written, anywhere)
 int wl_files_write_state(const wchar_t **folder);
+// windowsloader's own file the agent asked for (a picture), written even then: on around it, this
+// thread only
+void wl_files_allow_writes(int on);
+// A write folder that cannot be written: 1 when a write of path is refused (outside it), for
+// windowsloader's own writes made before the file hooks are on (the settings' defaults)
+int wl_files_write_refused(const wchar_t *path);
 // A path with a folder as the write folder has it for reading: its copy there (in buf) when there
 // is one, else the path itself (LoadLibrary: a DLL the game wrote, in the temporary folder say)
 const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size);

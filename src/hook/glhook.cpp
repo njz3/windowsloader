@@ -599,6 +599,7 @@ static BOOL WINAPI hSwapBuffers(HDC dc)
         wl_busy_enter();
         present(t);
         wl_busy_leave();
+        wl_menu_notice_gl(dc); // a write folder that cannot be written: said over the game for 20 s
         w = t->picW;
         h = t->picH;
         RECT c;
@@ -615,6 +616,7 @@ static BOOL WINAPI hSwapBuffers(HDC dc)
             GetClientRect(wnd, &r);
         w = r.right - r.left;
         h = r.bottom - r.top;
+        wl_menu_notice_gl(dc);
         if (w > 0 && h > 0)
             take_pending_shot(0, w, h);
     }

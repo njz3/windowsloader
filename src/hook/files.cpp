@@ -248,13 +248,22 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // The write folder itself and devices are left alone. A file removed that is only in its first
 // place stays there (as in linuxloader). Applied after the redirections above, on the full path:
 // it takes a game writing above its program's folder (Crazy Ride's Saved) or on a drive redirected
-// into it (D:, E:, F:...) as well. Without a write folder, nothing changes
+// into it (D:, E:, F:...) as well. Without a write folder, nothing changes.
+// A write folder that cannot be used (the launcher's WL_ENV_WRITE_DENIED, or WRITE_DIR\<game> not
+// made or a file not written there) is still the one written to: nothing goes anywhere else, the
+// game's files are read in their places, its writes fail there (the owner's rule for all his
+// emulators, 31/10/2026: "les écritures sont perdues et on n'écrit pas dans les dossiers protégés
+// quoi qu'il se passe"). windowsloader's own writes too (its settings, the game's NVRAM): any write
+// on a disk outside the write folder is refused, but the agent's pictures
 // ------------------------------------------------------------------------------
 
 #define WL_PATH (MAX_PATH * 2)
 
 static wchar_t g_writeGame[MAX_PATH];   // WRITE_DIR\<game>, L"" when not in use
-static wchar_t g_writeFailed[MAX_PATH]; // the one asked when it could not be made
+static wchar_t g_writeFailed[MAX_PATH]; // the one that cannot be written (WRITE_DIR or WRITE_DIR\<game>)
+static wchar_t g_writeRoot[MAX_PATH];   // WRITE_DIR
+static int g_writeDenied;               // it cannot be written: every write outside it refused
+static __declspec(thread) int g_writeAllowed; // windowsloader's own file the agent asked for
 
 // The system's folders, each in a folder of its own in WRITE_DIR\<game>: appdata, temp,
 // programdata, windows, so a disk under a write filter (UWF) but for the write folder keeps them;
@@ -292,8 +301,35 @@ static const wchar_t *inside(const wchar_t *path, const wchar_t *folder)
 
 int wl_files_write_state(const wchar_t **folder)
 {
-    *folder = g_writeGame[0] ? g_writeGame : g_writeFailed;
-    return g_writeGame[0] ? 1 : g_writeFailed[0] ? -1 : 0;
+    *folder = g_writeDenied ? g_writeFailed : g_writeGame;
+    return g_writeDenied ? -1 : g_writeGame[0] ? 1 : 0;
+}
+
+void wl_files_allow_writes(int on)
+{
+    g_writeAllowed = on;
+}
+
+// A file made, written and removed in the folder: 0 when all three went, else the error
+static DWORD probe(const wchar_t *folder)
+{
+    wchar_t p[MAX_PATH];
+    swprintf(p, MAX_PATH, L"%s\\windowsloader-probe-%lu.tmp", folder, GetCurrentProcessId());
+    wl_busy_enter();
+    DWORD err = 0, n = 0;
+    HANDLE f = CreateFileW(p, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_TEMPORARY, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        err = GetLastError();
+    else
+    {
+        if (!WriteFile(f, "windowsloader", 13, &n, NULL) || n != 13)
+            err = GetLastError() ? GetLastError() : ERROR_WRITE_FAULT;
+        CloseHandle(f);
+        if (!DeleteFileW(p) && !err)
+            err = GetLastError();
+    }
+    wl_busy_leave();
+    return err;
 }
 
 void wl_files_write_dir(void)
@@ -319,17 +355,34 @@ void wl_files_write_dir(void)
         if (!isalnum((unsigned char)*c) && *c != '-' && *c != '_' && *c != '.')
             *c = '_';
     swprintf(g_writeGame, MAX_PATH, L"%s\\%S", root, name);
-    wl_busy_enter();
-    SHCreateDirectoryExW(NULL, g_writeGame, NULL);
-    DWORD a = GetFileAttributesW(g_writeGame);
-    wl_busy_leave();
+    wcscpy_s(g_writeRoot, MAX_PATH, root);
     char u[MAX_PATH * 2];
-    if (a == INVALID_FILE_ATTRIBUTES || !(a & FILE_ATTRIBUTE_DIRECTORY))
+    wchar_t denied[8];
+    if (GetEnvironmentVariableW(WL_ENV_WRITE_DENIED, denied, 8) && denied[0] == L'1')
     {
-        wl_log("files: the write folder %s cannot be made: the game writes in place", wl_u8(g_writeGame, u, sizeof u));
-        wcscpy_s(g_writeFailed, MAX_PATH, g_writeGame);
-        g_writeGame[0] = 0;
-        return;
+        // The launcher's: WRITE_DIR itself cannot be written (it says why)
+        g_writeDenied = 1;
+        wcscpy_s(g_writeFailed, MAX_PATH, root);
+        wl_log("files: the write folder %s is not used: it cannot be written (the launcher's test); nothing is saved: the settings "
+               "and the game's saves are read in their usual places and not written",
+               wl_u8(root, u, sizeof u));
+    }
+    else
+    {
+        wl_busy_enter();
+        int made = SHCreateDirectoryExW(NULL, g_writeGame, NULL);
+        DWORD a = GetFileAttributesW(g_writeGame);
+        wl_busy_leave();
+        int there = a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
+        DWORD err = !there ? (made ? (DWORD)made : ERROR_PATH_NOT_FOUND) : probe(g_writeGame);
+        if (err)
+        {
+            g_writeDenied = 1;
+            wcscpy_s(g_writeFailed, MAX_PATH, g_writeGame);
+            wl_log("files: the write folder %s is not used: %s (error %lu); nothing is saved: the settings and the game's saves are "
+                   "read in their usual places and not written",
+                   wl_u8(g_writeGame, u, sizeof u), there ? "a file cannot be written in it" : "it cannot be made", err);
+        }
     }
     // The system's folders in folders of their own: AppData (the caches of Windows, of the graphics
     // driver, of the libraries, some games' saves) in appdata (Roaming, Local, LocalLow), the
@@ -349,9 +402,10 @@ void wl_files_write_dir(void)
         add_rule(v, L"appdata\\Local");
     if (GetTempPathW(MAX_PATH, v))
         add_rule(v, L"temp");
-    wl_log("files: the write folder %s: the game's writes go there (AppData in appdata, the temporary folder in temp, ProgramData in "
-           "programdata, Windows' in windows, the rest under its drive's letter), its folders are only read",
-           wl_u8(g_writeGame, u, sizeof u));
+    if (!g_writeDenied)
+        wl_log("files: the write folder %s: the game's writes go there (AppData in appdata, the temporary folder in temp, ProgramData in "
+               "programdata, Windows' in windows, the rest under its drive's letter), its folders are only read",
+               wl_u8(g_writeGame, u, sizeof u));
 }
 
 // The write folder's path for path (redirected already), in over, the full path in full: 0 when
@@ -478,22 +532,24 @@ const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size
 }
 
 // For writing: the write folder's path, its folders made; keep: the file is to be modified, its
-// first place's copied there first. Its folders cannot be made: written in place, rather than the
-// game stopped
+// first place's copied there first. A write folder that cannot be written, or its folders that
+// cannot be made: still its path, where the write fails (never in place)
 static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
 {
     wchar_t full[WL_PATH];
     if (!overlay_path(path, full, buf))
         return path;
+    if (g_writeDenied)
+        return buf;
     if (!make_parents(buf))
     {
         static volatile LONG logged;
         if (InterlockedIncrement(&logged) <= 10)
         {
             char u[WL_PATH * 2];
-            wl_log("files: the write folder's %s cannot be made: written in place", wl_u8(buf, u, sizeof u));
+            wl_log("files: the write folder's %s cannot be made: the write fails there (never in place)", wl_u8(buf, u, sizeof u));
         }
-        return path;
+        return buf;
     }
     if (keep && attributes(buf) == INVALID_FILE_ATTRIBUTES)
     {
@@ -582,6 +638,60 @@ static const char *ov_createA(const char *path, DWORD access, DWORD *disp, char 
     if (!g_writeGame[0] || !to_wide(path, w))
         return path;
     return to_ansi(ov_create(w, access, disp, o), w, path, buf, size);
+}
+
+// A write folder that cannot be written: a write on a disk outside it refused, the game's (a path
+// the write folder leaves alone) and windowsloader's own (its settings, a board's NVRAM, a call
+// made while busy) alike; devices and pipes let by, the agent's pictures too. The first ones logged
+static int refused(const wchar_t *path, const char *what)
+{
+    if (!g_writeDenied || g_writeAllowed)
+        return 0;
+    wchar_t full[WL_PATH], unc[WL_PATH];
+    if (!path) // GetPrivateProfile's NULL: win.ini, in Windows' folder
+    {
+        if (!GetWindowsDirectoryW(full, WL_PATH) || wcscat_s(full, WL_PATH, L"\\win.ini"))
+            return 0;
+    }
+    else if (!path[0] || !GetFullPathNameW(path, WL_PATH, full, NULL))
+        return 0;
+    const wchar_t *disk = full;
+    if (!wcsncmp(full, L"\\\\?\\UNC\\", 8) && swprintf(unc, WL_PATH, L"\\\\%s", full + 8) > 0)
+        disk = unc;
+    else if (!wcsncmp(full, L"\\\\?\\", 4) && iswalpha(full[4]) && full[5] == L':')
+        disk = full + 4;
+    else if (full[0] == L'\\' && full[1] == L'\\' && (full[2] == L'.' || full[2] == L'?'))
+        return 0; // a device, a pipe
+    if (inside(disk, g_writeRoot))
+        return 0;
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 30)
+    {
+        char u[WL_PATH * 2];
+        wl_log("files: %s \"%s\" refused: the write folder cannot be written, nothing is written elsewhere", what, wl_u8(disk, u, sizeof u));
+    }
+    SetLastError(ERROR_ACCESS_DENIED);
+    return 1;
+}
+
+static int refusedA(const char *path, const char *what)
+{
+    wchar_t w[WL_PATH];
+    if (!g_writeDenied)
+        return 0;
+    return path ? to_wide(path, w) && refused(w, what) : refused(NULL, what);
+}
+
+int wl_files_write_refused(const wchar_t *path)
+{
+    return refused(path, "windowsloader's write of");
+}
+
+// CreateFile's that writes: write access, or a file made
+static int create_writes(const wchar_t *path, DWORD access, DWORD disp)
+{
+    return (access & (GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE)) ||
+           disp == CREATE_NEW || disp == CREATE_ALWAYS || disp == TRUNCATE_EXISTING || (disp == OPEN_ALWAYS && attributes(path) == INVALID_FILE_ATTRIBUTES);
 }
 
 // An .ini file named alone ("game.ini") is the Windows folder's to GetPrivateProfile*: left alone
@@ -829,6 +939,9 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
         name = redir(name, rbuf, sizeof rbuf);
         name = ov_createA(name, access, &disp, obuf, sizeof obuf);
     }
+    wchar_t wname[WL_PATH];
+    if (g_writeDenied && name && to_wide(name, wname) && create_writes(wname, access, disp) && refused(wname, "CreateFile"))
+        return INVALID_HANDLE_VALUE;
     wl_busy_enter();
     HANDLE h = oCreateFileA(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
@@ -868,6 +981,8 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
         if (g_writeGame[0])
             name = ov_create(name, access, &disp, obuf);
     }
+    if (g_writeDenied && name && create_writes(name, access, disp) && refused(name, "CreateFile"))
+        return INVALID_HANDLE_VALUE;
     wl_busy_enter();
     HANDLE h = oCreateFileW(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
@@ -1150,9 +1265,18 @@ static BOOL WINAPI hCreateDirectoryA(LPCSTR path, LPSECURITY_ATTRIBUTES sa)
     BOOL ok;
     if (nested || !g_writeGame[0] || !to_wide(path, w) || !make_folder_over(w, &ok))
     {
-        wl_busy_enter();
-        ok = oCreateDirectoryA(path, sa);
-        wl_busy_leave();
+        if (refusedA(path, "CreateDirectory"))
+        {
+            ok = FALSE;
+            if (to_wide(path, w) && is_dir(attributes(w)))
+                SetLastError(ERROR_ALREADY_EXISTS);
+        }
+        else
+        {
+            wl_busy_enter();
+            ok = oCreateDirectoryA(path, sa);
+            wl_busy_leave();
+        }
     }
     DWORD err = GetLastError();
     if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
@@ -1171,9 +1295,18 @@ static BOOL WINAPI hCreateDirectoryW(LPCWSTR path, LPSECURITY_ATTRIBUTES sa)
     BOOL ok;
     if (nested || !g_writeGame[0] || !make_folder_over(path, &ok))
     {
-        wl_busy_enter();
-        ok = oCreateDirectoryW(path, sa);
-        wl_busy_leave();
+        if (refused(path, "CreateDirectory"))
+        {
+            ok = FALSE;
+            if (is_dir(attributes(path)))
+                SetLastError(ERROR_ALREADY_EXISTS);
+        }
+        else
+        {
+            wl_busy_enter();
+            ok = oCreateDirectoryW(path, sa);
+            wl_busy_leave();
+        }
     }
     DWORD err = GetLastError();
     if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
@@ -1200,6 +1333,8 @@ static int WINAPI hSHCreateDirectoryExW(HWND wnd, LPCWSTR path, const SECURITY_A
             return ERROR_ALREADY_EXISTS;
         return make_dirs(over) ? ERROR_SUCCESS : ERROR_PATH_NOT_FOUND;
     }
+    if (refused(path, "SHCreateDirectoryEx"))
+        return is_dir(attributes(path)) ? ERROR_ALREADY_EXISTS : ERROR_ACCESS_DENIED;
     int r = oSHCreateDirectoryExW(wnd, path, sa);
     if (!nested && path && !wl_is_system_caller(WL_CALLER) && file_event())
     {
@@ -1361,6 +1496,8 @@ static BOOL WINAPI hWritePrivateProfileStringA(LPCSTR app, LPCSTR key, LPCSTR va
         file = redir(file, rbuf, sizeof rbuf);
     wchar_t w[WL_PATH], wover[WL_PATH], a[256], k[256], v[2048];
     const wchar_t *mapped = nested ? NULL : ini_overA(file, 1, w, wover);
+    if (mapped ? refused(mapped, "WritePrivateProfileString") : refusedA(file, "WritePrivateProfileString"))
+        return FALSE;
     wl_busy_enter();
     BOOL ok = mapped ? oWritePrivateProfileStringW(wide_of(app, a, 256), wide_of(key, k, 256), wide_of(value, v, 2048), mapped)
                      : oWritePrivateProfileStringA(app, key, value, file);
@@ -1379,6 +1516,8 @@ static BOOL WINAPI hWritePrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR
         file = redirW(file, rbuf, MAX_PATH * 2);
     if (!nested && ini_has_folder(file))
         file = ov_write(file, 1, obuf);
+    if (refused(file, "WritePrivateProfileString"))
+        return FALSE;
     wl_busy_enter();
     BOOL ok = oWritePrivateProfileStringW(app, key, value, file);
     wl_busy_leave();
@@ -1430,6 +1569,11 @@ static int move_over(const wchar_t *from, const wchar_t *to, DWORD flags, BOOL *
     if (!fromOver && dest == to)
         return 0;
     const wchar_t *source = !fromOver ? from : attributes(over) != INVALID_FILE_ATTRIBUTES ? over : full;
+    if (refused(dest, "MoveFile") || (source != full && refused(source, "MoveFile")))
+    {
+        *done = FALSE;
+        return 1;
+    }
     wl_busy_enter();
     if (fromOver && source == full && !is_dir(attributes(full)))
         *done = CopyFileW(source, dest, !(flags & MOVEFILE_REPLACE_EXISTING));
@@ -1443,54 +1587,54 @@ static BOOL(WINAPI *oDeleteFileA)(LPCSTR);
 static BOOL WINAPI hDeleteFileA(LPCSTR path)
 {
     if (wl_busy())
-        return oDeleteFileA(path);
+        return refusedA(path, "DeleteFile") ? FALSE : oDeleteFileA(path);
     char rbuf[MAX_PATH * 2];
     path = redir(path, rbuf, sizeof rbuf);
     wchar_t w[WL_PATH];
     BOOL done;
     if (to_wide(path, w) && remove_over(w, 0, &done))
         return done;
-    return oDeleteFileA(path);
+    return refusedA(path, "DeleteFile") ? FALSE : oDeleteFileA(path);
 }
 
 static BOOL(WINAPI *oDeleteFileW)(LPCWSTR);
 static BOOL WINAPI hDeleteFileW(LPCWSTR path)
 {
     if (wl_busy())
-        return oDeleteFileW(path);
+        return refused(path, "DeleteFile") ? FALSE : oDeleteFileW(path);
     wchar_t rbuf[MAX_PATH * 2];
     path = redirW(path, rbuf, MAX_PATH * 2);
     BOOL done;
     if (remove_over(path, 0, &done))
         return done;
-    return oDeleteFileW(path);
+    return refused(path, "DeleteFile") ? FALSE : oDeleteFileW(path);
 }
 
 static BOOL(WINAPI *oRemoveDirectoryA)(LPCSTR);
 static BOOL WINAPI hRemoveDirectoryA(LPCSTR path)
 {
     if (wl_busy())
-        return oRemoveDirectoryA(path);
+        return refusedA(path, "RemoveDirectory") ? FALSE : oRemoveDirectoryA(path);
     char rbuf[MAX_PATH * 2];
     path = redir(path, rbuf, sizeof rbuf);
     wchar_t w[WL_PATH];
     BOOL done;
     if (to_wide(path, w) && remove_over(w, 1, &done))
         return done;
-    return oRemoveDirectoryA(path);
+    return refusedA(path, "RemoveDirectory") ? FALSE : oRemoveDirectoryA(path);
 }
 
 static BOOL(WINAPI *oRemoveDirectoryW)(LPCWSTR);
 static BOOL WINAPI hRemoveDirectoryW(LPCWSTR path)
 {
     if (wl_busy())
-        return oRemoveDirectoryW(path);
+        return refused(path, "RemoveDirectory") ? FALSE : oRemoveDirectoryW(path);
     wchar_t rbuf[MAX_PATH * 2];
     path = redirW(path, rbuf, MAX_PATH * 2);
     BOOL done;
     if (remove_over(path, 1, &done))
         return done;
-    return oRemoveDirectoryW(path);
+    return refused(path, "RemoveDirectory") ? FALSE : oRemoveDirectoryW(path);
 }
 
 static BOOL(WINAPI *oGetFileAttributesExA)(LPCSTR, GET_FILEEX_INFO_LEVELS, LPVOID);
@@ -1515,18 +1659,20 @@ static BOOL(WINAPI *oSetFileAttributesA)(LPCSTR, DWORD);
 static BOOL WINAPI hSetFileAttributesA(LPCSTR path, DWORD attr)
 {
     if (wl_busy())
-        return oSetFileAttributesA(path, attr);
+        return refusedA(path, "SetFileAttributes") ? FALSE : oSetFileAttributesA(path, attr);
     char rbuf[MAX_PATH * 2], obuf[WL_PATH * 2];
-    return oSetFileAttributesA(ov_writeA(redir(path, rbuf, sizeof rbuf), 1, obuf, sizeof obuf), attr);
+    const char *to = ov_writeA(redir(path, rbuf, sizeof rbuf), 1, obuf, sizeof obuf);
+    return refusedA(to, "SetFileAttributes") ? FALSE : oSetFileAttributesA(to, attr);
 }
 
 static BOOL(WINAPI *oSetFileAttributesW)(LPCWSTR, DWORD);
 static BOOL WINAPI hSetFileAttributesW(LPCWSTR path, DWORD attr)
 {
     if (wl_busy())
-        return oSetFileAttributesW(path, attr);
+        return refused(path, "SetFileAttributes") ? FALSE : oSetFileAttributesW(path, attr);
     wchar_t rbuf[MAX_PATH * 2], obuf[WL_PATH];
-    return oSetFileAttributesW(ov_write(redirW(path, rbuf, MAX_PATH * 2), 1, obuf), attr);
+    const wchar_t *to = ov_write(redirW(path, rbuf, MAX_PATH * 2), 1, obuf);
+    return refused(to, "SetFileAttributes") ? FALSE : oSetFileAttributesW(to, attr);
 }
 
 static BOOL(WINAPI *oCopyFileA)(LPCSTR, LPCSTR, BOOL);
@@ -1534,9 +1680,11 @@ static BOOL WINAPI hCopyFileA(LPCSTR from, LPCSTR to, BOOL failIfExists)
 {
     char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2], ofrom[WL_PATH * 2], oto[WL_PATH * 2];
     if (wl_busy())
-        return oCopyFileA(from, to, failIfExists);
-    return oCopyFileA(ov_readA(redir(from, rfrom, sizeof rfrom), ofrom, sizeof ofrom), ov_writeA(redir(to, rto, sizeof rto), 0, oto, sizeof oto),
-                      failIfExists);
+        return refusedA(to, "CopyFile") ? FALSE : oCopyFileA(from, to, failIfExists);
+    const char *dest = ov_writeA(redir(to, rto, sizeof rto), 0, oto, sizeof oto);
+    if (refusedA(dest, "CopyFile"))
+        return FALSE;
+    return oCopyFileA(ov_readA(redir(from, rfrom, sizeof rfrom), ofrom, sizeof ofrom), dest, failIfExists);
 }
 
 static BOOL(WINAPI *oCopyFileW)(LPCWSTR, LPCWSTR, BOOL);
@@ -1544,8 +1692,11 @@ static BOOL WINAPI hCopyFileW(LPCWSTR from, LPCWSTR to, BOOL failIfExists)
 {
     wchar_t rfrom[MAX_PATH * 2], rto[MAX_PATH * 2], ofrom[WL_PATH], oto[WL_PATH];
     if (wl_busy())
-        return oCopyFileW(from, to, failIfExists);
-    return oCopyFileW(ov_read(redirW(from, rfrom, MAX_PATH * 2), ofrom), ov_write(redirW(to, rto, MAX_PATH * 2), 0, oto), failIfExists);
+        return refused(to, "CopyFile") ? FALSE : oCopyFileW(from, to, failIfExists);
+    const wchar_t *dest = ov_write(redirW(to, rto, MAX_PATH * 2), 0, oto);
+    if (refused(dest, "CopyFile"))
+        return FALSE;
+    return oCopyFileW(ov_read(redirW(from, rfrom, MAX_PATH * 2), ofrom), dest, failIfExists);
 }
 
 // A file renamed: both names redirected, then through the write folder
@@ -1554,14 +1705,14 @@ static BOOL WINAPI hMoveFileExA(LPCSTR from, LPCSTR to, DWORD flags)
 {
     char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
     if (wl_busy())
-        return oMoveFileExA(from, to, flags);
+        return refusedA(from, "MoveFile") || (to && refusedA(to, "MoveFile")) ? FALSE : oMoveFileExA(from, to, flags);
     from = redir(from, rfrom, sizeof rfrom);
     to = to ? redir(to, rto, sizeof rto) : NULL;
     wchar_t wfrom[WL_PATH], wto[WL_PATH];
     BOOL done;
     if (to && to_wide(from, wfrom) && to_wide(to, wto) && move_over(wfrom, wto, flags, &done))
         return done;
-    return oMoveFileExA(from, to, flags);
+    return refusedA(from, "MoveFile") || (to && refusedA(to, "MoveFile")) ? FALSE : oMoveFileExA(from, to, flags);
 }
 
 static BOOL(WINAPI *oMoveFileExW)(LPCWSTR, LPCWSTR, DWORD);
@@ -1569,13 +1720,13 @@ static BOOL WINAPI hMoveFileExW(LPCWSTR from, LPCWSTR to, DWORD flags)
 {
     wchar_t rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
     if (wl_busy())
-        return oMoveFileExW(from, to, flags);
+        return refused(from, "MoveFile") || (to && refused(to, "MoveFile")) ? FALSE : oMoveFileExW(from, to, flags);
     from = redirW(from, rfrom, MAX_PATH * 2);
     to = to ? redirW(to, rto, MAX_PATH * 2) : NULL;
     BOOL done;
     if (move_over(from, to, flags, &done))
         return done;
-    return oMoveFileExW(from, to, flags);
+    return refused(from, "MoveFile") || (to && refused(to, "MoveFile")) ? FALSE : oMoveFileExW(from, to, flags);
 }
 
 static BOOL(WINAPI *oMoveFileA)(LPCSTR, LPCSTR);
@@ -1583,14 +1734,14 @@ static BOOL WINAPI hMoveFileA(LPCSTR from, LPCSTR to)
 {
     char rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
     if (wl_busy())
-        return oMoveFileA(from, to);
+        return refusedA(from, "MoveFile") || refusedA(to, "MoveFile") ? FALSE : oMoveFileA(from, to);
     from = redir(from, rfrom, sizeof rfrom);
     to = redir(to, rto, sizeof rto);
     wchar_t wfrom[WL_PATH], wto[WL_PATH];
     BOOL done;
     if (to_wide(from, wfrom) && to_wide(to, wto) && move_over(wfrom, wto, 0, &done))
         return done;
-    return oMoveFileA(from, to);
+    return refusedA(from, "MoveFile") || refusedA(to, "MoveFile") ? FALSE : oMoveFileA(from, to);
 }
 
 static BOOL(WINAPI *oMoveFileW)(LPCWSTR, LPCWSTR);
@@ -1598,13 +1749,13 @@ static BOOL WINAPI hMoveFileW(LPCWSTR from, LPCWSTR to)
 {
     wchar_t rfrom[MAX_PATH * 2], rto[MAX_PATH * 2];
     if (wl_busy())
-        return oMoveFileW(from, to);
+        return refused(from, "MoveFile") || refused(to, "MoveFile") ? FALSE : oMoveFileW(from, to);
     from = redirW(from, rfrom, MAX_PATH * 2);
     to = redirW(to, rto, MAX_PATH * 2);
     BOOL done;
     if (move_over(from, to, 0, &done))
         return done;
-    return oMoveFileW(from, to);
+    return refused(from, "MoveFile") || refused(to, "MoveFile") ? FALSE : oMoveFileW(from, to);
 }
 
 static BOOL(WINAPI *oSetCurrentDirectoryA)(LPCSTR);
@@ -1656,5 +1807,13 @@ static WlHook g_hooks[] = {
 
 void wl_files_hooks(void)
 {
+    wchar_t root[MAX_PATH], denied[8];
+    if (GetEnvironmentVariableW(WL_ENV_WRITE_DIR, root, MAX_PATH) && root[0] && GetEnvironmentVariableW(WL_ENV_WRITE_DENIED, denied, 8) &&
+        denied[0] == L'1')
+    {
+        wcscpy_s(g_writeRoot, MAX_PATH, root);
+        wcscpy_s(g_writeFailed, MAX_PATH, root);
+        g_writeDenied = 1; // the launcher's test: before the settings are read (wl_settings_init)
+    }
     wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
 }

@@ -46,513 +46,513 @@ msgstr "Still picture"
 msgid "jeu inconnu"
 msgstr "unknown game"
 
-#: src/hook/menu.cpp:333
+#: src/hook/menu.cpp:334
 msgid "Test"
 msgstr "Test"
 
-#: src/hook/menu.cpp:334
+#: src/hook/menu.cpp:335
 msgid "Pièce"
 msgstr "Coin"
 
-#: src/hook/menu.cpp:335
+#: src/hook/menu.cpp:336
 msgid "Départ"
 msgstr "Start"
 
-#: src/hook/menu.cpp:336
+#: src/hook/menu.cpp:337
 msgid "Service"
 msgstr "Service"
 
-#: src/hook/menu.cpp:337 src/hook/menu.cpp:1365
+#: src/hook/menu.cpp:338 src/hook/menu.cpp:1384
 msgid "Quitter le jeu"
 msgstr "Quit the game"
 
-#: src/hook/menu.cpp:338
+#: src/hook/menu.cpp:339
 msgid "Volant"
 msgstr "Steering"
 
-#: src/hook/menu.cpp:339
+#: src/hook/menu.cpp:340
 msgid "Accélérateur"
 msgstr "Accelerator"
 
-#: src/hook/menu.cpp:340
+#: src/hook/menu.cpp:341
 msgid "Frein"
 msgstr "Brake"
 
-#: src/hook/menu.cpp:341
+#: src/hook/menu.cpp:342
 msgid "Embrayage"
 msgstr "Clutch"
 
-#: src/hook/menu.cpp:342
+#: src/hook/menu.cpp:343
 msgid "Volant à gauche"
 msgstr "Steer left"
 
-#: src/hook/menu.cpp:343
+#: src/hook/menu.cpp:344
 msgid "Volant à droite"
 msgstr "Steer right"
 
-#: src/hook/menu.cpp:344
+#: src/hook/menu.cpp:345
 msgid "Accélérateur (tout ou rien)"
 msgstr "Accelerator (digital)"
 
-#: src/hook/menu.cpp:345
+#: src/hook/menu.cpp:346
 msgid "Frein (tout ou rien)"
 msgstr "Brake (digital)"
 
-#: src/hook/menu.cpp:346
+#: src/hook/menu.cpp:347
 msgid "Embrayage (tout ou rien)"
 msgstr "Clutch (digital)"
 
-#: src/hook/menu.cpp:347
+#: src/hook/menu.cpp:348
 msgid "Vitesse +"
 msgstr "Gear up"
 
-#: src/hook/menu.cpp:348
+#: src/hook/menu.cpp:349
 msgid "Vitesse −"
 msgstr "Gear down"
 
-#: src/hook/menu.cpp:349
+#: src/hook/menu.cpp:350
 msgid "Changer de vue"
 msgstr "Change view"
 
-#: src/hook/menu.cpp:350
+#: src/hook/menu.cpp:351
 msgid "Frein à main"
 msgstr "Handbrake"
 
-#: src/hook/menu.cpp:351
+#: src/hook/menu.cpp:352
 msgid "Feux de détresse"
 msgstr "Hazard lights"
 
-#: src/hook/menu.cpp:352
+#: src/hook/menu.cpp:353
 msgid "Dépassement"
 msgstr "Overtake"
 
-#: src/hook/menu.cpp:353
+#: src/hook/menu.cpp:354
 msgid "Nitro"
 msgstr "Nitro"
 
-#: src/hook/menu.cpp:354
+#: src/hook/menu.cpp:355
 msgid "Nitro (levier)"
 msgstr "Nitro (shifter)"
 
-#: src/hook/menu.cpp:355
+#: src/hook/menu.cpp:356
 msgid "Action"
 msgstr "Action"
 
-#: src/hook/menu.cpp:356
+#: src/hook/menu.cpp:357
 msgid "Choix : haut"
 msgstr "Select: up"
 
-#: src/hook/menu.cpp:357
+#: src/hook/menu.cpp:358
 msgid "Choix : bas"
 msgstr "Select: down"
 
-#: src/hook/menu.cpp:358
+#: src/hook/menu.cpp:359
 msgid "Choix : gauche"
 msgstr "Select: left"
 
-#: src/hook/menu.cpp:359
+#: src/hook/menu.cpp:360
 msgid "Choix : droite"
 msgstr "Select: right"
 
-#: src/hook/menu.cpp:360
+#: src/hook/menu.cpp:361
 msgid "Choix : valider"
 msgstr "Select: enter"
 
-#: src/hook/menu.cpp:361
+#: src/hook/menu.cpp:362
 msgid "Vue 1 (rouge)"
 msgstr "View 1 (red)"
 
-#: src/hook/menu.cpp:362
+#: src/hook/menu.cpp:363
 msgid "Vue 2 (bleu)"
 msgstr "View 2 (blue)"
 
-#: src/hook/menu.cpp:363
+#: src/hook/menu.cpp:364
 msgid "Vue 3 (jaune)"
 msgstr "View 3 (yellow)"
 
-#: src/hook/menu.cpp:364
+#: src/hook/menu.cpp:365
 msgid "Vue 4 (vert)"
 msgstr "View 4 (green)"
 
-#: src/hook/menu.cpp:365
+#: src/hook/menu.cpp:366
 msgid "1re"
 msgstr "1st"
 
-#: src/hook/menu.cpp:366
+#: src/hook/menu.cpp:367
 msgid "2e"
 msgstr "2nd"
 
-#: src/hook/menu.cpp:367
+#: src/hook/menu.cpp:368
 msgid "3e"
 msgstr "3rd"
 
-#: src/hook/menu.cpp:368
+#: src/hook/menu.cpp:369
 msgid "4e"
 msgstr "4th"
 
-#: src/hook/menu.cpp:369
+#: src/hook/menu.cpp:370
 msgid "5e"
 msgstr "5th"
 
-#: src/hook/menu.cpp:370
+#: src/hook/menu.cpp:371
 msgid "6e"
 msgstr "6th"
 
-#: src/hook/menu.cpp:371
+#: src/hook/menu.cpp:372
 msgid "Pédale gauche"
 msgstr "Left pedal"
 
-#: src/hook/menu.cpp:372
+#: src/hook/menu.cpp:373
 msgid "Pédale droite"
 msgstr "Right pedal"
 
-#: src/hook/menu.cpp:373
+#: src/hook/menu.cpp:374
 msgid "Boost"
 msgstr "Boost"
 
-#: src/hook/menu.cpp:374
+#: src/hook/menu.cpp:375
 msgid "Changer de musique"
 msgstr "Change music"
 
-#: src/hook/menu.cpp:458
+#: src/hook/menu.cpp:459
 msgid " (moitié)"
 msgstr " (half)"
 
-#: src/hook/menu.cpp:460
+#: src/hook/menu.cpp:461
 msgid " (pédale)"
 msgstr " (pedal)"
 
-#: src/hook/menu.cpp:462
+#: src/hook/menu.cpp:463
 msgid " (inversé)"
 msgstr " (inverted)"
 
-#: src/hook/menu.cpp:503
+#: src/hook/menu.cpp:504
 #, c-format
 msgid "Bouton %d"
 msgstr "Button %d"
 
-#: src/hook/menu.cpp:506
+#: src/hook/menu.cpp:507
 #, c-format
 msgid "Axe %d"
 msgstr "Axis %d"
 
-#: src/hook/menu.cpp:512
+#: src/hook/menu.cpp:513
 msgid "haut"
 msgstr "up"
 
-#: src/hook/menu.cpp:512
+#: src/hook/menu.cpp:513
 msgid "bas"
 msgstr "down"
 
-#: src/hook/menu.cpp:513
+#: src/hook/menu.cpp:514
 msgid "gauche"
 msgstr "left"
 
-#: src/hook/menu.cpp:513
+#: src/hook/menu.cpp:514
 msgid "droite"
 msgstr "right"
 
-#: src/hook/menu.cpp:514
+#: src/hook/menu.cpp:515
 #, c-format
 msgid "Chapeau %d"
 msgstr "Hat %d"
 
-#: src/hook/menu.cpp:747 src/hook/menu.cpp:1047
+#: src/hook/menu.cpp:748 src/hook/menu.cpp:1048
 msgid "Lier"
 msgstr "Map"
 
-#: src/hook/menu.cpp:750
+#: src/hook/menu.cpp:751
 msgid "Ajouter"
 msgstr "Add"
 
-#: src/hook/menu.cpp:765
+#: src/hook/menu.cpp:766
 msgid "Délier"
 msgstr "Unmap"
 
-#: src/hook/menu.cpp:777
+#: src/hook/menu.cpp:778
 msgid "Défaut"
 msgstr "Default"
 
-#: src/hook/menu.cpp:789
+#: src/hook/menu.cpp:790
 #, c-format
 msgid "Par défaut : %s"
 msgstr "Default: %s"
 
-#: src/hook/menu.cpp:798
+#: src/hook/menu.cpp:799
 msgid "Tous les jeux"
 msgstr "All games"
 
-#: src/hook/menu.cpp:798
+#: src/hook/menu.cpp:799
 msgid "Conduite"
 msgstr "Driving"
 
-#: src/hook/menu.cpp:814
+#: src/hook/menu.cpp:815
 #, c-format
 msgid "Joueur %d"
 msgstr "Player %d"
 
-#: src/hook/menu.cpp:853
+#: src/hook/menu.cpp:854
 #, c-format
 msgid "Liaisons : %s"
 msgstr "Bindings: %s"
 
-#: src/hook/menu.cpp:862 src/hook/menu.cpp:1305
+#: src/hook/menu.cpp:863 src/hook/menu.cpp:1312
 msgid "Fermer"
 msgstr "Close"
 
-#: src/hook/menu.cpp:869
+#: src/hook/menu.cpp:870
 msgid "Réinitialiser..."
 msgstr "Reset..."
 
-#: src/hook/menu.cpp:876
+#: src/hook/menu.cpp:877
 msgid "Remettre les liaisons de ce périphérique par défaut ?"
 msgstr "Set this device's bindings back to the defaults?"
 
-#: src/hook/menu.cpp:877 src/hook/menu.cpp:1372
+#: src/hook/menu.cpp:878 src/hook/menu.cpp:1391
 msgid "Oui"
 msgstr "Yes"
 
-#: src/hook/menu.cpp:883 src/hook/menu.cpp:1378
+#: src/hook/menu.cpp:884 src/hook/menu.cpp:1397
 msgid "Non"
 msgstr "No"
 
-#: src/hook/menu.cpp:893
+#: src/hook/menu.cpp:894
 msgid "Cette section de controls.ini est vide."
 msgstr "This section of controls.ini is empty."
 
-#: src/hook/menu.cpp:931
+#: src/hook/menu.cpp:932
 #, c-format
 msgid "Appuyez sur une commande de %s pour : %s"
 msgstr "Press an input of %s for: %s"
 
-#: src/hook/menu.cpp:933
+#: src/hook/menu.cpp:934
 msgid "Tournez vers la gauche."
 msgstr "Turn it to the left."
 
-#: src/hook/menu.cpp:934
+#: src/hook/menu.cpp:935
 msgid "Échap : annuler"
 msgstr "Escape: cancel"
 
-#: src/hook/menu.cpp:935
+#: src/hook/menu.cpp:936
 msgid "Annuler"
 msgstr "Cancel"
 
-#: src/hook/menu.cpp:1000
+#: src/hook/menu.cpp:1001
 msgid "appuyé"
 msgstr "pressed"
 
-#: src/hook/menu.cpp:1012
+#: src/hook/menu.cpp:1013
 msgid "Le jeu est piloté par l'agent (--agent) : les manettes ne sont pas lues, l'assignation est désactivée."
 msgstr "The game is driven by the agent (--agent): the controllers are not read, assigning is disabled."
 
-#: src/hook/menu.cpp:1018
+#: src/hook/menu.cpp:1019
 msgid "Périphériques"
 msgstr "Devices"
 
-#: src/hook/menu.cpp:1023 src/hook/menu.cpp:1599
+#: src/hook/menu.cpp:1024 src/hook/menu.cpp:1618
 msgid "Nom"
 msgstr "Name"
 
-#: src/hook/menu.cpp:1024
+#: src/hook/menu.cpp:1025
 msgid "Dans controls.ini"
 msgstr "In controls.ini"
 
-#: src/hook/menu.cpp:1031
+#: src/hook/menu.cpp:1032
 msgid "Clavier"
 msgstr "Keyboard"
 
-#: src/hook/menu.cpp:1036
+#: src/hook/menu.cpp:1037
 msgid " (retour de force)"
 msgstr " (force feedback)"
 
-#: src/hook/menu.cpp:1059
+#: src/hook/menu.cpp:1060
 msgid "Aucune manette branchée."
 msgstr "No controller connected."
 
-#: src/hook/menu.cpp:1062
+#: src/hook/menu.cpp:1063
 msgid "Numéroter les boutons à partir de 1 (comme Windows et vJoy)"
 msgstr "Number the buttons from 1 (as Windows and vJoy do)"
 
-#: src/hook/menu.cpp:1069
+#: src/hook/menu.cpp:1070
 msgid "controls.ini garde les numéros de SDL, qui commencent à 0 : « Bouton 1 » y est JOY0_BUTTON_0."
 msgstr "controls.ini keeps SDL's numbers, which start at 0: \"Button 1\" is JOY0_BUTTON_0 there."
 
-#: src/hook/menu.cpp:1081
+#: src/hook/menu.cpp:1082
 msgid "Ce que reçoit le jeu"
 msgstr "What the game gets"
 
-#: src/hook/menu.cpp:1103
+#: src/hook/menu.cpp:1104
 msgid "Zones mortes et options"
 msgstr "Dead zones and options"
 
-#: src/hook/menu.cpp:1115
+#: src/hook/menu.cpp:1116
 #, c-format
 msgid "Volant : %s"
 msgstr "Wheel: %s"
 
-#: src/hook/menu.cpp:1115
+#: src/hook/menu.cpp:1116
 msgid "aucun (joueur 1)"
 msgstr "none (player 1)"
 
-#: src/hook/menu.cpp:1121 src/hook/menu.cpp:1126
+#: src/hook/menu.cpp:1122 src/hook/menu.cpp:1127
 msgid "Automatique"
 msgstr "Automatic"
 
-#: src/hook/menu.cpp:1123
+#: src/hook/menu.cpp:1124
 #, c-format
 msgid "%s (non connecté)"
 msgstr "%s (not connected)"
 
-#: src/hook/menu.cpp:1124
+#: src/hook/menu.cpp:1125
 msgid "Dispositif de retour de force"
 msgstr "Force feedback device"
 
-#: src/hook/menu.cpp:1140
+#: src/hook/menu.cpp:1141
 #, c-format
 msgid "Effets joués sur : %s%s"
 msgstr "Effects played on: %s%s"
 
-#: src/hook/menu.cpp:1140
+#: src/hook/menu.cpp:1141
 msgid "aucun"
 msgstr "none"
 
-#: src/hook/menu.cpp:1141
+#: src/hook/menu.cpp:1142
 msgid " (le choisi n'est pas branché : automatique)"
 msgstr " (the chosen one is not plugged in: automatic)"
 
-#: src/hook/menu.cpp:1144
+#: src/hook/menu.cpp:1145
 msgid "Force"
 msgstr "Strength"
 
-#: src/hook/menu.cpp:1147
+#: src/hook/menu.cpp:1148
 msgid "Inverser le sens"
 msgstr "Invert the direction"
 
-#: src/hook/menu.cpp:1152
+#: src/hook/menu.cpp:1153
 msgid "vers la gauche"
 msgstr "to the left"
 
-#: src/hook/menu.cpp:1152
+#: src/hook/menu.cpp:1153
 msgid "vers la droite"
 msgstr "to the right"
 
-#: src/hook/menu.cpp:1152
+#: src/hook/menu.cpp:1153
 msgid "aucune"
 msgstr "none"
 
-#: src/hook/menu.cpp:1153
+#: src/hook/menu.cpp:1154
 msgid "Force demandée par le jeu :"
 msgstr "Force requested by the game:"
 
-#: src/hook/menu.cpp:1155
+#: src/hook/menu.cpp:1156
 msgid "Réglages enregistrés dans [Config] de controls.ini (FFB_Device, FFB_Strength, FFB_Invert)."
 msgstr "Settings saved in [Config] of controls.ini (FFB_Device, FFB_Strength, FFB_Invert)."
 
-#: src/hook/menu.cpp:1164
+#: src/hook/menu.cpp:1165
 msgid "Original"
 msgstr "Original"
 
-#: src/hook/menu.cpp:1164
+#: src/hook/menu.cpp:1165
 msgid "4:3 bandes noires"
 msgstr "4:3 letterbox"
 
-#: src/hook/menu.cpp:1164
+#: src/hook/menu.cpp:1165
 msgid "16:9 bandes noires"
 msgstr "16:9 letterbox"
 
-#: src/hook/menu.cpp:1164
+#: src/hook/menu.cpp:1165
 msgid "4:3 étiré"
 msgstr "4:3 stretched"
 
-#: src/hook/menu.cpp:1165
+#: src/hook/menu.cpp:1166
 msgid "16:9 étiré"
 msgstr "16:9 stretched"
 
-#: src/hook/menu.cpp:1165
+#: src/hook/menu.cpp:1166
 msgid "4:3 recadré"
 msgstr "4:3 crop"
 
-#: src/hook/menu.cpp:1165
+#: src/hook/menu.cpp:1166
 msgid "16:9 recadré"
 msgstr "16:9 crop"
 
-#: src/hook/menu.cpp:1166
+#: src/hook/menu.cpp:1167
 msgid "Fenêtre (pixels carrés)"
 msgstr "Window (square pixels)"
 
-#: src/hook/menu.cpp:1166
+#: src/hook/menu.cpp:1167
 msgid "Fenêtre étirée"
 msgstr "Stretched window"
 
-#: src/hook/menu.cpp:1167
+#: src/hook/menu.cpp:1168
 msgid "Plein écran"
 msgstr "Fullscreen"
 
-#: src/hook/menu.cpp:1167
+#: src/hook/menu.cpp:1168
 msgid "Plein écran étiré"
 msgstr "Stretched fullscreen"
 
-#: src/hook/menu.cpp:1168
+#: src/hook/menu.cpp:1169
 msgid "Plein écran fenêtré (sans bordure)"
 msgstr "Windowed fullscreen (borderless)"
 
-#: src/hook/menu.cpp:1168
+#: src/hook/menu.cpp:1169
 msgid "Plein écran fenêtré étiré"
 msgstr "Stretched windowed fullscreen"
 
-#: src/hook/menu.cpp:1182
+#: src/hook/menu.cpp:1183
 msgid "Rapport d'aspect"
 msgstr "Aspect ratio"
 
-#: src/hook/menu.cpp:1192
+#: src/hook/menu.cpp:1193
 msgid "Position du recadrage"
 msgstr "Crop position"
 
-#: src/hook/menu.cpp:1193
+#: src/hook/menu.cpp:1194
 msgid "-100 : à gauche ou en haut, 0 : au milieu, 100 : à droite ou en bas."
 msgstr "-100: left or top, 0: middle, 100: right or bottom."
 
-#: src/hook/menu.cpp:1194
+#: src/hook/menu.cpp:1195
 msgid "Courber les parties coupées sur les bords"
 msgstr "Bend the cropped parts onto the edges"
 
-#: src/hook/menu.cpp:1198
+#: src/hook/menu.cpp:1199
 msgid "Milieu non déformé"
 msgstr "Undistorted middle"
 
-#: src/hook/menu.cpp:1200
+#: src/hook/menu.cpp:1201
 msgid "Rayon de courbure"
 msgstr "Bend radius"
 
-#: src/hook/menu.cpp:1202
+#: src/hook/menu.cpp:1203
 msgid "Toute l'image reste visible : le milieu (en pourcentage du cadre) tel que recadré, les parties que le recadrage couperait resserrées sur les bords comme sur un cylindre vu de face. Un petit rayon courbe fort au bord, un grand resserre uniformément."
 msgstr "The whole picture stays visible: the middle (as a percentage of the frame) as cropped, the parts the crop would cut squeezed onto the edges, as on a cylinder seen from the front. A small radius bends hard at the edge, a large one squeezes evenly."
 
-#: src/hook/menu.cpp:1206
+#: src/hook/menu.cpp:1207
 msgid "Courbure seulement quand windowsloader recopie l'image (PRESENT = GDI) : ici l'image est seulement recadrée."
 msgstr "Bending only when windowsloader copies the picture (PRESENT = GDI): here the picture is only cropped."
 
-#: src/hook/menu.cpp:1213
+#: src/hook/menu.cpp:1214
 msgid "Original : la forme de la résolution de rendu du jeu. Bandes noires : la forme du cadre, l'image entière dedans à sa forme. Étiré : l'image remplit le cadre, déformée. Recadré : l'image remplit le cadre à sa forme, coupée sur les côtés (ou en haut et en bas)."
 msgstr "Original: the shape of the game's render resolution. Letterbox: the frame's shape, the whole picture inside it at its own shape. Stretched: the picture fills the frame, distorted. Crop: the picture fills the frame at its own shape, cut on the sides (or at the top and bottom)."
 
-#: src/hook/menu.cpp:1218
+#: src/hook/menu.cpp:1219
 msgid "Mode d'affichage"
 msgstr "Display mode"
 
-#: src/hook/menu.cpp:1221
+#: src/hook/menu.cpp:1222
 msgid "Plein écran : l'écran passe à la taille de l'image du jeu. Plein écran fenêtré : une fenêtre sans bordure couvre l'écran, à la résolution du bureau. F11 ou Alt+Entrée : fenêtre / plein écran."
 msgstr "Fullscreen: the screen switches to the size of the game's picture. Windowed fullscreen: a borderless window covers the screen, at the desktop's resolution. F11 or Alt+Enter: window / fullscreen."
 
-#: src/hook/menu.cpp:1230 src/hook/menu.cpp:1246
+#: src/hook/menu.cpp:1231 src/hook/menu.cpp:1247
 msgid "Native"
 msgstr "Native"
 
-#: src/hook/menu.cpp:1238
+#: src/hook/menu.cpp:1239
 msgid "Résolution interne"
 msgstr "Internal resolution"
 
-#: src/hook/menu.cpp:1254
+#: src/hook/menu.cpp:1255
 msgid ""
 "Taille de calcul et de rendu du jeu, avant l'aspect et le mode.\n"
 "Prise en compte au prochain lancement."
@@ -560,267 +560,280 @@ msgstr ""
 "The game's computing and rendering size, before the aspect ratio and the mode.\n"
 "Applied at the next start."
 
-#: src/hook/menu.cpp:1256
+#: src/hook/menu.cpp:1257
 msgid "Pas encore prise en charge pour ce jeu."
 msgstr "Not supported yet for this game."
 
-#: src/hook/menu.cpp:1258
+#: src/hook/menu.cpp:1259
 #, c-format
 msgid "Rendu actuel : %dx%d (%s). Prise en compte au prochain lancement."
 msgstr "Current rendering: %dx%d (%s). Applied at the next start."
 
-#: src/hook/menu.cpp:1259
+#: src/hook/menu.cpp:1260
 msgid "réglages"
 msgstr "settings"
 
-#: src/hook/menu.cpp:1259
+#: src/hook/menu.cpp:1260
 msgid "réglage du jeu"
 msgstr "game's setting"
 
-#: src/hook/menu.cpp:1260
+#: src/hook/menu.cpp:1261
 msgid "Gardé par « Sauvegarder » dans [Display] du fichier de réglages."
 msgstr "Kept by \"Save\" in [Display] of the settings file."
 
-#: src/hook/menu.cpp:1274 src/hook/menu.cpp:1287 src/hook/menu.cpp:1550
+#: src/hook/menu.cpp:1273
+#, c-format
+msgid "Rien n'est sauvegardé : impossible d'écrire dans le dossier d'écriture %s"
+msgstr "Nothing is saved: cannot write to the write folder %s"
+
+#: src/hook/menu.cpp:1281 src/hook/menu.cpp:1294 src/hook/menu.cpp:1569
 #, c-format
 msgid "Impossible d'écrire %s"
 msgstr "Cannot write %s"
 
-#: src/hook/menu.cpp:1276
+#: src/hook/menu.cpp:1283
 msgid "Pas de jeu reconnu"
 msgstr "No game recognized"
 
-#: src/hook/menu.cpp:1281
+#: src/hook/menu.cpp:1288
 msgid "Pas de fichier de réglages (lancé sans windowsloader.exe)"
 msgstr "No settings file (started without windowsloader.exe)"
 
-#: src/hook/menu.cpp:1287
+#: src/hook/menu.cpp:1294
 #, c-format
 msgid "Enregistré dans %s (ce jeu seulement)"
 msgstr "Saved to %s (this game only)"
 
-#: src/hook/menu.cpp:1287
+#: src/hook/menu.cpp:1294
 #, c-format
 msgid "Enregistré dans %s"
 msgstr "Saved to %s"
 
-#: src/hook/menu.cpp:1296
+#: src/hook/menu.cpp:1303
 msgid "Sauvegarder"
 msgstr "Save"
 
-#: src/hook/menu.cpp:1301
+#: src/hook/menu.cpp:1308
 msgid "Sauvegarder pour ce jeu"
 msgstr "Save for this game"
 
-#: src/hook/menu.cpp:1315
+#: src/hook/menu.cpp:1322
 #, c-format
 msgid "Réglages : %s"
 msgstr "Settings: %s"
 
-#: src/hook/menu.cpp:1327
+#: src/hook/menu.cpp:1334
 #, c-format
 msgid "%s est en pause."
 msgstr "%s is paused."
 
-#: src/hook/menu.cpp:1343
+#: src/hook/menu.cpp:1351
 #, c-format
 msgid "Redirection d'écriture active, dossier : %s"
 msgstr "Write redirection on, folder: %s"
 
-#: src/hook/menu.cpp:1352
+#: src/hook/menu.cpp:1358 src/hook/menu.cpp:1778
+msgid "Impossible d'écrire dans le dossier d'écriture"
+msgstr "Cannot write to the write folder"
+
+#: src/hook/menu.cpp:1360 src/hook/menu.cpp:1781
+msgid "Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne sont pas écrits."
+msgstr "Nothing is saved: the settings and the game saves are read from the usual folders and not written."
+
+#: src/hook/menu.cpp:1371
 #, c-format
 msgid "%s, le fichier lu, est plus ancien que %s : les changements faits dans celui-ci depuis ne sont pas lus. Copiez-le par-dessus, ou modifiez celui du dossier d'écriture."
 msgstr "%s, the file read, is older than %s: the changes made there since are not read. Copy it over, or change the one in the write folder."
 
-#: src/hook/menu.cpp:1358
+#: src/hook/menu.cpp:1377
 msgid "Reprendre (Tab)"
 msgstr "Resume (Tab)"
 
-#: src/hook/menu.cpp:1363
+#: src/hook/menu.cpp:1382
 #, c-format
 msgid "Image %dx%d, fenêtre %ldx%ld."
 msgstr "Picture %dx%d, window %ldx%ld."
 
-#: src/hook/menu.cpp:1368
+#: src/hook/menu.cpp:1387
 msgid "Quitter"
 msgstr "Quit"
 
-#: src/hook/menu.cpp:1371
+#: src/hook/menu.cpp:1390
 msgid "Quitter le jeu ?"
 msgstr "Quit the game?"
 
-#: src/hook/menu.cpp:1418
+#: src/hook/menu.cpp:1437
 msgid "Cartes"
 msgstr "Boards"
 
-#: src/hook/menu.cpp:1422
+#: src/hook/menu.cpp:1441
 #, c-format
 msgid "%s (%s du jeu)"
 msgstr "%s (the game's %s)"
 
-#: src/hook/menu.cpp:1425 src/hook/menu.cpp:1427
+#: src/hook/menu.cpp:1444 src/hook/menu.cpp:1446
 msgid "Émulée"
 msgstr "Emulated"
 
-#: src/hook/menu.cpp:1432
+#: src/hook/menu.cpp:1451
 #, c-format
 msgid "Vraie carte sur %s"
 msgstr "Real board on %s"
 
-#: src/hook/menu.cpp:1444
+#: src/hook/menu.cpp:1463
 msgid "Au prochain lancement. Émulée : windowsloader joue la carte. Un port du PC : le jeu parle à la vraie carte branchée dessus ([Emulation] EMULATE_JVS ou EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH ou SERIAL_n_PATH)."
 msgstr "At the next start. Emulated: windowsloader plays the board. A port of the PC: the game talks to the real board plugged into it ([Emulation] EMULATE_JVS or EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH or SERIAL_n_PATH)."
 
-#: src/hook/menu.cpp:1459
+#: src/hook/menu.cpp:1478
 #, c-format
 msgid "[%s] de %s, pour ce jeu seulement"
 msgstr "[%s] of %s, for this game only"
 
-#: src/hook/menu.cpp:1460
+#: src/hook/menu.cpp:1479
 msgid "(pas de fichier)"
 msgstr "(no file)"
 
-#: src/hook/menu.cpp:1464
+#: src/hook/menu.cpp:1483
 msgid "Aucune option pour ce jeu."
 msgstr "No option for this game."
 
-#: src/hook/menu.cpp:1509
+#: src/hook/menu.cpp:1528
 msgid "(au prochain lancement)"
 msgstr "(at the next start)"
 
-#: src/hook/menu.cpp:1530
+#: src/hook/menu.cpp:1549
 msgid "Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou « Sauvegarder pour ce jeu »), puis relancez le jeu."
 msgstr "Some changes take effect only at the next start of the game: save them (\"Save\" or \"Save for this game\"), then start the game again."
 
-#: src/hook/menu.cpp:1539
+#: src/hook/menu.cpp:1558
 msgid "Le serveur précédent s'arrête encore : réessayez dans un instant."
 msgstr "The previous server is still stopping: try again in a moment."
 
-#: src/hook/menu.cpp:1546 src/hook/menu.cpp:1653
+#: src/hook/menu.cpp:1565 src/hook/menu.cpp:1672
 msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"
 msgstr "No settings file (started without windowsloader.exe): for this time only"
 
-#: src/hook/menu.cpp:1548
+#: src/hook/menu.cpp:1567
 #, c-format
 msgid "[Outputs] OUTPUTS_NETWORK = %s, enregistré dans %s"
 msgstr "[Outputs] OUTPUTS_NETWORK = %s, saved to %s"
 
-#: src/hook/menu.cpp:1563
+#: src/hook/menu.cpp:1582
 msgid "Envoyer les sorties réseau (OUTPUTS_NETWORK)"
 msgstr "Send the network outputs (OUTPUTS_NETWORK)"
 
-#: src/hook/menu.cpp:1572
+#: src/hook/menu.cpp:1591
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."
 msgstr "Network outputs on: TCP port %d, %d client(s) connected, start announced to 127.0.0.1:%d (UDP)."
 
-#: src/hook/menu.cpp:1575
+#: src/hook/menu.cpp:1594
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."
 msgstr "Network outputs on: TCP port %d, %d client(s) connected."
 
-#: src/hook/menu.cpp:1578
+#: src/hook/menu.cpp:1597
 #, c-format
 msgid "Sorties réseau : ouverture du port TCP %d..."
 msgstr "Network outputs: opening TCP port %d..."
 
-#: src/hook/menu.cpp:1580
+#: src/hook/menu.cpp:1599
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d est déjà pris par un autre programme."
 msgstr "Network outputs off: TCP port %d is already taken by another program."
 
-#: src/hook/menu.cpp:1582
+#: src/hook/menu.cpp:1601
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d n'a pas pu être ouvert (erreur %d)."
 msgstr "Network outputs off: TCP port %d could not be opened (error %d)."
 
-#: src/hook/menu.cpp:1584
+#: src/hook/menu.cpp:1603
 msgid "Sorties réseau coupées. Les valeurs ci-dessous sont celles que le jeu donne."
 msgstr "Network outputs off. The values below are the ones the game gives."
 
-#: src/hook/menu.cpp:1585
+#: src/hook/menu.cpp:1604
 msgid "Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."
 msgstr "Lines \"name = value\" ended by \\r, as MAME sends them (BackForceFeeder, MAMEHooker)."
 
-#: src/hook/menu.cpp:1600
+#: src/hook/menu.cpp:1619
 msgid "Type"
 msgstr "Type"
 
-#: src/hook/menu.cpp:1601
+#: src/hook/menu.cpp:1620
 msgid "Valeur"
 msgstr "Value"
 
-#: src/hook/menu.cpp:1602
+#: src/hook/menu.cpp:1621
 msgid "Description"
 msgstr "Description"
 
-#: src/hook/menu.cpp:1625
+#: src/hook/menu.cpp:1644
 msgid "Ce jeu n'envoie ni lampes ni carte moteur pour l'instant."
 msgstr "This game sends neither lamps nor motor board data yet."
 
-#: src/hook/menu.cpp:1630
+#: src/hook/menu.cpp:1649
 #, c-format
 msgid "windowsloader %s %s (%d bits)"
 msgstr "windowsloader %s %s (%d-bit)"
 
-#: src/hook/menu.cpp:1631
+#: src/hook/menu.cpp:1650
 msgid "Benjamin Maurin - njz3, licence GPL v3."
 msgstr "Benjamin Maurin - njz3, GPL v3 license."
 
-#: src/hook/menu.cpp:1633
+#: src/hook/menu.cpp:1652
 msgid "Avec :"
 msgstr "With:"
 
-#: src/hook/menu.cpp:1635
+#: src/hook/menu.cpp:1654
 msgid "MinHook, Tsuda Kageyu (BSD 2 clauses)"
 msgstr "MinHook, Tsuda Kageyu (BSD 2-clause)"
 
-#: src/hook/menu.cpp:1638
+#: src/hook/menu.cpp:1657
 msgid "Conventions de linuxloader : controls.ini, menu Tab, mode agent."
 msgstr "linuxloader's conventions: controls.ini, Tab menu, agent mode."
 
-#: src/hook/menu.cpp:1643
+#: src/hook/menu.cpp:1662
 msgid "Langue"
 msgstr "Language"
 
-#: src/hook/menu.cpp:1646
+#: src/hook/menu.cpp:1665
 msgid "Langue de l'interface"
 msgstr "Interface language"
 
-#: src/hook/menu.cpp:1651
+#: src/hook/menu.cpp:1670
 #, c-format
 msgid "[Launcher] LANGUAGE = %s, enregistré dans %s"
 msgstr "[Launcher] LANGUAGE = %s, saved to %s"
 
-#: src/hook/menu.cpp:1659
+#: src/hook/menu.cpp:1678
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr "The games' texts given at their start (network outputs) change language at the next start. Another language: a lang\\<code>.po file next to the launcher (see README.md)."
 
-#: src/hook/menu.cpp:1688
+#: src/hook/menu.cpp:1707
 msgid "Jeu"
 msgstr "Game"
 
-#: src/hook/menu.cpp:1689
+#: src/hook/menu.cpp:1708
 msgid "Options du jeu"
 msgstr "Game options"
 
-#: src/hook/menu.cpp:1690
+#: src/hook/menu.cpp:1709
 msgid "Contrôles"
 msgstr "Controls"
 
-#: src/hook/menu.cpp:1691
+#: src/hook/menu.cpp:1710
 msgid "Affichage"
 msgstr "Display"
 
-#: src/hook/menu.cpp:1692 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:638
+#: src/hook/menu.cpp:1711 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:642
 msgid "Retour de force"
 msgstr "Force feedback"
 
-#: src/hook/menu.cpp:1693
+#: src/hook/menu.cpp:1712
 msgid "Sorties et réseau"
 msgstr "Outputs and network"
 
-#: src/hook/menu.cpp:1694
+#: src/hook/menu.cpp:1713
 msgid "À propos"
 msgstr "About"
 
@@ -1291,12 +1304,12 @@ msgstr "HASP key (ID 2783), Namco JVS board, arcade terminal played: race in Sto
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key, Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once \"ステアリング反力の使用\" is set to ON in the test menu. The card reader and the camera remain."
 
-#: src/launcher/picker.cpp:352
+#: src/launcher/picker.cpp:353
 #, c-format
 msgid "Impossible de lancer %s (erreur %lu)."
 msgstr "Cannot start %s (error %lu)."
 
-#: src/launcher/picker.cpp:398
+#: src/launcher/picker.cpp:399
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1307,107 +1320,107 @@ msgstr ""
 "\n"
 "%s%sThe game's log, if it started: %s\\windowsloader.log."
 
-#: src/launcher/picker.cpp:419
+#: src/launcher/picker.cpp:420
 msgid "Dossier des jeux"
 msgstr "Games folder"
 
-#: src/launcher/picker.cpp:522
+#: src/launcher/picker.cpp:526
 msgid "Jouable"
 msgstr "Playable"
 
-#: src/launcher/picker.cpp:525
+#: src/launcher/picker.cpp:529
 msgid "Jouable, avec des réserves"
 msgstr "Playable, with reservations"
 
-#: src/launcher/picker.cpp:528
+#: src/launcher/picker.cpp:532
 msgid "En cours : ne se joue pas encore"
 msgstr "In progress: not playable yet"
 
-#: src/launcher/picker.cpp:535
+#: src/launcher/picker.cpp:539
 msgid "oui"
 msgstr "yes"
 
-#: src/launcher/picker.cpp:535
+#: src/launcher/picker.cpp:539
 msgid "en partie (voir BILAN.md)"
 msgstr "partly (see BILAN.md, in French)"
 
-#: src/launcher/picker.cpp:535
+#: src/launcher/picker.cpp:539
 msgid "non"
 msgstr "no"
 
-#: src/launcher/picker.cpp:573
+#: src/launcher/picker.cpp:577
 #, c-format
 msgid "%d jeux dans %s"
 msgstr "%d games in %s"
 
-#: src/launcher/picker.cpp:573
+#: src/launcher/picker.cpp:577
 #, c-format
 msgid "%d jeu dans %s"
 msgstr "%d game in %s"
 
-#: src/launcher/picker.cpp:580
+#: src/launcher/picker.cpp:584
 #, c-format
 msgid "Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par windowsloader devient une ligne de la liste."
 msgstr "No game found in %s. Choose the games folder (Tab): each folder in it holding a game windowsloader knows becomes a line of the list."
 
-#: src/launcher/picker.cpp:634
+#: src/launcher/picker.cpp:638
 msgid "Plateforme"
 msgstr "Platform"
 
-#: src/launcher/picker.cpp:635
+#: src/launcher/picker.cpp:639
 msgid "Dossier"
 msgstr "Folder"
 
-#: src/launcher/picker.cpp:636
+#: src/launcher/picker.cpp:640
 msgid "Programme"
 msgstr "Program"
 
-#: src/launcher/picker.cpp:637
+#: src/launcher/picker.cpp:641
 msgid "Arguments"
 msgstr "Arguments"
 
-#: src/launcher/picker.cpp:639
+#: src/launcher/picker.cpp:643
 msgid "Link"
 msgstr "Link"
 
-#: src/launcher/picker.cpp:640
+#: src/launcher/picker.cpp:644
 msgid "Émulé"
 msgstr "Emulated"
 
-#: src/launcher/picker.cpp:643
+#: src/launcher/picker.cpp:647
 msgid "Jouer (Entrée)"
 msgstr "Play (Enter)"
 
-#: src/launcher/picker.cpp:652
+#: src/launcher/picker.cpp:656
 msgid "Dossier des jeux (Tab)"
 msgstr "Games folder (Tab)"
 
-#: src/launcher/picker.cpp:655
+#: src/launcher/picker.cpp:659
 msgid "Actualiser (F5)"
 msgstr "Refresh (F5)"
 
-#: src/launcher/picker.cpp:658
+#: src/launcher/picker.cpp:662
 msgid "Quitter (Échap)"
 msgstr "Quit (Escape)"
 
-#: src/launcher/picker.cpp:671
+#: src/launcher/picker.cpp:676
 msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
 msgstr "Enter: play   Arrows: choose   Tab: games folder"
 
-#: src/launcher/picker.cpp:681
+#: src/launcher/picker.cpp:686
 msgid "Le jeu n'a pas démarré"
 msgstr "The game did not start"
 
-#: src/launcher/picker.cpp:688
+#: src/launcher/picker.cpp:693
 msgid "OK (Entrée)"
 msgstr "OK (Enter)"
 
-#: src/launcher/picker.cpp:720
+#: src/launcher/picker.cpp:725
 #, c-format
 msgid "windowsloader %s %s — choix du jeu"
 msgstr "windowsloader %s %s — game selection"
 
-#: src/launcher/picker.cpp:767
+#: src/launcher/picker.cpp:774
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
 

@@ -20,6 +20,8 @@
 // the launcher echoes it live, and nothing is lost when the game crashes.
 
 void wl_log_open(const wchar_t *path);
+// No file given (the write folder cannot be written): the lines go to the debugger's output
+int wl_log_to_debugger(void);
 void wl_log_close(void);
 void wl_log(const char *fmt, ...);
 

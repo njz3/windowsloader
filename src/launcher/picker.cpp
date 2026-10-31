@@ -61,6 +61,7 @@ static Entry *g_entries;
 static int g_count;
 static wchar_t g_selfDir[MAX_PATH], g_selfPath[MAX_PATH], g_ini[MAX_PATH], g_gamesDir[MAX_PATH];
 static wchar_t g_logDir[MAX_PATH]; // windowsloader.log's: this program's folder, or the write folder
+static int g_iniReadOnly;          // a write folder that cannot be written: g_ini only read (writedir.h)
 static int g_focusSelected = 1; // the keyboard's focus to put back on the chosen game
 static ULONGLONG g_keysFrom;     // the shortcuts wait until then: Escape still held from the game does not quit
 static char g_message[4096];     // shown over the picker until closed (a game that would not start)
@@ -430,8 +431,11 @@ static void choose_games_dir(HWND wnd)
         if (SUCCEEDED(chosen->GetDisplayName(SIGDN_FILESYSPATH, &path)))
         {
             wcscpy_s(g_gamesDir, MAX_PATH, path);
-            WritePrivateProfileStringW(L"Launcher", L"GAMES_DIR", g_gamesDir, g_ini);
-            WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", NULL, g_ini); // the old place, if any, gone
+            if (!g_iniReadOnly)
+            {
+                WritePrivateProfileStringW(L"Launcher", L"GAMES_DIR", g_gamesDir, g_ini);
+                WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", NULL, g_ini); // the old place, if any, gone
+            }
             CoTaskMemFree(path);
             scan_games();
         }
@@ -663,7 +667,8 @@ static int draw(int *selected, int *action)
     if (wl_lang_combo("##language"))
     {
         wchar_t setting[16];
-        WritePrivateProfileStringW(L"Launcher", L"LANGUAGE", wide(wl_lang_setting(), setting, 16), g_ini);
+        if (!g_iniReadOnly)
+            WritePrivateProfileStringW(L"Launcher", L"LANGUAGE", wide(wl_lang_setting(), setting, 16), g_ini);
         g_retitle = 1;
     }
     ImGui::PopItemFlag();
@@ -733,11 +738,13 @@ int wl_picker_run(void)
     // the log there too
     wcscpy_s(g_logDir, MAX_PATH, g_selfDir);
     wchar_t root[MAX_PATH];
-    if (wl_write_dir_root(g_selfDir, NULL, g_ini, root, MAX_PATH) > 0)
-    {
-        wl_write_dir_file(root, L"windowsloader.ini", g_ini, MAX_PATH);
+    int write = wl_write_dir_root(g_selfDir, NULL, g_ini, root, MAX_PATH);
+    if (write > 0 && wl_write_dir_file(root, L"windowsloader.ini", g_ini, MAX_PATH) < 0)
+        write = -3;
+    if (write > 0)
         wcscpy_s(g_logDir, MAX_PATH, root);
-    }
+    else if (write < 0)
+        g_iniReadOnly = 1; // nothing written in its stead (writedir.h): the launcher says why, the game shows it
     // The interface's language (lang.h): [Launcher] LANGUAGE, lang\ beside this program
     wchar_t language[16];
     char setting[16];

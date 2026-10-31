@@ -883,8 +883,6 @@ int wmain(int argc, wchar_t **argv)
     // log at its root, the game's writes in WRITE_DIR\<game> (the DLL's)
     wchar_t writeDir[MAX_PATH] = L"";
     int write = wl_write_dir_root(selfDir, writeArg, iniPath, writeDir, MAX_PATH);
-    if (write < 0)
-        say("windowsloader: the write folder %s cannot be made: the game's folder is written as before\n", u8(writeDir));
     // A file of the launcher's folder changed after its copy was made (a hand edit on a cabinet):
     // the copy is still the one read; said here, in the game's log and in its menu (the DLL's)
     static wchar_t older[4 * MAX_PATH + 8];
@@ -893,22 +891,43 @@ int wmain(int argc, wchar_t **argv)
     {
         wchar_t *paths[2] = {iniPath, controlsPath};
         const wchar_t *names[2] = {L"windowsloader.ini", L"controls.ini"};
-        for (int f = 0; f < 2; f++)
+        wchar_t first[2][MAX_PATH];
+        for (int f = 0; f < 2 && write > 0; f++)
         {
-            wchar_t first[MAX_PATH];
-            wcscpy_s(first, MAX_PATH, paths[f]);
-            if (!wl_write_dir_file(writeDir, names[f], paths[f], MAX_PATH))
+            wcscpy_s(first[f], MAX_PATH, paths[f]);
+            int r = wl_write_dir_file(writeDir, names[f], paths[f], MAX_PATH);
+            if (r < 0)
+            {
+                // Not copied there: the folder is not used, the files read in their first place
+                write = -3;
+                for (int g = 0; g < f; g++)
+                    wcscpy_s(paths[g], MAX_PATH, first[g]);
+                older[0] = 0;
+            }
+            if (r <= 0)
                 continue;
             say("windowsloader: %s, the one read, is older than %s: the changes made there since are not read (copy that file "
-                "over it, or change the one in the write folder)\n", u8(paths[f]), u8(first));
+                "over it, or change the one in the write folder)\n", u8(paths[f]), u8(first[f]));
             size_t n = wcslen(older);
-            swprintf(older + n, sizeof older / sizeof older[0] - n, L"%s|%s\n", paths[f], first);
+            swprintf(older + n, sizeof older / sizeof older[0] - n, L"%s|%s\n", paths[f], first[f]);
         }
-        if (!logGiven)
+        if (write > 0 && !logGiven)
             swprintf(logPath, MAX_PATH, L"%s\\windowsloader.log", writeDir);
     }
+    // Not usable: nothing written anywhere, the usual places only read (writedir.h); no log but
+    // --log's, the reason on this console and the debugger's output (the DLL's)
+    if (write < 0)
+    {
+        say("windowsloader: the write folder %s is not used: %s (error %lu); nothing is saved: the settings and the game's saves "
+            "are read in their usual places and not written, no log\n",
+            u8(writeDir), write == -1 ? "it cannot be made" : write == -2 ? "a file cannot be written in it" : "a settings file cannot be copied there",
+            wl_write_dir_error());
+        if (!logGiven)
+            logPath[0] = 0;
+    }
     SetEnvironmentVariableW(WL_ENV_OLDER, older[0] ? older : NULL);
-    SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write > 0 ? writeDir : NULL);
+    SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write ? writeDir : NULL);
+    SetEnvironmentVariableW(WL_ENV_WRITE_DENIED, write < 0 ? L"1" : NULL);
     SetEnvironmentVariableW(WL_ENV_LOG, logPath);
     SetEnvironmentVariableW(WL_ENV_WINDOWED, windowed ? L"1" : L"0");
     swprintf(num, 16, L"%d", ioLimit);
@@ -937,9 +956,12 @@ int wmain(int argc, wchar_t **argv)
     game_option_args(gamePath, cmd, argc, argv, i + 1, iniPath, setsLen ? sets : NULL);
 
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));
-    say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), u8(logPath), windowed ? "windowed" : "full screen allowed");
+    say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir), logPath[0] ? u8(logPath) : "none (the write folder cannot be written)",
+        windowed ? "windowed" : "full screen allowed");
     if (write > 0)
         say("  writes: %s\\<game> (the game's folder only read)\n", u8(writeDir));
+    else if (write < 0)
+        say("  writes: none, all refused (the game's folder only read)\n");
 
     // Closing the launcher (Ctrl+C, agent stop) takes the game and its children down with it
     HANDLE job = CreateJobObjectW(NULL, NULL);
@@ -965,7 +987,10 @@ int wmain(int argc, wchar_t **argv)
         wchar_t *dot = wcsrchr(compLog, L'.'), *slash = wcsrchr(compLog, L'\\');
         if (dot && (!slash || dot > slash))
             *dot = 0;
-        wcscat_s(compLog, MAX_PATH, c ? L"-companion2.log" : L"-companion.log");
+        if (logPath[0])
+            wcscat_s(compLog, MAX_PATH, c ? L"-companion2.log" : L"-companion.log");
+        else
+            compLog[0] = 0; // no log
         SetEnvironmentVariableW(WL_ENV_LOG, compLog);
         SetEnvironmentVariableW(WL_ENV_AGENT, NULL);
         SetEnvironmentVariableW(WL_ENV_CONTROLS, NULL);

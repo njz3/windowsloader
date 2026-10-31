@@ -282,6 +282,7 @@ static void feed_mouse(void)
 {
     ImGuiIO &io = ImGui::GetIO();
     io.DisplaySize = ImVec2((float)g_bbW, (float)g_bbH);
+    io.MouseDrawCursor = true; // the game may hide the system cursor (none over the notice: draw_notice)
     POINT pt;
     RECT pic = {0, 0, 0, 0};
     if (wl_display_hwnd())
@@ -1266,6 +1267,12 @@ static void page_display(void)
 int wl_menu_save(int forGame, char *status, size_t size)
 {
     char u[MAX_PATH * 2];
+    const wchar_t *folder;
+    if (wl_files_write_state(&folder) < 0)
+    {
+        snprintf(status, size, wl_tr("Rien n'est sauvegardé : impossible d'écrire dans le dossier d'écriture %s"), wl_u8(folder, u, sizeof u));
+        return 0;
+    }
     const wchar_t *file = forGame ? wl_settings_game_file(1) : wl_settings_file();
     if (forGame && !file)
     {
@@ -1336,11 +1343,23 @@ static void page_game(void)
         }
     // The write folder (WRITE_DIR, --write-dir) when the game's writes are redirected; nothing otherwise
     const wchar_t *folder;
-    if (wl_files_write_state(&folder) > 0)
+    int writes = wl_files_write_state(&folder);
+    if (writes > 0)
     {
         char where[MAX_PATH * 2];
         ImGui::Spacing();
         ImGui::TextWrapped(wl_tr("Redirection d'écriture active, dossier : %s"), wl_u8(folder, where, sizeof where));
+    }
+    else if (writes < 0)
+    {
+        char where[MAX_PATH * 2];
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+        ImGui::TextWrapped("%s", wl_tr("Impossible d'écrire dans le dossier d'écriture"));
+        ImGui::TextWrapped("%s", wl_u8(folder, where, sizeof where));
+        ImGui::TextWrapped("%s", wl_tr("Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne "
+                                       "sont pas écrits."));
+        ImGui::PopStyleColor();
     }
     // A settings file of the launcher's folder changed after its copy in the write folder was made:
     // the copy is the one read (a hand edit on a cabinet would otherwise go unseen)
@@ -1713,6 +1732,61 @@ static void draw_menu(void)
 }
 
 // ------------------------------------------------------------------------------
+// The notice over the game: a write folder that cannot be written (files.cpp), for 20 s from the
+// game's first frame, the game going on under it. No message box: no one would close it on a
+// cabinet. The owner's text for all his emulators (Flycast's, Supermodel's)
+// ------------------------------------------------------------------------------
+
+static ULONGLONG g_noticeStart;
+
+static int notice_due(void)
+{
+    const wchar_t *folder;
+    if (wl_files_write_state(&folder) >= 0)
+        return 0;
+    ULONGLONG now = GetTickCount64();
+    if (!g_noticeStart)
+    {
+        g_noticeStart = now;
+        wl_log("menu: the write folder cannot be written: said over the game for 20 s");
+    }
+    return now - g_noticeStart < 20000;
+}
+
+// Its ImGui frame, nothing taken from the game (no mouse, no cursor drawn)
+static void draw_notice(void)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    io.DisplaySize = ImVec2((float)g_bbW, (float)g_bbH);
+    io.MouseDrawCursor = false;
+    io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+    ImGui::NewFrame();
+    const wchar_t *folder;
+    wl_files_write_state(&folder);
+    char where[MAX_PATH * 2];
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.05f), ImGuiCond_Always, ImVec2(0.5f, 0));
+    ImGui::SetNextWindowBgAlpha(0.9f);
+    if (ImGui::Begin("##writenotice", NULL,
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove |
+                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing))
+    {
+        float wrap = ImGui::GetFontSize() * 30;
+        if (wrap > io.DisplaySize.x * 0.85f)
+            wrap = io.DisplaySize.x * 0.85f;
+        ImGui::PushTextWrapPos(wrap);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
+        ImGui::TextUnformatted(wl_tr("Impossible d'écrire dans le dossier d'écriture"));
+        ImGui::PopStyleColor();
+        ImGui::TextUnformatted(wl_u8(folder, where, sizeof where));
+        ImGui::TextUnformatted(wl_tr("Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne "
+                                     "sont pas écrits."));
+        ImGui::PopTextWrapPos();
+    }
+    ImGui::End();
+    ImGui::Render();
+}
+
+// ------------------------------------------------------------------------------
 // The menu's frames
 // ------------------------------------------------------------------------------
 
@@ -1802,13 +1876,54 @@ static void render_frame(void *arg)
         Sleep(16);
 }
 
+// The notice drawn on the game's frame, before its Present
+static void notice9(IDirect3DDevice9 *dev)
+{
+    if (!notice_due())
+        return;
+    IDirect3DSurface9 *bb = NULL, *oldTarget = NULL;
+    if (FAILED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &bb)))
+        return;
+    D3DSURFACE_DESC d;
+    bb->GetDesc(&d);
+    g_bbW = (int)d.Width;
+    g_bbH = (int)d.Height;
+    if (!g_ready)
+        g_ready = setup(dev) ? 1 : -1;
+    if (g_ready > 0 && g_backend == 9)
+    {
+        D3DVIEWPORT9 vp;
+        dev->GetViewport(&vp);
+        dev->GetRenderTarget(0, &oldTarget);
+        dev->SetRenderTarget(0, bb);
+        ImGui_ImplDX9_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        draw_notice();
+        if (SUCCEEDED(dev->BeginScene()))
+        {
+            ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+            dev->EndScene();
+        }
+        if (oldTarget)
+        {
+            dev->SetRenderTarget(0, oldTarget);
+            oldTarget->Release();
+        }
+        dev->SetViewport(&vp);
+    }
+    bb->Release();
+}
+
 void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
 {
     int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)
+    {
+        notice9(dev);
         return;
+    }
 
     IDirect3DSurface9 *bb = NULL;
     if (FAILED(dev->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &bb)))
@@ -1911,13 +2026,67 @@ static void render_frame11(void *arg)
         Sleep(16); // nothing shown, no vertical sync to wait for
 }
 
+// The notice drawn on the game's frame, before its Present
+static void notice11(IDXGISwapChain *sc)
+{
+    if (!notice_due())
+        return;
+    ID3D11Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
+        return;
+    D3D11_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    g_bbW = (int)d.Width;
+    g_bbH = (int)d.Height;
+    ID3D11Device *dev = NULL;
+    ID3D11DeviceContext *ctx = NULL;
+    bb->GetDevice(&dev);
+    dev->GetImmediateContext(&ctx);
+    if (!g_ready)
+    {
+        DXGI_SWAP_CHAIN_DESC sd;
+        g_ready = SUCCEEDED(sc->GetDesc(&sd)) && setup11(sd.OutputWindow, dev, ctx) ? 1 : -1;
+    }
+    ID3D11RenderTargetView *rtv = NULL;
+    if (g_ready > 0 && g_backend == 11 && SUCCEEDED(dev->CreateRenderTargetView(bb, NULL, &rtv)))
+    {
+        // The game's render target and viewport, put back after
+        ID3D11RenderTargetView *oldRtv = NULL;
+        ID3D11DepthStencilView *oldDsv = NULL;
+        D3D11_VIEWPORT oldVp[D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        UINT vpCount = D3D11_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+        ctx->OMGetRenderTargets(1, &oldRtv, &oldDsv);
+        ctx->RSGetViewports(&vpCount, oldVp);
+        ctx->OMSetRenderTargets(1, &rtv, NULL);
+        D3D11_VIEWPORT vp = {0, 0, (float)g_bbW, (float)g_bbH, 0, 1};
+        ctx->RSSetViewports(1, &vp);
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        draw_notice();
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        ctx->OMSetRenderTargets(1, &oldRtv, oldDsv);
+        ctx->RSSetViewports(vpCount, oldVp);
+        if (oldRtv)
+            oldRtv->Release();
+        if (oldDsv)
+            oldDsv->Release();
+        rtv->Release();
+    }
+    ctx->Release();
+    dev->Release();
+    bb->Release();
+}
+
 void wl_menu_present11(IDXGISwapChain *sc, WlPresent11Fn present)
 {
     int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)
+    {
+        notice11(sc);
         return;
+    }
 
     ID3D11Texture2D *bb = NULL;
     if (FAILED(sc->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&bb)))
@@ -2023,13 +2192,63 @@ static void render_frame10(void *arg)
         Sleep(16);
 }
 
+// The notice drawn on the game's frame, before its Present
+static void notice10(IDXGISwapChain *sc)
+{
+    if (!notice_due())
+        return;
+    ID3D10Texture2D *bb = NULL;
+    if (FAILED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
+        return;
+    D3D10_TEXTURE2D_DESC d;
+    bb->GetDesc(&d);
+    g_bbW = (int)d.Width;
+    g_bbH = (int)d.Height;
+    ID3D10Device *dev = NULL;
+    bb->GetDevice(&dev);
+    if (!g_ready)
+    {
+        DXGI_SWAP_CHAIN_DESC sd;
+        g_ready = SUCCEEDED(sc->GetDesc(&sd)) && setup10(sd.OutputWindow, dev) ? 1 : -1;
+    }
+    ID3D10RenderTargetView *rtv = NULL;
+    if (g_ready > 0 && g_backend == 10 && SUCCEEDED(dev->CreateRenderTargetView(bb, NULL, &rtv)))
+    {
+        ID3D10RenderTargetView *oldRtv = NULL;
+        ID3D10DepthStencilView *oldDsv = NULL;
+        D3D10_VIEWPORT oldVp[D3D10_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE];
+        UINT vpCount = D3D10_VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE;
+        dev->OMGetRenderTargets(1, &oldRtv, &oldDsv);
+        dev->RSGetViewports(&vpCount, oldVp);
+        dev->OMSetRenderTargets(1, &rtv, NULL);
+        D3D10_VIEWPORT vp = {0, 0, (UINT)g_bbW, (UINT)g_bbH, 0, 1};
+        dev->RSSetViewports(1, &vp);
+        ImGui_ImplDX10_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        draw_notice();
+        ImGui_ImplDX10_RenderDrawData(ImGui::GetDrawData());
+        dev->OMSetRenderTargets(1, &oldRtv, oldDsv);
+        dev->RSSetViewports(vpCount, oldVp);
+        if (oldRtv)
+            oldRtv->Release();
+        if (oldDsv)
+            oldDsv->Release();
+        rtv->Release();
+    }
+    dev->Release();
+    bb->Release();
+}
+
 void wl_menu_present10(IDXGISwapChain *sc, WlPresent11Fn present)
 {
     int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;
     if (!want)
+    {
+        notice10(sc);
         return;
+    }
 
     ID3D10Texture2D *bb = NULL;
     if (FAILED(sc->GetBuffer(0, __uuidof(ID3D10Texture2D), (void **)&bb)))
@@ -2384,6 +2603,32 @@ static void render_frame_gl(void *arg)
     wl_display_dest(); // F11 and Alt+Enter work in the menu too
     if (!f->swap(f->dc))
         Sleep(16);
+}
+
+void wl_menu_notice_gl(HDC dc)
+{
+    if (!notice_due())
+        return;
+    HWND wnd = WindowFromDC(dc);
+    RECT r;
+    if (!wnd || !GetClientRect(wnd, &r) || r.right <= 0 || r.bottom <= 0)
+        return;
+    g_bbW = r.right;
+    g_bbH = r.bottom;
+    if (!g_ready)
+        g_ready = setup_gl(wnd) ? 1 : -1;
+    if (g_ready < 0 || g_backend != 2)
+        return;
+    GlSaved saved;
+    wl_busy_enter();
+    gl_enter(&saved);
+    glViewport(0, 0, g_bbW, g_bbH);
+    ImGui_ImplOpenGL2_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    draw_notice();
+    ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+    gl_leave(&saved);
+    wl_busy_leave();
 }
 
 void wl_menu_swap_gl(HDC dc, WlSwapFn swap)

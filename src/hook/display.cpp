@@ -156,7 +156,8 @@ static const char *g_defaults =
     "# temporary folder in temp, ProgramData in programdata, Windows' in windows; for a write filter (UWF) on the\r\n"
     "# whole disk but this folder, or games on a share. Once it is set, the windowsloader.ini and controls.ini\r\n"
     "# read are the copies in that folder: change those, not the ones beside the launcher. Relative to the\r\n"
-    "# launcher's folder, or a full path. Empty: everything is written in its usual place.\r\n"
+    "# launcher's folder, or a full path. Empty: everything is written in its usual place. A folder that\r\n"
+    "# cannot be written: nothing is written at all, the usual files only read, no log, a notice on the screen.\r\n"
     "# For Example: C:\\Racecab\\Saves\\windowsloader. Default: empty\r\n"
     "WRITE_DIR = \"\"\r\n"
     "\r\n"
@@ -1327,7 +1328,9 @@ int wl_display_screenshot(const char *path)
         SelectObject(mem, old);
         GdiFlush();
         wl_busy_enter(); // windowsloader's own file, where the agent asked: not the game's (no write folder)
+        wl_files_allow_writes(1);
         FILE *f = ok ? fopen(path, "wb") : NULL;
+        wl_files_allow_writes(0);
         wl_busy_leave();
         if (f)
         {

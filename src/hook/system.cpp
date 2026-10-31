@@ -1156,6 +1156,8 @@ void wl_system_quiet_debug(const char *const *strings)
 
 static void OutputDebugString_log(const char *text)
 {
+    if (wl_log_to_debugger())
+        return; // the log is the debugger's output already: the line is there
     for (const char *const *q = g_quietDebug; q && *q; q++)
         if (strstr(text, *q))
             return;

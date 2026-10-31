@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "game.h"
+#include "hooks.h"
 #include "log.h"
 #include "settings.h"
 #include "wlshared.h"
@@ -216,7 +217,7 @@ int wl_settings_get_bool(const char *section, const char *key, int def)
 
 int wl_settings_write(const wchar_t *file, const char *section, const char *key, const char *value)
 {
-    if (!file || !file[0])
+    if (!file || !file[0] || wl_files_write_refused(file))
         return 0;
     wchar_t s[64], k[64], v[256];
     MultiByteToWideChar(CP_UTF8, 0, section, -1, s, 64);
@@ -231,6 +232,8 @@ const wchar_t *wl_settings_game_file(int create)
         return NULL;
     if (create && !exists(g_gameFile))
     {
+        if (wl_files_write_refused(g_gameFile))
+            return NULL;
         // The file read copied, its other settings kept (as linuxloader's "Save for this game")
         char u[MAX_PATH * 2];
         if (exists(g_file) && !CopyFileW(g_file, g_gameFile, TRUE))
@@ -374,6 +377,12 @@ int wl_ini_merge(const wchar_t *path, const char *defaults)
     char u[MAX_PATH * 2];
     if (!path || !path[0])
         return 0;
+    // Written neither there nor beside it (path.new) when the write folder cannot be written: the
+    // file read as it is
+    wchar_t beside[MAX_PATH + 8];
+    swprintf(beside, MAX_PATH + 8, L"%s.new", path);
+    if (wl_files_write_refused(path) || wl_files_write_refused(beside))
+        return exists(path);
     if (!exists(path))
     {
         FILE *f = _wfopen(path, L"wb");

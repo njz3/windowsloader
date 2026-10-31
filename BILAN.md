@@ -807,6 +807,19 @@ Les trois fonctions de linuxloader qui manquaient, avec ses clés :
   `programdata`, `windows` ; un disque sous filtre d'écriture (UWF) sauf le dossier d'écriture garde ainsi tout
   ce que le jeu écrit. Un seul réglage, `WRITE_DIR` : vide, tout s'écrit à sa place habituelle. Le sélecteur
   suit.
+  Dossier d'écriture inutilisable (31/10, règle du propriétaire pour tous ses émulateurs) : impossible à créer,
+  fichier d'essai qui ne se crée, ne s'écrit ou ne s'efface pas, ou réglages qui ne s'y copient pas (le lanceur
+  pour `WRITE_DIR`, la DLL pour `WRITE_DIR\<jeu>`) : il reste le seul endroit écrit, donc rien n'est écrit.
+  Réglages et fichiers du jeu lus à leur place, jamais écrits ; écritures du jeu et de windowsloader refusées
+  (les hooks de fichiers, et les réglages par défaut avant eux) ; pas de journal (sauf `--log`), la raison sur la
+  console du lanceur et dans la sortie du débogueur ; sur le jeu pendant 20 s, sans pause ni boîte de message,
+  le texte commun aux émulateurs (« Impossible d'écrire dans le dossier d'écriture », le dossier, « Rien n'est
+  sauvegardé… »), et dans la page Jeu du menu Tab. Vérifié avec Ford Racing (Direct3D 9) : un lecteur absent et
+  un dossier refusé en écriture (icacls) : le texte à 6 s, plus à 24 s, aucun fichier changé dans les dossiers
+  du lanceur et du jeu ; un dossier d'écriture normal : comme avant. Le texte aussi sur Mario Kart DX 1.18
+  (Direct3D 10), Wangan Midnight 5 (Direct3D 11, 64 bits) et Initial D 6 (OpenGL), leurs dossiers inchangés.
+  Wangan Midnight 5 s'arrête après 9 images : ses fichiers de comptabilité (`F:/BK_*.bin`) ne s'ouvrent pas,
+  « bookkeep: file broken » (le « tant pis » de la règle).
 - `[Outputs] OUTPUTS_NETWORK` : serveur TCP (8000) au protocole de MAME pour BackForceFeeder, annonce UDP
   (8001) ; les lampes de la carte JVS, `RawDrive` (les octets de la carte moteur Sega, ou pour les autres
   cartes les trames de la carte servo Sega faites de la force), `mame_stop` à la fin.

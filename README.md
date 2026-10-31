@@ -308,6 +308,16 @@ only in its first place stays there. A game's companion (Initial D 7 and 8's `pi
 `amdaemon.exe`, which the launcher starts beside it) writes in its game's `WRITE_DIR\<game>`, so the
 files they share stay shared. The picker reads and writes the write folder's `windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
 place.
+A write folder that cannot be used (it cannot be made, a test file cannot be made, written and
+removed in it, or the settings cannot be copied there; the DLL tests `WRITE_DIR\<game>` the same
+way) is still the only place written to, so nothing is written at all: the settings and the game's
+files are read in their usual places, never written there (two programs started by mistake on the
+same write folder must not change the settings they share), the game's writes and windowsloader's
+own fail, and there is no log (but `--log`'s). The reason is on the launcher's console and in the
+debugger's output (DebugView); over the game, for 20 s from its first frame, without a message box
+or a pause: "Cannot write to the write folder", the folder, "Nothing is saved: the settings and the
+game saves are read from the usual folders and not written." (the same text in Supermodel's and
+Flycast's njz3 forks), and in the Tab menu's game page.
 
 Network outputs (`[Outputs] OUTPUTS_NETWORK = true`, linuxloader's keys and protocol, MAME's, as in the
 njz3 forks of Supermodel and sm2-emu): a TCP server on `OUTPUTS_NETWORK_PORT` (8000) sends

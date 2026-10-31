@@ -19,6 +19,7 @@
 #include "log.h"
 
 static HANDLE g_logFile = INVALID_HANDLE_VALUE;
+static int g_logDebugger; // no file (the write folder cannot be written): the lines to the debugger's output
 static CRITICAL_SECTION g_logLock;
 static LARGE_INTEGER g_logStart, g_logFreq;
 
@@ -29,6 +30,13 @@ void wl_log_open(const wchar_t *path)
     QueryPerformanceCounter(&g_logStart);
     if (path && path[0])
         g_logFile = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    else
+        g_logDebugger = 1;
+}
+
+int wl_log_to_debugger(void)
+{
+    return g_logDebugger;
 }
 
 void wl_log_close(void)
@@ -67,13 +75,18 @@ static void log_line(const char *text, int len)
         DWORD written;
         WriteFile(g_logFile, line, (DWORD)n, &written, NULL);
     }
+    else if (g_logDebugger)
+    {
+        line[n] = 0;
+        OutputDebugStringA(line); // busy: not the game's, not logged again
+    }
     LeaveCriticalSection(&g_logLock);
     wl_busy_leave();
 }
 
 void wl_log(const char *fmt, ...)
 {
-    if (g_logFile == INVALID_HANDLE_VALUE)
+    if (g_logFile == INVALID_HANDLE_VALUE && !g_logDebugger)
         return;
     DWORD err = GetLastError();
     char buf[1800];

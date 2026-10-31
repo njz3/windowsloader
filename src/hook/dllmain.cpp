@@ -61,7 +61,8 @@ static void lang_init(void)
 static void wl_init(void)
 {
     wchar_t logPath[MAX_PATH] = L"";
-    if (!GetEnvironmentVariableW(WL_ENV_LOG, logPath, MAX_PATH))
+    // Empty: the launcher's "no log" (a write folder that cannot be written: wl_log_open)
+    if (!GetEnvironmentVariableW(WL_ENV_LOG, logPath, MAX_PATH) && GetLastError() == ERROR_ENVVAR_NOT_FOUND)
     {
         // Loaded without the launcher: log next to the DLL
         GetModuleFileNameW(g_wlModule, logPath, MAX_PATH);
