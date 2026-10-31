@@ -1678,6 +1678,10 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
 - Link sur les bornes ✅ (31/10, link11) : NETWORK-ID 1 et 2 pris dans LINK ; Coin+Start sur la borne 1, la 2 affiche
   « 2-PLAYER GAME AVAILABLE », puis Coin+Start sur la 2 (« WAIT! CHALLENGER(S) STILL SELECTING ») ; la course à deux
   (1er et 3e). Dans un dossier d'écriture neuf, le jeu demande d'abord « PLEASE CALIBRATE I/O DEVICE ».
+- Étalonnage dans le dossier d'écriture du link de racecab1 (31/10) ✅ : TEST MODE au levier (SHIFT UP descend, START
+  choisit), I/O CHECK, ACCEL and BRAKE CALIBRATION : chaque étape (Push Full, Release) dure environ 5 s et part
+  seule après START, le frein environ 14 s après ; « Calibration succeeded » pour les deux, SAVE AND EXIT ; au
+  lancement suivant, l'attract directement.
 ## Direct3D 8 (d3d8to9)
 
 windowsloader joue Direct3D 8 sur Direct3D 9 avec d3d8to9 de crosire (`src/d3d8to9`, licence BSD 2 clauses,
