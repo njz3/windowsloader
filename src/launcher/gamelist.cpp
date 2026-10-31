@@ -22,7 +22,7 @@
 
 const WlKnownGame g_wlKnownGames[] = {
     {"Sega Rally 3", "segarally3", "", {L"Rally.exe"}, {0x9228B72E}, {NULL}, 0, NULL, "Sega Europa-R", "2008", WL_GAME_PLAYS,
-     WL_N("Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."), WL_FEATURE_YES, WL_FEATURE_NO},
+     WL_N("Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."), WL_FEATURE_YES, WL_FEATURE_PARTLY},
     {"Daytona Championship USA", "daytona3", "171221", {L"Daytona.exe"}, {0x08823BEF}, {NULL}, 0, NULL, "Sega (PC)", "2017", WL_GAME_PLAYS,
      WL_N("Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."),
      WL_FEATURE_YES, WL_FEATURE_PARTLY},

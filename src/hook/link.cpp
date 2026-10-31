@@ -563,6 +563,16 @@ static void link_patch(HMODULE exe)
         {"WS2_32.dll", 16, "recv", (void *)l_recv, (void **)&o_recv},
         {"WS2_32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"WS2_32.dll", 0, "WSAIoctl", (void *)l_WSAIoctl, (void **)&o_WSAIoctl},
+        // Winsock 1's (Sega Rally 3, by number): the same functions, the same numbers
+        {"WSOCK32.dll", 2, "bind", (void *)l_bind, (void **)&o_bind},
+        {"WSOCK32.dll", 13, "listen", (void *)l_listen, (void **)&o_listen},
+        {"WSOCK32.dll", 4, "connect", (void *)l_connect, (void **)&o_connect},
+        {"WSOCK32.dll", 1, "accept", (void *)l_accept, (void **)&o_accept},
+        {"WSOCK32.dll", 20, "sendto", (void *)l_sendto, (void **)&o_sendto},
+        {"WSOCK32.dll", 17, "recvfrom", (void *)l_recvfrom, (void **)&o_recvfrom},
+        {"WSOCK32.dll", 19, "send", (void *)l_send, (void **)&o_send},
+        {"WSOCK32.dll", 16, "recv", (void *)l_recv, (void **)&o_recv},
+        {"WSOCK32.dll", 3, "closesocket", (void *)l_closesocket, (void **)&o_closesocket},
         {"IPHLPAPI.DLL", 0, "GetAdaptersInfo", (void *)l_GetAdaptersInfo, (void **)&o_GetAdaptersInfo},
         {"IPHLPAPI.DLL", 0, "GetAdaptersAddresses", (void *)l_GetAdaptersAddresses, (void **)&o_GetAdaptersAddresses},
     };

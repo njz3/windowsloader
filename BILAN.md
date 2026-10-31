@@ -84,6 +84,13 @@ Fonctions :
   (`config.ini`) vérifiée en 1280×720.
 - Menu Tab ✅ (`sr3_menu.py`).
 - Menu de service ❌ : il appartient au Shell Europa-R, absent des copies.
+- Link entre bornes 🔄 (31/10) : le jeu en LAN de Demonware (`bd*`) : ses bornes se trouvent par une diffusion UDP
+  sur 50000 (`bdDiscoveryClient`), puis une session (UDP 3074 sur l'adresse du PC, TCP 8086) ; son adresse par
+  GetAdaptersInfo ; Winsock 1 (`WSOCK32.dll`) importé par numéro, désormais pris par `link.cpp` comme ws2_32 ;
+  `[Network] CabinetID` (1 à 4) et `Enabled` de ShellData.ini (« For Link play: must be on same LAN and change
+  CabinetID to 1..4 ») d'après `[Game.segarally3] LINK` / `CABINET`. Essayé seul sur ce PC (LINK = son adresse et
+  une autre) : CabinetID lu, la carte filtrée (1 sur 7), la recherche partie vers les deux PC, puis le jeu écoute sur
+  50000 ; pas encore sur les bornes.
 
 ## Daytona Championship USA (2017) et New Season Edition (2019)
 

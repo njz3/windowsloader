@@ -41,6 +41,8 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "ioports.h"
+#include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "vhid.h"
 
@@ -118,12 +120,24 @@ static void port_write(unsigned short port, unsigned short value)
 }
 
 // The render resolution of windowsloader.ini ([Display] WIDTH / HEIGHT) given to the game when
-// it reads its own: [Graphics] HorizontalResolution / VerticalResolution of Rally\config.ini
+// it reads its own: [Graphics] HorizontalResolution / VerticalResolution of Rally\config.ini.
+// Linked, the cabinet's number: [Network] CabinetID of ShellData.ini ("For Link play: must be on
+// same LAN and change CabinetID to 1..4"), Enabled
 static int ini_override(const char *file, const char *section, const char *key, char *value, size_t size)
 {
+    size_t n = strlen(file);
+    if (wl_link_count() && n >= 13 && !_stricmp(file + n - 13, "ShellData.ini") && !_stricmp(section, "Network"))
+    {
+        if (!_stricmp(key, "CabinetID"))
+            snprintf(value, size, "%d", wl_link_cabinet());
+        else if (!_stricmp(key, "Enabled"))
+            snprintf(value, size, "1");
+        else
+            return 0;
+        return 1;
+    }
     int w, h;
     wl_display_internal(&w, &h);
-    size_t n = strlen(file);
     if (!w || !h || n < 10 || _stricmp(file + n - 10, "config.ini") || _stricmp(section, "Graphics"))
         return 0;
     if (!_stricmp(key, "HorizontalResolution"))
@@ -158,6 +172,20 @@ static void read_calibration(const wchar_t *gameDir)
         in->rawRest = in->type == WL_INPUT_AXIS ? (in->rawLow + in->rawHigh + 1) / 2 : in->rawLow;
         wl_log("  %s: %d..%d, rest %d", in->name, in->rawLow, in->rawHigh, in->rawRest);
     }
+}
+
+// The link between cabinets (link.h): 1 to 4 (Demonware's LAN play: its cabinets found by a
+// broadcast, a session joined; GetAdaptersInfo for its address, Winsock 1 by number)
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
+};
+
+static void sr3_settings(void)
+{
+    wl_link_settings(GetModuleHandleW(NULL));
 }
 
 int wl_game_segarally3(const wchar_t *exePath)
@@ -196,5 +224,7 @@ int wl_game_segarally3(const wchar_t *exePath)
     wl_ioports_set_writer(port_write);
     wl_files_set_ini_override(ini_override);
     wl_display_set_internal_supported(1);
+    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_on_settings(sr3_settings);
     return 1;
 }
