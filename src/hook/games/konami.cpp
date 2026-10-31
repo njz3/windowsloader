@@ -29,6 +29,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 #include "settings.h"
@@ -273,6 +274,22 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
+// The link between cabinets (link.h): a broadcast on 255.255.255.255, the cabinets' lobby, its
+// address from the PC's cards (GetAdaptersInfo, "machine IP %s, GIP %s, GPORT %d"); each cabinet
+// its own CABINET ID (the test menu's NETWORK OPTIONS: "THE DUPLICATED CABINET ID EXISTS" otherwise)
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void gti_settings(void)
+{
+    render_resolution();
+    wl_link_settings(GetModuleHandleW(NULL));
+}
+
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -296,7 +313,8 @@ int wl_game_konami(const wchar_t *exePath, const char **name, const char **title
     wl_inputs_set_table(g_inputs, IN_COUNT);
     lamps_hook();
     wl_display_set_internal_supported(1);
-    wl_game_on_settings(render_resolution);
+    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_on_settings(gti_settings);
 
     static const unsigned int checks[] = {0x8C0E0C, 0x8C0E14, 0x8C0E1C, 0x8C0E3C};
     static const unsigned int was[] = {0x44B120, 0x44B1D0, 0x44B1E0, 0x44BA90};

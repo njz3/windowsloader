@@ -172,6 +172,13 @@ dgVoodoo et jconfig (JVSEmuFR.dll) mis de côté dans `_teknoparrot_off` ; effac
   borne (`/k=`), puis s'arrête sur « SECURITY FAILURE 4 » : il veut la clé iButton de la borne (DS1991,
   pilotes TMEX `IBFS32.DLL`), non émulée. Ses écritures dans HKLM (adresse IP de la carte réseau) et
   l'horloge du PC sont refusées par windowsloader.
+- Link entre bornes 🔄 (31/10) : protocole Sega (`net_sega.c`) : découverte par diffusion
+  (« SEGA_PROTOCOL_IM_SERVER_WHOS_WITH_ME »), sa carte par WSAIoctl SIO_GET_INTERFACE_LIST, liaison sur son adresse,
+  ports 53001 à 53003 (54001 de base), `CabinetPostion` de `data\GameSettings.ini` différent sur chaque borne.
+  `[Game.fordracing] LINK` / `CABINET` (`link.cpp`) : diffusions envoyées à chaque PC de LINK, autres adresses refusées,
+  seule la carte de LINK montrée, CabinetPostion d'après CABINET. Essayé seul sur ce PC (LINK = son adresse et une autre) :
+  la carte filtrée (2 sur 5), les diffusions sur 53001 et 53003 partent vers les deux PC et reviennent ; pas encore sur
+  les bornes. GameShell (menu de service) change l'adresse IP et le nom du PC dans le registre : toujours refusé.
 
 ## Initial D Arcade Stage 6 AA (Sega RingEdge, 2011)
 
@@ -308,6 +315,9 @@ Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22
   et recopiée par GDI (voir « Affichage sur ce PC »).
 - Menu de service ❌ : coquille Sega Europe (`shell\Shell.exe`, clé Dinkey `DK2WIN32.DLL`).
 - Crédits ✅ : free play.
+- Link entre bornes 🔄 (31/10) : « linked_group_mode », recherche de sessions sur le réseau ; ws2_32 importé (en partie
+  par numéro), ses cartes par GetAdaptersAddresses. `[Game.showdown] LINK` / `CABINET` (`link.cpp`, comme Ford Racing) ;
+  `[Network] NumCabinets` / `CabinetID` de ShellData.ini d'après LINK. Pas encore essayé (pas de copie du jeu ici).
 
 ## K.O. Drive (Sega RingWide, 2013)
 
@@ -893,6 +903,9 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
   sans).
 - Crédits ✅ : jeu gratuit (réglage de la copie) ; les pièces passent par `ac_io_hbhi_current_coinstock` de la
   carte, pas émulé.
+- Link entre bornes 🔄 (31/10) : diffusion sur 255.255.255.255, salon des bornes (« global matching step lobby »),
+  son adresse par GetAdaptersInfo (« machine IP %s, GIP %s, GPORT %d »), CABINET ID du menu de test (NETWORK OPTIONS),
+  différent sur chaque borne. `[Game.gticlub3] LINK` / `CABINET` (`link.cpp`). Pas encore essayé (pas de copie ici).
 
 ## Wasteland Racers 2071 (Trio Tech PC, 2006)
 

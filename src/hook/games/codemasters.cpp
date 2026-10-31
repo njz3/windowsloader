@@ -45,6 +45,8 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
+#include "link.h"
 #include "ioports.h"
 #include "log.h"
 #include "segashell.h"
@@ -145,15 +147,33 @@ static void port_write(unsigned short port, unsigned short value)
     wl_ffb_set(FFB_SIGN * f);
 }
 
+// [Network] of ShellData.ini: alone, cabinet 1 of 1; linked (link.h), LINK's count and CABINET
 static int ini_override(const char *file, const char *section, const char *key, char *value, size_t size)
 {
     size_t n = strlen(file);
-    if (n >= 13 && !_stricmp(file + n - 13, "ShellData.ini") && !_stricmp(section, "Network") && !_stricmp(key, "NumCabinets"))
-    {
-        snprintf(value, size, "1");
-        return 1;
-    }
-    return 0;
+    if (n < 13 || _stricmp(file + n - 13, "ShellData.ini") || _stricmp(section, "Network"))
+        return 0;
+    if (!_stricmp(key, "NumCabinets"))
+        snprintf(value, size, "%d", wl_link_count() ? wl_link_count() : 1);
+    else if (!_stricmp(key, "CabinetID") && wl_link_count())
+        snprintf(value, size, "%d", wl_link_cabinet());
+    else
+        return 0;
+    return 1;
+}
+
+// Showdown's link between cabinets (link.h): its "linked_group_mode", the sessions it finds on
+// its network
+static const WlGameOption g_showdownOptions[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void showdown_settings(void)
+{
+    wl_link_settings(GetModuleHandleW(NULL));
 }
 
 // Showdown's shell commands (+0x194920)
@@ -263,6 +283,8 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
         snprintf(ini, MAX_PATH, "%s\\ShellData\\ShellData.ini", sega);
         g_shell.freeplay = GetPrivateProfileIntA("Credit", "Freeplay", 1, ini) != 0;
         wl_segashell_start(&g_shell);
+        wl_game_set_options(g_showdownOptions, (int)(sizeof g_showdownOptions / sizeof g_showdownOptions[0]));
+        wl_game_on_settings(showdown_settings);
     }
     if (grid)
     {

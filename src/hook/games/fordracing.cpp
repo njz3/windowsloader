@@ -48,6 +48,8 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
+#include "link.h"
 #include "ioports.h"
 #include "log.h"
 #include "vhid.h"
@@ -126,12 +128,19 @@ static void port_write(unsigned short port, unsigned short value)
 }
 
 // The render resolution of windowsloader.ini ([Display] WIDTH / HEIGHT) given to the game when
-// it reads its own: [gamesettings] Resolution of ..\data\gamesettings.ini ("640x480")
+// it reads its own: [gamesettings] Resolution of ..\data\gamesettings.ini ("640x480"); linked,
+// CabinetPostion is the cabinet's number (each cabinet its own: "machines with the same cabinet
+// postions" otherwise)
 static int ini_override(const char *file, const char *section, const char *key, char *value, size_t size)
 {
     size_t n = strlen(file);
     if (n < 16 || _stricmp(file + n - 16, "gamesettings.ini") || _stricmp(section, "gamesettings"))
         return 0;
+    if (!_stricmp(key, "CabinetPostion") && wl_link_count())
+    {
+        snprintf(value, size, "%d", wl_link_cabinet());
+        return 1;
+    }
     if (!_stricmp(key, "Fullscreen") && g_wl.windowed)
     {
         snprintf(value, size, "off");
@@ -217,6 +226,21 @@ static void read_calibration(const wchar_t *gameDir)
     }
 }
 
+// The link between cabinets (link.h): its cabinets find each other by broadcast (the Sega protocol
+// of net_sega.c, "SEGA_PROTOCOL_IM_SERVER_WHOS_WITH_ME"), ports from 54001, its address from the PC's
+// cards (WSAIoctl SIO_GET_INTERFACE_LIST)
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void ford_settings(void)
+{
+    wl_link_settings(GetModuleHandleW(NULL));
+}
+
 int wl_game_fordracing(const wchar_t *exePath, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -259,5 +283,10 @@ int wl_game_fordracing(const wchar_t *exePath, const char **title)
     wl_ioports_set_writer(port_write);
     wl_files_set_ini_override(ini_override);
     wl_display_set_internal_supported(1);
+    if (!shell)
+    {
+        wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+        wl_game_on_settings(ford_settings);
+    }
     return 1;
 }

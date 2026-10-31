@@ -154,6 +154,16 @@ cabinet's number) on the network it knows, whatever the PCs' real addresses; its
 the file is left as it is. The link sends the players' pictures to the other cabinets and does not
 hold without a camera: the game's `CAMERA` option (below) gives it the PC's or an emulated one.
 Without `LINK` the cabinet plays alone (cabinet 1 of 1).
+Ford Racing Full Blown (`[Game.fordracing]`), GTI Club: Supermini Festa! (`[Game.gticlub3]`) and DiRT
+Showdown (`[Game.showdown]`) find their cabinets on their network by a broadcast, then talk to each
+other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
+found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
+broadcast is sent to each of them, any other address of the network is refused, and the game sees
+only the PC's card of `LINK` (a VPN's left out). Ford Racing's `CabinetPostion` and Showdown's
+`[Network] NumCabinets` / `CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is
+its test menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind,
+connect and accept, the first packets with each PC, the traffic every 10 s). Not yet tried on
+linked cabinets.
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's

@@ -883,15 +883,15 @@ msgstr "Serial board"
 msgid "Start (semble-t-il)"
 msgstr "Start (it seems)"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:154 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
 msgid "rouge"
 msgstr "red"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:154 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
 msgid "vert"
 msgstr "green"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:154 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
 msgid "bleu"
 msgstr "blue"
 
@@ -994,6 +994,14 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
+#: src/hook/games/codemasters.cpp:168 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246
+msgid "Numéro de la borne (link)"
+msgstr "Cabinet number (link)"
+
+#: src/hook/games/codemasters.cpp:169 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:1247
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
+msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
+
 #: src/hook/games/daytona.cpp:501
 msgid "Carte moteur de la borne"
 msgstr "Cabinet's motor board"
@@ -1023,53 +1031,45 @@ msgstr "Panel spring (%)"
 msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
 msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre without the motor."
 
-#: src/hook/games/daytona.cpp:518 src/hook/games/namco.cpp:1243
-msgid "Numéro de la borne (link)"
-msgstr "Cabinet number (link)"
-
-#: src/hook/games/daytona.cpp:519 src/hook/games/namco.cpp:1244
-msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
-msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
-
 #: src/hook/games/daytona.cpp:555
 msgid "la borne Model 2 (lampes)"
 msgstr "the Model 2 cabinet (lamps)"
 
-#: src/hook/games/konami.cpp:257
+#: src/hook/games/konami.cpp:258
 msgid "la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"
 msgstr "the HBHI board, ac_io_hbhi_control_lamp_on and _off (libacio.dll)"
 
-#: src/hook/games/konami.cpp:262
+#: src/hook/games/konami.cpp:263
 #, c-format
 msgid "Intensité de la lampe %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 à 31"
 msgstr "Brightness of lamp %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 to 31"
 
-#: src/hook/games/konami.cpp:263
+#: src/hook/games/konami.cpp:264
 msgid "intensité (0-31)"
 msgstr "intensity (0-31)"
 
-#: src/hook/games/namco.cpp:160
+#: src/hook/games/namco.cpp:161
 #, c-format
 msgid "LED %d (commande JVS %02X, la %de), %s (ordre supposé), 0 éteint à 15"
 msgstr "LED %d (JVS command %02X, number %d), %s (order assumed), 0 off to 15"
 
-#: src/hook/games/namco.cpp:162
+#: src/hook/games/namco.cpp:163
 msgid "intensité (0-15)"
 msgstr "intensity (0-15)"
 
-#: src/hook/games/namco.cpp:358
+#: src/hook/games/namco.cpp:359
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/hook/games/namco.cpp:359 src/hook/games/taito.cpp:594
+#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:594
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
-#: src/hook/games/namco.cpp:1735 src/hook/games/namco.cpp:1806
+#: src/hook/games/namco.cpp:1739 src/hook/games/namco.cpp:1810
 msgid "Carte du moteur du volant"
 msgstr "Wheel's motor board"
 
-#: src/hook/games/namco.cpp:1850
+#: src/hook/games/namco.cpp:1856
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
