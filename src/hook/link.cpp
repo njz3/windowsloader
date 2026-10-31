@@ -828,20 +828,87 @@ static FARPROC WINAPI l_dpnetGetProcAddress(HMODULE mod, LPCSTR name)
     return f;
 }
 
+// Its datagrams, sent overlapped (once each, as they are): the first ones with each PC and its
+// broadcasts logged
+static int(WSAAPI *o_WSASendTo)(SOCKET, LPWSABUF, DWORD, LPDWORD, DWORD, const sockaddr *, int, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
+static int WSAAPI l_WSASendTo(SOCKET s, LPWSABUF bufs, DWORD n, LPDWORD sent, DWORD flags, const sockaddr *to, int toLen, LPWSAOVERLAPPED ov,
+                              LPWSAOVERLAPPED_COMPLETION_ROUTINE done)
+{
+    int r = o_WSASendTo(s, bufs, n, sent, flags, to, toLen, ov, done);
+    if (!g_count || !is_inet(to, toLen) || !bufs || !n)
+        return r;
+    DWORD err = WSAGetLastError();
+    const sockaddr_in *in = (const sockaddr_in *)to;
+    int pc = pc_of(in->sin_addr.s_addr);
+    if (pc)
+    {
+        count(pc, 1, (int)bufs[0].len);
+        packet("DirectPlay sent to", pc, in, s, bufs[0].buf, (int)bufs[0].len);
+    }
+    else
+    {
+        static volatile LONG logged;
+        char t[20];
+        if (InterlockedIncrement(&logged) <= 30)
+            wl_log("link: DirectPlay sent to %s:%u (%s): %lu bytes -> %d (%lu)", ip_text(in->sin_addr.s_addr, t, sizeof t), ntohs(in->sin_port),
+                   broadcast(in->sin_addr.s_addr) ? "a broadcast" : local(in->sin_addr.s_addr) ? "this PC" : "not a PC of LINK", bufs[0].len, r,
+                   r ? err : 0);
+    }
+    WSASetLastError(err);
+    return r;
+}
+
+// An import of a system DLL's, by name or by number: the entry holding that function
+static int patch_system(HMODULE mod, const char *dll, const char *name, void *fn, void **original)
+{
+    HMODULE from = GetModuleHandleA(dll);
+    ULONG_PTR real = from ? (ULONG_PTR)GetProcAddress(from, name) : 0;
+    BYTE *base = (BYTE *)mod;
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (!real || !dir.VirtualAddress)
+        return 0;
+    for (IMAGE_IMPORT_DESCRIPTOR *d = (IMAGE_IMPORT_DESCRIPTOR *)(base + dir.VirtualAddress); d->Name; d++)
+    {
+        if (_stricmp((const char *)(base + d->Name), dll))
+            continue;
+        for (IMAGE_THUNK_DATA *iat = (IMAGE_THUNK_DATA *)(base + d->FirstThunk); iat->u1.Function; iat++)
+            if (iat->u1.Function == real)
+            {
+                DWORD old;
+                VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old);
+                if (original && !*original)
+                    *original = (void *)iat->u1.Function;
+                iat->u1.Function = (ULONG_PTR)fn;
+                VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, old, &old);
+                return 1;
+            }
+    }
+    return 0;
+}
+
 void wl_link_dpnet(void)
 {
     static volatile LONG done;
     HMODULE dpnet = g_count ? GetModuleHandleW(L"dpnet.dll") : NULL;
     if (!dpnet || InterlockedExchange(&done, 1))
         return;
+    // Its imports of WS2_32 are by number
+    static const struct
+    {
+        const char *dll, *name;
+        void *fn, **original;
+    } table[] = {
+        {"WS2_32.dll", "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
+        {"WS2_32.dll", "bind", (void *)l_bind, (void **)&o_bind},
+        {"WS2_32.dll", "WSASendTo", (void *)l_WSASendTo, (void **)&o_WSASendTo},
+        {"KERNEL32.dll", "GetProcAddress", (void *)l_dpnetGetProcAddress, (void **)&o_dpnetGetProcAddress},
+    };
     char found[160] = "";
     int at = 0;
-    if (patch(dpnet, "WS2_32.dll", 0, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname))
-        at += snprintf(found + at, sizeof found - at, "gethostbyname ");
-    if (patch(dpnet, "WS2_32.dll", 0, "bind", (void *)l_bind, (void **)&o_bind))
-        at += snprintf(found + at, sizeof found - at, "bind ");
-    if (patch(dpnet, "KERNEL32.dll", 0, "GetProcAddress", (void *)l_dpnetGetProcAddress, (void **)&o_dpnetGetProcAddress))
-        at += snprintf(found + at, sizeof found - at, "GetProcAddress (GetAdaptersAddresses, GetAdaptersInfo)");
+    for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
+        if (patch_system(dpnet, table[i].dll, table[i].name, table[i].fn, table[i].original))
+            at += snprintf(found + at, sizeof found - at, "%s%s", at ? " " : "", table[i].name);
     wl_log("link: Windows' DirectPlay (dpnet.dll) loaded, its functions taken: %s", found[0] ? found : "none");
 }
 

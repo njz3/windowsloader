@@ -43,7 +43,7 @@ const WlKnownGame g_wlKnownGames[] = {
      {L"SBZZ_Table.dat"}, 0, NULL, "Sega RingEdge", "2014", WL_GAME_PLAYS,
      WL_N("Carte JVS (pilote mxjvs), carte de pilotage ; lecteur de cartes derrière picodaemon.exe."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"GRID", "grid", "1.1", {L"GRID.exe"}, {0x264E2CCF}, {NULL}, 0, NULL, "Sega Europa-R", "2008", WL_GAME_PLAYS,
-     WL_N("Carte d'E/S DirectInput « SEGA IO Controller » ; moteur par le port parallèle."), WL_FEATURE_YES, WL_FEATURE_PARTLY},
+     WL_N("Carte d'E/S DirectInput « SEGA IO Controller » ; moteur par le port parallèle."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"DiRT Showdown", "showdown", "1.2", {L"Showdown.exe"}, {0x879BB2CD}, {NULL}, 0, NULL, "Sega Amusements (PC)", "2015", WL_GAME_PLAYS,
      WL_N("Carte d'E/S DirectInput « SEGA IO Controller » ; moteur par le port parallèle."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"K.O. Drive", "kodrive", "", {L"M-DriveR_RingWide.exe", L"M-DriveR_RingWide 1080P.exe", L"M-DriveR_RingWide original.exe"}, {0x9B1CC57C, 0x9B1CC57C, 0x0C2B0515}, {NULL}, 0, NULL,

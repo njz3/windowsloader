@@ -157,7 +157,7 @@ Without `LINK` the cabinet plays alone (cabinet 1 of 1).
 Ford Racing Full Blown (`[Game.fordracing]`), GTI Club: Supermini Festa! (`[Game.gticlub3]`), DiRT
 Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4, its
 `[Network] CabinetID` of ShellData.ini read from `LINK`; Winsock 1's functions taken too), GRID
-(`[Game.grid]`, cabinets 1 to 6, 1 hosts), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
+(`[Game.grid]`, cabinets 1 to 6, 1 hosts; its discovery server's territory and track pack, none, made the searches' 0), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
 address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
 ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: its 192.168.75.k

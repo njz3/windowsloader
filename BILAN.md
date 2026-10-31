@@ -328,6 +328,9 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   0xFFFFFFFF (aucun : Territory et TrackPack vides dans ShellData.ini), les recherches disent 0. Linké, windowsloader
   met ces deux valeurs du serveur à 0 (à chaque passage de son attente, +0x66ca40) : il répond alors aux
   recherches, et sa réponse porte les valeurs que le chercheur attend. Pas encore essayé sur les bornes.
+- Link sur les bornes ✅ (31/10, link12) : le serveur de découverte répond ; la borne 2 se connecte en TCP 7343 à la 1 ;
+  Start sur la 1 : « WAIT TO START MULTIPLAYER », Start sur la 2 : les deux à NAME ENTRY aux mêmes décomptes, puis
+  « MULTIPLAYER WASHINGTON », les deux joueurs (AAA) classés avec 4 voitures de l'ordinateur.
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
@@ -1084,6 +1087,7 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   choix du circuit de la 1 : la 2 passe directement au choix de la voiture ; même chargement, course à deux
   (2e et 1re), temps au tour cohérents. DirectPlay écoutait aussi sur la carte VPN (UDP 5600 sur 7.x) : linké,
   dpnet.dll ne voit plus que la carte de LINK (link12).
+- link12 (31/10) : toujours linké ; DirectPlay n'écoute plus que sur 192.168.1.4:5600.
 ## Mario Kart Arcade GP DX 1.18 (Namco System ES3)
 
 `MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 (le 9Ex qu'il crée ne dessine rien). Module
@@ -1566,6 +1570,10 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   recherche de l'hôte (diffusion) ne partait pas sur le réseau des bornes. Linké, dpnet.dll (chargé par le
   CoCreateInstance du jeu) ne voit plus que la carte de LINK : GetAdaptersAddresses et GetAdaptersInfo (qu'il
   trouve par GetProcAddress), gethostbyname du nom du PC ; ses bind sont journalisés (link12).
+- Essai link12 (31/10) ❌ : l'hôte écoute désormais sur 192.168.1.4:55555 seulement (plus de VPN), le client a un
+  socket sur 192.168.1.5 ; toujours pas de LINK BATTLE. dpnet.dll importe WS2_32 par numéro : ses bind et
+  gethostbyname n'étaient pas pris ; ils le sont désormais par l'adresse de la fonction, et ses envois (WSASendTo)
+  sont journalisés (link13), pour voir si la recherche du client part et si l'hôte répond.
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
