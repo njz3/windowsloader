@@ -491,7 +491,13 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   ces adresses sont les PC de LINK (`wl_link_virtual_net("192.168.75")`) ; linké, la carte réseau a son lien
   (query_nic_status 0) et query_ip_address répond 192.168.75.<place dans LINK>, le jeu ne demande donc pas de
   changer d'adresse. Menu de test, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la
-  borne k en SUB, CAR NUMBER k - 1 (le journal le rappelle). Pas essayé (la copie n'a pas ses données).
+  borne k en SUB, CAR NUMBER k (le menu le montre de 2 à 4 ; le journal le rappelle). Pas essayé (la copie n'a pas ses données).
+- Essai link13 sur les bornes (31/10) ❌ : GAME ASSIGNMENTS réglé dans `d1a.exe -t` (MAIN, TOTAL NODES 2 ; SUB, CAR
+  NUMBER 2 : le menu va de 2 à 4), mais rien n'était gardé : le jeu demande la version de l'interface de
+  \.\mxsram et attend 1 (son amSramInit, +0x265105), windowsloader répondait 0x100 (celle des autres pilotes
+  RingEdge) : le jeu se passait de sa SRAM, ses réglages perdus à la sortie. La SRAM répond désormais 1 (Initial D 6
+  attend aussi 1, +0x7fda15 : sa SRAM était de même inutilisée), et son fichier wl_sram.bin va dans le dossier
+  d'écriture (il était créé dans le dossier du jeu). Essayé sur ce PC : la géométrie de la SRAM demandée ensuite.
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
 `bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
