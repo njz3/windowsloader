@@ -1254,14 +1254,16 @@ static int emulated_picture(void)
 }
 
 // The PC's camera, watched: its frames (size, kind, brightness) to the log, the first ones and
-// then every 10 s (racecab's DV20 left the photo boxes black: a dark cabinet or no picture?).
-// A camera that gives no frame for 3 s, or only black ones (all bytes nearly 0) for its first 100,
-// is given up for the emulated one. Its own functions are kept; the game's calls only are watched
-// (">>" calls read, read calls grab and retrieve)
+// then every 10 s, and each time it goes dark or lit (all bytes nearly 0: racecab's DV20 in the
+// cabinet room with the light off, the photo boxes black; kept, the player's face comes when the
+// light does). A camera that gives no frame for 3 s is given up for the emulated one. Its own
+// functions are kept; the game's calls only are watched (">>" calls read, read calls grab and
+// retrieve)
 static void *g_pcVtable[11], *g_watchVtable[11];
 static __declspec(thread) int g_pcDepth;
 static volatile LONG g_pcEmulated;
-static LONG g_pcFrames, g_pcMissed, g_pcLit;
+static LONG g_pcFrames, g_pcMissed, g_pcChanges;
+static int g_pcDark = -1; // its last frame black (1), lit (0), none yet (-1)
 static DWORD g_pcLastFrame, g_pcLastLog;
 static double g_pcAverage;
 
@@ -1293,25 +1295,22 @@ static bool pc_watch(CvMat24 *m, bool ok)
         g_pcLastFrame = now;
         LONG n = ++g_pcFrames;
         int channels = ((m->flags >> 3) & 511) + 1, depth = m->flags & 7;
-        if (n <= 100 || now - g_pcLastLog >= 10000)
-        {
-            // The average of its bytes (8-bit: 0 to 255), one row in 4
-            size_t row = (size_t)m->cols * channels * (depth < 2 ? 1 : depth < 4 ? 2 : depth < 6 ? 4 : 8);
-            size_t step = m->stepp ? m->stepp[0] : row;
-            double sum = 0;
-            size_t count = 0;
-            for (int y = 0; y < m->rows; y += 4)
-                for (size_t x = 0; x < row; x++)
-                    sum += m->data[(size_t)y * step + x], count++;
-            g_pcAverage = count ? sum / count : 0;
-            if (g_pcAverage >= 1.0)
-                g_pcLit++;
-            if (n <= 5)
-                wl_log("camera: the PC's camera's frame %ld: %dx%d, %d channel(s) of depth %d, average byte %.1f", n, m->cols, m->rows,
-                       channels, depth, g_pcAverage);
-            if (n == 100 && !g_pcLit)
-                pc_give_up("gave 100 black frames");
-        }
+        // The average of its bytes (8-bit: 0 to 255), one row in 4
+        size_t row = (size_t)m->cols * channels * (depth < 2 ? 1 : depth < 4 ? 2 : depth < 6 ? 4 : 8);
+        size_t step = m->stepp ? m->stepp[0] : row;
+        double sum = 0;
+        size_t count = 0;
+        for (int y = 0; y < m->rows; y += 4)
+            for (size_t x = 0; x < row; x++)
+                sum += m->data[(size_t)y * step + x], count++;
+        g_pcAverage = count ? sum / count : 0;
+        if (n <= 5)
+            wl_log("camera: the PC's camera's frame %ld: %dx%d, %d channel(s) of depth %d, average byte %.1f", n, m->cols, m->rows,
+                   channels, depth, g_pcAverage);
+        int dark = g_pcAverage < 1.0;
+        if (dark != g_pcDark && g_pcDark >= 0 && ++g_pcChanges <= 20)
+            wl_log("camera: the PC's camera's frame %ld %s (average byte %.1f)", n, dark ? "black" : "lit", g_pcAverage);
+        g_pcDark = dark;
         if (now - g_pcLastLog >= 10000)
         {
             wl_log("camera: the PC's camera: %ld frames, %ld missed, %dx%d, average byte %.1f", n, g_pcMissed, m->cols, m->rows, g_pcAverage);

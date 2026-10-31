@@ -147,9 +147,10 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   (la caméra du PC, sinon l'émulée), PICTURE, ou le nom d'une caméra du PC (liste dans « Options du jeu »), commune aux
   jeux qui ont une caméra (`camera.cpp`). Vérifié hors jeu (l'objet appelé comme le jeu l'appelle, l'image lue par WIC,
   les deux caméras de ce PC listées) ; pas encore essayé sur les bornes. Caméra du PC : ses images surveillées
-  (taille, canaux, luminosité moyenne des 5 premières puis toutes les 10 s, images manquées) ; si elle ne donne aucune
-  image pendant 3 s, ou que des noires pour ses 100 premières, l'émulée la remplace (racecab : cases photo noires avec
-  la DV20). Vérifié hors jeu avec une fausse caméra (éclairée, noire, sans image).
+  (taille, canaux, luminosité moyenne des 5 premières puis toutes les 10 s, images manquées, passage au noir ou à
+  l'éclairé) ; si elle ne donne aucune image pendant 3 s, l'émulée la remplace. Essai sur les bornes (camera4) : la
+  DV20 donne du BGR 320x240, noir dans la salle éteinte (les cases photo noires venaient de là) ; course à deux en link.
+  Une caméra noire est gardée (le visage vient avec la lumière). Vérifié hors jeu avec une fausse caméra.
 - À part : réseau local refusé hors link, caméra refusée, carte graphique dédiée choisie sur un portable.
 
 ## Ford Racing Full Blown (Sega, 2006)
@@ -1031,7 +1032,8 @@ vérification ensuite :
   format natif ; ils sont rendus et un format qu'il connaît (YUY2 640x480 d'abord, sinon décodé) lui est donné comme
   premier, les formats de la caméra au journal. Avant de la donner au jeu, la caméra est essayée une fois dans ce
   format : si elle ne s'ouvre pas ou ne donne aucune image en 5 s, l'émulée (sans caméra, E08-01 au démarrage).
-  Pas encore essayé sur les bornes.
+  Essai sur racecab2 (camera4, AUTO) : 13 formats natifs (NV12 et MJPG de 480x320 à 1920x1080, YUY2 640x480 et
+  320x240), YUY2 640x480 choisi, plus de E08-01, la vue de la caméra sur l'écran しゃしんさつえい (noire : salle éteinte).
 
 ## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
 
