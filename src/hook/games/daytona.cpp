@@ -1230,6 +1230,150 @@ static void *const g_cameraVtable[11] = {
     (void *)cam_retrieve, (void *)cam_take, (void *)cam_read, (void *)cam_set,  (void *)cam_get,
 };
 
+// The emulated camera's frame: the still picture (camera.cpp), loaded once
+static int emulated_picture(void)
+{
+    if (g_cameraFrame)
+        return 1;
+    unsigned char *f = (unsigned char *)wl_camera_picture(CAMERA_W, CAMERA_H);
+    if (!f)
+        return 0;
+    // The game shows its camera as a mirror (a selfie): the still picture mirrored first reads right
+    // (racecab1 and 2: "RACECAB 1" read backwards otherwise)
+    for (int y = 0; y < CAMERA_H; y++)
+        for (int x = 0; x < CAMERA_W / 2; x++)
+            for (int c = 0; c < 3; c++)
+            {
+                unsigned char *a = f + (y * CAMERA_W + x) * 3 + c, *b = f + (y * CAMERA_W + CAMERA_W - 1 - x) * 3 + c;
+                unsigned char t = *a;
+                *a = *b;
+                *b = t;
+            }
+    g_cameraFrame = f;
+    return 1;
+}
+
+// The PC's camera, watched: its frames (size, kind, brightness) to the log, the first ones and
+// then every 10 s (racecab's DV20 left the photo boxes black: a dark cabinet or no picture?).
+// A camera that gives no frame for 3 s, or only black ones (all bytes nearly 0) for its first 100,
+// is given up for the emulated one. Its own functions are kept; the game's calls only are watched
+// (">>" calls read, read calls grab and retrieve)
+static void *g_pcVtable[11], *g_watchVtable[11];
+static __declspec(thread) int g_pcDepth;
+static volatile LONG g_pcEmulated;
+static LONG g_pcFrames, g_pcMissed, g_pcLit;
+static DWORD g_pcLastFrame, g_pcLastLog;
+static double g_pcAverage;
+
+static void pc_give_up(const char *why)
+{
+    if (emulated_picture() && !InterlockedExchange(&g_pcEmulated, 1))
+        wl_log("camera: the PC's camera %s: the emulated one from now on", why);
+}
+
+static bool pc_watch(CvMat24 *m, bool ok)
+{
+    if (g_pcEmulated)
+    {
+        camera_frame(m);
+        return true;
+    }
+    DWORD now = GetTickCount();
+    if (!g_pcLastFrame)
+        g_pcLastFrame = g_pcLastLog = now;
+    if (!ok || !m->data || m->rows <= 0 || m->cols <= 0)
+    {
+        if (++g_pcMissed <= 3)
+            wl_log("camera: the PC's camera gave no frame (%s)", ok ? "an empty one" : "read failed");
+        if (now - g_pcLastFrame > 3000)
+            pc_give_up(g_pcFrames ? "gives no more frames" : "gives no frame");
+    }
+    else
+    {
+        g_pcLastFrame = now;
+        LONG n = ++g_pcFrames;
+        int channels = ((m->flags >> 3) & 511) + 1, depth = m->flags & 7;
+        if (n <= 100 || now - g_pcLastLog >= 10000)
+        {
+            // The average of its bytes (8-bit: 0 to 255), one row in 4
+            size_t row = (size_t)m->cols * channels * (depth < 2 ? 1 : depth < 4 ? 2 : depth < 6 ? 4 : 8);
+            size_t step = m->stepp ? m->stepp[0] : row;
+            double sum = 0;
+            size_t count = 0;
+            for (int y = 0; y < m->rows; y += 4)
+                for (size_t x = 0; x < row; x++)
+                    sum += m->data[(size_t)y * step + x], count++;
+            g_pcAverage = count ? sum / count : 0;
+            if (g_pcAverage >= 1.0)
+                g_pcLit++;
+            if (n <= 5)
+                wl_log("camera: the PC's camera's frame %ld: %dx%d, %d channel(s) of depth %d, average byte %.1f", n, m->cols, m->rows,
+                       channels, depth, g_pcAverage);
+            if (n == 100 && !g_pcLit)
+                pc_give_up("gave 100 black frames");
+        }
+        if (now - g_pcLastLog >= 10000)
+        {
+            wl_log("camera: the PC's camera: %ld frames, %ld missed, %dx%d, average byte %.1f", n, g_pcMissed, m->cols, m->rows, g_pcAverage);
+            g_pcLastLog = now;
+        }
+    }
+    if (g_pcEmulated)
+    {
+        camera_frame(m);
+        return true;
+    }
+    return ok;
+}
+
+typedef bool(__fastcall *CamGrab)(void *, void *);
+typedef bool(__fastcall *CamRetrieve)(void *, void *, CvMat24 *, int);
+typedef void *(__fastcall *CamTake)(void *, void *, CvMat24 *);
+typedef bool(__fastcall *CamRead)(void *, void *, CvMat24 *);
+
+static bool __fastcall pc_grab(void *self, void *edx)
+{
+    return g_pcEmulated ? true : ((CamGrab)g_pcVtable[5])(self, edx);
+}
+
+static bool __fastcall pc_retrieve(void *self, void *edx, CvMat24 *m, int channel)
+{
+    if (g_pcDepth)
+        return ((CamRetrieve)g_pcVtable[6])(self, edx, m, channel);
+    if (g_pcEmulated)
+        return pc_watch(m, true);
+    g_pcDepth++;
+    bool ok = ((CamRetrieve)g_pcVtable[6])(self, edx, m, channel);
+    g_pcDepth--;
+    return pc_watch(m, ok);
+}
+
+static void *__fastcall pc_take(void *self, void *edx, CvMat24 *m)
+{
+    if (g_pcDepth)
+        return ((CamTake)g_pcVtable[7])(self, edx, m);
+    if (!g_pcEmulated)
+    {
+        g_pcDepth++;
+        ((CamTake)g_pcVtable[7])(self, edx, m);
+        g_pcDepth--;
+    }
+    pc_watch(m, true);
+    return self;
+}
+
+static bool __fastcall pc_read(void *self, void *edx, CvMat24 *m)
+{
+    if (g_pcDepth)
+        return ((CamRead)g_pcVtable[8])(self, edx, m);
+    if (g_pcEmulated)
+        return pc_watch(m, true);
+    g_pcDepth++;
+    bool ok = ((CamRead)g_pcVtable[8])(self, edx, m);
+    g_pcDepth--;
+    return pc_watch(m, ok);
+}
+
 static void *(__fastcall *o_camera_ctor)(void *, void *, int);
 static void *__fastcall camera_ctor(void *self, void *edx, int device)
 {
@@ -1241,27 +1385,20 @@ static void *__fastcall camera_ctor(void *self, void *edx, int device)
         typedef bool(__fastcall * IsOpened)(void *, void *);
         if (((IsOpened)(*(void ***)self)[3])(self, NULL))
         {
-            wl_log("camera: the PC's camera %d given to the game", wanted - 700);
+            wl_log("camera: the PC's camera %d given to the game (its frames watched)", wanted - 700);
+            memcpy(g_pcVtable, *(void ***)self, sizeof g_pcVtable);
+            memcpy(g_watchVtable, g_pcVtable, sizeof g_watchVtable);
+            g_watchVtable[5] = (void *)pc_grab;
+            g_watchVtable[6] = (void *)pc_retrieve;
+            g_watchVtable[7] = (void *)pc_take;
+            g_watchVtable[8] = (void *)pc_read;
+            *(void ***)self = g_watchVtable;
             return self;
         }
         wl_log("camera: the PC's camera %d did not open: the emulated one", wanted - 700);
     }
-    g_cameraFrame = (unsigned char *)wl_camera_picture(CAMERA_W, CAMERA_H);
-    if (!g_cameraFrame)
+    if (!emulated_picture())
         return self; // left as the game made it: no camera
-    // The game shows its camera as a mirror (a selfie): the still picture mirrored first reads right
-    // (racecab1 and 2: "RACECAB 1" read backwards otherwise). Once: the buffer stays the same
-    static int mirrored;
-    if (!mirrored++)
-        for (int y = 0; y < CAMERA_H; y++)
-            for (int x = 0; x < CAMERA_W / 2; x++)
-                for (int c = 0; c < 3; c++)
-                {
-                    unsigned char *a = g_cameraFrame + (y * CAMERA_W + x) * 3 + c, *b = g_cameraFrame + (y * CAMERA_W + CAMERA_W - 1 - x) * 3 + c;
-                    unsigned char t = *a;
-                    *a = *b;
-                    *b = t;
-                }
     void **object = (void **)self;
     object[0] = (void *)g_cameraVtable;
     object[1] = object[2] = NULL;
