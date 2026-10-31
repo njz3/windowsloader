@@ -754,6 +754,18 @@ static int __cdecl d1gp_connect(void)
     return r;
 }
 
+// Its settings' read (d:\config00.bin, +0xa4120): linked, CONNECTION METHOD (+0x5e of its settings,
+// 0 HOST, 1 CLIENT) is LINK's (cabinet 1 hosts) after each. Mode Select offers LINK BATTLE only when
+// the other cabinet says the other method (+0x8e6e0): both HOST by default, it never did (31/10)
+static int(__cdecl *oD1gpSettingsRead)(void);
+static int __cdecl d1gp_settings_read(void)
+{
+    int r = oD1gpSettingsRead();
+    if (wl_link_count())
+        *(volatile short *)0x629086 = (short)(wl_link_cabinet() == 1 ? 0 : 1);
+    return r;
+}
+
 static void d1gp_settings(void)
 {
     if (!wl_link_settings(GetModuleHandleW(NULL)))
@@ -763,6 +775,10 @@ static void d1gp_settings(void)
     LONG to = (LONG)((ULONG_PTR)d1gp_print - (0x4A87C0 + 5));
     memcpy(jump + 1, &to, 4);
     wl_patch_code((void *)0x4A87C0, printWas, jump, sizeof jump, "its network's messages logged");
+    static const unsigned char readWas[6] = {0x81, 0xEC, 0x04, 0x01, 0x00, 0x00};
+    if (!memcmp((void *)0x4A4120, readWas, sizeof readWas))
+        wl_hook_code((void *)0x4A4120, (void *)d1gp_settings_read, (void **)&oD1gpSettingsRead,
+                     "its settings' read (+0xa4120): CONNECTION METHOD from LINK");
     static const unsigned char connectWas[5] = {0x83, 0xEC, 0x4C, 0xA1, 0xD8};
     if (!memcmp((void *)0x484AC0, connectWas, sizeof connectWas))
         wl_hook_code((void *)0x484AC0, (void *)d1gp_connect, (void **)&oD1gpConnect, "its connection to the host (+0x84ac0)");

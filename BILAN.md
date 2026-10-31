@@ -1607,6 +1607,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   g_pDPlayPeer->Connect() » : 0x80158080 en 47 ms, DirectPlay ayant ouvert et fermé deux fois son port 55555,
   rien envoyé à l'hôte. Linké, le port du client est laissé à DirectPlay (2302 et suivants, comme sa recherche) :
   son ajout au périphérique sauté (+0x84b6e) (link17).
+- Essai link17 (31/10) : la connexion réussit (« I'm client! », 0x00000000 en 110 ms), le trafic continu dans les
+  deux sens, mais toujours pas de LINK BATTLE : Mode Select ne le propose que si l'autre borne annonce l'autre
+  CONNECTION METHOD (+0x8e6e0 : la valeur reçue, +0x93c84, comparée au réglage +0x5e de config00.bin) ; les deux
+  bornes gardaient HOST (le réglage d'usine), seul le saut était changé. Linké, le réglage lui-même est celui de
+  LINK après chaque lecture de config00.bin (+0xa4120 : HOST sur la borne 1, CLIENT sur les autres) (link18).
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
