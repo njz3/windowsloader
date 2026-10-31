@@ -163,8 +163,9 @@ broadcast is sent to each of them, any other address of the network is refused, 
 only the PC's card of `LINK` (a VPN's left out). Ford Racing's `CabinetPostion` and Showdown's
 `[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
 menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
-and accept, the first packets with each PC on each port, the traffic every 10 s). The three raced
-two linked cabinets (racecab1 and 2).
+and accept, the first packets with each PC on each port, the traffic every 10 s). The four raced
+two linked cabinets (racecab1 and 2); in Sega Rally 3, once a cabinet picks Quick Race, the other
+presses Start within its countdown (about 15 s) to join.
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's
