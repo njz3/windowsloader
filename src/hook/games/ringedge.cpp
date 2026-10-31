@@ -54,7 +54,8 @@ struct RingGame
     const wchar_t *table;      // the keychip's answers, from the game's folder
     const char *platform;      // "AAL" RingEdge, "AAM" RingWide
     const char *maker, *board; // the PC's, as the BIOS gives them
-    WORD driverVersion;        // of the drivers' interface: 0x100 RingEdge amLib, 1 RingWide's
+    WORD driverVersion;        // of the drivers' interface: 1 (RingWide's amLib, Initial D 6's and Sega Racing Classic's
+                               // amSramInit, amEepromInit, amDipswInit: the low word, 0x100 refused), 0x100 (Initial D 7 and 8, unchecked)
     const char *jvsPort, *jvsPort2; // K.O. Drive: the game on \\.\mxjvs, its TestMode.exe on COM4
     WlInput *inputs;
     int inputCount;
@@ -335,9 +336,10 @@ static void eeprom_io(void *data, int length, int offset, int write)
     wl_busy_enter();
     if (g_eepromFile == INVALID_HANDLE_VALUE)
     {
-        wchar_t path[MAX_PATH];
+        wchar_t path[MAX_PATH], buf[MAX_PATH * 2];
         swprintf(path, MAX_PATH, L"%swl_eeprom.bin", g_dir);
-        g_eepromFile = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
+        const wchar_t *at = wl_files_write_path(path, buf, MAX_PATH * 2); // with --write-dir, the game's folder untouched
+        g_eepromFile = CreateFileW(at, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, 0, NULL);
         if (g_eepromFile != INVALID_HANDLE_VALUE)
             eeprom_system(g_eepromFile);
     }
@@ -1106,8 +1108,44 @@ static const WlGameOption g_srcOptions[] = {
      WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
 };
 
+// Its amLib's own messages (amSramInit, amEepromInit, amBackupInit: why its test menu's settings
+// were not kept, 31/10), printed only at its debug levels (+0xe3f8d0, +0xe3f8d4, 0 in its
+// build): made 1, its printing (+0x27c2e0: function, line, format, ...) logged
+static void __cdecl src_amlib_print(const char *function, int line, const char *format, ...)
+{
+    static volatile LONG logged;
+    static char last[256];
+    if (!format || logged > 300)
+        return;
+    char text[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(text, sizeof text, format, args);
+    va_end(args);
+    size_t n = strlen(text);
+    while (n && (text[n - 1] == '\n' || text[n - 1] == '\r'))
+        text[--n] = 0;
+    if (!strcmp(text, last))
+        return;
+    snprintf(last, sizeof last, "%s", text);
+    InterlockedIncrement(&logged);
+    wl_log("game: amLib %s (%d): %s", function ? function : "?", line, text);
+}
+
+static void src_amlib_messages(void)
+{
+    static const unsigned char printWas[8] = {0x8B, 0x4C, 0x24, 0x0C, 0x8B, 0x54, 0x24, 0x08};
+    void *print = (void *)0x67C2E0, *unused = NULL;
+    if (memcmp(print, printWas, sizeof printWas))
+        return;
+    wl_hook_code(print, (void *)src_amlib_print, &unused, "its amLib's messages (+0x27c2e0)");
+    *(volatile int *)0x123F8D0 = 1;
+    *(volatile int *)0x123F8D4 = 1;
+}
+
 static void src_settings(void)
 {
+    src_amlib_messages();
     if (!wl_link_settings(GetModuleHandleW(NULL)))
         return;
     wl_link_virtual_net("192.168.75");
@@ -1121,7 +1159,7 @@ static void src_settings(void)
 
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
-     L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 0x100, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
+     L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 1, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
     // Initial D 7 and 8: the same cabinet as 6, the JVS board through the \\.\mxjvs driver (error
     // 6401 otherwise), the card unit through picodaemon.exe (cardrw.cpp); the decrypted executables
     // first (Initial D 8's _dumped_ lacks the manifest of the VC 2008 runtime: the redumped first)
@@ -1138,7 +1176,7 @@ static const RingGame g_games[] = {
      "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_ssrInputs, SSR_COUNT, g_ssrSwitches, COUNT(g_ssrSwitches), 1, 1, "Y:", 1},
     // Its test mode is the same program with -t
     {{L"d1a.exe"}, NULL, L"rom\\SBTN_Table.dat", "src", "Sega Racing Classic", "SBTN", L"rom\\SBTN_Table.dat", "AAL", "NEC",
-     "RingEdge", 0x100, "COM4", NULL, g_srcInputs, SRC_COUNT, g_srcSwitches, COUNT(g_srcSwitches), 0, 0, NULL, 0},
+     "RingEdge", 1, "COM4", NULL, g_srcInputs, SRC_COUNT, g_srcSwitches, COUNT(g_srcSwitches), 0, 0, NULL, 0},
     // No keychip table in its copies: the toolmode (use_toolmode)
     {{L"GameSampR_RingWide.exe"}, L"GameTestR_RingWide.exe", NULL, "lgs", "Let's Go Safari", "SDAX", L"SDAX_Table.dat", "AAM",
      "Supermicro", "RingWide", 1, "\\\\.\\mxjvs", "COM4", g_lgsInputs, LGS_COUNT, g_lgsSwitches, COUNT(g_lgsSwitches), 0, 0, NULL, 0},

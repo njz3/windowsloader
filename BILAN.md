@@ -240,7 +240,9 @@ Racing) :
   le lançait que pour 7 et 8. Le lanceur le démarre maintenant aussi avec `id6_dump_.exe` et
   `InitialD6_GLW_RE_SBUU.exe`, et `cardrw.cpp` met ses écritures dans `WRITE_DIR\initiald6`. Vérifié sur la copie
   locale (reprise de racecab1 le 26/10) : nettoyage du lecteur, « licence ? » passé sans carte, achat de la voiture.
-
+- Sauvegarde (31/10) ✅ : amLib refusait la version 0x100 des pilotes (sa SRAM et son EEPROM veulent 1, +0x7fda15,
+  +0x7fe843) : le jeu tournait sans sauvegarde. Version 1 : wl_sram.bin (512 Ko) et wl_eeprom.bin lus et faits dans
+  le dossier d'écriture ; 40 s d'essai sur ce PC, 60 images par seconde.
 ## Initial D Arcade Stage 7 AAX et 8 Infinity (Sega RingEdge, 2012 et 2014)
 
 La même borne qu'Initial D 6, dans la même table de `ringedge.cpp` (gameid SBYD et SBZZ, la clé par
@@ -498,6 +500,13 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   RingEdge) : le jeu se passait de sa SRAM, ses réglages perdus à la sortie. La SRAM répond désormais 1 (Initial D 6
   attend aussi 1, +0x7fda15 : sa SRAM était de même inutilisée), et son fichier wl_sram.bin va dans le dossier
   d'écriture (il était créé dans le dossier du jeu). Essayé sur ce PC : la géométrie de la SRAM demandée ensuite.
+- Essai link15 (31/10) ❌ : la SRAM acceptée, mais toujours ni lue ni écrite. Les messages d'amLib (affichés seulement
+  à ses niveaux de débogage, mis à 1, sa fonction d'affichage +0x27c2e0 journalisée) le disent : « amEepromInit:
+  Unknown SMBUS Driver Protocol(0x00000100) » : l'EEPROM, par `\.\mxsmbus`, veut elle aussi la version 1 ; sans
+  elle amBackupInit échoue et la sauvegarde entière avec. Tous les contrôles de version des pilotes d'amLib de
+  Sega Racing Classic et d'Initial D 6 veulent 1 dans le mot bas (amSramInit, amEepromInit, amDipswInit…) : leur
+  version passe à 1 (Initial D 7 et 8 gardent 0x100, pas vérifiés) ; wl_eeprom.bin va aussi dans le dossier
+  d'écriture. Essayé sur ce PC : l'EEPROM et les commutateurs lus par le SMBus (link16).
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
 `bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
