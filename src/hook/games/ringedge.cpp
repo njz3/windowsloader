@@ -419,13 +419,21 @@ static const GUID g_smbusInterface = {0x5C49E1FE, 0x3FEC, 0x4B8D, {0xA4, 0xB5, 0
 
 static unsigned char g_bios[0x20000];
 
-static int dmi_structure(unsigned char *p, int type, WORD handle, const char *const *strings, int count)
+// A structure: its formatted area (its fields, the header's 4 bytes then fields), then its strings.
+// The fields give each string's number (type 0: vendor 1, version 2, date 3; type 1: maker 1,
+// product 2; type 11: their count), which Sega Racing Classic's amOemstring reads (with the header
+// alone it found neither the maker nor the platform: its backup had no device, its test menu's
+// settings were lost); K.O. Drive's takes the strings in their order
+static int dmi_structure(unsigned char *p, int type, WORD handle, const unsigned char *fields, int fieldCount, const char *const *strings,
+                         int count)
 {
     int n = 0;
     p[n++] = (unsigned char)type;
-    p[n++] = 4; // formatted area: the header only
+    p[n++] = (unsigned char)(4 + fieldCount);
     p[n++] = (unsigned char)handle;
     p[n++] = (unsigned char)(handle >> 8);
+    memcpy(p + n, fields, fieldCount);
+    n += fieldCount;
     for (int i = 0; i < count; i++)
     {
         size_t len = strlen(strings[i]) + 1;
@@ -444,11 +452,21 @@ static void build_bios(void)
     const char *const system[] = {g_game->maker, g_game->board};
     const char *const oem[] = {"SEGA", g_game->board, g_game->platform};
     unsigned char *table = g_bios;
+    // Type 0: vendor, version, its segment F000, date, size 64 KB, characteristics; type 1 (2.0):
+    // maker, product, version and serial none; type 11: 3 strings
+    static const unsigned char biosFields[14] = {1, 2, 0x00, 0xF0, 3, 0, 0x80, 0, 0, 0, 0, 0, 0, 0};
+    static const unsigned char systemFields[4] = {1, 2, 0, 0};
+    static const unsigned char oemFields[1] = {3};
     int n = 0;
-    n += dmi_structure(table + n, 0, 0, bios, 3);
-    n += dmi_structure(table + n, 1, 1, system, 2);
-    n += dmi_structure(table + n, 11, 2, oem, 3);
-    n += dmi_structure(table + n, 127, 3, NULL, 0);
+    n += dmi_structure(table + n, 0, 0, biosFields, sizeof biosFields, bios, 3);
+    n += dmi_structure(table + n, 1, 1, systemFields, sizeof systemFields, system, 2);
+    n += dmi_structure(table + n, 11, 2, oemFields, sizeof oemFields, oem, 3);
+    n += dmi_structure(table + n, 127, 3, NULL, 0, NULL, 0);
+    // The table's length said 0x800, zeros after its end (127): a real BIOS's table is long, and
+    // Sega Racing Classic's amOemstring stops once a count of its own (each string's characters and
+    // a byte of each structure) reaches it: on its 120 bytes, after the BIOS's structure, the maker
+    // and the platform never read (Initial D 6's refuses an extra structure: a filler of type 126)
+    n = 0x800;
 
     unsigned char *ep = g_bios + 0x10000; // the 15-byte DMI entry point, at 0xF0000
     memcpy(ep, "_DMI_", 5);
@@ -1109,8 +1127,8 @@ static const WlGameOption g_srcOptions[] = {
 };
 
 // Its amLib's own messages (amSramInit, amEepromInit, amBackupInit: why its test menu's settings
-// were not kept, 31/10), printed only at its debug levels (+0xe3f8d0, +0xe3f8d4, 0 in its
-// build): made 1, its printing (+0x27c2e0: function, line, format, ...) logged
+// were not kept, 31/10), printed only at its modules' debug levels (0 in its build): made 1, its
+// printing (+0x27c2e0: function, line, format, ...) logged
 static void __cdecl src_amlib_print(const char *function, int line, const char *format, ...)
 {
     static volatile LONG logged;
@@ -1139,8 +1157,12 @@ static void src_amlib_messages(void)
     if (memcmp(print, printWas, sizeof printWas))
         return;
     wl_hook_code(print, (void *)src_amlib_print, &unused, "its amLib's messages (+0x27c2e0)");
-    *(volatile int *)0x123F8D0 = 1;
-    *(volatile int *)0x123F8D4 = 1;
+    // Each of its modules' debug level (every use: "1 or more, print"): amDipsw, amEeprom, amSram,
+    // amBackup, amPlatform (the backup's devices by the board), amOemstring and the others
+    static const ULONG_PTR levels[] = {0x123F8C0, 0x123F8CC, 0x123F8D0, 0x123F8D4, 0x123F8D8, 0x123FCE8,
+                                       0x1240208, 0x1243C18, 0x1244520, 0x1248538, 0x124C7CC};
+    for (size_t i = 0; i < sizeof levels / sizeof levels[0]; i++)
+        *(volatile int *)levels[i] = 1;
 }
 
 static void src_settings(void)

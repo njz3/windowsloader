@@ -770,7 +770,14 @@ static void d1gp_settings(void)
     if (wl_link_cabinet() == 1)
         wl_patch_code((void *)0x484CB9, was, never, sizeof never, "linked: this cabinet hosts (CONNECTION METHOD = HOST)");
     else
+    {
         wl_patch_code((void *)0x484CB9, was, always, sizeof always, "linked: this cabinet is the client (CONNECTION METHOD = CLIENT)");
+        // Its Connect to the host it found failed in 47 ms (0x80158080) once DirectPlay had opened
+        // and closed its port 55555 twice (cabinets, 31/10): the client's own port left to
+        // DirectPlay (2302 and up, as its search had), its "port" not added (+0x84b6e: to +0x84bae)
+        static const unsigned char portWas[5] = {0xA1, 0x00, 0xF6, 0x61, 0x00}, skip[2] = {0xEB, 0x3E};
+        wl_patch_code((void *)0x484B6E, portWas, skip, sizeof skip, "linked: the client's own port left to DirectPlay");
+    }
 }
 
 // Valve Limit R's link: DirectPlay (Windows' dpnet.dll), 4 cabinets, UDP 13400. Its NETWORK-ID

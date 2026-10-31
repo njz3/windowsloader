@@ -507,6 +507,15 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   Sega Racing Classic et d'Initial D 6 veulent 1 dans le mot bas (amSramInit, amEepromInit, amDipswInit…) : leur
   version passe à 1 (Initial D 7 et 8 gardent 0x100, pas vérifiés) ; wl_eeprom.bin va aussi dans le dossier
   d'écriture. Essayé sur ce PC : l'EEPROM et les commutateurs lus par le SMBus (link16).
+- Essai link16 (31/10) ❌, puis corrigé sur ce PC : l'EEPROM acceptée, mais la sauvegarde toujours sans accès. Elle
+  choisit ses périphériques par la plateforme (amPlatform : « AAL » et « NEC » → 0, RingEdge ; « AAM » et
+  Supermicro / Advantech → 1, 2 ; sinon 3, aucun périphérique, chaque lecture d'enregistrement en erreur -21 sans
+  accès). Son amOemstring lisait des chaînes vides : il s'arrête quand un compte à lui (les caractères de chaque
+  chaîne et un octet de chaque structure) atteint la longueur de la table, et la table émulée n'avait que 120
+  octets : arrêté après la structure du BIOS. La table annonce désormais 0x800 octets (des zéros après sa fin), et
+  ses structures ont leurs champs (numéros des chaînes). Essayé sur ce PC : « AAL », « NEC », la sauvegarde lue
+  (CRC vide à la première fois), wl_sram.bin et wl_eeprom.bin faits dans le dossier d'écriture ; Initial D 6 lit
+  toujours sa SRAM (une structure de remplissage de type 126 le gênait : abandonnée).
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
 `bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
@@ -1594,6 +1603,10 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   n'est envoyé ni d'un côté ni de l'autre ; pas de LINK BATTLE (il faut deux joueurs, +0x98768). Linké, le journal
   donne désormais les messages du jeu sur son réseau (sa fonction d'affichage, vide dans cette version, +0xa87c0),
   le résultat et la durée de sa connexion (+0x84ac0), et les envois et bind IPv6 de DirectPlay (link14).
+- Essai link16 (31/10) ❌ : ses messages le disent : le client trouve l'hôte (« EnumHosts »), puis « error:
+  g_pDPlayPeer->Connect() » : 0x80158080 en 47 ms, DirectPlay ayant ouvert et fermé deux fois son port 55555,
+  rien envoyé à l'hôte. Linké, le port du client est laissé à DirectPlay (2302 et suivants, comme sa recherche) :
+  son ajout au périphérique sauté (+0x84b6e) (link17).
 ## Valve Limit R (Taito Type X, 2005)
 
 `launcher.exe` dans `games/vlimitr` (avec `game.inf` et `data\bin2`), VL1.34JA, x86, Direct3D 9, 640×480 en 16 bits
