@@ -1249,6 +1249,19 @@ static void *__fastcall camera_ctor(void *self, void *edx, int device)
     g_cameraFrame = (unsigned char *)wl_camera_picture(CAMERA_W, CAMERA_H);
     if (!g_cameraFrame)
         return self; // left as the game made it: no camera
+    // The game shows its camera as a mirror (a selfie): the still picture mirrored first reads right
+    // (racecab1 and 2: "RACECAB 1" read backwards otherwise). Once: the buffer stays the same
+    static int mirrored;
+    if (!mirrored++)
+        for (int y = 0; y < CAMERA_H; y++)
+            for (int x = 0; x < CAMERA_W / 2; x++)
+                for (int c = 0; c < 3; c++)
+                {
+                    unsigned char *a = g_cameraFrame + (y * CAMERA_W + x) * 3 + c, *b = g_cameraFrame + (y * CAMERA_W + CAMERA_W - 1 - x) * 3 + c;
+                    unsigned char t = *a;
+                    *a = *b;
+                    *b = t;
+                }
     void **object = (void **)self;
     object[0] = (void *)g_cameraVtable;
     object[1] = object[2] = NULL;
