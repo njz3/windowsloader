@@ -160,7 +160,7 @@ Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4
 (`[Game.grid]`, cabinets 1 to 6, 1 hosts), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
 address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
-ID must be the cabinet's place in `LINK`), Sega Racing Classic (`[Game.src]`: its 192.168.75.k
+ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: its 192.168.75.k
 are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES the count, cabinet
 k SUB with CAR NUMBER k - 1) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each

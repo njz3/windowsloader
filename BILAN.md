@@ -447,6 +447,11 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   ce qui vient du PC k vient pour lui de 192.168.88.k. Le CABINET ID du menu de test doit être la place de la borne
   dans LINK (le journal le signale sinon). Pas essayé (la copie n'a pas les données : le jeu s'arrête à 5 s, avec ou
   sans LINK).
+- Link sur les bornes ✅ (31/10, link10) : racecab2 avait le CABINET ID 1 (le journal le signalait) : passé à 2
+  dans gametest.exe (GAME ASSIGNMENTS) ; puis Start sur les deux : SELECT RACER aux décomptes ensemble, la même
+  course, le même temps sur les deux écrans (7e et 8e sur 8). Environ 51 paquets de 68 octets par seconde dans
+  chaque sens en course, 16 octets par seconde à l'attract. Le bouton Test dans game.exe ferme le jeu
+  (mxmaster.foreground.next=3) sans lancer gametest.exe : à lancer à part.
 ## Sega Racing Classic (Sega RingEdge, 2009)
 
 `d1a.exe` (`d1a.exe -t` : le menu de service), x86, Direct3D 9, 1280×720. Sur les bornes dans `C:\Sega Racing
