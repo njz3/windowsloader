@@ -1004,6 +1004,14 @@ vérification ensuite :
     course à quatre (les deux Mario des bornes, Yoshi et Luigi en COM) ; sur racecab2, le Mario de racecab1 porte
     l'objet qu'il vient de prendre. Le bandeau hors ligne s'affiche en jeu, sans effet sur la partie.
 
+- Caméra (photos des joueurs, « ナムカム ») ⚠️ (31/10) : réglage du jeu ゲーム設定 → ナムカム（カメラ）の使用 (OFF dans la
+  copie : « 現在、カメラは使用できません » dans l'attraction). Option `[Game.mkdx] CAMERA` / `CAMERA_PICTURE` (camera.h) :
+  la caméra du PC ou une émulée (`mfcamera.cpp`) : MFEnumDeviceSources liste la caméra choisie en premier (le jeu prend la
+  première) ou une caméra de windowsloader, dont le lecteur asynchrone donne au rappel du jeu du RGB32 640x480 à 30
+  images/s, l'image fixe. Le chemin RGB32 du jeu lit les octets R, G, B (rouge vu bleu sinon). Vérifié sur ce PC (1.18,
+  NamCam mise à ON dans le dossier d'écriture de l'essai) : l'écran « しゃしんさつえい » montre l'image fixe, couleurs
+  justes, plus de 100 images prises. La 1.10 a les mêmes imports, non essayée ; la caméra réelle non essayée ici.
+
 ## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
 
 `MK_AGP3_FINAL.exe` de 2015 (« MK3 Rev.1.10.22/JP »), traduit en français par un mod ; le même module que la 1.18,

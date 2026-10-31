@@ -128,6 +128,7 @@ add_library(wl_hook SHARED
     src/hook/inputs.cpp
     src/hook/agent.cpp
     src/hook/camera.cpp
+    src/hook/mfcamera.cpp
     src/hook/game.cpp
     src/hook/controls.cpp
     src/hook/io4in.cpp

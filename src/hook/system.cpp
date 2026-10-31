@@ -1298,6 +1298,11 @@ static int camera_allowed(void)
     return allowed;
 }
 
+int wl_system_camera_allowed(void)
+{
+    return camera_allowed();
+}
+
 static void camera_refused(const char *what, const void *caller)
 {
     static volatile LONG logged;

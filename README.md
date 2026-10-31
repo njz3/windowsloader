@@ -183,7 +183,8 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 "Cartes".
 
 A game that photographs its players has a camera option in its "Options du jeu" page, its own for
-each game (Daytona Championship USA, both editions, so far): `CAMERA = AUTO` (the default: the PC's
+each game (Daytona Championship USA, both editions; Mario Kart Arcade GP DX, whose test menu's ゲーム設定 →
+ナムカム（カメラ）の使用 must be ON for it to take photos): `CAMERA = AUTO` (the default: the PC's
 camera, else the emulated one), `PICTURE` (the emulated one) or the name of one of the PC's video
 capture devices, which the list shows (that one, else the emulated one); the emulated camera shows
 `CAMERA_PICTURE` (a JPG or PNG file, put at the game's size; black when empty).

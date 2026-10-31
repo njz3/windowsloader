@@ -148,6 +148,8 @@ void wl_system_loopback_broadcast(int on);
 // The PC's cameras given to the game, as [Emulation] CAMERA = true does (a module whose link needs
 // them: Daytona Championship USA's)
 void wl_system_allow_camera(const char *why);
+// 1 when the game may have the PC's cameras (for windowsloader's own calls, which system.cpp lets by)
+int wl_system_camera_allowed(void);
 
 // The game's debug messages (OutputDebugString) holding one of these strings are not logged (a
 // game's noise): a list ended by NULL, kept by the module

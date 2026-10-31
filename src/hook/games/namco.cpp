@@ -29,6 +29,7 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "camera.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -1186,6 +1187,8 @@ static HANDLE WINAPI link_CreateMutexW(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPC
 // addresses that is this PC's)
 static void mkdx_settings(void)
 {
+    // The players' photos (Media Foundation): the PC's camera, or an emulated one
+    wl_camera_settings();
     char list[256];
     wl_game_option("LINK", list, sizeof list);
     g_cabinet = wl_game_option_int("CABINET");
@@ -1244,6 +1247,7 @@ static const WlGameOption g_mkdxOptions[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL},
+    WL_CAMERA_OPTIONS,
 };
 
 // ------------------------------------------------------------------------------
@@ -1823,6 +1827,8 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         !patch_ws2((HMODULE)exe, 20, "sendto", (void *)link_sendto, (void **)&olink_sendto) ||
         !patch_ws2((HMODULE)exe, 17, "recvfrom", (void *)link_recvfrom, (void **)&olink_recvfrom))
         wl_log("namco: bind, sendto or recvfrom not in the import table: no link");
+    // Its RGB32 frames read as R, G, B (the photo screen's colours, emulated camera)
+    wl_mfcamera_patch((HMODULE)exe, 1);
     void *was;
     wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "CreateMutexA", (void *)link_CreateMutexA, (void **)&olink_CreateMutexA);
     wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "CreateMutexW", (void *)link_CreateMutexW, (void **)&olink_CreateMutexW);

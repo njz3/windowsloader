@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <windows.h>
+
 #include "game.h"
 
 const WlOptionChoice *wl_camera_choices(void);
@@ -41,6 +43,8 @@ void wl_camera_settings(void);
 #define WL_CAMERA_EMULATED -2
 #define WL_CAMERA_ASKED -1
 int wl_camera_device(void);
+// The CAMERA value (a camera's name)
+const char *wl_camera_name(void);
 
 // The PC's video capture devices by their names (UTF-8), DirectShow's order
 int wl_camera_devices(char names[][128], int max);
@@ -48,3 +52,9 @@ int wl_camera_devices(char names[][128], int max);
 // The emulated camera's picture, BGR 24 bits, rows of width * 3 bytes: CAMERA_PICTURE put at that
 // size, black without one; made once, kept
 const unsigned char *wl_camera_picture(int width, int height);
+
+// A game that takes its camera through Media Foundation (MFEnumDeviceSources, then an
+// asynchronous MFCreateSourceReaderFromMediaSource): its two imports made windowsloader's, the
+// camera chosen or an emulated one (mfcamera.cpp). rgbOrder: the game reads RGB32 frames as R, G,
+// B rather than Media Foundation's B, G, R. Returns 1 when both were found
+int wl_mfcamera_patch(HMODULE exe, int rgbOrder);

@@ -104,6 +104,11 @@ void wl_camera_settings(void)
         wl_system_allow_camera("[Game] CAMERA, a camera of the PC");
 }
 
+const char *wl_camera_name(void)
+{
+    return g_value;
+}
+
 int wl_camera_device(void)
 {
     if (!_stricmp(g_value, "PICTURE"))
