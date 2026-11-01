@@ -1371,7 +1371,13 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   part seule. Le jeu lit ses fichiers `Setting_*.ini` par `BIND_ReadInI_WChar` (+0x1989d0), qu'il demande
   par GetProcAddress : linké, windowsloader lui répond maintenant `bEnableOnline` = true. Essai link28
   (release 20261101-5 aussi) : sans effet, la fonction est celle de `Plugins\IniFile.dll` et non de
-  `UsbPluginsDll_R.dll`, que windowsloader regardait seule ; corrigé ensuite (essai link29).
+  `UsbPluginsDll_R.dll`, que windowsloader regardait seule ; corrigé ensuite. Essai link29 : bEnableOnline lu
+  vrai, et l'écran « Searching for other players » apparaît (radar, 7 icônes), après le choix de la voiture et
+  l'écran photo ; le jeu pingue alors 192.168.1.1, mais aucun socket de McastUDP.dll n'est ouvert et la course
+  part seule. Le ping, lu dans `UsbPluginsDll_R.dll` des bornes : BIND_ICMPPing(hôte, &état, &temps, &ttl,
+  nombre, délai) met l'état à 1 et rend 1 ; son fil (+0xe0e0) pingue, puis écrit le statut de la dernière
+  réponse (0 réussi), le temps moyen et le TTL moyen. Le jeu attend que l'état ne soit plus 1 pour finir son
+  ping (PingEnd) ; windowsloader le laissait à 1. Linké, il répond maintenant 0, 1 ms, TTL 128 (essai link30).
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 

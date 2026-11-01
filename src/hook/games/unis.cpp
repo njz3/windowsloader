@@ -310,30 +310,34 @@ static int BIND_SetSystemVolume(int a, int b)
     return 1;
 }
 
-// The game's ping (its APing, +0x210c20; DefaultSettingData.ini PingIP, empty: the PC's network's
-// .1): BIND_ICMPPing(host, &state, &time, &time2, timeout, its default time). -1: failed, the game
-// sets state 2 and calls its failure event; otherwise its state stays 1, success. Alone the
-// cabinet has no network (system.cpp): failed. Linked, answered: 1 ms (not asked in a linked
-// game on the cabinets: the matching screen does not wait for it)
-static int BIND_ICMPPing(const wchar_t *host, int *state, int *time, int *time2, int timeout, int defaultTime)
+// The game's ping (its APing: StartPing, +0x21c2a0, then +0x210c20; DefaultSettingData.ini PingIP,
+// empty: the PC's network's .1), asked while the matching screen searches for players:
+// BIND_ICMPPing(host, &state, &time, &ttl, count, timeout). The DLL sets state 1 and returns 1; its
+// thread (+0xe0e0) pings count times (IcmpSendEcho2), then writes the last reply's status (0, or
+// the error when all failed), the mean time in ms and the mean TTL. The game: -1 returned, it sets
+// 2 and calls its end (PingEnd, +0x210ba0); otherwise its tick (+0x21edc0) calls that end once
+// state is no longer 1. Alone the cabinet has no network (system.cpp): failed. Linked: done, 0,
+// 1 ms, TTL 128 (state left at 1 before: the matching screen waited and never opened
+// McastUDP.dll's sockets)
+static int BIND_ICMPPing(const wchar_t *host, int *state, int *time, int *ttl, int count, int timeout)
 {
     static int logged;
     int linked = wl_link_count() != 0;
     if (logged++ < 3)
     {
         char u[256];
-        wl_log("unis: BIND_ICMPPing \"%s\" (timeout %d): %s", host ? wl_u8(host, u, sizeof u) : "", timeout,
+        wl_log("unis: BIND_ICMPPing \"%s\" (%d times, timeout %d): %s", host ? wl_u8(host, u, sizeof u) : "", count, timeout,
                linked ? "answered, 1 ms (linked)" : "failed (alone, no network)");
     }
     if (!linked)
         return -1;
     if (state)
-        *state = 1;
+        *state = 0;
     if (time)
         *time = 1;
-    if (time2)
-        *time2 = 1;
-    return 0;
+    if (ttl)
+        *ttl = 128;
+    return 1;
 }
 
 // The cabinet's lights, read in UsbPluginsDll_R.dll: each function keeps its values and sends the
