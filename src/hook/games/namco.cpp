@@ -12,7 +12,9 @@
 // its own project; such code is marked with its origin.
 
 // Namco System ES3: Mario Kart Arcade GP DX, MK_AGP3_FINAL.exe (x86, Direct3D 9Ex, relocated: the
-// offsets below are from its base), v1.18 and v1.10 (2015; told by v1.18's bngrw.dll, absent).
+// offsets below are from its base), v1.18 and v1.10 (2015), told by the program's build date (its
+// PE header's: 0x5FB222AA, 0x55A38B64). Another version (1.06 USA...) has its functions elsewhere:
+// the code changes below are not made there, only the boards are played.
 // v1.10 has the same key, authentication and offline functions at other places (found by the
 // key's interface GUID, the "last_auth.bin" they read, the same bytes) and its card reader on COM4
 // instead of bngrw.dll. Being worked on:
@@ -1797,11 +1799,18 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         }
         return 1;
     }
-    // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places
-    int v118 = exists(dir, L"bngrw.dll");
+    // The version by the program's build date: each one's code changes are at its own places
+    unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
+    DWORD built = ((IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew))->FileHeader.TimeDateStamp;
+    int v118 = built == 0x5FB222AA, v110 = built == 0x55A38B64;
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : "v1.10");
+    if (v118 || v110)
+        wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : "v1.10");
+    else
+        wl_log("game: %s, unknown version (program built 0x%08lX): only v1.10 and v1.18 are supported, their code changes "
+               "(the security key, the network authentication, the offline limit) not made, the game may stop on an error",
+               *title, (unsigned long)built);
     wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)",
                        "Motor board: Namco motor board (COM1, 19200 bauds: position servo with spring, damper, vibration)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
@@ -1814,7 +1823,6 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
 
     // ShareK's client not started: je to the function's end made a jmp (nop; jmp rel32). The exe
     // moves (ASLR): addresses from its base
-    unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
     static const unsigned char je[2] = {0x0F, 0x84}, jmp[2] = {0x90, 0xE9};
     if (v118)
     {
@@ -1847,7 +1855,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_hook_code(exe + 0x62E60, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x62e60)");
         wl_hook_code(exe + 0x68430, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x68430)");
     }
-    else // v1.10: the same key's function (found by the key's interface GUID it looks for)
+    else if (v110) // the same key's function (found by the key's interface GUID it looks for)
     {
         wl_hook_code(exe + 0x43AEF0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x43aef0, v1.10)");
         // The same two as v1.18's: the first use of "last_auth.bin" (v1.18's +0x62e60, the same
