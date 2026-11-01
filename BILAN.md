@@ -432,7 +432,11 @@ Ce que la RingWide ajoute à la plateforme émulée :
   10 s dans chaque sens ; « MULTI PLAY AVAILABLE » à l'attente ; choix du circuit et de la voiture en même
   temps sur les deux, puis une seule course : la voiture de chaque borne sur l'écran de l'autre (marquée RIVAL),
   même chrono, positions 7/8 et 8/8 ; pas de « Network Disconnection ». Journaux et photos dans
-  `games\kodrive\linklogs`.
+  `games\kodrive\linklogs`. L'écran POWER-ON NETWORK TEST (+0x4ca630) écrit LINK ID 1 à 6 de 25 en 25, mais à
+  cette résolution sa grille de texte a moins de lignes : les lignes 2 et 5 tombent sous les 3 et 6 (« [NGAD] »,
+  GOOD et N/A l'un sur l'autre), d'où « LINK ID 1, 3, 4, 6 » et, sur la borne 2, « *LINK ID 3 » (son « * » de la
+  ligne 2 reste, l'espace de la ligne 3 ne s'écrit pas). Affichage seulement : le test passe sur les deux (vu le
+  01/11 avec la release 20261101-2 dans l'image).
 
 ## Sonic & Sega All-Stars Racing Arcade (Sega RingWide, 2011)
 
