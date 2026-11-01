@@ -60,7 +60,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Battle Gear 4", "bg4eng", "", {L"game.exe", L"game4.exe"}, {0x282C6BB7}, {L"game.inf", L"data\\drivedata"}, 0x446D0EFA, L"_MTS_FULL_SCREEN_", "Taito Type X+", "2006",
      WL_GAME_PLAYS, WL_N("Carte JVS, volant Taito sur COM1."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Chase H.Q. 2", "chasehq2", "", {L"game.exe"}, {0xBE64D00F}, {L"chq2.ini"}, 0, NULL, "Taito Type X2", "2007", WL_GAME_PLAYS,
-     WL_N("Carte JVS ; le moteur par les sorties de la carte JVS."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
+     WL_N("Carte JVS ; le moteur par les sorties de la carte JVS."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"D1GP Arcade", "d1gp", "", {L"game.exe"}, {0x55A0BD9D}, {L"IFC23.dll", L"game.inf"}, 0, NULL, "Taito Type X2", "2009", WL_GAME_PLAYS,
      WL_N("Carte JVS ; volant DirectInput « Immersion » avec ses effets de retour de force."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Valve Limit R", "vlimitr", "", {L"launcher.exe"}, {0x919C4D69}, {L"game.inf", L"data\\bin2"}, 0, NULL, "Taito Type X", "2005", WL_GAME_PLAYS,

@@ -799,7 +799,7 @@ tc.dat` de TeknoParrot) le sont,
 - Crédits ✅ : pièces JVS.
 - Pas de carte de volant sur un port série : son retour de force passe sans doute par les sorties
   analogiques du JVS (commande 0x33, 6 voies).
-- Link entre bornes 🔄 (01/11, `[Game.chasehq2] LINK` et `CABINET`, 2 bornes) : DirectPlay 8 (dpnet.dll de Windows,
+- Link entre bornes ✅ (01/11, `[Game.chasehq2] LINK` et `CABINET`, 2 bornes) : DirectPlay 8 (dpnet.dll de Windows,
   UDP 13400, `LINKPORTR` pour l'hôte et `LINKPORTS` pour le client dans `chq2.ini`). Au démarrage, « NETWORK
   CHECKING ... » (+0x65bf0) : le numéro de réseau (bits 17-18 du mot de réglages, +0x130bf28 ; `LINKHOST` 1 le met à
   0, 0 à 1) 0 héberge la session (« HOST OR SINGLE »), les autres se connectent à `HOSTADDR` (192.168.65.110 par
@@ -808,8 +808,14 @@ tc.dat` de TeknoParrot) le sont,
   (+0x1fa0 un nombre, +0x1f30 un texte). Linké : `LINKHOST` 1 sur la borne 1 seulement, `HOSTADDR` le premier PC de
   LINK, le numéro de réseau la place dans LINK moins un ; la vérification réseau notée au journal (numéro, résultat,
   durée). Essayé sur ce PC, le programme seul (sans ses données) : les interceptions posées, LINK pris (borne 2 de
-  2) ; le jeu s'arrête avant le réseau (« GRAPHICS SYSTEM ERROR », pas de données). Essai link22 sur les bornes
-  demandé.
+  2) ; le jeu s'arrête avant le réseau (« GRAPHICS SYSTEM ERROR », pas de données). Vérifié sur les bornes (01/11,
+  essai link22, la borne 1 lancée d'abord, la 2 vingt secondes après) : la borne 1 « network ID 0 (it hosts) »,
+  DirectPlay sur 192.168.1.4:13400, « -> 1 (hosting) » en 5,2 s ; la borne 2 « network ID 1 », « -> 2 (connected to
+  the host) » en 2,7 s ; « 2-PLAYERS CAN COMPETE » ; la borne 2 rejoint la partie de la borne 1 (« Join the game
+  now!! »), même choix de voiture, puis course à deux (« YOU / RIVAL 0-0 », la voiture de l'autre borne marquée
+  RIVAL) ; 60 images/s sur les deux, le trafic DirectPlay jusqu'à la fin. Il faut que les deux bornes aient été
+  calibrées (« PLEASE CALIBRATE THE I/O FIRST » sinon : menu de test, rtc.dat et rtb.dat dans le dossier
+  d'écriture). Journaux et photos dans `games\chasehq2\linklogs`.
 
 ## Affichage sur ce PC (Direct3D 9 et 11)
 
@@ -1720,7 +1726,7 @@ Les programmes seuls copiés de `\\racecab1\C\racecab\Games` dans `emulateurs\li
 données ; Storm Rider et Frenzy Express sont déjà dans `games`). Première lecture : les importations réseau et les textes
 des programmes, pas encore de décompilation.
 
-- Chase H.Q. 2 : a un link (à faire, le plus proche de ce qui existe). DirectPlay 8 (CLSID de DirectPlay8Peer dans
+- Chase H.Q. 2 : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). DirectPlay 8 (CLSID de DirectPlay8Peer dans
   game.exe, CoCreateInstance), comme Wacky Races et Valve Limit R ; jusqu'à 4 bornes (G1 à G4), NETWORK-ID 1 l'hôte,
   2 le client (« YOU MUST SET UP THE OTHER MACHINE(HOST) WITH NETWORK-ID=1 ») ; réglages dans `D:\chq2.ini` :
   LINKHOST, LINKPORTR, LINKPORTS, HOSTADDR (le HOSTADDR de Wacky) ; le jeu donne au PC les adresses 192.168.65.110

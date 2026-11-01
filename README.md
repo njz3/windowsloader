@@ -173,7 +173,7 @@ only the PC's card of `LINK` (a VPN's left out), and its own name resolves to it
 alone. A broadcast to a port where the game has several UDP sockets (GRID) goes as a broadcast on
 `LINK`'s network, which reaches each of them. Wacky Races (`[Game.wacky]`), D1GP (`[Game.d1gp]`, 2
 cabinets, LINK BATTLE in Mode Select), Valve Limit R (`[Game.vlimitr]`) and Chase H.Q. 2 (`[Game.chasehq2]`, 2
-cabinets, not yet tried on the cabinets) link through Windows' DirectPlay: cabinet 1 of
+cabinets) link through Windows' DirectPlay: cabinet 1 of
 `LINK` hosts, the others join it at its address (their test menu's NETWORK-ID or CONNECTION METHOD,
 or Chase H.Q. 2's LINKHOST and HOSTADDR, taken from `LINK`); Windows' DirectPlay feature must be on and
 the firewall let the game in.
