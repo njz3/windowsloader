@@ -603,13 +603,17 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
   Il n'est pas installé ici, et l'installer serait un téléchargement à décider. Des images noires sont servies à la
   place.
 - Menu Tab ✅ (mode agent). À voir : le menu de service, l'étalonnage du volant, vJoy.
-- Link entre bornes 🔄 (01/11, `[Game.srg] LINK` et `CABINET`, jusqu'à 8) : son `CNetworkMgr` prend la carte de plus
+- Link entre bornes ✅ (01/11, `[Game.srg] LINK` et `CABINET`, jusqu'à 8) : son `CNetworkMgr` prend la carte de plus
   petite métrique (GetAdaptersAddresses, +0x97330), rejoint le groupe multicast de `racing.cfg` [network] `mcast`
   (234.7.7.7, +0x98280) sur son UDP 5002 et y demande qui joue (McastFind, +0x98150 : 8 octets) ; puis TCP vers les
   adresses trouvées, une borne hôte (« Start connect to host »). `link.cpp` envoie maintenant un multicast à
   chaque PC de LINK (comme une diffusion) ; la carte du jeu est celle de LINK. Une liste d'hôtes fixe
-  ([network] `hostNum`, `host`) serait prise telle quelle. Pas essayé sur ce PC (sa copie effacée) ; essai sur les
-  bornes demandé.
+  ([network] `hostNum`, `host`) serait prise telle quelle. Pas essayé sur ce PC (sa copie effacée). Vérifié sur
+  racecab1 et racecab2 (essai link25, release 20261101-3) : le multicast vers 234.7.7.7:5002 envoyé à l'autre PC,
+  15 paquets reçus de chaque côté, la borne 2 se connecte en TCP à la 1 (192.168.1.4:5001, « Find to Connect
+  to ») ; pièce et Start sur les deux, chacune son circuit et sa voiture, puis une seule course de 15 voitures sur
+  The Height, les numéros de joueurs entrelacés (borne 1 : 2, 5, 8, 11, 14 ; borne 2 : 1, 4, 7, 10, 13), la voiture
+  de l'autre borne vue devant.
 
 ## Wacky Races (Taito Type X2)
 
@@ -1347,7 +1351,12 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   groupe avec un TTL de 1 (BIND_InitSocket_Send, un fil à +0x3cf0), puis une connexion TCP vers l'adresse et le
   port que le jeu donne (+0x4630). La logique est dans les Blueprints du jeu. Linké : les importations de
   `McastUDP.dll` deviennent celles du link (`wl_link_module`) dès que le jeu demande une de ses fonctions ; son
-  multicast va à chaque PC de LINK. Pas essayé sur ce PC (sa copie effacée) ; essai sur les bornes demandé.
+  multicast va à chaque PC de LINK. Pas essayé sur ce PC (sa copie effacée). Essai link25 sur les bornes (release
+  20261101-3) : pas linké. `McastUDP.dll` chargée (11,6 s) et ses importations prises (21,4 s), mais le jeu n'en
+  demande que BIND_GetTCPSocketClientList et BIND_GetRecvData : aucune initialisation (BIND_InitSocket_Recv,
+  BIND_JoinMcast), rien sur UDP 8888 ni vers 234.2.2.1, même en course ; chaque borne joue seule (7 taxis de
+  l'ordinateur). Ce qui fait lancer le réseau aux Blueprints (un réglage du jeu ?) reste à trouver. Le jeu tourne
+  aussi dans une fenêtre avec barre de titre sur les bornes, pas sans bord.
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
@@ -1792,11 +1801,18 @@ des programmes, pas encore de décompilation.
   NETWORK TEST », « LINK ID %d », GROUP ID, TOTAL MACHINE, « nodeID:%d is timeout », « commSync », « race_owner ») sur
   192.168.99.0/24, UDP et TCP (WSAEventSelect) ; son adresse par amNetwork (amLib RingWide), à laquelle `ringedge.cpp`
   répond déjà pour Sega Racing Classic.
-- Storm Racer G : a un link (fait le 01/11, voir sa section ; essai sur les bornes demandé). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
+- Storm Racer G : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
   multicast (234.7.7.7 par défaut), une hôte, les autres la rejoignent (« Start connect to host: %s »), les joueurs par
   adresse IP, la version du jeu comparée, les photos des joueurs échangées ; jusqu'à 8 joueurs. Réglages `network` :
   `hostNum`, `host`, `mcast` ; GetAdaptersAddresses pour la carte. Nouveau pour `link.cpp` : le multicast.
-- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp` ; essai sur les bornes demandé). Décompilé : les
+- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp`). Essai link25 sur les bornes (release 20261101-3) :
+  « linked: cabinet N of 2 », 9000 et 5002 ouverts, chaque borne a reçu 4 annonces de l'autre ; puis le jeu quitte
+  seul à 13,8 s (ExitProcess(0)) sur les deux, après deux connexions refusées vers 127.0.0.1:1947 (le
+  gestionnaire de licences Sentinel, absent des bornes). Sur ce PC aussi, avec le gestionnaire présent mais sans
+  la licence. La clé : le jeu demande `Lock.dll` (Lock::Initialize, la clé présente par CDongle::Check de
+  `Dongle.dll` ; Lock::test, ses 16 premiers octets « have bind… » puis 64 octets en 0x10 déchiffrés, l'identifiant
+  du disque de `DiskID32.dll`). Les deux remplacées dans la table d'import du jeu (`wahlap.cpp`, répondent oui) : sur
+  ce PC le jeu continue, 30 images/s au-delà de 40 s. Link à réessayer sur les bornes. Décompilé : les
   textes « 192.168.0.%d » et « 192.168.0.241 » ne sont lus par aucun code. Les motos se trouvent par une diffusion
   UDP sur le port 9000 (+0xbb10 ; une annonce de 100 octets « Storm Ri… »), l'adresse de chacune est celle de
   gethostbyname du nom du PC (+0x9fd0 ; 127.0.0.1 : seule), puis la première à lancer une course la sert
@@ -1804,7 +1820,7 @@ des programmes, pas encore de décompilation.
   envoyées dans les paquets ; jusqu'à 4 motos. `link.cpp` suffit (diffusion vers chaque PC de LINK, l'adresse de
   LINK pour le nom du PC). Essayé sur ce PC avec sa copie : 9000, 5002 et 5001 ouverts, l'annonce envoyée aux deux
   PC de LINK et reçue en retour.
-- Crazy Ride : a un link (fait le 01/11, voir sa section ; essai sur les bornes demandé). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
+- Crazy Ride : a un link (fait le 01/11, voir sa section ; pas linké à l'essai sur les bornes : le jeu ne lance pas son réseau). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
   multicast 234.2.2.1 et TCP (BIND_InitSocket_Recv/Send, BIND_InitTCPSocketListen, BIND_Send_TCP), appelé depuis les
   Blueprints (écran « NewPlayerJoinTile », « OnPlayerJoin », « MachineId ») : les ports et la logique sont dans le pak
   du jeu.

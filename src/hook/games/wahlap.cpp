@@ -301,6 +301,37 @@ static WlHook g_ioHooks[] = {
 };
 
 // ------------------------------------------------------------------------------
+// The key: the game asks Lock.dll, whose two functions (thiscall, a bool) use Dongle.dll's CDongle
+// on the cabinet's Sentinel HASP key (hasp_windows_95526.dll, by the license manager on
+// 127.0.0.1:1947). Lock::Initialize: the key there (CDongle::Check); Lock::test: the key bound to
+// this PC (its first 16 bytes "have bind…", then 64 bytes at 0x10 decrypted give the disk's ID,
+// DiskID32.dll). Without them the game quits by itself 14 s after its start (ExitProcess(0)).
+// Both replaced in the game's import table: the key there, bound to this PC
+// ------------------------------------------------------------------------------
+
+static bool __fastcall lock_initialize(void *self, void *unused)
+{
+    wl_log("game: Lock::Initialize, the key there (windowsloader's)");
+    return true;
+}
+
+static bool __fastcall lock_test(void *self, void *unused)
+{
+    static int logged;
+    if (!logged++)
+        wl_log("game: Lock::test, the key bound to this PC (windowsloader's)");
+    return true;
+}
+
+static void lock(void)
+{
+    HMODULE exe = GetModuleHandleW(NULL);
+    if (!wl_patch_iat(exe, "Lock.dll", "?Initialize@Lock@@QAE_NXZ", (void *)lock_initialize, NULL) ||
+        !wl_patch_iat(exe, "Lock.dll", "?test@Lock@@QAE_NXZ", (void *)lock_test, NULL))
+        wl_log("game: Lock.dll's functions not in the import table, the key stays the cabinet's");
+}
+
+// ------------------------------------------------------------------------------
 // The link between cabinets (link.h, [Game.stormrider] LINK), up to 4 bikes. The game finds the
 // others by a UDP broadcast on port 9000 (+0xbb10), takes its own address from gethostbyname of
 // the PC's name (+0x9fd0: 127.0.0.1, alone), then the first to start a race serves it ("Create
@@ -336,6 +367,7 @@ int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title
     wl_game_set_boards("Controls on Wahlap's board (through motobikeio.dll)", "Motor board: none");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     memory_load(dir);
+    lock();
     wl_hooks_add(g_ioHooks, sizeof g_ioHooks / sizeof g_ioHooks[0]);
     wl_game_set_options(g_options, sizeof g_options / sizeof g_options[0]);
     wl_game_on_settings(settings);

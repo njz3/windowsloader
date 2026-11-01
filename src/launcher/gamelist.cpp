@@ -78,7 +78,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
      WL_N("E/S et volant UNIS, clé de la borne."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Storm Racer G", "srg", "", {L"racing.exe"}, {0xE5A27313}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
-     WL_N("Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
+     WL_N("Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Storm Rider", "stormrider", "1.2.6", {L"motobike.exe"}, {0xED34CEB0}, {L"motobikeio.dll"}, 0, NULL, "Wahlap (PC)", "2013", WL_GAME_WORK,
      WL_N("Moto. Carte par motobikeio.dll ; non pris en charge."),
      WL_FEATURE_NO, WL_FEATURE_NO},
