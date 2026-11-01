@@ -280,7 +280,7 @@ static bool BIND_CloseZlbDevice(void)
 }
 
 // ------------------------------------------------------------------------------
-// Those that act on the PC: nothing done, success answered (the ping: no network)
+// Those that act on the PC: nothing done, success answered (the ping: no network alone)
 // ------------------------------------------------------------------------------
 
 static bool BIND_SetLocalTime(int year, int month, int day, int hour, int minute, int second)
@@ -310,11 +310,30 @@ static int BIND_SetSystemVolume(int a, int b)
     return 1;
 }
 
-static int BIND_ICMPPing(const char *host, int *time)
+// The game's ping (its APing, +0x210c20; DefaultSettingData.ini PingIP, empty: the PC's network's
+// .1): BIND_ICMPPing(host, &state, &time, &time2, timeout, its default time). -1: failed, the game
+// sets state 2 and calls its failure event; otherwise its state stays 1, success. Alone the
+// cabinet has no network (system.cpp): failed. Linked, answered: 1 ms. The matching screen
+// (Matching2, McastUDP.dll's sockets) may wait for it
+static int BIND_ICMPPing(const wchar_t *host, int *state, int *time, int *time2, int timeout, int defaultTime)
 {
+    static int logged;
+    int linked = wl_link_count() != 0;
+    if (logged++ < 3)
+    {
+        char u[256];
+        wl_log("unis: BIND_ICMPPing \"%s\" (timeout %d): %s", host ? wl_u8(host, u, sizeof u) : "", timeout,
+               linked ? "answered, 1 ms (linked)" : "failed (alone, no network)");
+    }
+    if (!linked)
+        return -1;
+    if (state)
+        *state = 1;
     if (time)
-        *time = -1;
-    return -1;
+        *time = 1;
+    if (time2)
+        *time2 = 1;
+    return 0;
 }
 
 // The cabinet's lights, read in UsbPluginsDll_R.dll: each function keeps its values and sends the

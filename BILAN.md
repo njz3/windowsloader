@@ -1355,8 +1355,16 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   20261101-3) : pas linké. `McastUDP.dll` chargée (11,6 s) et ses importations prises (21,4 s), mais le jeu n'en
   demande que BIND_GetTCPSocketClientList et BIND_GetRecvData : aucune initialisation (BIND_InitSocket_Recv,
   BIND_JoinMcast), rien sur UDP 8888 ni vers 234.2.2.1, même en course ; chaque borne joue seule (7 taxis de
-  l'ordinateur). Ce qui fait lancer le réseau aux Blueprints (un réglage du jeu ?) reste à trouver. Le jeu tourne
-  aussi dans une fenêtre avec barre de titre sur les bornes, pas sans bord.
+  l'ordinateur). Le jeu tourne aussi dans une fenêtre avec barre de titre sur les bornes, pas sans bord.
+  Lu par Image borne (sans pak : des .uasset) : le réseau est ouvert par l'écran de matching
+  (`Content\UI\Matching2.uasset` : UDP_InitSocket_Recv, UDP_JoinMcast, BIND_InitTCPSocketListen), jamais vu
+  dans nos parties (Start, ceinture, course). Aucun réglage Link ou MachineId dans les .ini ;
+  `DefaultMenu_Matching.ini` a `iMatchingChannel=0`, `DefaultSettingData.ini` `PingIP=` (vide : l'adresse .1
+  du réseau du PC). Dans le programme, la fonction C++ qui crée Matching2 (+0x1dd5e0) est appelée selon l'état
+  du jeu (+0x1d80ef : l'état 1, le matching). Le ping du jeu (APing, +0x210c20) appelle BIND_ICMPPing(hôte,
+  &état, &temps, &temps2, délai, défaut) : -1 met l'état à 2 et appelle l'évènement d'échec du Blueprint ;
+  sinon l'état reste 1. windowsloader répondait toujours -1 (pas de réseau) ; linké, il répond maintenant 1 ms,
+  état 1. À essayer sur les bornes : le matching dépend peut-être du réseau vu par le jeu.
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
@@ -1812,7 +1820,15 @@ des programmes, pas encore de décompilation.
   la licence. La clé : le jeu demande `Lock.dll` (Lock::Initialize, la clé présente par CDongle::Check de
   `Dongle.dll` ; Lock::test, ses 16 premiers octets « have bind… » puis 64 octets en 0x10 déchiffrés, l'identifiant
   du disque de `DiskID32.dll`). Les deux remplacées dans la table d'import du jeu (`wahlap.cpp`, répondent oui) : sur
-  ce PC le jeu continue, 30 images/s au-delà de 40 s. Link à réessayer sur les bornes. Décompilé : les
+  ce PC le jeu continue, 30 images/s au-delà de 40 s. Essai link26 sur racecab1 seule : la clé passe, le jeu
+  tourne plusieurs minutes, la pièce marche, mais Start ne faisait rien (bit 0x002 du panneau, une supposition
+  reprise de Storm Racer G). Essayé ici en mode agent, chaque bouton seul : 0x010 lance la partie (avec des
+  crédits) et valide dans les menus, 0x020 le circuit suivant, 0x200 un crédit de service. Le frein n'est pas
+  GetADData(2) : le jeu met à sa place (bit 1 | bit 0) du panneau (+0x4337c7) ; le frein au-delà de la moitié
+  donne maintenant le bit 0. Start corrigé (0x010) : course lancée sur ce PC (circuit, moto, chargement,
+  compte à rebours). En mode agent avec `PRESENT = GDI`, le chargement de la course se bloque (un fil de
+  chargement dans le pilote pendant que le fil principal l'attend) ; pas avec `DIRECT`, celui des bornes.
+  Link à réessayer sur les bornes. Décompilé : les
   textes « 192.168.0.%d » et « 192.168.0.241 » ne sont lus par aucun code. Les motos se trouvent par une diffusion
   UDP sur le port 9000 (+0xbb10 ; une annonce de 100 octets « Storm Ri… »), l'adresse de chacune est celle de
   gethostbyname du nom du PC (+0x9fd0 ; 127.0.0.1 : seule), puis la première à lancer une course la sert

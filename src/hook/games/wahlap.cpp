@@ -29,7 +29,10 @@
 //                             (moto_coins.dll's bookkeeping), kept here in wl_motobikeio.bin
 // The game packs its buttons in one word (+0x433720), as Storm Racer G (Wahlap's too): the
 // control panel's byte as it is, and GetIoKeyData's bit 0 -> 0x200, 2 -> 0x100, 3 -> 0x20,
-// 4 -> 0x40. Which button is which: Storm Racer G's, to be seen in the game's test menu.
+// 4 -> 0x40. Its brake is the control panel's bit 0 or 1, not GetADData(2): the game puts
+// (bit 1 | bit 0) in its place (+0x4337c7). Seen in agent mode: 0x010 starts the game (with
+// credits) and chooses in its menus, 0x020 the next track, 0x200 a service credit; Down has no
+// bit left (0x010 was its guess)
 
 #include <windows.h>
 #include <stdio.h>
@@ -93,11 +96,10 @@ static const struct
     int input, panel;
     unsigned bit;
 } g_bits[] = {
-    {IN_START, 1, 0x02},   // 0x002
+    {IN_START, 1, 0x10},   // 0x010
     {IN_BOOST, 1, 0x04},   // 0x004
     {IN_VIEW1, 1, 0x20},   // 0x020
     {IN_UP, 1, 0x08},      // 0x008
-    {IN_DOWN, 1, 0x10},    // 0x010
     {IN_VIEW2, 1, 0x40},   // 0x040
     {IN_TEST, 0, 0x04},    // 0x100
     {IN_SERVICE, 0, 0x01}, // 0x200
@@ -113,6 +115,8 @@ static unsigned buttons(int panel)
     for (size_t i = 0; i < sizeof g_bits / sizeof g_bits[0]; i++)
         if (g_bits[i].panel == panel && wl_input_get(&g_inputs[g_bits[i].input]))
             b |= g_bits[i].bit;
+    if (panel && wl_input_get(&g_inputs[IN_BRAKE]) >= 0x200) // the brake, past half way
+        b |= 0x01;
     return b;
 }
 
