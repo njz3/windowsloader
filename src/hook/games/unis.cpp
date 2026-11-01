@@ -313,8 +313,8 @@ static int BIND_SetSystemVolume(int a, int b)
 // The game's ping (its APing, +0x210c20; DefaultSettingData.ini PingIP, empty: the PC's network's
 // .1): BIND_ICMPPing(host, &state, &time, &time2, timeout, its default time). -1: failed, the game
 // sets state 2 and calls its failure event; otherwise its state stays 1, success. Alone the
-// cabinet has no network (system.cpp): failed. Linked, answered: 1 ms. The matching screen
-// (Matching2, McastUDP.dll's sockets) may wait for it
+// cabinet has no network (system.cpp): failed. Linked, answered: 1 ms (not asked in a linked
+// game on the cabinets: the matching screen does not wait for it)
 static int BIND_ICMPPing(const wchar_t *host, int *state, int *time, int *time2, int timeout, int defaultTime)
 {
     static int logged;
@@ -507,6 +507,26 @@ static void settings(void)
     link_mcast(GetModuleHandleA("McastUDP.dll")); // already loaded
 }
 
+// The game's settings files (Binaries\Win64\Setting_*.ini) are read through the DLL:
+// BIND_ReadInI_WChar(text, text, value[260], text, flag) with the file, the section and the key
+// (+0x1989d0), the value's length when found. The matching screen, Matching2, whose Blueprint opens
+// McastUDP.dll's sockets, is shown only when Setting_System's bEnableOnline is true (+0x1dd5e0,
+// read at +0x20a471; false when missing, as on the cabinets): linked, the game reads it true
+static int (*oReadInI)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char);
+static int BIND_ReadInI_WChar(const wchar_t *a, const wchar_t *b, wchar_t *value, const wchar_t *c, char flag)
+{
+    static const wchar_t key[] = L"bEnableOnline";
+    if (wl_link_count() && value && ((a && !_wcsicmp(a, key)) || (b && !_wcsicmp(b, key)) || (c && !_wcsicmp(c, key))))
+    {
+        static int logged;
+        if (!logged++)
+            wl_log("unis: bEnableOnline read as true (linked): the matching screen opens the network");
+        wcscpy_s(value, 260, L"true");
+        return 4;
+    }
+    return oReadInI ? oReadInI(a, b, value, c, flag) : 0;
+}
+
 // The game's own GetProcAddress: UsbPluginsDll_R.dll's functions above are windowsloader's
 static FARPROC(WINAPI *oGetProcAddress)(HMODULE, LPCSTR);
 static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
@@ -518,6 +538,11 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
         for (size_t i = 0; i < sizeof g_binds / sizeof g_binds[0]; i++)
             if (!strcmp(name, g_binds[i].name))
                 return (FARPROC)g_binds[i].fn;
+        if (!strcmp(name, "BIND_ReadInI_WChar"))
+        {
+            oReadInI = (int (*)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char))oGetProcAddress(mod, name);
+            return oReadInI ? (FARPROC)BIND_ReadInI_WChar : NULL;
+        }
         for (size_t i = 0; i < sizeof g_lights / sizeof g_lights[0]; i++)
             if (!strcmp(name, g_lights[i].name))
             {

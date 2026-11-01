@@ -1364,7 +1364,13 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   du jeu (+0x1d80ef : l'état 1, le matching). Le ping du jeu (APing, +0x210c20) appelle BIND_ICMPPing(hôte,
   &état, &temps, &temps2, délai, défaut) : -1 met l'état à 2 et appelle l'évènement d'échec du Blueprint ;
   sinon l'état reste 1. windowsloader répondait toujours -1 (pas de réseau) ; linké, il répond maintenant 1 ms,
-  état 1. À essayer sur les bornes : le matching dépend peut-être du réseau vu par le jeu.
+  état 1. Essai link27 : sans effet, le jeu ne pingue jamais (aucun BIND_ICMPPing) ; il appelle
+  BIND_CloseAllSocket à 21 s sans avoir ouvert de socket, puis Start, ceinture, course seule. La vraie
+  condition : la fonction qui crée Matching2 (+0x1dd5e0) ne le fait que si `bEnableOnline` (fichier
+  `Setting_System`, lu à +0x20a471 ; faux quand il manque, comme sur les bornes) est vrai ; sinon la partie
+  part seule. Le jeu lit ses fichiers `Setting_*.ini` par `BIND_ReadInI_WChar` de `UsbPluginsDll_R.dll`
+  (+0x1989d0), qu'il demande par GetProcAddress : linké, windowsloader lui répond maintenant
+  `bEnableOnline` = true. À essayer sur les bornes.
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
@@ -1813,7 +1819,7 @@ des programmes, pas encore de décompilation.
   multicast (234.7.7.7 par défaut), une hôte, les autres la rejoignent (« Start connect to host: %s »), les joueurs par
   adresse IP, la version du jeu comparée, les photos des joueurs échangées ; jusqu'à 8 joueurs. Réglages `network` :
   `hostNum`, `host`, `mcast` ; GetAdaptersAddresses pour la carte. Nouveau pour `link.cpp` : le multicast.
-- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp`). Essai link25 sur les bornes (release 20261101-3) :
+- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp`, vérifié sur les bornes). Essai link25 sur les bornes (release 20261101-3) :
   « linked: cabinet N of 2 », 9000 et 5002 ouverts, chaque borne a reçu 4 annonces de l'autre ; puis le jeu quitte
   seul à 13,8 s (ExitProcess(0)) sur les deux, après deux connexions refusées vers 127.0.0.1:1947 (le
   gestionnaire de licences Sentinel, absent des bornes). Sur ce PC aussi, avec le gestionnaire présent mais sans
@@ -1828,7 +1834,11 @@ des programmes, pas encore de décompilation.
   donne maintenant le bit 0. Start corrigé (0x010) : course lancée sur ce PC (circuit, moto, chargement,
   compte à rebours). En mode agent avec `PRESENT = GDI`, le chargement de la course se bloque (un fil de
   chargement dans le pilote pendant que le fil principal l'attend) ; pas avec `DIRECT`, celui des bornes.
-  Link à réessayer sur les bornes. Décompilé : les
+  Essai link27 sur les bornes : seule, pièce, Start, circuit, moto, course (12 motos, 2 tours), accélérateur
+  et guidon ; le frein ralentit sans doute (pas séparé du virage), le Nitro et la vue pas concluants. Linké :
+  écran VEHICLE « 1P » sur racecab1, « 2P » sur racecab2, CHALLENGER 1P et 2P sur les deux, une seule course
+  (11e et 12e sur 12) ; UDP 5002 dans les deux sens toute la course (la borne 1 sert), TCP de la borne 1 vers la
+  2 (5001). Marqué oui. Décompilé : les
   textes « 192.168.0.%d » et « 192.168.0.241 » ne sont lus par aucun code. Les motos se trouvent par une diffusion
   UDP sur le port 9000 (+0xbb10 ; une annonce de 100 octets « Storm Ri… »), l'adresse de chacune est celle de
   gethostbyname du nom du PC (+0x9fd0 ; 127.0.0.1 : seule), puis la première à lancer une course la sert
