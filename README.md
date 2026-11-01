@@ -167,7 +167,7 @@ are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES 
 k SUB with CAR NUMBER k, set twice on a blank save; raced on the cabinets), K.O. Drive
 (`[Game.kodrive]`, 2 to 6 cabinets: its 192.168.99.k of group A are `LINK`'s PCs, its LINK ID,
 TOTAL MACHINE and GROUP ID taken from `LINK`, nothing to set in its test menu; cabinet 1 leads the
-race; not yet tried on the cabinets) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+race; UDP 11882; raced on the cabinets) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a

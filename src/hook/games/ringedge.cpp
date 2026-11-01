@@ -1279,8 +1279,9 @@ static void src_settings(void)
 
 // K.O. Drive's link (link.h, [Game.kodrive] LINK), 2 to 6 cabinets, UDP only: Sega's link library
 // (+0x59e510 to +0x5a3200, "POWER-ON NETWORK TEST"), started with the network 192.168.99.0/24 and
-// the port 27182 (+0x59ffd0). Node i of TOTAL MACHINE n in GROUP g is 192.168.99.(1 + i + 6 (g +
-// 2 (3 n - 6))) (+0x59e570); each node sends its frames to every node's UDP 27182 from one bound
+// the port 0x6a2e (+0x59ffd0), turned over twice (+0x59eb40, +0x59f4c0): UDP 11882. Node i of
+// TOTAL MACHINE n in GROUP g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))) (+0x59e570); each node
+// sends its frames to every node's UDP 11882 from one bound
 // on any address, and knows the sender by its address. It reads LINK ID, TOTAL MACHINE and GROUP ID
 // (its test menu's, in its settings: byte 0x30 the LINK ID and TOTAL MACHINE less one, 0x31 the
 // group) by three functions (+0x885c0, +0x885d0, +0x885f0): they answer LINK's place less one,
