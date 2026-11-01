@@ -1797,11 +1797,15 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         }
         return 1;
     }
-    // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places
-    int v118 = exists(dir, L"bngrw.dll");
+    // v1.18 has the card reader's bngrw.dll beside it; v1.10 (2015) has not, nor its patches' places.
+    // v1.05 (1.05.21) has not either: told by its header's time stamp (8 November 2016), its own
+    // places, and never given v1.10's
+    unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
+    const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)(exe + ((const IMAGE_DOS_HEADER *)exe)->e_lfanew);
+    int v118 = exists(dir, L"bngrw.dll"), v105 = !v118 && nt->FileHeader.TimeDateStamp == 0x582179A8;
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : "v1.10");
+    wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : v105 ? "v1.05" : "v1.10");
     wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)",
                        "Motor board: Namco motor board (COM1, 19200 bauds: position servo with spring, damper, vibration)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
@@ -1814,7 +1818,6 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
 
     // ShareK's client not started: je to the function's end made a jmp (nop; jmp rel32). The exe
     // moves (ASLR): addresses from its base
-    unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
     static const unsigned char je[2] = {0x0F, 0x84}, jmp[2] = {0x90, 0xE9};
     if (v118)
     {
@@ -1846,6 +1849,16 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_hook_code(exe + 0x4B17B0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x4b17b0)");
         wl_hook_code(exe + 0x62E60, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x62e60)");
         wl_hook_code(exe + 0x68430, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x68430)");
+    }
+    else if (v105)
+    {
+        // No USB key of the later versions (no interface GUID: a DongleDevice with its F:\DongleData
+        // file). The first use of "last_auth.bin" (its 56 bytes read, a stdcall of one argument), as
+        // v1.18's +0x62e60
+        wl_hook_code(exe + 0x6A180, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x6a180, v1.05)");
+        InitializeCriticalSection(&g_nfcLock);
+        wl_vdev_register(&g_com4);
+        wl_vdev_label("COM4", WL_N("Lecteur de cartes"));
     }
     else // v1.10: the same key's function (found by the key's interface GUID it looks for)
     {
