@@ -104,6 +104,38 @@ static void apply_queued(int queued)
         wl_log("MinHook: enabling %d hooks failed (%s)", queued, MH_StatusToString(st));
 }
 
+// A function as the module itself exports it, its export table read; NULL when it is not there
+// or forwarded to another module
+static void *own_export(HMODULE mod, const char *name)
+{
+    BYTE *base = (BYTE *)mod;
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    IMAGE_DATA_DIRECTORY dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!dir.VirtualAddress)
+        return NULL;
+    IMAGE_EXPORT_DIRECTORY *ex = (IMAGE_EXPORT_DIRECTORY *)(base + dir.VirtualAddress);
+    DWORD *names = (DWORD *)(base + ex->AddressOfNames), *functions = (DWORD *)(base + ex->AddressOfFunctions);
+    WORD *ordinals = (WORD *)(base + ex->AddressOfNameOrdinals);
+    for (DWORD i = 0; i < ex->NumberOfNames; i++)
+    {
+        if (strcmp((const char *)(base + names[i]), name))
+            continue;
+        DWORD rva = functions[ordinals[i]];
+        if (rva >= dir.VirtualAddress && rva < dir.VirtualAddress + dir.Size)
+            return NULL; // a forwarder
+        return base + rva;
+    }
+    return NULL;
+}
+
+// Whether an address lies in a module's image
+static int in_module(HMODULE mod, const void *p)
+{
+    BYTE *base = (BYTE *)mod;
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    return (const BYTE *)p >= base && (const BYTE *)p < base + nt->OptionalHeader.SizeOfImage;
+}
+
 void wl_hooks_install_pending(void)
 {
     if (!g_pending)
@@ -130,6 +162,17 @@ void wl_hooks_install_pending(void)
             {
                 wl_log("hook %s: not exported", what);
                 continue;
+            }
+            // A compatibility shim of Windows (apphelp.dll, for a program its database knows: K.O.
+            // Drive's original executable) answers GetProcAddress with its own function, which the
+            // game may not call: the module's own is hooked, which the shim's calls in the end
+            void *own = in_module(mod, target) ? NULL : own_export(mod, h->name);
+            if (own)
+            {
+                char where[128];
+                wl_log("hook %s: GetProcAddress gives %s (a compatibility shim's), the module's own hooked", what,
+                       wl_where(target, where, sizeof where));
+                target = own;
             }
             queued += queue_one(target, h->detour, h->original, what);
         }
@@ -273,6 +316,17 @@ int wl_is_system_caller(const void *addr)
         gameDirLen = wcslen(gameDir);
     }
     kind = !(GetModuleFileNameW(mod, path, MAX_PATH) && gameDirLen && !_wcsnicmp(path, gameDir, gameDirLen));
+
+    // Windows' compatibility shims pass the game's own calls on (the first runs of a program
+    // Windows has not seen yet: K.O. Drive's Direct3DCreate9 and CreateDevice through apphelp.dll)
+    static const wchar_t *shims[] = {L"apphelp.dll", L"aclayers.dll", L"acgenral.dll", L"acxtrnal.dll", L"acspecfc.dll"};
+    if (kind)
+    {
+        const wchar_t *base = wcsrchr(path, L'\\');
+        base = base ? base + 1 : path;
+        for (int i = 0; i < (int)(sizeof shims / sizeof shims[0]) && kind; i++)
+            kind = _wcsicmp(base, shims[i]) != 0;
+    }
 
     // Microsoft redistributables shipped next to the game (XInput polls SetupAPI all the time)
     static const wchar_t *redist[] = {L"xinput", L"d3dx", L"d3dcompiler", L"dbghelp", L"msvc", L"vcruntime", L"xaudio", L"x3daudio", L"xapofx"};

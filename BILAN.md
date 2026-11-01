@@ -409,6 +409,19 @@ Ce que la RingWide ajoute à la plateforme émulée :
   l'image remplit la fenêtre en 4:3). Pas mesurable à l'écran sur ce PC à ce moment-là (une fenêtre Direct3D 9
   y restait noire, même un petit programme d'essai sans windowsloader) ; corrigé depuis par la recopie GDI,
   pas revu sur K.O. Drive (copie effacée).
+  - Résolution native (01/11) : 1024×600. `M-DriveR_RingWide original.exe` règle partout 1024×600 (défaut
+    +0x48bd60, table des modes +0x5018c8) ; `M-DriveR_RingWide 1080P.exe` (et `M-DriveR_RingWide.exe`, le même)
+    n'est que ces nombres changés en 1920×1080. Les écrans de démarrage placent leur texte en pixels de 1024×600
+    sur une grille de 80 × 24 cases de la vraie résolution (+0x6584d0) : en 1080, une case fait 45 pixels pour
+    des lignes à 25 l'une de l'autre, d'où les lignes cachées du POWER-ON NETWORK TEST ; et selon Image borne les
+    écrans 2D (choix du circuit) n'occupent que le coin 1024×600 en haut à gauche. Avec l'original (essai sur les
+    bornes le 01/11) : les six lignes du test, les écrans 2D et l'interface pleine taille, le link marche ; la
+    3D, calculée en 1024×600 puis agrandie, est moins nette.
+  - Premier lancement d'un programme : Windows (l'assistant de compatibilité) le surveille par des shims
+    d'apphelp.dll, dont Direct3DCreate9 et ChangeDisplaySettings. GetProcAddress donnait leur fonction, que le
+    jeu n'appelait pas sur les bornes : windowsloader ne voyait pas le device (jeu en 1024×600 sans sa fenêtre).
+    Corrigé (`hooks.cpp`) : la fonction propre du module est interceptée, et les DLL de shims comptent pour le
+    jeu ; vu sur ce PC avec une copie jamais lancée (1er lancement shimé, 2e non : même device, même fenêtre).
 - Menu Tab ✅ : pause, pages Jeu, Contrôles, Affichage, Retour de force.
 - Menu de service ✅ : `TestMode.exe -t` : GAME TEST MODE, test d'entrées (volant, pédales, START/WEAPON,
   TEST, SERVICE), navigation par les boutons de la carte (`kod_race.py test`).
