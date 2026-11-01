@@ -1345,7 +1345,7 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
 - Menu de service ✅ : bouton vert, Main Menu, Hardware Test, Input Test (pièce, Start, siège, étalonnage du volant et des
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
-- Link entre bornes 🔄 (01/11, `[Game.crazyride] LINK` et `CABINET`) : les sockets sont dans `Plugins\McastUDP.dll`,
+- Link entre bornes ✅ (01/11, `[Game.crazyride] LINK` et `CABINET`) : les sockets sont dans `Plugins\McastUDP.dll`,
   dont le jeu demande les fonctions BIND_* par GetProcAddress, comme celles de la carte. Réception sur UDP 8888
   (toutes adresses) après avoir rejoint le groupe 234.2.2.1 (BIND_InitSocket_Recv, BIND_JoinMcast), envoi vers ce
   groupe avec un TTL de 1 (BIND_InitSocket_Send, un fil à +0x3cf0), puis une connexion TCP vers l'adresse et le
@@ -1377,7 +1377,13 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   part seule. Le ping, lu dans `UsbPluginsDll_R.dll` des bornes : BIND_ICMPPing(hôte, &état, &temps, &ttl,
   nombre, délai) met l'état à 1 et rend 1 ; son fil (+0xe0e0) pingue, puis écrit le statut de la dernière
   réponse (0 réussi), le temps moyen et le TTL moyen. Le jeu attend que l'état ne soit plus 1 pour finir son
-  ping (PingEnd) ; windowsloader le laissait à 1. Linké, il répond maintenant 0, 1 ms, TTL 128 (essai link30).
+  ping (PingEnd) ; windowsloader le laissait à 1. Linké, il répond maintenant 0, 1 ms, TTL 128. Essai link30 :
+  linké. Le ping a lieu au démarrage (écran WARNING) ; à l'ouverture de la recherche, le jeu demande
+  BIND_InitTCPSocketListen, BIND_InitSocket_Recv, BIND_JoinMcast et BIND_InitSocket_Send, ouvre UDP 8888 et
+  son multicast 234.2.2.1 va à l'autre PC : 10 paquets de 20 octets par 10 s dans chaque sens. « Linking
+  succeed » sur les deux bornes, le radar montre 8 joueurs (les deux bornes, sans photo faute de caméra, et 6
+  de l'ordinateur), puis une course où chaque classement liste les deux joueurs (7e et 8e). Pas de TCP vu ; le
+  taxi de l'autre borne pas croisé en 15 s. Start demande deux appuis (le premier quitte l'écran WARNING).
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
@@ -1853,7 +1859,7 @@ des programmes, pas encore de décompilation.
   envoyées dans les paquets ; jusqu'à 4 motos. `link.cpp` suffit (diffusion vers chaque PC de LINK, l'adresse de
   LINK pour le nom du PC). Essayé sur ce PC avec sa copie : 9000, 5002 et 5001 ouverts, l'annonce envoyée aux deux
   PC de LINK et reçue en retour.
-- Crazy Ride : a un link (fait le 01/11, voir sa section ; pas linké à l'essai sur les bornes : le jeu ne lance pas son réseau). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
+- Crazy Ride : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
   multicast 234.2.2.1 et TCP (BIND_InitSocket_Recv/Send, BIND_InitTCPSocketListen, BIND_Send_TCP), appelé depuis les
   Blueprints (écran « NewPlayerJoinTile », « OnPlayerJoin », « MachineId ») : les ports et la logique sont dans le pak
   du jeu.

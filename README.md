@@ -173,8 +173,8 @@ cabinets), Storm Racer G
 (`[Game.srg]`, up to 8: its multicast group 234.7.7.7 on UDP 5002, sent to each PC of `LINK`;
 raced on the cabinets),
 Crazy Ride (`[Game.crazyride]`: `Plugins\McastUDP.dll`'s multicast 234.2.2.1 on UDP 8888, sent to
-each PC of `LINK`, then TCP; linked, its `bEnableOnline` setting is read true, for its matching
-screen; not yet raced on the cabinets) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+each PC of `LINK`; linked, its `bEnableOnline` setting is read true, for its matching screen,
+and its ping answered; raced on the cabinets) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a

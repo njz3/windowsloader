@@ -311,7 +311,7 @@ static int BIND_SetSystemVolume(int a, int b)
 }
 
 // The game's ping (its APing: StartPing, +0x21c2a0, then +0x210c20; DefaultSettingData.ini PingIP,
-// empty: the PC's network's .1), asked while the matching screen searches for players:
+// empty: the PC's network's .1), asked at the start (during the WARNING screen):
 // BIND_ICMPPing(host, &state, &time, &ttl, count, timeout). The DLL sets state 1 and returns 1; its
 // thread (+0xe0e0) pings count times (IcmpSendEcho2), then writes the last reply's status (0, or
 // the error when all failed), the mean time in ms and the mean TTL. The game: -1 returned, it sets
