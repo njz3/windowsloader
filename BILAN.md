@@ -1368,9 +1368,10 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   BIND_CloseAllSocket à 21 s sans avoir ouvert de socket, puis Start, ceinture, course seule. La vraie
   condition : la fonction qui crée Matching2 (+0x1dd5e0) ne le fait que si `bEnableOnline` (fichier
   `Setting_System`, lu à +0x20a471 ; faux quand il manque, comme sur les bornes) est vrai ; sinon la partie
-  part seule. Le jeu lit ses fichiers `Setting_*.ini` par `BIND_ReadInI_WChar` de `UsbPluginsDll_R.dll`
-  (+0x1989d0), qu'il demande par GetProcAddress : linké, windowsloader lui répond maintenant
-  `bEnableOnline` = true. À essayer sur les bornes.
+  part seule. Le jeu lit ses fichiers `Setting_*.ini` par `BIND_ReadInI_WChar` (+0x1989d0), qu'il demande
+  par GetProcAddress : linké, windowsloader lui répond maintenant `bEnableOnline` = true. Essai link28
+  (release 20261101-5 aussi) : sans effet, la fonction est celle de `Plugins\IniFile.dll` et non de
+  `UsbPluginsDll_R.dll`, que windowsloader regardait seule ; corrigé ensuite (essai link29).
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 

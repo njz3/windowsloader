@@ -507,11 +507,12 @@ static void settings(void)
     link_mcast(GetModuleHandleA("McastUDP.dll")); // already loaded
 }
 
-// The game's settings files (Binaries\Win64\Setting_*.ini) are read through the DLL:
-// BIND_ReadInI_WChar(text, text, value[260], text, flag) with the file, the section and the key
-// (+0x1989d0), the value's length when found. The matching screen, Matching2, whose Blueprint opens
-// McastUDP.dll's sockets, is shown only when Setting_System's bEnableOnline is true (+0x1dd5e0,
-// read at +0x20a471; false when missing, as on the cabinets): linked, the game reads it true
+// The game's settings files (Binaries\Win64\Setting_*.ini) are read through Plugins\IniFile.dll
+// (seen on the cabinets): BIND_ReadInI_WChar(text, text, value[260], text, flag) with the file,
+// the section and the key (+0x1989d0), the value's length when found. The matching screen,
+// Matching2, whose Blueprint opens McastUDP.dll's sockets, is shown only when Setting_System's
+// bEnableOnline is true (+0x1dd5e0, read at +0x20a471; false when missing, as on the cabinets):
+// linked, the game reads it true
 static int (*oReadInI)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char);
 static int BIND_ReadInI_WChar(const wchar_t *a, const wchar_t *b, wchar_t *value, const wchar_t *c, char flag)
 {
@@ -533,16 +534,16 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
 {
     if (mod && wl_link_count() && mod == GetModuleHandleA("McastUDP.dll"))
         link_mcast(mod);
+    if (mod && HIWORD((ULONG_PTR)name) && !strcmp(name, "BIND_ReadInI_WChar") && mod == GetModuleHandleA("IniFile.dll"))
+    {
+        oReadInI = (int (*)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char))oGetProcAddress(mod, name);
+        return oReadInI ? (FARPROC)BIND_ReadInI_WChar : NULL;
+    }
     if (mod && HIWORD((ULONG_PTR)name) && mod == GetModuleHandleA("UsbPluginsDll_R.dll"))
     {
         for (size_t i = 0; i < sizeof g_binds / sizeof g_binds[0]; i++)
             if (!strcmp(name, g_binds[i].name))
                 return (FARPROC)g_binds[i].fn;
-        if (!strcmp(name, "BIND_ReadInI_WChar"))
-        {
-            oReadInI = (int (*)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char))oGetProcAddress(mod, name);
-            return oReadInI ? (FARPROC)BIND_ReadInI_WChar : NULL;
-        }
         for (size_t i = 0; i < sizeof g_lights / sizeof g_lights[0]; i++)
             if (!strcmp(name, g_lights[i].name))
             {
