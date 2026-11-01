@@ -26,6 +26,8 @@ int wl_link_settings(HMODULE exe);
 // its bind on net.k is on this PC's address of LINK, what it hears from PC k comes from net.k.
 // The game's own number (its test menu's) must then be its place in LINK. net: "192.168.88"
 void wl_link_virtual_net(const char *net);
+// The same with cabinet k at net.(first + k - 1) (K.O. Drive: its group's first host)
+void wl_link_virtual_net_from(const char *net, int first);
 // A game that tells the others its PC's name to connect to (Wasteland Racers: its DirectPlay host,
 // which Windows' dpnet.dll resolves itself, a VPN's address possibly first): its gethostname gives
 // its address of LINK ("192.168.1.4")

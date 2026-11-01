@@ -413,6 +413,20 @@ Ce que la RingWide ajoute à la plateforme émulée :
 - Menu de service ✅ : `TestMode.exe -t` : GAME TEST MODE, test d'entrées (volant, pédales, START/WEAPON,
   TEST, SERVICE), navigation par les boutons de la carte (`kod_race.py test`).
 - Crédits ✅ : pièces JVS, crédit de service.
+- Link entre bornes 🔄 (01/11, `[Game.kodrive] LINK` et `CABINET`, 2 à 6 bornes) : la bibliothèque de link de Sega
+  (+0x59e510 à +0x5a3200, « POWER-ON NETWORK TEST »), UDP seulement. Démarrée (+0x59ffd0) sur le réseau
+  192.168.99.0/24, port 27182, jeu SBXA. Le nœud i de TOTAL MACHINE n dans le groupe g est 192.168.99.(1 + i +
+  6 (g + 2 (3 n − 6))) (+0x59e570) : .1 et .2 pour deux bornes du groupe A. Chaque nœud envoie ses trames au port
+  27182 de chacun, d'un socket lié à toutes les adresses, et reconnaît l'expéditeur à son adresse ; il demande
+  à la plateforme (amNetwork) de donner cette adresse au PC (répondu fait, l'adresse du PC n'est pas touchée).
+  LINK ID, TOTAL MACHINE et GROUP ID sont les réglages du menu de test (octet 0x30 de ses réglages : LINK ID et
+  TOTAL MACHINE moins un ; 0x31 le groupe), lus par trois fonctions (+0x885c0, +0x885d0, +0x885f0) ; le LINK ID 0
+  mène la course. Linké : ces trois fonctions répondent la place dans LINK moins un, le nombre de LINK et le
+  groupe A (rien à régler dans le menu de test) ; les 192.168.99.k sont les PC de LINK (`wl_link_virtual_net_from`,
+  le premier hôte du groupe), et l'adresse que la plateforme donne au jeu est la sienne. Les deux exécutables
+  (1080P et original) sont le même build (0x51936371). Essayé sur ce PC, le programme seul : les trois
+  interceptions posées, LINK pris (borne 1 de 2, 192.168.99.1) ; le jeu s'arrête avant le réseau (« IzErrorTrap:
+  Stop », pas de données). Essai sur les bornes demandé.
 
 ## Sonic & Sega All-Stars Racing Arcade (Sega RingWide, 2011)
 
@@ -1732,7 +1746,7 @@ des programmes, pas encore de décompilation.
   LINKHOST, LINKPORTR, LINKPORTS, HOSTADDR (le HOSTADDR de Wacky) ; le jeu donne au PC les adresses 192.168.65.110
   à 113 (AddIPAddress, refusé), comme les 192.168.64.100 et 102 de Valve Limit R. `taito.cpp` et `link.cpp` ont déjà
   ces pièces.
-- K.O. Drive : a un link (à faire). La bibliothèque de link de Sega de Sega Racing Classic et de Daytona (« POWER-ON
+- K.O. Drive : a un link (fait le 01/11, voir sa section ; essai sur les bornes demandé). La bibliothèque de link de Sega de Sega Racing Classic et de Daytona (« POWER-ON
   NETWORK TEST », « LINK ID %d », GROUP ID, TOTAL MACHINE, « nodeID:%d is timeout », « commSync », « race_owner ») sur
   192.168.99.0/24, UDP et TCP (WSAEventSelect) ; son adresse par amNetwork (amLib RingWide), à laquelle `ringedge.cpp`
   répond déjà pour Sega Racing Classic.

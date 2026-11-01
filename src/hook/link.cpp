@@ -24,8 +24,8 @@
 // A broadcast to a port where the game has several UDP sockets (GRID: its party's LAN discovery
 // server and its session on 12001) goes as a broadcast on LINK's network: a datagram sent to a PC
 // reaches only one of them, a broadcast each.
-// A game whose cabinets have addresses of their own (wl_link_virtual_net: net.k for cabinet k)
-// has them translated both ways: net.k is LINK's PC k, net.255 a broadcast.
+// A game whose cabinets have addresses of their own (wl_link_virtual_net: net.k for cabinet k, or
+// from another first host) has them translated both ways: they are LINK's PCs, net.255 a broadcast.
 // The log notes each bind, listen, connect and accept, the first packets with each PC on each
 // local port (ports, size, first bytes), counts the traffic with each PC every 10 s, and the TCP connections that end.
 // Its calls go through system.cpp's hooks as windowsloader's own, which let them by.
@@ -48,6 +48,7 @@
 static int g_count, g_cabinet = 1;
 static ULONG g_address[LINK_MAX]; // network order, cabinet 1's first
 static ULONG g_virtualNet;        // a game's own addresses (wl_link_virtual_net): their first three bytes, network order; 0 none
+static int g_virtualFirst = 1;    // the host of cabinet 1 there (wl_link_virtual_net_from)
 static int g_nameIsAddress;       // wl_link_name_is_address
 
 int wl_link_count(void)
@@ -160,32 +161,47 @@ static int broadcast(ULONG ip)
     return ip == INADDR_BROADCAST || (ip >> 24) == 0xFF;
 }
 
-void wl_link_virtual_net(const char *net)
+void wl_link_virtual_net_from(const char *net, int first)
 {
     unsigned b[3];
     g_virtualNet = net && sscanf_s(net, "%u.%u.%u", &b[0], &b[1], &b[2]) == 3 ? (b[0] | b[1] << 8 | b[2] << 16) : 0;
-    if (g_virtualNet && g_count)
+    g_virtualFirst = first >= 1 && first + g_count <= 255 ? first : 1;
+    if (g_virtualNet && g_count && g_virtualFirst == 1)
         wl_log("link: the game's own addresses %s.k: cabinet k is LINK's PC k", net);
+    else if (g_virtualNet && g_count)
+        wl_log("link: the game's own addresses %s.%d to %s.%d: LINK's PCs 1 to %d", net, g_virtualFirst, net, g_virtualFirst + g_count - 1, g_count);
 }
 
-// The game's address net.k: LINK's PC k (net.255: the broadcast); others as they are
+void wl_link_virtual_net(const char *net)
+{
+    wl_link_virtual_net_from(net, 1);
+}
+
+// The cabinet a host of the game's network is, 1.. (0 for none)
+static int virtual_cabinet(ULONG ip)
+{
+    int k = (int)(ip >> 24) - g_virtualFirst + 1;
+    return k >= 1 && k <= g_count ? k : 0;
+}
+
+// The game's address of cabinet k: LINK's PC k (net.255: the broadcast); others as they are
 static ULONG to_real(ULONG ip)
 {
     if (!g_virtualNet || (ip & 0x00FFFFFF) != g_virtualNet)
         return ip;
-    ULONG k = ip >> 24;
-    if (k == 255)
+    if (ip >> 24 == 255)
         return INADDR_BROADCAST;
-    return k >= 1 && (int)k <= g_count ? g_address[k - 1] : ip;
+    int k = virtual_cabinet(ip);
+    return k ? g_address[k - 1] : ip;
 }
 
-// LINK's PC k as the game knows it: net.k
+// LINK's PC k as the game knows it
 static void to_game(sockaddr *a)
 {
     sockaddr_in *in = (sockaddr_in *)a;
     int pc = g_virtualNet ? pc_of(in->sin_addr.s_addr) : 0;
     if (pc)
-        in->sin_addr.s_addr = g_virtualNet | (ULONG)pc << 24;
+        in->sin_addr.s_addr = g_virtualNet | (ULONG)(g_virtualFirst + pc - 1) << 24;
 }
 
 static volatile LONG g_sent[LINK_MAX], g_sentBytes[LINK_MAX], g_got[LINK_MAX], g_gotBytes[LINK_MAX];
@@ -391,10 +407,10 @@ static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
     sockaddr_in mine;
     if (g_count && g_virtualNet && is_inet(a, len) && (((const sockaddr_in *)a)->sin_addr.s_addr & 0x00FFFFFF) == g_virtualNet)
     {
-        ULONG k = ((const sockaddr_in *)a)->sin_addr.s_addr >> 24;
+        int k = virtual_cabinet(((const sockaddr_in *)a)->sin_addr.s_addr);
         static volatile LONG warned;
-        if ((int)k != g_cabinet && !InterlockedExchange(&warned, 1))
-            wl_log("link: the game calls itself cabinet %lu, LINK's place is %d: set its own number (its test menu) to %d", k, g_cabinet,
+        if (k != g_cabinet && !InterlockedExchange(&warned, 1))
+            wl_log("link: the game calls itself cabinet %d, LINK's place is %d: set its own number (its test menu) to %d", k, g_cabinet,
                    g_cabinet);
         memcpy(&mine, a, sizeof mine);
         mine.sin_addr.s_addr = g_address[g_cabinet - 1];

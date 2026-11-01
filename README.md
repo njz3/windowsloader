@@ -164,7 +164,10 @@ address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.s
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
 ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: its 192.168.75.k
 are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES the count, cabinet
-k SUB with CAR NUMBER k, set twice on a blank save; raced on the cabinets) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+k SUB with CAR NUMBER k, set twice on a blank save; raced on the cabinets), K.O. Drive
+(`[Game.kodrive]`, 2 to 6 cabinets: its 192.168.99.k of group A are `LINK`'s PCs, its LINK ID,
+TOTAL MACHINE and GROUP ID taken from `LINK`, nothing to set in its test menu; cabinet 1 leads the
+race; not yet tried on the cabinets) and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a

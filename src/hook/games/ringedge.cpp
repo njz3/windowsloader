@@ -1277,6 +1277,64 @@ static void src_settings(void)
         wl_log("game: Sega Racing Classic linked, cabinet %d: its test menu's START UP MODE must be SUB, CAR NUMBER %d", k, k);
 }
 
+// K.O. Drive's link (link.h, [Game.kodrive] LINK), 2 to 6 cabinets, UDP only: Sega's link library
+// (+0x59e510 to +0x5a3200, "POWER-ON NETWORK TEST"), started with the network 192.168.99.0/24 and
+// the port 27182 (+0x59ffd0). Node i of TOTAL MACHINE n in GROUP g is 192.168.99.(1 + i + 6 (g +
+// 2 (3 n - 6))) (+0x59e570); each node sends its frames to every node's UDP 27182 from one bound
+// on any address, and knows the sender by its address. It reads LINK ID, TOTAL MACHINE and GROUP ID
+// (its test menu's, in its settings: byte 0x30 the LINK ID and TOTAL MACHINE less one, 0x31 the
+// group) by three functions (+0x885c0, +0x885d0, +0x885f0): they answer LINK's place less one,
+// LINK's count and group A, so the test menu has nothing to set. LINK ID 0 is the race's master.
+// Those addresses are LINK's PCs (wl_link_virtual_net_from), the one it asks the platform for its
+// own
+static const WlGameOption g_kodOptions[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier). La borne 1 mène la course."),
+     WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
+};
+
+static char __cdecl kod_link_id(void)
+{
+    return (char)(wl_link_cabinet() - 1);
+}
+
+static char __cdecl kod_total(void)
+{
+    return (char)wl_link_count();
+}
+
+static char __cdecl kod_group(void)
+{
+    return 0;
+}
+
+static void kod_settings(void)
+{
+    int n = wl_link_settings(GetModuleHandleW(NULL));
+    if (n < 2)
+        return;
+    static const unsigned char idWas[] = {0xA1, 0x3C, 0x65, 0xBC, 0x02, 0x8B, 0x48, 0x0C, 0x8A, 0x41, 0x30, 0x24, 0x0F, 0xC3};
+    static const unsigned char totalWas[] = {0xA1, 0x3C, 0x65, 0xBC, 0x02, 0x8B, 0x48, 0x0C, 0x8A, 0x41, 0x30, 0xC0, 0xE8, 0x04};
+    static const unsigned char groupWas[] = {0xA1, 0x3C, 0x65, 0xBC, 0x02, 0x8B, 0x48, 0x0C, 0x8A, 0x41, 0x31, 0x24, 0x0F, 0xC3};
+    if (memcmp((void *)0x4885C0, idWas, sizeof idWas) || memcmp((void *)0x4885D0, totalWas, sizeof totalWas) ||
+        memcmp((void *)0x4885F0, groupWas, sizeof groupWas))
+    {
+        wl_log("game: K.O. Drive linked, but not its known build: its test menu's LINK ID, TOTAL MACHINE and GROUP ID are left as they are");
+        return;
+    }
+    void *unused = NULL;
+    wl_hook_code((void *)0x4885C0, (void *)kod_link_id, &unused, "its LINK ID (+0x885c0): LINK's place less one");
+    wl_hook_code((void *)0x4885D0, (void *)kod_total, &unused, "its TOTAL MACHINE (+0x885d0): LINK's count");
+    wl_hook_code((void *)0x4885F0, (void *)kod_group, &unused, "its GROUP ID (+0x885f0): A");
+    int first = 1 + 12 * (3 * n - 6); // group A's first node
+    wl_link_virtual_net_from("192.168.99", first);
+    int k = wl_link_cabinet();
+    snprintf(g_linkAddress, sizeof g_linkAddress, "ip_address=192.168.99.%d", first + k - 1);
+    wl_log("game: K.O. Drive linked: cabinet %d of %d, LINK ID %d, GROUP ID A, its address 192.168.99.%d%s", k, n, k, first + k - 1,
+           k == 1 ? " (it leads the race)" : "");
+}
+
 static const RingGame g_games[] = {
     {{L"id6_dump_.exe", L"InitialD6_GLW_RE_SBUU.exe"}, NULL, NULL, "initiald6", "Initial D Arcade Stage 6 AA", "SBUU",
      L"SBUU_Table.dat", "AAL", "NEC", "RingEdge", 1, "COM4", NULL, g_id6Inputs, ID6_COUNT, g_id6Switches, COUNT(g_id6Switches), 0, 0, NULL, 0},
@@ -1341,6 +1399,11 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     {
         wl_game_set_options(g_srcOptions, COUNT(g_srcOptions));
         wl_game_on_settings(src_settings);
+    }
+    else if (!strcmp(g_game->name, "kodrive") && _wcsicmp(base, g_game->testMode)) // the game, not its TestMode.exe
+    {
+        wl_game_set_options(g_kodOptions, COUNT(g_kodOptions));
+        wl_game_on_settings(kod_settings);
     }
     else if (g_game->freePlayOption)
         wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));
