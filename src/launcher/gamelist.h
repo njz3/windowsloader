@@ -58,5 +58,10 @@ extern const int g_wlKnownGameCount;
 
 // Whether name is one of the programs of the table (no file looked at)
 int wl_known_program_name(const wchar_t *name);
-// The game this program is, NULL when none
-const WlKnownGame *wl_known_game(const wchar_t *exePath);
+// The game this program is, NULL when none. With otherVersion: when none fits but one does except
+// its PE time stamp (another version of that game: Mario Kart DX 1.06 for its 1.10's), that one,
+// *otherVersion 1
+const WlKnownGame *wl_known_game(const wchar_t *exePath, int *otherVersion);
+// The versions of the table's entries of that game (the same name), "1.10, 1.18": unnumbered the
+// ones whose copies do not tell theirs. Returns 0 when none is numbered
+int wl_known_versions(const WlKnownGame *game, const char *unnumbered, char *buf, size_t size);

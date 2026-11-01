@@ -46,9 +46,11 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 struct Entry
 {
     const WlKnownGame *game;
+    int otherVersion; // another version of game's (gamelist.h): listed, not supported
     wchar_t folder[MAX_PATH];
     wchar_t exe[MAX_PATH];
     int depth;
+    char title[300];      // the game's, "(version non prise en charge)" for another version
     char label[512];      // in the list
     char folderName[512]; // UTF-8, as the others below
     char exeShown[MAX_PATH * 3];
@@ -149,12 +151,15 @@ static void find_program(const wchar_t *dir, int depth, Entry *e)
                 !(fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_REPARSE_POINT)))
                 find_program(path, depth - 1, e);
         }
-        else if ((!e->game || depth > e->depth) && wl_known_program_name(fd.cFileName))
+        else if ((!e->game || depth > e->depth || e->otherVersion) && wl_known_program_name(fd.cFileName))
         {
-            const WlKnownGame *g = wl_known_game(path);
-            if (g)
+            int other;
+            const WlKnownGame *g = wl_known_game(path, &other);
+            // A supported version before another one
+            if (g && (!e->game || depth > e->depth || (e->otherVersion && !other)))
             {
                 e->game = g;
+                e->otherVersion = other;
                 e->depth = depth;
                 wcscpy_s(e->exe, MAX_PATH, path);
             }
@@ -202,7 +207,26 @@ static void scan_games(void)
         u8(e.exe + wcslen(e.folder) + 1, e.exeShown, sizeof e.exeShown);
         if (e.game->args)
             u8(e.game->args, e.args, sizeof e.args);
-        snprintf(e.label, sizeof e.label, "%s", e.game->title);
+        if (e.otherVersion)
+        {
+            // The game's title without the version its entry is for ("Mario Kart Arcade GP DX 1.10")
+            char title[256];
+            snprintf(title, sizeof title, "%s", e.game->title);
+            size_t tl = strlen(title), vl = strlen(e.game->version);
+            if (vl && tl > vl && !strcmp(title + tl - vl, e.game->version))
+            {
+                title[tl - vl] = 0;
+                tl -= vl;
+                if (tl >= 4 && !strcmp(title + tl - 4, "Ver."))
+                    title[tl -= 4] = 0;
+                while (tl && title[tl - 1] == ' ')
+                    title[--tl] = 0;
+            }
+            snprintf(e.title, sizeof e.title, "%s (%s)", title, wl_tr("version non prise en charge"));
+        }
+        else
+            snprintf(e.title, sizeof e.title, "%s", e.game->title);
+        snprintf(e.label, sizeof e.label, "%s", e.title);
         if (g_count == cap)
         {
             cap = cap ? cap * 2 : 32;
@@ -214,9 +238,9 @@ static void scan_games(void)
     // The same game in several folders (Sega Rally 3's editions): the folder's name tells them apart
     for (int i = 0; i < g_count; i++)
         for (int k = 0; k < g_count; k++)
-            if (k != i && g_entries[k].game == g_entries[i].game)
+            if (k != i && g_entries[k].game == g_entries[i].game && g_entries[k].otherVersion == g_entries[i].otherVersion)
             {
-                snprintf(g_entries[i].label, sizeof g_entries[i].label, "%s (%s)", g_entries[i].game->title, g_entries[i].folderName);
+                snprintf(g_entries[i].label, sizeof g_entries[i].label, "%s (%s)", g_entries[i].title, g_entries[i].folderName);
                 break;
             }
     qsort(g_entries, g_count, sizeof(Entry), by_label);
@@ -632,22 +656,35 @@ static int draw(int *selected, int *action)
             ImGui::Image((ImTextureID)(intptr_t)e->art, ImVec2(w, h));
         }
         ImGui::PushFont(NULL, ImGui::GetFontSize() * 1.35f);
-        ImGui::TextWrapped("%s", e->game->title);
+        ImGui::TextWrapped("%s", e->title);
         ImGui::PopFont();
         ImVec4 color;
         const char *state = state_text(e->game->state, &color);
+        if (e->otherVersion)
+        {
+            color = ImVec4(0.9f, 0.45f, 0.4f, 1);
+            state = wl_tr("Version non prise en charge : le jeu peut s'arrêter sur une erreur");
+        }
         ImGui::TextColored(color, "%s", state);
         ImGui::Spacing();
         char platform[128];
         // The table's texts (WL_N) in the language shown
         snprintf(platform, sizeof platform, "%s%s%s", wl_tr(e->game->platform), e->game->year[0] ? ", " : "", e->game->year);
         field(wl_tr("Plateforme"), platform);
+        char versions[256];
+        wl_known_versions(e->game, wl_tr("celle des bornes Racecab"), versions, sizeof versions);
+        field(wl_tr("Version"), e->otherVersion ? wl_tr("une autre") : e->game->version);
+        field(wl_tr("Versions prises en charge"), versions);
         field(wl_tr("Dossier"), e->folderName);
         field(wl_tr("Programme"), e->exeShown);
         field(wl_tr("Arguments"), e->args);
-        field(wl_tr("Retour de force"), feature_text(e->game->ffb));
-        field(wl_tr("Link"), feature_text(e->game->link));
-        field(wl_tr("Émulé"), wl_tr(e->game->note));
+        // Another version: what the supported ones get is not known for it
+        if (!e->otherVersion)
+        {
+            field(wl_tr("Retour de force"), feature_text(e->game->ffb));
+            field(wl_tr("Link"), feature_text(e->game->link));
+            field(wl_tr("Émulé"), wl_tr(e->game->note));
+        }
         ImGui::Spacing();
         ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
         if (ImGui::Button(wl_tr("Jouer (Entrée)")))

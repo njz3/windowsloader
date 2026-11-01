@@ -809,7 +809,7 @@ msgstr "[Launcher] LANGUAGE = %s, saved to %s"
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr "The games' texts given at their start (network outputs) change language at the next start. Another language: a lang\\<code>.po file next to the launcher (see README.md)."
 
-#: src/hook/menu.cpp:1684 src/launcher/picker.cpp:682
+#: src/hook/menu.cpp:1684 src/launcher/picker.cpp:719
 msgid "Journal"
 msgstr "Log"
 
@@ -846,7 +846,7 @@ msgstr "Controls"
 msgid "Affichage"
 msgstr "Display"
 
-#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:648
+#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:684
 msgid "Retour de force"
 msgstr "Force feedback"
 
@@ -917,15 +917,15 @@ msgstr "Serial board"
 msgid "Start (semble-t-il)"
 msgstr "Start (it seems)"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:157 src/hook/games/unis.cpp:435
 msgid "rouge"
 msgstr "red"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:157 src/hook/games/unis.cpp:435
 msgid "vert"
 msgstr "green"
 
-#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:155 src/hook/games/unis.cpp:411
+#: src/hook/games/alls.cpp:999 src/hook/games/namco.cpp:157 src/hook/games/unis.cpp:435
 msgid "bleu"
 msgstr "blue"
 
@@ -934,7 +934,7 @@ msgstr "blue"
 msgid "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255"
 msgstr "LED board 837-15070 (Cabinet mode): LED %d, %s, 0 off to 255"
 
-#: src/hook/games/alls.cpp:1006 src/hook/games/alls.cpp:1015 src/hook/games/stormracer.cpp:639
+#: src/hook/games/alls.cpp:1006 src/hook/games/alls.cpp:1015 src/hook/games/stormracer.cpp:660
 msgid "intensité (0-255)"
 msgstr "intensity (0-255)"
 
@@ -951,7 +951,7 @@ msgstr "number (0-999)"
 msgid "Tableau de bord (mode Cabinet) : la vitesse affichée, km/h"
 msgstr "Dashboard (Cabinet mode): the speed shown, km/h"
 
-#: src/hook/games/alls.cpp:1172 src/hook/games/alls.cpp:1173 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:425
+#: src/hook/games/alls.cpp:1172 src/hook/games/alls.cpp:1173 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:449
 msgid "nombre"
 msgstr "number"
 
@@ -1028,11 +1028,11 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1246 src/hook/games/ringedge.cpp:1189 src/hook/games/ringedge.cpp:1215 src/hook/games/segarally3.cpp:180
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:1248 src/hook/games/ringedge.cpp:1189 src/hook/games/ringedge.cpp:1215 src/hook/games/ringedge.cpp:1292 src/hook/games/segarally3.cpp:180 src/hook/games/stormracer.cpp:628 src/hook/games/unis.cpp:492 src/hook/games/wahlap.cpp:347
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:1247 src/hook/games/segarally3.cpp:181
+#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:1249 src/hook/games/segarally3.cpp:181 src/hook/games/stormracer.cpp:629 src/hook/games/unis.cpp:493 src/hook/games/wahlap.cpp:348
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
@@ -1082,28 +1082,28 @@ msgstr "Brightness of lamp %d, ac_io_hbhi_control_lamp_bright (libacio.dll), 0 t
 msgid "intensité (0-31)"
 msgstr "intensity (0-31)"
 
-#: src/hook/games/namco.cpp:161
+#: src/hook/games/namco.cpp:163
 #, c-format
 msgid "LED %d (commande JVS %02X, la %de), %s (ordre supposé), 0 éteint à 15"
 msgstr "LED %d (JVS command %02X, number %d), %s (order assumed), 0 off to 15"
 
-#: src/hook/games/namco.cpp:163
+#: src/hook/games/namco.cpp:165
 msgid "intensité (0-15)"
 msgstr "intensity (0-15)"
 
-#: src/hook/games/namco.cpp:359
+#: src/hook/games/namco.cpp:361
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/hook/games/namco.cpp:360 src/hook/games/taito.cpp:595
+#: src/hook/games/namco.cpp:362 src/hook/games/taito.cpp:595
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
-#: src/hook/games/namco.cpp:1742 src/hook/games/namco.cpp:1813
+#: src/hook/games/namco.cpp:1744 src/hook/games/namco.cpp:1822
 msgid "Carte du moteur du volant"
 msgstr "Wheel's motor board"
 
-#: src/hook/games/namco.cpp:1859
+#: src/hook/games/namco.cpp:1867
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
@@ -1127,11 +1127,15 @@ msgstr "Switches 1 to 3 of the drive board (Sega Rally's): each step adds 1 to e
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The game's test menu, GAME ASSIGNMENTS: cabinet 1 as MAIN (TOTAL NODES: the number of cabinets), cabinet k as SUB, CAR NUMBER k."
 
-#: src/hook/games/stormracer.cpp:633
+#: src/hook/games/ringedge.cpp:1293
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
+msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). Cabinet 1 leads the race."
+
+#: src/hook/games/stormracer.cpp:654
 msgid "la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"
 msgstr "the USB I/O board, UsbIO_SetLedLightStatu (usb_io.dll)"
 
-#: src/hook/games/stormracer.cpp:638
+#: src/hook/games/stormracer.cpp:659
 #, c-format
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr "PWM light %d of the USB I/O board, UsbIO_SetPWMLightStatu (usb_io.dll), 0 off to 255"
@@ -1156,7 +1160,7 @@ msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and 
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/hook/games/taito.cpp:984 src/hook/games/taito.cpp:1012
+#: src/hook/games/taito.cpp:1045 src/hook/games/taito.cpp:1073
 msgid "Carte du volant"
 msgstr "Wheel's board"
 
@@ -1192,157 +1196,161 @@ msgstr "number (0, 10-23)"
 msgid "Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant"
 msgstr "Handlebar's motor: 0 none, odd handlebar to the right, even to the left, stronger as it goes up"
 
-#: src/hook/games/unis.cpp:417
+#: src/hook/games/unis.cpp:441
 #, c-format
 msgid "Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)"
 msgstr "Set%s, %s (order assumed), on or off (UsbPluginsDll_R.dll)"
 
-#: src/hook/games/unis.cpp:424
+#: src/hook/games/unis.cpp:448
 msgid ", deux bits"
 msgstr ", two bits"
 
-#: src/hook/games/unis.cpp:425
+#: src/hook/games/unis.cpp:449
 msgid "0 à 3"
 msgstr "0 to 3"
 
-#: src/hook/games/unis.cpp:427
+#: src/hook/games/unis.cpp:451
 msgid "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)"
 msgstr "SetStartLightState, the Start lamp (UsbPluginsDll_R.dll)"
 
-#: src/launcher/gamelist.cpp:25
+#: src/launcher/gamelist.cpp:26
 msgid "Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."
 msgstr "Emulated USB I/O board; wheel's motor through I/O port 0x1020."
 
-#: src/launcher/gamelist.cpp:27 src/launcher/gamelist.cpp:32
+#: src/launcher/gamelist.cpp:28 src/launcher/gamelist.cpp:33
 msgid "Carte d'E/S DirectInput « SEGA IO Controller », Shell de Sega (crédits) ; moteur par le port parallèle."
 msgstr "DirectInput I/O board \"SEGA IO Controller\", Sega's Shell (credits); motor through the parallel port."
 
-#: src/launcher/gamelist.cpp:35
+#: src/launcher/gamelist.cpp:36
 msgid "Carte d'E/S USB (Happ UGCI) ; moteur par le port parallèle. Menu de service : GameShell.exe."
 msgstr "USB I/O board (Happ UGCI); motor through the parallel port. Service menu: GameShell.exe."
 
-#: src/launcher/gamelist.cpp:37
+#: src/launcher/gamelist.cpp:38
 msgid "Carte JVS, clé de la borne, carte de pilotage sur COM1. Menu de service : le jeu avec -t."
 msgstr "JVS board, cabinet's key, servoboard on COM1. Service menu: the game with -t."
 
-#: src/launcher/gamelist.cpp:40 src/launcher/gamelist.cpp:44
+#: src/launcher/gamelist.cpp:41 src/launcher/gamelist.cpp:45
 msgid "Carte JVS (pilote mxjvs), carte de pilotage ; lecteur de cartes derrière picodaemon.exe."
 msgstr "JVS board (mxjvs driver), servoboard; card reader behind picodaemon.exe."
 
-#: src/launcher/gamelist.cpp:46 src/launcher/gamelist.cpp:48
+#: src/launcher/gamelist.cpp:47 src/launcher/gamelist.cpp:49
 msgid "Carte d'E/S DirectInput « SEGA IO Controller » ; moteur par le port parallèle."
 msgstr "DirectInput I/O board \"SEGA IO Controller\"; motor through the parallel port."
 
-#: src/launcher/gamelist.cpp:50
+#: src/launcher/gamelist.cpp:51
 msgid "Carte JVS (pilote mxjvs), carte de pilotage. Menu de service : TestMode.exe."
 msgstr "JVS board (mxjvs driver), servoboard. Service menu: TestMode.exe."
 
-#: src/launcher/gamelist.cpp:53
+#: src/launcher/gamelist.cpp:54
 msgid "Carte JVS (pilote mxjvs), carte de pilotage. Menu de service : gametest.exe."
 msgstr "JVS board (mxjvs driver), servoboard. Service menu: gametest.exe."
 
-#: src/launcher/gamelist.cpp:55
+#: src/launcher/gamelist.cpp:56
 msgid "Carte JVS, levier en H ; la carte moteur de Sega Rally (Model 2) jouée d'après la commande du jeu."
 msgstr "JVS board, H shifter; Sega Rally's drive board (Model 2) played from the game's command."
 
-#: src/launcher/gamelist.cpp:57
+#: src/launcher/gamelist.cpp:58
 msgid "Carte JVS 837-14895 ; la vibration jouée en secousse. Menu de service : GameTestR_RingWide.exe."
 msgstr "JVS board 837-14895; the vibration played as a jolt. Service menu: GameTestR_RingWide.exe."
 
-#: src/launcher/gamelist.cpp:59
+#: src/launcher/gamelist.cpp:60
 msgid "Carte JVS, volant Taito sur COM1. Borne Pro : [Game.bg4] CABINET = PRO."
 msgstr "JVS board, Taito wheel on COM1. Pro cabinet: [Game.bg4] CABINET = PRO."
 
-#: src/launcher/gamelist.cpp:61 src/launcher/gamelist.cpp:67
+#: src/launcher/gamelist.cpp:62 src/launcher/gamelist.cpp:68
 msgid "Carte JVS, volant Taito sur COM1."
 msgstr "JVS board, Taito wheel on COM1."
 
-#: src/launcher/gamelist.cpp:63
+#: src/launcher/gamelist.cpp:64
 msgid "Carte JVS ; le moteur par les sorties de la carte JVS."
 msgstr "JVS board; the motor through the JVS board's outputs."
 
-#: src/launcher/gamelist.cpp:65
+#: src/launcher/gamelist.cpp:66
 msgid "Carte JVS ; volant DirectInput « Immersion » avec ses effets de retour de force."
 msgstr "JVS board; DirectInput wheel \"Immersion\" with its force feedback effects."
 
-#: src/launcher/gamelist.cpp:69
+#: src/launcher/gamelist.cpp:70
 msgid "Carte JVS ; le moteur par les sorties de la carte JVS. Les fonds des menus restent en 800×600."
 msgstr "JVS board; the motor through the JVS board's outputs. The menus' backgrounds stay at 800×600."
 
-#: src/launcher/gamelist.cpp:71
+#: src/launcher/gamelist.cpp:72
 msgid "Carte ACIO de Konami, son volant."
 msgstr "Konami's ACIO board, its wheel."
 
-#: src/launcher/gamelist.cpp:73
+#: src/launcher/gamelist.cpp:74
 msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."
 msgstr "Trio Tech's SDC2 board: controls, and the wheel as a position servo."
 
-#: src/launcher/gamelist.cpp:75
+#: src/launcher/gamelist.cpp:76
 msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."
 msgstr "Namco NA-JV JVS board (COM3), Namco motor board (COM1)."
 
-#: src/launcher/gamelist.cpp:77
+#: src/launcher/gamelist.cpp:78
 msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."
 msgstr "Namco NA-JV JVS board (COM3), Namco motor board (COM1), NFC card reader (COM4)."
 
-#: src/launcher/gamelist.cpp:78
+#: src/launcher/gamelist.cpp:79
 msgid "UNIS PC (64 bits)"
 msgstr "UNIS PC (64-bit)"
 
-#: src/launcher/gamelist.cpp:79
+#: src/launcher/gamelist.cpp:80
 msgid "E/S et volant UNIS, clé de la borne."
 msgstr "UNIS I/O and wheel, cabinet's key."
 
-#: src/launcher/gamelist.cpp:81
+#: src/launcher/gamelist.cpp:82
 msgid "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."
 msgstr "USB board through usb_io.dll; black videos without the WMV decoder."
 
-#: src/launcher/gamelist.cpp:83
+#: src/launcher/gamelist.cpp:84
 msgid "Moto. Carte par motobikeio.dll, clé HASP par Lock.dll."
 msgstr "Motorbike. Board through motobikeio.dll, HASP key through Lock.dll."
 
-#: src/launcher/gamelist.cpp:85 src/launcher/gamelist.cpp:89
+#: src/launcher/gamelist.cpp:86 src/launcher/gamelist.cpp:90
 msgid "Sega Nu (64 bits)"
 msgstr "Sega Nu (64-bit)"
 
-#: src/launcher/gamelist.cpp:87 src/launcher/gamelist.cpp:90
+#: src/launcher/gamelist.cpp:88 src/launcher/gamelist.cpp:91
 msgid "Plateforme Nu (amdaemon, carte AMEX), carte JVS, levier en H, moteur du volant (COM1), lampes (COM11), server box du magasin : partie invité ; les cartes Aime attendent le serveur en ligne du jeu."
 msgstr "Nu platform (amdaemon, AMEX board), JVS board, H-shifter, wheel's motor (COM1), lamps (COM11), the shop's server box: guest play; the Aime cards wait for the game's online server."
 
-#: src/launcher/gamelist.cpp:93
+#: src/launcher/gamelist.cpp:94
 msgid "Trottinette. Carte par xio.dll : guidon, poussées gauche et droite (l'accélérateur les alterne), frein, moteur du guidon."
 msgstr "Kick scooter. Board through xio.dll: handlebar, left and right kicks (the accelerator alternates them), brake, handlebar's motor."
 
-#: src/launcher/gamelist.cpp:95
+#: src/launcher/gamelist.cpp:96
 msgid "Sega ALLS (64 bits)"
 msgstr "Sega ALLS (64-bit)"
 
-#: src/launcher/gamelist.cpp:96
+#: src/launcher/gamelist.cpp:97
 msgid "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini (option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Reste le serveur de matching (GAME SERVER BAD, pas de course en réseau)."
 msgstr "ALLS platform (amdaemon), single cabinet, full (dashboard: wheel's buttons, speed; LED board) or mini (CABINET option); ALL.Net, Aime and the title server played on this PC: guest play (race, results, game over), force feedback through the wheel's board on COM1. The matching server remains (GAME SERVER BAD, no network race)."
 
-#: src/launcher/gamelist.cpp:100 src/launcher/gamelist.cpp:104 src/launcher/gamelist.cpp:109
+#: src/launcher/gamelist.cpp:101 src/launcher/gamelist.cpp:105 src/launcher/gamelist.cpp:110
 msgid "Namco System ES3X (64 bits)"
 msgstr "Namco System ES3X (64-bit)"
 
-#: src/launcher/gamelist.cpp:101
+#: src/launcher/gamelist.cpp:102
 msgid "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent les cartes et la caméra."
 msgstr "HASP key (ID 2808), Namco JVS board, arcade terminal played, Banapass reader without a card, offline (no ALL.Net): race in Story mode. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The cards and the camera remain."
 
-#: src/launcher/gamelist.cpp:106
+#: src/launcher/gamelist.cpp:107
 msgid "Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key (ID 2783), Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The card reader and the camera remain."
 
-#: src/launcher/gamelist.cpp:110
+#: src/launcher/gamelist.cpp:111
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key, Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once \"ステアリング反力の使用\" is set to ON in the test menu. The card reader and the camera remain."
 
-#: src/launcher/picker.cpp:354
+#: src/launcher/picker.cpp:225
+msgid "version non prise en charge"
+msgstr "version not supported"
+
+#: src/launcher/picker.cpp:378
 #, c-format
 msgid "Impossible de lancer %s (erreur %lu)."
 msgstr "Cannot start %s (error %lu)."
 
-#: src/launcher/picker.cpp:401
+#: src/launcher/picker.cpp:425
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1353,7 +1361,7 @@ msgstr ""
 "\n"
 "%s%sThe game's log, if it started: %s\\windowsloader.log."
 
-#: src/launcher/picker.cpp:405
+#: src/launcher/picker.cpp:429
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1364,90 +1372,110 @@ msgstr ""
 "\n"
 "%s%sNo log: tick \"Log\" and start the game again."
 
-#: src/launcher/picker.cpp:426
+#: src/launcher/picker.cpp:450
 msgid "Dossier des jeux"
 msgstr "Games folder"
 
-#: src/launcher/picker.cpp:532
+#: src/launcher/picker.cpp:556
 msgid "Jouable"
 msgstr "Playable"
 
-#: src/launcher/picker.cpp:535
+#: src/launcher/picker.cpp:559
 msgid "Jouable, avec des réserves"
 msgstr "Playable, with reservations"
 
-#: src/launcher/picker.cpp:538
+#: src/launcher/picker.cpp:562
 msgid "En cours : ne se joue pas encore"
 msgstr "In progress: not playable yet"
 
-#: src/launcher/picker.cpp:545
+#: src/launcher/picker.cpp:569
 msgid "oui"
 msgstr "yes"
 
-#: src/launcher/picker.cpp:545
+#: src/launcher/picker.cpp:569
 msgid "en partie (voir BILAN.md)"
 msgstr "partly (see BILAN.md, in French)"
 
-#: src/launcher/picker.cpp:545
+#: src/launcher/picker.cpp:569
 msgid "non"
 msgstr "no"
 
-#: src/launcher/picker.cpp:583
+#: src/launcher/picker.cpp:607
 #, c-format
 msgid "%d jeux dans %s"
 msgstr "%d games in %s"
 
-#: src/launcher/picker.cpp:583
+#: src/launcher/picker.cpp:607
 #, c-format
 msgid "%d jeu dans %s"
 msgstr "%d game in %s"
 
-#: src/launcher/picker.cpp:590
+#: src/launcher/picker.cpp:614
 #, c-format
 msgid "Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par windowsloader devient une ligne de la liste."
 msgstr "No game found in %s. Choose the games folder (Tab): each folder in it holding a game windowsloader knows becomes a line of the list."
 
-#: src/launcher/picker.cpp:644
+#: src/launcher/picker.cpp:666
+msgid "Version non prise en charge : le jeu peut s'arrêter sur une erreur"
+msgstr "Version not supported: the game may stop on an error"
+
+#: src/launcher/picker.cpp:673
 msgid "Plateforme"
 msgstr "Platform"
 
-#: src/launcher/picker.cpp:645
+#: src/launcher/picker.cpp:675
+msgid "celle des bornes Racecab"
+msgstr "the Racecab cabinets'"
+
+#: src/launcher/picker.cpp:676
+msgid "Version"
+msgstr "Version"
+
+#: src/launcher/picker.cpp:676
+msgid "une autre"
+msgstr "another one"
+
+#: src/launcher/picker.cpp:677
+msgid "Versions prises en charge"
+msgstr "Supported versions"
+
+#: src/launcher/picker.cpp:678
 msgid "Dossier"
 msgstr "Folder"
 
-#: src/launcher/picker.cpp:646
+#: src/launcher/picker.cpp:679
 msgid "Programme"
 msgstr "Program"
 
-#: src/launcher/picker.cpp:647
+#: src/launcher/picker.cpp:680
 msgid "Arguments"
 msgstr "Arguments"
 
-#: src/launcher/picker.cpp:649
+#: src/launcher/picker.cpp:685
 msgid "Link"
 msgstr "Link"
 
-#: src/launcher/picker.cpp:650
+#: src/launcher/picker.cpp:686
 msgid "Émulé"
 msgstr "Emulated"
 
-#: src/launcher/picker.cpp:653
+#: src/launcher/picker.cpp:690
 msgid "Jouer (Entrée)"
 msgstr "Play (Enter)"
 
-#: src/launcher/picker.cpp:662
+#: src/launcher/picker.cpp:699
 msgid "Dossier des jeux (Tab)"
 msgstr "Games folder (Tab)"
 
-#: src/launcher/picker.cpp:665
+#: src/launcher/picker.cpp:702
 msgid "Actualiser (F5)"
 msgstr "Refresh (F5)"
 
-#: src/launcher/picker.cpp:668
+#: src/launcher/picker.cpp:705
 msgid "Quitter (Échap)"
 msgstr "Quit (Escape)"
 
-#: src/launcher/picker.cpp:688
+#: src/launcher/picker.cpp:725
 #, c-format
 msgid ""
 "Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage) ;\n"
@@ -1456,24 +1484,24 @@ msgstr ""
 "The games' log, %s\\windowsloader.log, made anew at each start (for debugging);\n"
 "the one before kept in windowsloader.old.log. Taken into account at a game's next start."
 
-#: src/launcher/picker.cpp:694
+#: src/launcher/picker.cpp:731
 msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
 msgstr "Enter: play   Arrows: choose   Tab: games folder"
 
-#: src/launcher/picker.cpp:704
+#: src/launcher/picker.cpp:741
 msgid "Le jeu n'a pas démarré"
 msgstr "The game did not start"
 
-#: src/launcher/picker.cpp:711
+#: src/launcher/picker.cpp:748
 msgid "OK (Entrée)"
 msgstr "OK (Enter)"
 
-#: src/launcher/picker.cpp:743
+#: src/launcher/picker.cpp:780
 #, c-format
 msgid "windowsloader %s %s — choix du jeu"
 msgstr "windowsloader %s %s — game selection"
 
-#: src/launcher/picker.cpp:793
+#: src/launcher/picker.cpp:830
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
 

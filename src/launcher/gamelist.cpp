@@ -18,6 +18,7 @@
 #include "lang.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <wchar.h>
 
 const WlKnownGame g_wlKnownGames[] = {
@@ -71,9 +72,9 @@ const WlKnownGame g_wlKnownGames[] = {
      WL_N("Carte ACIO de Konami, son volant."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Wasteland Racers 2071", "wasteland", "1.6", {L"Arcade.exe"}, {0xA6CD1034}, {L"SDC2.dll", L"Inputs.xml"}, 0, NULL, "Trio Tech PC", "2006", WL_GAME_PLAYS,
      WL_N("Carte SDC2 de Trio Tech : commandes et volant en servo de position."), WL_FEATURE_YES, WL_FEATURE_YES},
-    {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
+    {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0x5FB222AA, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
-    {"Mario Kart Arcade GP DX 1.10", "mkdx", "1.10", {L"MK_AGP3_FINAL.exe"}, {0x4D386327}, {NULL}, 0, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
+    {"Mario Kart Arcade GP DX 1.10", "mkdx", "1.10", {L"MK_AGP3_FINAL.exe"}, {0x4D386327}, {NULL}, 0x55A38B64, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
      WL_N("E/S et volant UNIS, clé de la borne."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
@@ -142,8 +143,11 @@ static DWORD pe_stamp(const wchar_t *path)
     return stamp;
 }
 
-const WlKnownGame *wl_known_game(const wchar_t *exePath)
+const WlKnownGame *wl_known_game(const wchar_t *exePath, int *otherVersion)
 {
+    const WlKnownGame *almost = NULL;
+    if (otherVersion)
+        *otherVersion = 0;
     const wchar_t *base = wcsrchr(exePath, L'\\');
     base = base ? base + 1 : exePath;
     wchar_t dir[MAX_PATH];
@@ -165,6 +169,35 @@ const WlKnownGame *wl_known_game(const wchar_t *exePath)
         }
         if (all && (!g->stamp || pe_stamp(exePath) == g->stamp))
             return g;
+        if (all && !almost)
+            almost = g;
     }
-    return NULL;
+    if (almost && otherVersion)
+        *otherVersion = 1;
+    return otherVersion ? almost : NULL;
+}
+
+int wl_known_versions(const WlKnownGame *game, const char *unnumbered, char *buf, size_t size)
+{
+    const char *versions[16];
+    int n = 0, any = 0;
+    for (int i = 0; i < g_wlKnownGameCount && n < 16; i++)
+        if (!strcmp(g_wlKnownGames[i].name, game->name))
+        {
+            versions[n++] = g_wlKnownGames[i].version[0] ? g_wlKnownGames[i].version : unnumbered;
+            any |= g_wlKnownGames[i].version[0] != 0;
+        }
+    // In order (1.10 before 1.18), the unnumbered ones last
+    for (int i = 1; i < n; i++)
+        for (int k = i; k > 0 && (versions[k - 1] == unnumbered || (versions[k] != unnumbered && strcmp(versions[k - 1], versions[k]) > 0)); k--)
+        {
+            const char *t = versions[k];
+            versions[k] = versions[k - 1];
+            versions[k - 1] = t;
+        }
+    buf[0] = 0;
+    for (int i = 0; i < n; i++)
+        if (!i || strcmp(versions[i], versions[i - 1]))
+            snprintf(buf + strlen(buf), size - strlen(buf), "%s%s", buf[0] ? ", " : "", versions[i]);
+    return any;
 }
