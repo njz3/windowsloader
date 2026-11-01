@@ -38,6 +38,8 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -299,6 +301,26 @@ static WlHook g_ioHooks[] = {
 };
 
 // ------------------------------------------------------------------------------
+// The link between cabinets (link.h, [Game.stormrider] LINK), up to 4 bikes. The game finds the
+// others by a UDP broadcast on port 9000 (+0xbb10), takes its own address from gethostbyname of
+// the PC's name (+0x9fd0: 127.0.0.1, alone), then the first to start a race serves it ("Create
+// Server") and the others join ("JoinServer"): TCP 5001 and UDP 5002 to the addresses the game
+// sends in its packets. LINK's PCs and the PC's address of LINK are all it needs (link.cpp)
+// ------------------------------------------------------------------------------
+
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
+};
+
+static void settings(void)
+{
+    int n = wl_link_settings(GetModuleHandleW(NULL));
+    if (n)
+        wl_log("game: Storm Rider linked: cabinet %d of %d; the first to start a race serves it, the others join", wl_link_cabinet(), n);
+}
 
 int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title)
 {
@@ -315,5 +337,7 @@ int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title
     wl_inputs_set_table(g_inputs, IN_COUNT);
     memory_load(dir);
     wl_hooks_add(g_ioHooks, sizeof g_ioHooks / sizeof g_ioHooks[0]);
+    wl_game_set_options(g_options, sizeof g_options / sizeof g_options[0]);
+    wl_game_on_settings(settings);
     return 1;
 }

@@ -37,6 +37,9 @@ void wl_link_name_is_address(void);
 // GetAdaptersInfo, gethostbyname of its name) as the game does, the card of LINK alone, so it
 // listens there and not on a VPN's. Called after each CoCreateInstance (system.cpp), once
 void wl_link_dpnet(void);
+// Linked, a DLL of the game's that has sockets of its own (Crazy Ride's Plugins\McastUDP.dll,
+// loaded after the settings): its import table's functions made the link's too
+void wl_link_module(HMODULE mod);
 // This cabinet's number, 1.. (CABINET, or its PC's place in LINK); 1 alone
 int wl_link_cabinet(void);
 int wl_link_count(void);

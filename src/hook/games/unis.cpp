@@ -40,6 +40,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -457,10 +458,42 @@ static const struct
     LIGHT(BIND_SetStartLightState, oStartLight),
 };
 
+// The link between cabinets (link.h, [Game.crazyride] LINK): Plugins\McastUDP.dll, whose BIND_*
+// functions the game asks the same way, has the sockets. Its receiving one on UDP 8888 (any
+// address) joins the group 234.2.2.1 (BIND_InitSocket_Recv, BIND_JoinMcast), its sending one sends
+// there with a TTL of 1 (BIND_InitSocket_Send, a thread at +0x3cf0), then a TCP connection to the
+// address and port the game gives it (+0x4630; BIND_InitTCPSocketListen for the other side). Its
+// imports made the link's when the game first asks for one of its functions: its multicast goes
+// to each PC of LINK, its connections to LINK's PCs only
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void link_mcast(HMODULE mod)
+{
+    static volatile LONG done;
+    if (mod && !InterlockedExchange(&done, 1))
+        wl_link_module(mod);
+}
+
+static void settings(void)
+{
+    int n = wl_link_settings(GetModuleHandleW(NULL));
+    if (!n)
+        return;
+    wl_log("game: Crazy Ride linked: cabinet %d of %d; its multicast (Plugins\\McastUDP.dll) goes to LINK's PCs", wl_link_cabinet(), n);
+    link_mcast(GetModuleHandleA("McastUDP.dll")); // already loaded
+}
+
 // The game's own GetProcAddress: UsbPluginsDll_R.dll's functions above are windowsloader's
 static FARPROC(WINAPI *oGetProcAddress)(HMODULE, LPCSTR);
 static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
 {
+    if (mod && wl_link_count() && mod == GetModuleHandleA("McastUDP.dll"))
+        link_mcast(mod);
     if (mod && HIWORD((ULONG_PTR)name) && mod == GetModuleHandleA("UsbPluginsDll_R.dll"))
     {
         for (size_t i = 0; i < sizeof g_binds / sizeof g_binds[0]; i++)
@@ -491,5 +524,7 @@ int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
     lights_declare();
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
         wl_log("game: UsbPluginsDll_R.dll's board, wheel, coins and key functions given by windowsloader");
+    wl_game_set_options(g_options, sizeof g_options / sizeof g_options[0]);
+    wl_game_on_settings(settings);
     return 1;
 }

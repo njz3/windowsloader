@@ -422,6 +422,11 @@ Ce que la RingWide ajoute à la plateforme émulée :
     jeu n'appelait pas sur les bornes : windowsloader ne voyait pas le device (jeu en 1024×600 sans sa fenêtre).
     Corrigé (`hooks.cpp`) : la fonction propre du module est interceptée, et les DLL de shims comptent pour le
     jeu ; vu sur ce PC avec une copie jamais lancée (1er lancement shimé, 2e non : même device, même fenêtre).
+    Sur les bornes (01/11, essai link24, l'original) : « the game's picture is 1024x600 », « BORDERLESS ORIGINAL,
+    window 1920x1080, picture 1843x1080 at 38,0 (multisampled back buffer: the picture fills the window) » (le
+    back buffer multiéchantillonné remplit la fenêtre, sans bandes), les six lignes du test réseau sur les deux
+    bornes, course à deux. Le propriétaire a choisi l'original : `exe\M-DriveR_RingWide.exe` des deux bornes est
+    maintenant l'original (la copie 1080P sauvegardée dans `C:\Racecab\_sauvegardes`).
 - Menu Tab ✅ : pause, pages Jeu, Contrôles, Affichage, Retour de force.
 - Menu de service ✅ : `TestMode.exe -t` : GAME TEST MODE, test d'entrées (volant, pédales, START/WEAPON,
   TEST, SERVICE), navigation par les boutons de la carte (`kod_race.py test`).
@@ -598,6 +603,13 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
   Il n'est pas installé ici, et l'installer serait un téléchargement à décider. Des images noires sont servies à la
   place.
 - Menu Tab ✅ (mode agent). À voir : le menu de service, l'étalonnage du volant, vJoy.
+- Link entre bornes 🔄 (01/11, `[Game.srg] LINK` et `CABINET`, jusqu'à 8) : son `CNetworkMgr` prend la carte de plus
+  petite métrique (GetAdaptersAddresses, +0x97330), rejoint le groupe multicast de `racing.cfg` [network] `mcast`
+  (234.7.7.7, +0x98280) sur son UDP 5002 et y demande qui joue (McastFind, +0x98150 : 8 octets) ; puis TCP vers les
+  adresses trouvées, une borne hôte (« Start connect to host »). `link.cpp` envoie maintenant un multicast à
+  chaque PC de LINK (comme une diffusion) ; la carte du jeu est celle de LINK. Une liste d'hôtes fixe
+  ([network] `hostNum`, `host`) serait prise telle quelle. Pas essayé sur ce PC (sa copie effacée) ; essai sur les
+  bornes demandé.
 
 ## Wacky Races (Taito Type X2)
 
@@ -1329,6 +1341,13 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
 - Menu de service ✅ : bouton vert, Main Menu, Hardware Test, Input Test (pièce, Start, siège, étalonnage du volant et des
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
+- Link entre bornes 🔄 (01/11, `[Game.crazyride] LINK` et `CABINET`) : les sockets sont dans `Plugins\McastUDP.dll`,
+  dont le jeu demande les fonctions BIND_* par GetProcAddress, comme celles de la carte. Réception sur UDP 8888
+  (toutes adresses) après avoir rejoint le groupe 234.2.2.1 (BIND_InitSocket_Recv, BIND_JoinMcast), envoi vers ce
+  groupe avec un TTL de 1 (BIND_InitSocket_Send, un fil à +0x3cf0), puis une connexion TCP vers l'adresse et le
+  port que le jeu donne (+0x4630). La logique est dans les Blueprints du jeu. Linké : les importations de
+  `McastUDP.dll` deviennent celles du link (`wl_link_module`) dès que le jeu demande une de ses fonctions ; son
+  multicast va à chaque PC de LINK. Pas essayé sur ce PC (sa copie effacée) ; essai sur les bornes demandé.
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
@@ -1773,14 +1792,19 @@ des programmes, pas encore de décompilation.
   NETWORK TEST », « LINK ID %d », GROUP ID, TOTAL MACHINE, « nodeID:%d is timeout », « commSync », « race_owner ») sur
   192.168.99.0/24, UDP et TCP (WSAEventSelect) ; son adresse par amNetwork (amLib RingWide), à laquelle `ringedge.cpp`
   répond déjà pour Sega Racing Classic.
-- Storm Racer G : a un link (à faire). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
+- Storm Racer G : a un link (fait le 01/11, voir sa section ; essai sur les bornes demandé). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
   multicast (234.7.7.7 par défaut), une hôte, les autres la rejoignent (« Start connect to host: %s »), les joueurs par
   adresse IP, la version du jeu comparée, les photos des joueurs échangées ; jusqu'à 8 joueurs. Réglages `network` :
   `hostNum`, `host`, `mcast` ; GetAdaptersAddresses pour la carte. Nouveau pour `link.cpp` : le multicast.
-- Storm Rider : a un link (à faire). motobike.exe : « Find Server », « CreateServer », « JoinServer », la recherche
-  essaie 192.168.0.%d (et 192.168.0.241), TCP et UDP ; jusqu'à 4 motos (écrans « link_2 » à « link_4 »). Les adresses
-  en dur, à traduire vers celles de LINK comme Daytona (192.168.1.N).
-- Crazy Ride : a sans doute un link (à faire, le plus long). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
+- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp` ; essai sur les bornes demandé). Décompilé : les
+  textes « 192.168.0.%d » et « 192.168.0.241 » ne sont lus par aucun code. Les motos se trouvent par une diffusion
+  UDP sur le port 9000 (+0xbb10 ; une annonce de 100 octets « Storm Ri… »), l'adresse de chacune est celle de
+  gethostbyname du nom du PC (+0x9fd0 ; 127.0.0.1 : seule), puis la première à lancer une course la sert
+  (« Create Server ») et les autres la rejoignent (« JoinServer ») : TCP 5001 et UDP 5002 vers les adresses
+  envoyées dans les paquets ; jusqu'à 4 motos. `link.cpp` suffit (diffusion vers chaque PC de LINK, l'adresse de
+  LINK pour le nom du PC). Essayé sur ce PC avec sa copie : 9000, 5002 et 5001 ouverts, l'annonce envoyée aux deux
+  PC de LINK et reçue en retour.
+- Crazy Ride : a un link (fait le 01/11, voir sa section ; essai sur les bornes demandé). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
   multicast 234.2.2.1 et TCP (BIND_InitSocket_Recv/Send, BIND_InitTCPSocketListen, BIND_Send_TCP), appelé depuis les
   Blueprints (écran « NewPlayerJoinTile », « OnPlayerJoin », « MachineId ») : les ports et la logique sont dans le pak
   du jeu.

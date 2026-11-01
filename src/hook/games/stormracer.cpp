@@ -46,6 +46,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -617,6 +618,26 @@ static int exists(const wchar_t *dir, const wchar_t *name)
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
 }
 
+// The link between cabinets (link.h, [Game.srg] LINK), up to 8 players: its CNetworkMgr takes the
+// PC's card of the lowest metric (GetAdaptersAddresses, +0x97330), joins the multicast group of
+// racing.cfg's [network] mcast (234.7.7.7, +0x98280) on its UDP 5002 and asks there who plays
+// (McastFind, +0x98150); then TCP to the addresses found, one cabinet hosting the race ("Start
+// connect to host"). Its multicast goes to each PC of LINK, its card is LINK's (link.cpp). A fixed
+// [network] hostNum and host list in racing.cfg would be taken as they are
+static const WlGameOption g_options[] = {
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+};
+
+static void settings(void)
+{
+    int n = wl_link_settings(GetModuleHandleW(NULL));
+    if (n)
+        wl_log("game: Storm Racer G linked: cabinet %d of %d; the cabinets find each other on their multicast group", wl_link_cabinet(), n);
+}
+
 int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -665,5 +686,7 @@ int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **t
     wl_patch_code(code + 0xA7412, msaa, none, 4, "no multisampling (render target)");
     wl_patch_code(code + 0xA7448, msaa, none, 4, "no multisampling (depth buffer)");
     wl_log("storm racer: %d of %d functions of usb_io.dll, usb_cam.dll, NetDbSync.dll and the console given by windowsloader", n, (int)(sizeof g_io / sizeof g_io[0]));
+    wl_game_set_options(g_options, sizeof g_options / sizeof g_options[0]);
+    wl_game_on_settings(settings);
     return 1;
 }

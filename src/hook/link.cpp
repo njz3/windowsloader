@@ -21,6 +21,8 @@
 //   gethostbyname of the PC's own name               -> its address of LINK alone
 //   gethostname (wl_link_name_is_address)            -> its address of LINK as text
 // and Windows' DirectPlay's (dpnet.dll: wl_link_dpnet) the same cards and the same name.
+// A datagram to a multicast group (Storm Racer G's 234.7.7.7) goes to each PC of LINK, as a
+// broadcast does.
 // A broadcast to a port where the game has several UDP sockets (GRID: its party's LAN discovery
 // server and its session on 12001) goes as a broadcast on LINK's network: a datagram sent to a PC
 // reaches only one of them, a broadcast each.
@@ -159,6 +161,12 @@ static int local(ULONG ip)
 static int broadcast(ULONG ip)
 {
     return ip == INADDR_BROADCAST || (ip >> 24) == 0xFF;
+}
+
+// 224.0.0.0 to 239.255.255.255 (Storm Racer G finds its cabinets on 234.7.7.7)
+static int multicast(ULONG ip)
+{
+    return (ip & 0xF0) == 0xE0;
 }
 
 void wl_link_virtual_net_from(const char *net, int first)
@@ -523,13 +531,19 @@ static int WSAAPI l_sendto(SOCKET s, const char *buf, int n, int flags, const so
     ULONG ip = to.sin_addr.s_addr = to_real(to.sin_addr.s_addr);
     a = (const sockaddr *)&to;
     len = sizeof to;
-    if (broadcast(ip))
+    int group = multicast(ip);
+    if (broadcast(ip) || group)
     {
-        // Each PC of LINK, its own too (a broadcast comes back to its sender)
+        // Each PC of LINK, its own too (a broadcast comes back to its sender, a multicast too
+        // by default); a multicast group's datagram goes to each of them as itself
         int r = n;
         DWORD err = 0;
         int port = ntohs(to.sin_port), shared = udp_sockets(port);
-        ULONG network = shared > 1 ? link_broadcast() : 0;
+        ULONG network = !group && shared > 1 ? link_broadcast() : 0;
+        static volatile LONG toldGroup;
+        char g[20];
+        if (group && !InterlockedExchange(&toldGroup, 1))
+            wl_log("link: the game's multicast to %s:%u goes to each PC of LINK", ip_text(ip, g, sizeof g), port);
         if (network)
         {
             // Several of the game's sockets on that port (its own PC's, the others' the same):
@@ -558,7 +572,7 @@ static int WSAAPI l_sendto(SOCKET s, const char *buf, int n, int flags, const so
             if (sent < 0)
                 err = WSAGetLastError();
             count(i + 1, 1, sent);
-            packet("sent (broadcast) to", i + 1, &to, s, buf, sent);
+            packet(group ? "sent (multicast) to" : "sent (broadcast) to", i + 1, &to, s, buf, sent);
         }
         WSASetLastError(err);
         return r;
@@ -1003,4 +1017,15 @@ static void link_patch(HMODULE exe)
         if (patch(exe, table[i].dll, table[i].ordinal, table[i].name, table[i].fn, table[i].original))
             at += snprintf(found + at, sizeof found - at, "%s%s", at ? " " : "", table[i].name);
     wl_log("link: the game's network functions taken: %s", found[0] ? found : "none");
+}
+
+void wl_link_module(HMODULE mod)
+{
+    if (!g_count || !mod)
+        return;
+    char path[MAX_PATH] = "";
+    GetModuleFileNameA(mod, path, sizeof path);
+    const char *base = strrchr(path, '\\');
+    wl_log("link: %s, the game's network module:", base ? base + 1 : path);
+    link_patch(mod);
 }
