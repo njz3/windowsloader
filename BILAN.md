@@ -1479,11 +1479,13 @@ Link (02/11, `[Game.wmmt5] LINK`, le même code pour DX+ et le 6) :
   sans elle, une borne, seule. Avec : « Select VS acceptance » (Accept VS, « Waiting for challenger ») sur la
   première borne, « Challenge other racers? » sur l'autre, « A new challenger! », le choix du mode VS, de la zone,
   de la rampe, puis la course à deux. Vérifié sur ce PC pour le 5, DX+ et le 6 (deux bornes linkées).
-- sur les bornes (le 5, essais link35 à link37) : les deux se voient (« 1P/2P play available », le jeu compte 2
-  bornes, journal « namco: link: the game counts »), « Select VS acceptance » et « Challenge other racers? »
-  apparaissent ; le défi n'a pas encore été accepté à distance (le curseur part sur NO, la réponse par défaut à la
-  fin du compte à rebours) : la course à deux reste à voir sur les bornes. Chaque changement d'état annoncé par une
-  borne est noté (« namco: link: cabinet N … announces system_mode, sync … »). Link marqué « partiel ».
+- sur les bornes (essais link35 à link37, Image borne, 02/11) : les deux se voient (« 1P/2P play available », le
+  jeu compte 2 bornes, journal « namco: link: the game counts »), « Select VS acceptance » et « Challenge other
+  racers? » (le 6 : « 店内乱入対戦しますか？ ») apparaissent ; le curseur part sur NO, YES le volant tenu à droite
+  (1,2 s). Course à deux vérifiée sur racecab1 et racecab2 pour le 5, DX+ et le 6 (link37) : « Waiting on other
+  player(s) », la zone, « VS player (This Machine) », l'écran « VS » des deux voitures, puis 1/2 et 2/2, chacun
+  voyant l'autre (GUEST) et l'avance en mètres. Chaque changement d'état annoncé par une borne est noté
+  (« namco: link: cabinet N … announces system_mode, sync … »). Link marqué « oui ».
 
 ## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
 

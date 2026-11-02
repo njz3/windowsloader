@@ -296,6 +296,8 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 295 | 02/11 | (Image borne) Essai link36 : racecab2 saute le défi alors que racecab1 accepte | 🔄 sur ce PC la même séquence donne l'écran ; essai link37 : le compte du jeu lui-même noté |
 | 296 | 02/11 | (Image borne) Essai link37 : le jeu compte 2 bornes, event 0, et racecab2 saute quand même le défi | ✅ l'écran de défi est apparu (sync 1, puis 2 au bout de 5 s) entre deux captures, NO validé par défaut ; la façon de répondre YES envoyée |
 | 297 | 02/11 | Commit et pousse, fais une release et notifie Image borne | ✅ release 20261102-1 (commit b81deb4, poussé ; 1353ad3 le correctif du solo) : les trois Wangan ne s'arrêtent plus sur racecab2, et linkés (VS vérifié sur ce PC, marqué partiel) ; programmes 0251EAF6 (windowsloader.exe), D2F4FE7B (64.exe), DC1F94B4 (32.dll), 083C2DDA (64.dll) ; Image borne prévenu |
+| 298 | 02/11 | (Image borne) VS vérifié sur les deux bornes pour WMMT5, 5 DX+ et 6 (link37) : course à deux à chaque fois | ✅ link des trois Wangan marqué « oui » (liste des jeux, BILAN, README) ; YES au défi le volant tenu à droite 1,2 s |
+| 299 | 02/11 | Commit, pousse, fais une release et notifie Image borne | ✅ release 20261102-2 (le link des trois Wangan marqué « oui »), Image borne prévenu |
 ## Points ouverts
 
 - **Licences du code à reprendre.** linuxloader n'a pas de fichier `LICENSE` dans son dépôt : vérifier
