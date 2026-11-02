@@ -26,6 +26,7 @@
 //   wheel of windowsloader's is the only one listed.
 
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -1647,6 +1648,34 @@ static BOOL WINAPI terminal_GetQueuedCompletionStatus(HANDLE port, LPDWORD bytes
     return r;
 }
 
+// After its bind on port 50765, the game joins the group 225.0.0.1 on any of the PC's cards
+// (boost::asio's join_group, the 5's +0x8761d0), and stops if Windows refuses: racecab2 (02/11,
+// error 10065, no route for the group), "set_option" thrown 7.8 s after the start, its picture
+// frozen, for the 5, 5 DX+ and 6 alike. Refused, the join is made on the loopback, or taken as done:
+// the terminal's packets come to 127.0.0.1, none by the group
+static int(WSAAPI *osetsockopt)(SOCKET, int, int, const char *, int);
+static int WSAAPI wangan_setsockopt(SOCKET s, int level, int name, const char *value, int len)
+{
+    int r = osetsockopt(s, level, name, value, len);
+    if (level != IPPROTO_IP || name != IP_ADD_MEMBERSHIP || !value || len < (int)sizeof(ip_mreq))
+        return r;
+    DWORD err = r ? WSAGetLastError() : 0;
+    const ip_mreq *m = (const ip_mreq *)value;
+    const unsigned char *g = (const unsigned char *)&m->imr_multiaddr.s_addr, *c = (const unsigned char *)&m->imr_interface.s_addr;
+    if (!r)
+    {
+        wl_log("namco: the game joins the group %u.%u.%u.%u (card %u.%u.%u.%u)", g[0], g[1], g[2], g[3], c[0], c[1], c[2], c[3]);
+        return r;
+    }
+    ip_mreq loop = *m;
+    loop.imr_interface.s_addr = htonl(INADDR_LOOPBACK);
+    int again = osetsockopt(s, level, name, (const char *)&loop, sizeof loop);
+    wl_log("namco: the game's join of the group %u.%u.%u.%u (card %u.%u.%u.%u) refused by Windows (error %lu): %s", g[0], g[1], g[2], g[3], c[0], c[1],
+           c[2], c[3], err, again ? "taken as done" : "made on the loopback");
+    WSASetLastError(0);
+    return 0;
+}
+
 static int exists(const wchar_t *dir, const wchar_t *name)
 {
     wchar_t path[MAX_PATH];
@@ -1769,6 +1798,9 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSASendTo", (void *)cabinet_WSASendTo, (void **)&oWSASendTo))
             wl_log("namco: WSASendTo not in the import table: the game's packets may reach the network");
         wl_patch_iat((HMODULE)exe, "WS2_32.dll", "getaddrinfo", (void *)wangan_getaddrinfo, (void **)&ogetaddrinfo);
+        if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", MAKEINTRESOURCEA(21), (void *)wangan_setsockopt, (void **)&osetsockopt) && // by its number
+            !wl_patch_iat((HMODULE)exe, "WS2_32.dll", "setsockopt", (void *)wangan_setsockopt, (void **)&osetsockopt))
+            wl_log("namco: setsockopt not in the import table: a refused join of its group stops the game");
         // The boot check's terminal link: heard, the terminal still answers nothing (TERMINAL UNIT
         // LINK NG, the boot stopped at GAME SERVER CONNECT CHECK). Its "waiting" step's jump goes to
         // the "complete" step instead of the state machine's end, which came back to waiting forever

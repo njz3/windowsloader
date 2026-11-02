@@ -1488,9 +1488,11 @@ static const char *sockaddr_text(const struct sockaddr *a, int len, char *buf, s
 // is not on this PC, and the game stays off the local network. What it sends to that network (the
 // other cabinets, its broadcast) is taken and dropped: the cabinet is alone on it.
 static volatile LONG g_cabinetNet; // its first three bytes, 0 for none
+static void probe_forget(UINT_PTR s);
 static int(WINAPI *obind)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hbind(UINT_PTR s, const struct sockaddr *a, int len)
 {
+    probe_forget(s);
     int game = !wl_busy() && !wl_is_system_caller(WL_CALLER);
     unsigned char local[16];
     const unsigned char *b = (const unsigned char *)a;
@@ -1614,6 +1616,16 @@ static int udp_probe(UINT_PTR s, const struct sockaddr *a, int len)
     return 1;
 }
 
+// A probe's socket closed, its handle comes back as another socket's (racecab2, 02/11: Wangan's
+// on port 50765, shown on 50000 by getsockname, the terminal's packets then not known as such:
+// E0505 at 31 s): a socket bound, or connected again, is no longer a probe
+static void probe_forget(UINT_PTR s)
+{
+    for (int i = 0; i < 8; i++)
+        if (g_probes[i] == s)
+            g_probes[i] = 0;
+}
+
 static int(WINAPI *ogetsockname)(UINT_PTR, struct sockaddr *, int *);
 static int WINAPI hgetsockname(UINT_PTR s, struct sockaddr *a, int *len)
 {
@@ -1635,6 +1647,7 @@ static int(WINAPI *oconnect)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
 {
     int game = !wl_busy() && !wl_is_system_caller(WL_CALLER);
+    probe_forget(s);
     if (game && udp_probe(s, a, len))
         return 0;
     if (game && lan_refused(a, len, "connect", WL_CALLER))

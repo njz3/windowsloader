@@ -1452,6 +1452,21 @@ annonce sa borne au groupe 225.0.0.1:50765 par `WSASendTo` (boost::asio), que le
 lui arrivent vides (il les écarte). Vérifié : une « autre borne » simulée depuis 192.168.1.134 ignorée, le 5 et DX+
 en démonstration normalement.
 
+Sur racecab2 (02/11, release 20261101-6) : le 5 s'arrêtait 7,8 s après son lancement, l'image figée (exception
+C++ « set_option ») ; DX+ et le 6 de même. Après son `bind` sur le port 50765, le jeu s'abonne au groupe
+225.0.0.1 sur toutes les cartes (`join_group` de boost::asio, +0x8761d0 pour le 5), et Windows le refuse sur
+racecab2 (erreur 10065, pas de route pour le groupe). Le refus est maintenant rattrapé : l'abonnement refait
+sur la boucle locale (le terminal joué envoie à 127.0.0.1, rien ne passe par le groupe), ou tenu pour fait ; la
+ligne « namco: the game's join of the group … refused by Windows » le note. Vérifié sur les deux bornes (essais
+link31 à link33 : le 5, DX+ et le 6 jusqu'au choix de la voiture ou en course) et sur ce PC en forçant le refus.
+Aussi (link33) : le socket que le jeu ouvre vers 8.8.8.8:0 pour connaître sa carte, refermé, voyait son numéro
+repris par celui du port 50765, que `system.cpp` montrait alors sur le port 50000 : le terminal n'était plus
+reconnu, E0505 à 31 s. Un socket qui fait un `bind` ou un `connect` n'est plus pris pour l'ancien.
+
+Link (02/11, essais link31 à link34, non commité) : les annonces des bornes passent dans les deux sens (une
+adresse 192.168.92.(10 + k) par borne, un numéro de clé et un 基板ID chacune), mais le jeu ne propose aucun combat
+entre bornes (« Refuse VS » en Story, pas d'écran de défi) ; deux bornes reproduites sur ce PC, à suivre.
+
 ## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
 
 `wmn5r.exe` comme le 5 (copie `games\wmmt5dxp`, 15,2 Go depuis racecab1), reconnu à sa bibliothèque de clé
