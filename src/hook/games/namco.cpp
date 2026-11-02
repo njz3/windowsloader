@@ -1799,16 +1799,17 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         }
         return 1;
     }
-    // The version by the program's build date: each one's code changes are at its own places
+    // The version by the program's build date: each one's code changes are at its own places.
+    // v1.05 (1.05.21, 8 November 2016) has no bngrw.dll, as v1.10, and is never given v1.10's
     unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
     DWORD built = ((IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew))->FileHeader.TimeDateStamp;
-    int v118 = built == 0x5FB222AA, v110 = built == 0x55A38B64;
+    int v118 = built == 0x5FB222AA, v110 = built == 0x55A38B64, v105 = built == 0x582179A8;
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    if (v118 || v110)
-        wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : "v1.10");
+    if (v118 || v110 || v105)
+        wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : v110 ? "v1.10" : "v1.05");
     else
-        wl_log("game: %s, unknown version (program built 0x%08lX): only v1.10 and v1.18 are supported, their code changes "
+        wl_log("game: %s, unknown version (program built 0x%08lX): only v1.05, v1.10 and v1.18 are known, their code changes "
                "(the security key, the network authentication, the offline limit) not made, the game may stop on an error",
                *title, (unsigned long)built);
     wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)",
@@ -1854,6 +1855,16 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_hook_code(exe + 0x4B17B0, (void *)cabinet_key, &was, "the cabinet's security key (MK_AGP3_FINAL.exe+0x4b17b0)");
         wl_hook_code(exe + 0x62E60, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x62e60)");
         wl_hook_code(exe + 0x68430, (void *)cabinet_offline_limit, &was, "the offline time limit (MK_AGP3_FINAL.exe+0x68430)");
+    }
+    else if (v105)
+    {
+        // No USB key of the later versions (no interface GUID: a DongleDevice with its F:\DongleData
+        // file). The first use of "last_auth.bin" (its 56 bytes read, a stdcall of one argument), as
+        // v1.18's +0x62e60
+        wl_hook_code(exe + 0x6A180, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x6a180, v1.05)");
+        InitializeCriticalSection(&g_nfcLock);
+        wl_vdev_register(&g_com4);
+        wl_vdev_label("COM4", WL_N("Lecteur de cartes"));
     }
     else if (v110) // the same key's function (found by the key's interface GUID it looks for)
     {

@@ -74,6 +74,8 @@ const WlKnownGame g_wlKnownGames[] = {
      WL_N("Carte SDC2 de Trio Tech : commandes et volant en servo de position."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0x5FB222AA, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
+    {"Mario Kart Arcade GP DX 1.05", "mkdx", "1.05", {L"MK_AGP3_FINAL.exe"}, {0xC7BD1948}, {NULL}, 0x582179A8, NULL, "Namco System ES3", "", WL_GAME_PARTLY,
+     WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_PARTLY},
     {"Mario Kart Arcade GP DX 1.10", "mkdx", "1.10", {L"MK_AGP3_FINAL.exe"}, {0x4D386327}, {NULL}, 0x55A38B64, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
