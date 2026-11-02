@@ -153,6 +153,9 @@ int wl_netenv_fake_ip(unsigned *ip); // that card's address (network order), 0 w
 // The game's broadcasts (x.x.x.255) sent to 127.0.0.1 instead, the same port: a game whose cabinets
 // elect a host by broadcast hears itself and becomes the host, nothing leaves the PC
 void wl_system_loopback_broadcast(int on);
+// A UDP socket's connect that only asks for its card (Wangan Midnight's to 8.8.8.8:0), made by the
+// link's connect (link.cpp): 1 when taken so, its getsockname then the cabinet's card's address
+int wl_system_udp_probe(UINT_PTR s, const struct sockaddr *a, int len);
 
 // The PC's cameras given to the game, as [Emulation] CAMERA = true does (a module whose link needs
 // them: Daytona Championship USA's)

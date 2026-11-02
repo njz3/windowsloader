@@ -29,6 +29,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
@@ -39,6 +40,7 @@
 #include "inputs.h"
 #include "jvs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 #include "vdev.h"
@@ -353,14 +355,21 @@ static void hold_gear_apply(const char *value)
     InterlockedExchange(&g_holdGear, value && !_stricmp(value, "true"));
 }
 
+static void wangan_link_settings(void);
+
 static void wmmt5_settings(void)
 {
     hold_gear_apply(wl_game_option_bool("HOLD_GEAR") ? "true" : "false");
+    wangan_link_settings();
 }
 
 static const WlGameOption g_wmmt5Options[] = {
     {"HOLD_GEAR", WL_N("Garder le rapport"),
      WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 0, hold_gear_apply},
+    {"CABINET", WL_N("Numéro de la borne (link)"),
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
+          "dans le fichier)."),
+     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
 };
 
 static void wmmt5_output(const unsigned char *data, int length);
@@ -1325,20 +1334,28 @@ static unsigned int __stdcall hasp_write(unsigned int handle, unsigned int file,
 // dll: the key's library the game imports, hasp_windows_x64_109906.dll (5) or _106482 (5 DX+); id:
 // the cabinet's, its first four digits the game's (2722 the 5's, 2783 5 DX+'s, compared with 0xadf
 // at +0x89db0d: E1911 otherwise)
-static void wangan_dongle(const char *dll, const char *id)
+static char g_dongleId[13];
+
+// The cabinet's ID (not a terminal: 13 at its 5th place, 11 for a terminal; OpenParrot's), its
+// bytes' sum and that sum's complement at the memory's end
+static void dongle_id(const char *id)
 {
-    static const unsigned char record[16] = {0, 0, 0, 0x01, 0, 0, 0, 0x0A, 0, 0, 0, 0x04, 0x3B, 0x6B, 0x40, 0x87};
-    g_dongle[0] = 0x01;
-    memcpy(g_dongle + 0x10, record, sizeof record);
-    memcpy(g_dongle + 0x20, record, sizeof record);
-    // The cabinet's ID (not a terminal: 13 at its 5th place, 11 for a terminal; OpenParrot's), its
-    // bytes' sum and that sum's complement at the memory's end
+    snprintf(g_dongleId, sizeof g_dongleId, "%s", id);
     unsigned sum = 0;
     for (int i = 0; i < 12; i++)
         sum += (unsigned char)id[i];
     memcpy(g_dongle + 0xD00, id, 12);
     g_dongle[0xD3E] = (unsigned char)sum;
     g_dongle[0xD3F] = (unsigned char)~sum;
+}
+
+static void wangan_dongle(const char *dll, const char *id)
+{
+    static const unsigned char record[16] = {0, 0, 0, 0x01, 0, 0, 0, 0x0A, 0, 0, 0, 0x04, 0x3B, 0x6B, 0x40, 0x87};
+    g_dongle[0] = 0x01;
+    memcpy(g_dongle + 0x10, record, sizeof record);
+    memcpy(g_dongle + 0x20, record, sizeof record);
+    dongle_id(id);
     static const struct
     {
         int ordinal;
@@ -1471,6 +1488,10 @@ static void terminal_packets(const char *serial)
 
 #define SINK_PORT 50766 // the terminal's socket, where the game's sends to other machines go
 
+// Where the game's socket on 50765 and the terminal's are: 127.0.0.1 alone; linked, the PC's address
+// of LINK, which two cabinets on one PC (a test: LINK = two of its addresses) do not share
+static ULONG g_wanganHome = 0x0100007F; // network order
+
 static DWORD WINAPI terminal_thread(LPVOID)
 {
     WSADATA wsa;
@@ -1483,21 +1504,22 @@ static DWORD WINAPI terminal_thread(LPVOID)
         wl_log("namco: the terminal's socket: error %d", WSAGetLastError());
         return 0;
     }
-    // On 127.0.0.1:50766, it is also where the game's sends to other machines go (cabinet_WSASendTo):
-    // it reads nothing, its small buffer once full drops them
+    // On 127.0.0.1:50766 (linked: the PC's address of LINK), it is also where the game's sends to
+    // other machines go (cabinet_WSASendTo): it reads nothing, its small buffer once full drops them
     sockaddr_in me = {};
     me.sin_family = AF_INET;
     me.sin_port = htons(SINK_PORT);
-    me.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    me.sin_addr.s_addr = g_wanganHome;
+    const unsigned char *h = (const unsigned char *)&g_wanganHome;
     int small = 4096;
     setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&small, sizeof small);
     if (bind(s, (const sockaddr *)&me, sizeof me))
-        wl_log("namco: the terminal's socket on 127.0.0.1:%d: error %d", SINK_PORT, WSAGetLastError());
+        wl_log("namco: the terminal's socket on %u.%u.%u.%u:%d: error %d", h[0], h[1], h[2], h[3], SINK_PORT, WSAGetLastError());
     sockaddr_in to = {};
     to.sin_family = AF_INET;
     to.sin_port = htons(50765);
-    to.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    wl_log("namco: the arcade's terminal (free play) sends its packets to 127.0.0.1:50765");
+    to.sin_addr.s_addr = g_wanganHome;
+    wl_log("namco: the arcade's terminal (free play) sends its packets to %u.%u.%u.%u:50765", h[0], h[1], h[2], h[3]);
     int errors = 0;
     for (unsigned n = 0;; n++)
     {
@@ -1516,12 +1538,20 @@ static DWORD WINAPI terminal_thread(LPVOID)
 #define TERMINAL_PORT 50765
 #define TERMINAL_ADDRESS 0x145CA8C0u // 192.168.92.20, in network order
 
+// Linked (link.h, [Game.<name>] LINK), the game's receives on its other sockets too (the race's):
+// what comes from a PC of LINK is shown from its cabinet's address, what comes from another machine
+// dropped
+static int g_wanganLinked;
+
 static SRWLOCK g_recvLock = SRWLOCK_INIT;
 static struct
 {
     LPWSAOVERLAPPED ov;
     sockaddr_in *from;
-} g_recvs[32];
+    SOCKET s;
+    const char *data; // its first buffer
+    int terminal;     // on port 50765, where the terminal's packets come
+} g_recvs[64];
 static SOCKET g_terminalSockets[4];
 
 static int terminal_socket(SOCKET s)
@@ -1542,15 +1572,112 @@ static int terminal_socket(SOCKET s)
     return 1;
 }
 
+// What a cabinet announces (a wm5.protobuf.Message after a 4-byte header, a CRC-32 after it): its
+// information's system_mode (3 attract, 4 entry and race) and sync_id (sint32), its
+// drive_cabinet_state's event_mode, vs_ok; each change logged, per cabinet. The game counts a
+// cabinet when its system_mode is 3 to 5 and its event_mode its own (+0x56b550, the 5): two, a player
+// may accept or challenge a VS
+static int pb_varint(const unsigned char *d, int n, int *i, unsigned long long *v)
+{
+    *v = 0;
+    for (int shift = 0; *i < n && shift < 64; shift += 7)
+    {
+        unsigned char b = d[(*i)++];
+        *v |= (unsigned long long)(b & 0x7F) << shift;
+        if (!(b & 0x80))
+            return 1;
+    }
+    return 0;
+}
+
+// Field number wanted of a message (varint), or of a message in it (inner != 0): -1000 absent
+static long long pb_field(const unsigned char *d, int n, int outer, int inner)
+{
+    int i = 0;
+    unsigned long long tag, v;
+    while (i < n && pb_varint(d, n, &i, &tag))
+    {
+        int field = (int)(tag >> 3), wire = (int)(tag & 7);
+        if (wire == 0)
+        {
+            if (!pb_varint(d, n, &i, &v))
+                break;
+            if (!inner && field == outer)
+                return (long long)v;
+        }
+        else if (wire == 2)
+        {
+            if (!pb_varint(d, n, &i, &v) || v > (unsigned long long)(n - i))
+                break;
+            if (inner && field == outer)
+                return pb_field(d + i, (int)v, inner, 0);
+            i += (int)v;
+        }
+        else if (wire == 5)
+            i += 4;
+        else if (wire == 1)
+            i += 8;
+        else
+            break;
+    }
+    return -1000;
+}
+
+static void wangan_state(int pc, const char *data, int n)
+{
+    if (!data || n < 9 || pc < 1 || pc > 8)
+        return;
+    const unsigned char *d = (const unsigned char *)data + 4;
+    int size = n - 8;
+    long long mode = pb_field(d, size, 9, 1), sync = pb_field(d, size, 9, 2), event = pb_field(d, size, 7, 11), vs = pb_field(d, size, 4, 0);
+    static long long last[8][4];
+    static int seen[8];
+    static volatile LONG logged;
+    long long *l = last[pc - 1];
+    if (seen[pc - 1] && mode == l[0] && sync == l[1] && (event == -1000 || event == l[2]) && vs == l[3])
+        return;
+    if (!seen[pc - 1] || mode != l[0] || sync != l[1] || vs != l[3] || (event != -1000 && event != l[2]))
+    {
+        if (event != -1000 || !seen[pc - 1])
+            l[2] = event; // -1000: not announced yet
+        seen[pc - 1] = 1;
+        l[0] = mode, l[1] = sync, l[3] = vs;
+        if (InterlockedIncrement(&logged) <= 400)
+            wl_log("namco: link: cabinet %d (board ID %u) announces system_mode %lld, sync %lld, event_mode %lld, vs_ok %lld", pc, (unsigned char)data[1],
+                   mode, sync == -1000 ? -1000 : (sync >> 1) ^ -(sync & 1), event == -1000 ? l[2] : event, vs);
+    }
+}
+
 // The cabinet alone (25/10): its packets on port 50765 from another machine are not given to the
 // game (0 bytes, which it drops). Two Wangan on the same network with the same PCB ID saw each
 // other: E2403 "Duplicate Board ID error" here, "同一の基板IDの筐体が存在します" on racecab1.
+// Linked, a PC of LINK's packets are kept, shown from its cabinet's address (192.168.92.(10 + k)).
 // 1: the packet is to be dropped
-static int from_terminal(sockaddr_in *from)
+static int from_terminal(sockaddr_in *from, int terminal, SOCKET s, const char *data, int n)
 {
     if (from->sin_family != AF_INET || from->sin_addr.s_addr == TERMINAL_ADDRESS) // the terminal's, shown already
         return 0;
-    if (from->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+    // This PC's own: the terminal's socket (linked: on the PC's address of LINK, port 50766; two
+    // cabinets on one PC may be 127.0.0.1 and 127.0.0.2)
+    int home = g_wanganLinked ? from->sin_addr.s_addr == g_wanganHome && from->sin_port == htons(SINK_PORT)
+                              : from->sin_addr.s_addr == htonl(INADDR_LOOPBACK);
+    if (g_wanganLinked && !home)
+    {
+        int pc = wl_link_pc_of(from->sin_addr.s_addr);
+        if (!pc && wl_link_pc_of(wl_link_to_real(from->sin_addr.s_addr)))
+            return 0; // a cabinet's, shown already (a receive done at once, then its completion)
+        if (pc)
+        {
+            wl_link_traffic("received from", pc, from, s, data, n);
+            if (pc != wl_link_cabinet())
+                wangan_state(pc, data, n);
+            wl_link_to_game(from);
+            return 0;
+        }
+    }
+    if (!terminal)
+        return g_wanganLinked && !home;
+    if (!home)
     {
         static unsigned seen[8];
         static int seenCount;
@@ -1575,14 +1702,89 @@ static int from_terminal(sockaddr_in *from)
 // The game's own sends (boost::asio's WSASendTo, out of system.cpp's reach: its announcements to the
 // other cabinets, its answers to the terminal) left the PC. Those to another machine go to
 // 127.0.0.1:50766 instead, the terminal's socket, which reads nothing: they complete as sent, and no
-// ICMP comes back (a closed port would fail the socket's next receive on WSAECONNRESET)
+// ICMP comes back (a closed port would fail the socket's next receive on WSAECONNRESET).
+// Linked: those to a cabinet's address (192.168.92.(10 + k)) go to its PC of LINK; those to a group
+// (its announcements to 225.0.0.1) to each other PC of LINK as well, by a sendto of their own
 static int(WSAAPI *oWSASendTo)(SOCKET, LPWSABUF, DWORD, LPDWORD, DWORD, const sockaddr *, int, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
+
+// A datagram to a PC whose game does not listen yet (racecab1 started 3 s before racecab2, link31)
+// brings back an ICMP "port unreachable", which fails the socket's next receive (WSAECONNRESET):
+// E0505 "Network disconnection error" at once. Before each send to a PC (a socket's handle may be
+// another's after a close), the socket made deaf to those (SIO_UDP_CONNRESET off), as a lost
+// datagram is on a network
+static void wangan_no_reset(SOCKET s)
+{
+    BOOL report = FALSE;
+    DWORD returned = 0;
+    wl_busy_enter();
+    int r = WSAIoctl(s, _WSAIOW(IOC_VENDOR, 12) /* SIO_UDP_CONNRESET */, &report, sizeof report, NULL, 0, &returned, NULL, NULL);
+    DWORD err = WSAGetLastError();
+    wl_busy_leave();
+    static volatile LONG failed;
+    if (r && InterlockedIncrement(&failed) <= 5)
+        wl_log("namco: link: socket %Iu, its \"port unreachable\" errors left on: error %lu", (ULONG_PTR)s, err);
+}
+
+static void wangan_to_cabinets(SOCKET s, LPWSABUF buffers, DWORD count, const sockaddr_in *group)
+{
+    wangan_no_reset(s);
+    char data[2048];
+    int n = 0;
+    for (DWORD i = 0; i < count && n < (int)sizeof data; i++)
+    {
+        int part = (int)buffers[i].len < (int)sizeof data - n ? (int)buffers[i].len : (int)sizeof data - n;
+        memcpy(data + n, buffers[i].buf, part);
+        n += part;
+    }
+    // Each PC of LINK, this one too: the game turns the group's loopback on (IP_MULTICAST_LOOP, before
+    // its bind) and counts itself among the cabinets by its own announcements (+0x56b550, the 5): not
+    // hearing them, it was alone, "Refuse VS", no challenge
+    for (int k = 1; k <= wl_link_count(); k++)
+    {
+        sockaddr_in to = *group;
+        to.sin_addr.s_addr = wl_link_to_real(htonl(0xC0A85C0Au + k));
+        wl_busy_enter();
+        int r = sendto(s, data, n, 0, (const sockaddr *)&to, sizeof to);
+        DWORD err = WSAGetLastError();
+        wl_busy_leave();
+        if (r < 0)
+        {
+            static volatile LONG failed;
+            if (InterlockedIncrement(&failed) <= 10)
+                wl_log("namco: link: the game's packet to its group, for cabinet %d: error %lu", k, err);
+        }
+        else
+            wl_link_traffic("sent (group) to", k, &to, s, data, n);
+            if (k == wl_link_cabinet())
+                wangan_state(k, data, n);
+    }
+}
+
 static int WSAAPI cabinet_WSASendTo(SOCKET s, LPWSABUF buffers, DWORD count, LPDWORD sent, DWORD flags, const sockaddr *to, int toLen,
                                     LPWSAOVERLAPPED ov, LPWSAOVERLAPPED_COMPLETION_ROUTINE cr)
 {
     const sockaddr_in *in = (const sockaddr_in *)to;
     if (!to || toLen < (int)sizeof(sockaddr_in) || in->sin_family != AF_INET || (ntohl(in->sin_addr.s_addr) >> 24) == 127)
         return oWSASendTo(s, buffers, count, sent, flags, to, toLen, ov, cr);
+    if (g_wanganLinked && (ntohl(in->sin_addr.s_addr) & 0xF0000000) == 0xE0000000)
+        wangan_to_cabinets(s, buffers, count, in);
+    else if (g_wanganLinked)
+    {
+        sockaddr_in real = *in;
+        real.sin_addr.s_addr = wl_link_to_real(in->sin_addr.s_addr);
+        int pc = wl_link_pc_of(real.sin_addr.s_addr);
+        if (pc)
+        {
+            wangan_no_reset(s);
+            wl_link_traffic("sent to", pc, &real, s, count ? buffers[0].buf : NULL, count ? (int)buffers[0].len : 0);
+            wl_busy_enter();
+            int r = oWSASendTo(s, buffers, count, sent, flags, (const sockaddr *)&real, sizeof real, ov, cr);
+            DWORD err = WSAGetLastError();
+            wl_busy_leave();
+            WSASetLastError(err);
+            return r;
+        }
+    }
     static unsigned seen[8];
     static int seenCount;
     int known = 0;
@@ -1597,7 +1799,7 @@ static int WSAAPI cabinet_WSASendTo(SOCKET s, LPWSABUF buffers, DWORD count, LPD
     sockaddr_in sink = {};
     sink.sin_family = AF_INET;
     sink.sin_port = htons(SINK_PORT);
-    sink.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    sink.sin_addr.s_addr = g_wanganHome;
     return oWSASendTo(s, buffers, count, sent, flags, (const sockaddr *)&sink, sizeof sink, ov, cr);
 }
 
@@ -1605,22 +1807,30 @@ static int(WSAAPI *oWSARecvFrom)(SOCKET, LPWSABUF, DWORD, LPDWORD, LPDWORD, sock
 static int WSAAPI terminal_WSARecvFrom(SOCKET s, LPWSABUF buffers, DWORD count, LPDWORD received, LPDWORD flags, sockaddr *from, LPINT fromLen,
                                        LPWSAOVERLAPPED ov, LPWSAOVERLAPPED_COMPLETION_ROUTINE cr)
 {
-    int ours = from && ov && !cr && terminal_socket(s);
+    int terminal = from && ov && !cr && terminal_socket(s), ours = terminal || (from && ov && !cr && g_wanganLinked);
+    const char *data = count ? buffers[0].buf : NULL;
     if (ours)
     {
         AcquireSRWLockExclusive(&g_recvLock);
-        for (int i = 0; i < 32; i++)
+        int i = 0;
+        for (; i < 64; i++)
             if (!g_recvs[i].ov)
             {
                 g_recvs[i].ov = ov;
                 g_recvs[i].from = (sockaddr_in *)from;
+                g_recvs[i].s = s;
+                g_recvs[i].data = data;
+                g_recvs[i].terminal = terminal;
                 break;
             }
         ReleaseSRWLockExclusive(&g_recvLock);
+        static volatile LONG full;
+        if (i == 64 && !InterlockedExchange(&full, 1))
+            wl_log("namco: more than 64 receives at once: a sender's address left as it is");
     }
     int r = oWSARecvFrom(s, buffers, count, received, flags, from, fromLen, ov, cr);
     if (ours && !r) // done at once: its address is there already (the completion comes too)
-        from_terminal((sockaddr_in *)from);
+        from_terminal((sockaddr_in *)from, terminal, s, data, received ? (int)*received : 0);
     return r;
 }
 
@@ -1632,16 +1842,22 @@ static BOOL WINAPI terminal_GetQueuedCompletionStatus(HANDLE port, LPDWORD bytes
     if (ov && *ov)
     {
         sockaddr_in *from = NULL;
+        SOCKET s = INVALID_SOCKET;
+        const char *data = NULL;
+        int terminal = 0;
         AcquireSRWLockExclusive(&g_recvLock);
-        for (int i = 0; i < 32; i++)
+        for (int i = 0; i < 64; i++)
             if (g_recvs[i].ov == (LPWSAOVERLAPPED)*ov)
             {
                 from = g_recvs[i].from;
+                s = g_recvs[i].s;
+                data = g_recvs[i].data;
+                terminal = g_recvs[i].terminal;
                 g_recvs[i].ov = NULL;
                 break;
             }
         ReleaseSRWLockExclusive(&g_recvLock);
-        if (from && r && from_terminal(from) && bytes)
+        if (from && r && from_terminal(from, terminal, s, data, bytes ? (int)*bytes : 0) && bytes)
             *bytes = 0;
     }
     SetLastError(err);
@@ -1652,7 +1868,8 @@ static BOOL WINAPI terminal_GetQueuedCompletionStatus(HANDLE port, LPDWORD bytes
 // (boost::asio's join_group, the 5's +0x8761d0), and stops if Windows refuses: racecab2 (02/11,
 // error 10065, no route for the group), "set_option" thrown 7.8 s after the start, its picture
 // frozen, for the 5, 5 DX+ and 6 alike. Refused, the join is made on the loopback, or taken as done:
-// the terminal's packets come to 127.0.0.1, none by the group
+// the terminal's packets come to 127.0.0.1, the other cabinets' (linked) to the PC's own address,
+// none by the group
 static int(WSAAPI *osetsockopt)(SOCKET, int, int, const char *, int);
 static int WSAAPI wangan_setsockopt(SOCKET s, int level, int name, const char *value, int len)
 {
@@ -1674,6 +1891,121 @@ static int WSAAPI wangan_setsockopt(SOCKET s, int level, int name, const char *v
            c[2], c[3], err, again ? "taken as done" : "made on the loopback");
     WSASetLastError(0);
     return 0;
+}
+
+// The link (link.h, [Game.<name>] LINK and CABINET): cabinet k is 192.168.92.(10 + k) to the games,
+// its own card there (cabinet 1's the address it has alone), the others LINK's PCs, each its own board
+// ID and key serial (below). The game counts the cabinets by their announcements to the group, its own
+// among them (wangan_to_cabinets): two, a player is asked "Select VS acceptance" (Accept VS: "Waiting
+// for challenger"), and a player starting on another cabinet "Challenge other racers?"; yes, "A new
+// challenger!" and both go to the VS mode's selection, then race (two cabinets on this PC, 02/11)
+// Linked, its socket on 50765 is on the PC's address of LINK rather than any (two cabinets on one PC
+// each their own), the terminal's packets going there
+static int(WSAAPI *owangan_bind)(SOCKET, const sockaddr *, int);
+static int WSAAPI wangan_bind(SOCKET s, const sockaddr *a, int len)
+{
+    const sockaddr_in *in = (const sockaddr_in *)a;
+    sockaddr_in home;
+    if (a && len >= (int)sizeof(sockaddr_in) && in->sin_family == AF_INET && !in->sin_addr.s_addr && ntohs(in->sin_port) == TERMINAL_PORT)
+    {
+        home = *in;
+        home.sin_addr.s_addr = g_wanganHome;
+        a = (const sockaddr *)&home;
+        len = sizeof home;
+    }
+    return owangan_bind(s, a, len);
+}
+
+// Linked, each cabinet its own board ID (基板ID, setting.lua's mPcbId, the second byte of its
+// announcements): cabinet k's is k - 1, as the game reads it from setting.lua (a byte's reader,
+// the 5's +0x94f5a0: the reader, the byte, its name), whatever its test menu set. Two cabinets on
+// one PC with the same one saw each other as one
+static DWORD g_wanganReadByte; // that reader's place (Wangan::readByte)
+static void(__fastcall *oread_byte)(void *, unsigned char *, const char *);
+static void __fastcall wangan_read_byte(void *reader, unsigned char *value, const char *name)
+{
+    oread_byte(reader, value, name);
+    if (!value || !name || strcmp(name, "mPcbId"))
+        return;
+    unsigned char was = *value;
+    *value = (unsigned char)(wl_link_cabinet() - 1);
+    static volatile LONG logged;
+    if (!InterlockedExchange(&logged, 1))
+        wl_log("namco: link: the board ID (mPcbId) read as %d, cabinet %d's (setting.lua's %d)", *value, wl_link_cabinet(), was);
+}
+
+// The cabinets the game counts (the 5's +0x56b550, its InfoLocalLink: by board ID, 4 places of 0x60
+// bytes from +0x60, each a Message received; counted when its information's system_mode is 3 to 5
+// and its drive_cabinet_state's event_mode the cabinet's), each change logged with what each place
+// holds: fewer than 2, no VS (link36: racecab2 went to the mode's choice, racecab1 accepting)
+static int(__fastcall *ocount_cabinets)(void *);
+static int __fastcall wangan_count_cabinets(void *link)
+{
+    int count = ocount_cabinets(link);
+    unsigned char **v = (unsigned char **)((unsigned char *)link + 0x60);
+    char text[300];
+    int at = snprintf(text, sizeof text, "%d:", count);
+    for (int i = 0; v[0] && v[1] && i < 4 && v[0] + 0x60 * (i + 1) <= v[1] && at < (int)sizeof text; i++)
+    {
+        unsigned char *slot = v[0] + 0x60 * i;
+        unsigned flags = *(unsigned *)(slot + 0x5C);
+        unsigned char *info = *(unsigned char **)(slot + 0x48), *state = *(unsigned char **)(slot + 0x38);
+        int mode = flags & 0x100 && info && *(unsigned *)(info + 0x28) & 1 ? *(int *)(info + 0x10) : -1;
+        int event = flags & 0x40 && state && *(unsigned *)(state + 0x44) & 0x400 ? *(int *)(state + 0x38) : -1;
+        at += snprintf(text + at, sizeof text - at, " [%d: mode %d, event %d]", i, mode, event);
+    }
+    static char last[300];
+    static volatile LONG logged;
+    if (strcmp(text, last) && InterlockedIncrement(&logged) <= 300)
+    {
+        snprintf(last, sizeof last, "%s", text);
+        wl_log("namco: link: the game counts %s", text);
+    }
+    return count;
+}
+
+static void wangan_link(void);
+
+// The link's settings, then the terminal started, its address known
+static void wangan_link_settings(void)
+{
+    wangan_link();
+    CloseHandle(CreateThread(NULL, 0, terminal_thread, NULL, 0, NULL));
+}
+
+static void wangan_link(void)
+{
+    if (!wl_link_settings(GetModuleHandleW(NULL)))
+        return;
+    wl_link_virtual_net_from("192.168.92", 11);
+    HMODULE exe = GetModuleHandleW(NULL);
+    if (!wl_patch_iat(exe, "WS2_32.dll", MAKEINTRESOURCEA(2), (void *)wangan_bind, (void **)&owangan_bind) &&
+        !wl_patch_iat(exe, "WS2_32.dll", "bind", (void *)wangan_bind, (void **)&owangan_bind))
+        wl_log("namco: link: bind not in the import table: two cabinets on one PC would share the port 50765");
+    static const unsigned char countStart[7] = {0x48, 0x8B, 0xC4, 0x57, 0x41, 0x54, 0x41}; // mov rax, rsp; push rdi; push r12
+    if (g_wanganReadByte == 0x94F5A0 && !memcmp((unsigned char *)exe + 0x56B550, countStart, sizeof countStart)) // the 5's
+        wl_hook_code((unsigned char *)exe + 0x56B550, (void *)wangan_count_cabinets, (void **)&ocount_cabinets, "the cabinets counted (log)");
+    static const unsigned char start[3] = {0x4D, 0x85, 0xC0}; // test r8, r8
+    if (g_wanganReadByte && !memcmp((unsigned char *)exe + g_wanganReadByte, start, 3))
+        wl_hook_code((unsigned char *)exe + g_wanganReadByte, (void *)wangan_read_byte, (void **)&oread_byte, "the board ID read (setting.lua)");
+    else
+        wl_log("namco: link: setting.lua's byte reader not found: the board ID is the test menu's");
+    int k = wl_link_cabinet();
+    static unsigned char mac[6] = {0x00, 0x18, 0xD8, 0x00, 0x00, 0x0B};
+    mac[5] = (unsigned char)(0x0A + k);
+    wl_netenv_fake(0xC0A85C0Au + k, 0xC0A85CFE, mac);
+    g_wanganHome = wl_link_to_real(htonl(0xC0A85C0Au + k));
+    // Each cabinet its own key's serial, which its announcements carry (heart_beat.pcb_serial), as each
+    // key of an arcade has its own. Cabinet k: the last four digits plus k - 1
+    if (k > 1 && g_dongleId[0])
+    {
+        char id[13];
+        snprintf(id, sizeof id, "%.8s%04d", g_dongleId, (atoi(g_dongleId + 8) + k - 1) % 10000);
+        dongle_id(id);
+    }
+    g_wanganLinked = 1;
+    wl_log("game: Wangan Midnight linked, cabinet %d of %d (192.168.92.%d, board ID %d, key serial %s)", k, wl_link_count(), 10 + k, k - 1,
+           g_dongleId);
 }
 
 static int exists(const wchar_t *dir, const wchar_t *name)
@@ -1714,20 +2046,21 @@ struct Wangan
     unsigned char keySet[3];
     DWORD terminalJump; // the terminal's link: its waiting step's jmp, sent to its complete step
     unsigned char toEnd[5], toComplete[5];
+    DWORD readByte; // setting.lua's reader of a byte (mPcbId's: the reader, the byte, its name)
 };
 
 static const Wangan g_wangans[] = {
     // State +0x660: waiting +0x58e705, complete +0x58e694 (OpenParrot does it for WMMT6R, the same
     // transition and offsets); the key's ID check compares with 2722 at +0x71ae4d
     {"wmmt5", "Wangan Midnight Maximum Tune 5", "hasp_windows_x64_109906.dll", "272213990002", "272211990002", 0x58C6CA, {0x41, 0xB4, 0x01},
-     0x58E70F, {0xE9, 0x76, 0x06, 0x00, 0x00}, {0xE9, 0x80, 0xFF, 0xFF, 0xFF}},
+     0x58E70F, {0xE9, 0x76, 0x06, 0x00, 0x00}, {0xE9, 0x80, 0xFF, 0xFF, 0xFF}, 0x94F5A0},
     // Its object's fields 0xf0 further (state +0x750): waiting +0x708685, complete +0x708809; 2783
     // compared at +0x89db0d
     {"wmmt5dxp", "Wangan Midnight Maximum Tune 5 DX+", "hasp_windows_x64_106482.dll", "278313042069", "278311042069", 0x706354,
-     {0x40, 0xB6, 0x01}, 0x708691, {0xE9, 0x9D, 0x0C, 0x00, 0x00}, {0xE9, 0x73, 0x01, 0x00, 0x00}},
+     {0x40, 0xB6, 0x01}, 0x708691, {0xE9, 0x9D, 0x0C, 0x00, 0x00}, {0xE9, 0x73, 0x01, 0x00, 0x00}, 0xAFE320},
     // State +0x738: waiting +0x6a0c7c, complete +0x6a0d5c; 2808 compared at +0x8bbbc2
     {"wmmt6", "Wangan Midnight Maximum Tune 6", "hasp_windows_x64_28756.dll", "280813990002", "280811990002", 0x69E928, {0x41, 0xB4, 0x01},
-     0x6A0C86, {0xE9, 0x4E, 0x0B, 0x00, 0x00}, {0xE9, 0xD1, 0x00, 0x00, 0x00}},
+     0x6A0C86, {0xE9, 0x4E, 0x0B, 0x00, 0x00}, {0xE9, 0xD1, 0x00, 0x00, 0x00}, 0xAFB5A0},
 };
 
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
@@ -1756,6 +2089,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         const Wangan *w = &g_wangans[wmmt6 ? 2 : exists(dir, L"hasp_windows_x64_106482.dll") ? 1 : 0];
         *name = w->name;
         *title = w->title;
+        g_wanganReadByte = w->readByte;
         wl_log("game: %s (Namco System ES3X)", *title);
         // Its bookkeeping (F:\BK_*.bin, the copy's FBK_*.bin; 6: TP\BK_WM6_*.bin), which it stops
         // without ("bookkeep: file broken"): written even when the write folder cannot be (files.cpp)
@@ -1789,8 +2123,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_patch_code(exe + w->keyCheck, w->keySet, clear, 3, "the key's ID left unchecked");
         // The arcade's terminal (above): its packets on port 50765, shown from its address. Without
         // it, E0505 "Network disconnection error" (+0x5814cc: the link's state 4, 35 s after boot)
-        terminal_packets(w->terminalSerial);
-        CloseHandle(CreateThread(NULL, 0, terminal_thread, NULL, 0, NULL));
+        terminal_packets(w->terminalSerial); // its thread started with the settings (wangan_link_settings)
         if (!wl_patch_iat((HMODULE)exe, "WS2_32.dll", "WSARecvFrom", (void *)terminal_WSARecvFrom, (void **)&oWSARecvFrom) ||
             !wl_patch_iat((HMODULE)exe, "KERNEL32.dll", "GetQueuedCompletionStatus", (void *)terminal_GetQueuedCompletionStatus,
                           (void **)&oGetQueuedCompletionStatus))

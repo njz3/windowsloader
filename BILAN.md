@@ -1463,9 +1463,27 @@ Aussi (link33) : le socket que le jeu ouvre vers 8.8.8.8:0 pour connaître sa ca
 repris par celui du port 50765, que `system.cpp` montrait alors sur le port 50000 : le terminal n'était plus
 reconnu, E0505 à 31 s. Un socket qui fait un `bind` ou un `connect` n'est plus pris pour l'ancien.
 
-Link (02/11, essais link31 à link34, non commité) : les annonces des bornes passent dans les deux sens (une
-adresse 192.168.92.(10 + k) par borne, un numéro de clé et un 基板ID chacune), mais le jeu ne propose aucun combat
-entre bornes (« Refuse VS » en Story, pas d'écran de défi) ; deux bornes reproduites sur ce PC, à suivre.
+Link (02/11, `[Game.wmmt5] LINK`, le même code pour DX+ et le 6) :
+- la borne k est 192.168.92.(10 + k) pour le jeu, sa carte de borne là ; ses annonces au groupe 225.0.0.1 vont à
+  chaque PC de LINK, elle comprise, ses envois à 192.168.92.(10 + k) au PC k, et ce qui vient du PC k lui est montré
+  depuis 192.168.92.(10 + k) ; son socket du port 50765 et celui du terminal sont sur l'adresse du PC dans LINK (deux
+  bornes sur un PC : 127.0.0.1 et 127.0.0.2) ;
+- son 基板ID (mPcbId de setting.lua, le second octet de ses annonces) est k − 1, quel que soit le menu de test (le
+  lecteur d'un octet de setting.lua : +0x94f5a0 pour le 5, +0xafe320 DX+, +0xafb5a0 le 6), et le numéro de sa clé
+  le dernier chiffre + k − 1 ;
+- les erreurs « port unreachable » (ICMP) d'une borne pas encore lancée sont coupées sur les sockets du jeu
+  (SIO_UDP_CONNRESET) : racecab1, lancée la première, s'arrêtait sur E0505 (link32) ;
+- la cause de l'absence de VS (« Refuse VS », pas d'écran de défi, link32 à link34) : le jeu compte les bornes
+  par leurs annonces, la sienne comprise (+0x56b550 pour le 5 : par 基板ID, l'information de la borne au
+  `system_mode` 3 à 5 et son `event_mode` celui de la borne), le retour du multicast l'y fait entendre la sienne ;
+  sans elle, une borne, seule. Avec : « Select VS acceptance » (Accept VS, « Waiting for challenger ») sur la
+  première borne, « Challenge other racers? » sur l'autre, « A new challenger! », le choix du mode VS, de la zone,
+  de la rampe, puis la course à deux. Vérifié sur ce PC pour le 5, DX+ et le 6 (deux bornes linkées).
+- sur les bornes (le 5, essais link35 à link37) : les deux se voient (« 1P/2P play available », le jeu compte 2
+  bornes, journal « namco: link: the game counts »), « Select VS acceptance » et « Challenge other racers? »
+  apparaissent ; le défi n'a pas encore été accepté à distance (le curseur part sur NO, la réponse par défaut à la
+  fin du compte à rebours) : la course à deux reste à voir sur les bornes. Chaque changement d'état annoncé par une
+  borne est noté (« namco: link: cabinet N … announces system_mode, sync … »). Link marqué « partiel ».
 
 ## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
 

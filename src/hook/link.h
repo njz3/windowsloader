@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <winsock2.h>
 #include <windows.h>
 
 // [Game.<name>] LINK and CABINET read (from the module's settings callback), and linked, the game's
@@ -45,3 +46,12 @@ int wl_link_cabinet(void);
 int wl_link_count(void);
 // LINK's PC k (1..) as text ("192.168.1.4"); 0 when there is none
 int wl_link_address(int k, char *buf, size_t size);
+// For a game's sockets that the link's functions do not see (Wangan Midnight's overlapped
+// WSASendTo and WSARecvFrom, through a completion port), addresses in network order: the PC of
+// LINK an address is (1.., 0 for none); the game's address of a cabinet (wl_link_virtual_net) made
+// its PC's, and a PC's made the game's; a datagram with PC pc counted and logged as the link's own
+// ("sent to", "received from")
+int wl_link_pc_of(ULONG ip);
+ULONG wl_link_to_real(ULONG ip);
+void wl_link_to_game(sockaddr_in *a);
+void wl_link_traffic(const char *what, int pc, const sockaddr_in *peer, SOCKET s, const char *data, int n);

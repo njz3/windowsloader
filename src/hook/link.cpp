@@ -15,6 +15,7 @@
 //   sendto, connect a PC of LINK, or 127.x           -> as asked
 //   sendto, connect any other address                -> refused, as system.cpp does without LINK
 //   recvfrom another address                         -> not heard (the next datagram read)
+//   getpeername, GetAcceptExSockaddrs                -> a PC of LINK as the game knows it
 //   the PC's cards (WSAIoctl SIO_GET_INTERFACE_LIST, GetAdaptersInfo, GetAdaptersAddresses)
 //                                                    -> the card holding this PC's address of LINK,
 //                                                       and the loopback (a cabinet's VPN left out)
@@ -212,6 +213,21 @@ static void to_game(sockaddr *a)
         in->sin_addr.s_addr = g_virtualNet | (ULONG)(g_virtualFirst + pc - 1) << 24;
 }
 
+int wl_link_pc_of(ULONG ip)
+{
+    return pc_of(ip);
+}
+
+ULONG wl_link_to_real(ULONG ip)
+{
+    return to_real(ip);
+}
+
+void wl_link_to_game(sockaddr_in *a)
+{
+    to_game((sockaddr *)a);
+}
+
 static volatile LONG g_sent[LINK_MAX], g_sentBytes[LINK_MAX], g_got[LINK_MAX], g_gotBytes[LINK_MAX];
 
 static void count(int pc, int sent, int bytes)
@@ -271,6 +287,12 @@ static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, 
     else
         wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes %s", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
                ntohs(me.sin_port), n, hex);
+}
+
+void wl_link_traffic(const char *what, int pc, const sockaddr_in *peer, SOCKET s, const char *data, int n)
+{
+    count(pc, what[0] == 's', n);
+    packet(what, pc, peer, s, data, n);
 }
 
 static void refused(const char *what, const sockaddr_in *a)
@@ -478,6 +500,10 @@ static int WSAAPI l_connect(SOCKET s, const sockaddr *a, int len)
     len = sizeof real;
     const sockaddr_in *to = (const sockaddr_in *)a;
     int pc = pc_of(to->sin_addr.s_addr);
+    // A UDP socket's connect to port 0 sends nothing: Wangan Midnight's to 8.8.8.8:0 learns its card
+    // by getsockname, which system.cpp answers (the cabinet's card's)
+    if (!pc && !local(to->sin_addr.s_addr) && !to->sin_port && udp_socket(s) && wl_system_udp_probe(s, a, len))
+        return 0;
     if (!pc && !local(to->sin_addr.s_addr))
     {
         refused("connect", to);
@@ -519,6 +545,33 @@ static SOCKET WSAAPI l_accept(SOCKET s, sockaddr *a, int *len)
             to_game(a);
     }
     return r;
+}
+
+// A TCP peer's address (Wangan Midnight accepts by AcceptEx): a PC of LINK as the game knows it
+static int(WSAAPI *o_getpeername)(SOCKET, sockaddr *, int *);
+static int WSAAPI l_getpeername(SOCKET s, sockaddr *a, int *len)
+{
+    int r = o_getpeername(s, a, len);
+    if (!r && g_count && len && is_inet(a, *len))
+        to_game(a);
+    return r;
+}
+
+static void(WINAPI *o_GetAcceptExSockaddrs)(PVOID, DWORD, DWORD, DWORD, sockaddr **, LPINT, sockaddr **, LPINT);
+static void WINAPI l_GetAcceptExSockaddrs(PVOID buffer, DWORD data, DWORD localSize, DWORD remoteSize, sockaddr **local, LPINT localLen,
+                                          sockaddr **remote, LPINT remoteLen)
+{
+    o_GetAcceptExSockaddrs(buffer, data, localSize, remoteSize, local, localLen, remote, remoteLen);
+    if (!g_count || !remote || !*remote || !remoteLen || !is_inet(*remote, *remoteLen))
+        return;
+    const sockaddr_in *peer = (const sockaddr_in *)*remote;
+    int pc = pc_of(peer->sin_addr.s_addr);
+    static volatile LONG logged;
+    char t[20];
+    if (InterlockedIncrement(&logged) <= 30)
+        wl_log("link: accepted %s:%u (AcceptEx, %s)", ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
+               pc ? "a PC of LINK" : "not of LINK");
+    to_game(*remote);
 }
 
 static int(WSAAPI *o_sendto)(SOCKET, const char *, int, int, const sockaddr *, int);
@@ -996,6 +1049,8 @@ static void link_patch(HMODULE exe)
         {"WS2_32.dll", 0, "WSAIoctl", (void *)l_WSAIoctl, (void **)&o_WSAIoctl},
         {"WS2_32.dll", 52, "gethostbyname", (void *)l_gethostbyname, (void **)&o_gethostbyname},
         {"WS2_32.dll", 57, "gethostname", (void *)l_gethostname, (void **)&o_gethostname},
+        {"WS2_32.dll", 5, "getpeername", (void *)l_getpeername, (void **)&o_getpeername},
+        {"MSWSOCK.dll", 0, "GetAcceptExSockaddrs", (void *)l_GetAcceptExSockaddrs, (void **)&o_GetAcceptExSockaddrs},
         // Winsock 1's (Sega Rally 3, by number): the same functions, the same numbers
         {"WSOCK32.dll", 2, "bind", (void *)l_bind, (void **)&o_bind},
         {"WSOCK32.dll", 13, "listen", (void *)l_listen, (void **)&o_listen},

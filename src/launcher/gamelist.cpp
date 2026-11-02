@@ -103,16 +103,16 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Wangan Midnight Maximum Tune 6", "wmmt6", "", {L"wmn6r.exe"}, {0xC4B9C773}, {NULL}, 0, NULL, WL_N("Namco System ES3X (64 bits)"), "2018", WL_GAME_PARTLY,
      WL_N("Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans "
      "ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON "
-     "dans le menu de test. Restent les cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_NO},
+     "dans le menu de test. Restent les cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_PARTLY},
     {"Wangan Midnight Maximum Tune 5 DX+", "wmmt5dxp", "", {L"wmn5r.exe"}, {0x32E089BC}, {L"hasp_windows_x64_106482.dll"}, 0, NULL, WL_N("Namco System ES3X (64 bits)"), "2016",
      WL_GAME_PARTLY,
      WL_N("Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de "
      "force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent le lecteur de "
-     "cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_NO},
+     "cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_PARTLY},
     {"Wangan Midnight Maximum Tune 5", "wmmt5", "", {L"wmn5r.exe"}, {0x51060B63}, {NULL}, 0, NULL, WL_N("Namco System ES3X (64 bits)"), "2014", WL_GAME_PARTLY,
      WL_N("Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la "
      "carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur "
-     "de cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_NO},
+     "de cartes et la caméra."), WL_FEATURE_YES, WL_FEATURE_PARTLY},
 };
 
 const int g_wlKnownGameCount = (int)(sizeof g_wlKnownGames / sizeof g_wlKnownGames[0]);

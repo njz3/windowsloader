@@ -176,7 +176,12 @@ cabinets), Storm Racer G
 raced on the cabinets),
 Crazy Ride (`[Game.crazyride]`: `Plugins\McastUDP.dll`'s multicast 234.2.2.1 on UDP 8888, sent to
 each PC of `LINK`; linked, its `bEnableOnline` setting is read true, for its matching screen,
-and its ping answered; raced on the cabinets) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+and its ping answered; raced on the cabinets), Wangan Midnight Maximum Tune 5, 5 DX+ and 6
+(`[Game.wmmt5]`, `[Game.wmmt5dxp]`, `[Game.wmmt6]`: cabinet k is 192.168.92.(10+k) to the game, its
+board ID k − 1 and its key serial its own, nothing to set in the test menu; its announcements to the
+group 225.0.0.1 on UDP 50765 are sent to each PC of `LINK`, its own included, as the group's loopback
+does; a player accepts VS in "Select VS acceptance", another one starting on a second cabinet is asked
+"Challenge other racers?"; raced on this PC, two cabinets linked, not yet on the cabinets) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
