@@ -275,21 +275,23 @@ enum
     IN_COUNT
 };
 
+// controls.ini's names shared with the other games (they had their own, P1_View, P1_Up, P1_ShiftUp...,
+// bound in no controls.ini: 03/11), the four colours their own
 static WlInput g_inputs[IN_COUNT] = {
     {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 0xFFFF, 0x8000},
     {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"ViewChange", "P1_View", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Up", "P1_Up", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Down", "P1_Down", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Left", "P1_Left", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Right", "P1_Right", WL_INPUT_SWITCH, 0, 1, 0},
-    {"PaddleLeft", "P1_ShiftDown", WL_INPUT_SWITCH, 0, 1, 0},
-    {"PaddleRight", "P1_ShiftUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ViewChange", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Up", "SelectUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Down", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Left", "SelectLeft", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Right", "SelectRight", WL_INPUT_SWITCH, 0, 1, 0},
+    {"PaddleLeft", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"PaddleRight", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"Blue", "P1_Blue", WL_INPUT_SWITCH, 0, 1, 0},
     {"Green", "P1_Green", WL_INPUT_SWITCH, 0, 1, 0},
     {"Red", "P1_Red", WL_INPUT_SWITCH, 0, 1, 0},

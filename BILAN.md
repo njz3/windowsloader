@@ -1552,7 +1552,11 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
 
 État au 26/10 (deux parties invité en mode agent sur ce PC, avec les réglages par défaut du lanceur) :
 - Lancement ✅ : test de démarrage, ALL.Net, Aime, UserDB et NetBattle « Online », avertissement, attract.
-- Commandes ⚠️ (agent) : pièce, Start, gauche (はい de la connexion invité), accélérateur, volant.
+- Commandes ⚠️ (agent) : pièce, Start, gauche (はい de la connexion invité), accélérateur, volant. Depuis le 03/11
+  sous les noms communs de controls.ini (P1_Service, ViewChange, SelectUp/Down/Left/Right, GearUp/GearDown : ses noms
+  à lui, P1_View, P1_Up, P1_ShiftUp…, n'étaient liés dans aucun controls.ini), et les quatre boutons de couleur
+  P1_Yellow, P1_Green, P1_Blue, P1_Red ajoutés au modèle de controls.ini. Pas de carte Aime : le lecteur est
+  toujours vide (partie invité), il faudrait aussi la base des joueurs du serveur en ligne.
 - Retour de force ⚠️ (agent, sans volant physique) : commandes 84 (couple) de la carte du volant sur COM1, 5944
   changements de force en une course, de −0,96 à +0,96 ; volant à −0,5 force moyenne +0,16, à +0,5 −0,18, au centre
   +0,02 : vers le centre, comme Wangan 6 ; 0 aux résultats.
