@@ -92,8 +92,8 @@ Started alone, without a game (a double click in the Explorer), `windowsloader.e
 picker, as linuxloader's: the games found in the games folder as a list, the chosen one's
 description beside it (platform, state, its version and the versions supported, program,
 arguments, force feedback and link between cabinets: yes, partly or no, what is emulated). A copy
-of another version of a game whose versions are told apart (Mario Kart DX: 1.10 and 1.18, by their
-program's build date) is listed as "version not supported". Enter or a double
+of another version of a game whose versions are told apart (Mario Kart DX: 1.05, 1.06, 1.10 and 1.18,
+by their program's build date) is listed as "version not supported". Enter or a double
 click to play. The game runs through `windowsloader.exe` again, its log in `windowsloader.log` next
 to the launcher, and the picker comes back when it ends. The games folder is `[Launcher] GAMES_DIR` of
 `windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next

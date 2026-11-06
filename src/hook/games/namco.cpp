@@ -97,6 +97,8 @@ static const WlVirtualJoystick g_wheel = {"Namco Steering Wheel", 0x0B9A, 0x0001
 // 0x4000, the select switch up 0x2000 and down 0x1000, Enter 0x0200, the item button 0x0020 (0x0010
 // too), the Mario button 0x0002; Start 0x8000 has no use. Steering (left low), accelerator, brake
 // on channels 0, 1, 2, against the calibration of the test menu's "analog volume" page.
+static int g_v106; // Mario Kart Arcade GP DX v1.06, either build: its test switch and its brake
+
 static void jvs_state(WlJvsState *s)
 {
     static int coinWas;
@@ -105,7 +107,18 @@ static void jvs_state(WlJvsState *s)
     if (coin && !coinWas)
         coins++;
     coinWas = coin;
-    s->system = wl_input_get(&g_inputs[IN_TEST]) ? 0x80 : 0;
+    int test = wl_input_get(&g_inputs[IN_TEST]);
+    if (g_v106)
+    {
+        // v1.06 leaves its test menu as soon as the switch opens (a slide switch on the cabinet):
+        // a push turns it on, the next off (Nono's patch)
+        static int testWas, testOn;
+        if (test && !testWas)
+            testOn = !testOn;
+        testWas = test;
+        test = testOn;
+    }
+    s->system = test ? 0x80 : 0;
     static const struct
     {
         int input;
@@ -119,6 +132,9 @@ static void jvs_state(WlJvsState *s)
     s->analog[0] = (unsigned short)wl_input_get(&g_inputs[IN_STEERING]);
     s->analog[1] = (unsigned short)wl_input_get(&g_inputs[IN_GAS]);
     s->analog[2] = (unsigned short)wl_input_get(&g_inputs[IN_BRAKE]);
+    // v1.06's brake is a switch (its switch test: BRAKE ON/OFF; Nono's patch): the pedal past half way
+    if (g_v106 && s->analog[2] > 0x8000)
+        s->player[0] |= 0x0080;
 }
 
 static void jvs_output(const unsigned char *data, int length)
@@ -146,7 +162,8 @@ static void jvs_output(const unsigned char *data, int length)
 //   count and the bytes sends (report 01, 01, then 00: sent), 0x70 0x15 and 2 bytes reads (report
 //   01, a count, the bytes; "70 15 00 FF", the first after 0x16, wants a count of 0). Nothing is on
 //   it here: count 0;
-// - 0x78, 0x79, 0x7A, 14 bytes each: the cabinet's LEDs (below), 0x7F alone: report only.
+// - 0x78, 0x79, 0x7A, 14 bytes each: the cabinet's LEDs (below), 0x7F alone: report only;
+// - 0x7D, 0x7E, 14 bytes each (v1.06, all lit in its attract mode, Nono's patch): report only.
 //
 // The LEDs (Mario Kart Arcade GP DX's, seen in its attract mode): 9 RGB LEDs a command, 4 bits a
 // colour, 27 nibbles from the first byte's high one, then 4 bits of padding (all lit: FF... F0);
@@ -205,6 +222,8 @@ static int namco_vendor(const unsigned char *p, int n, unsigned char *r, int *k)
         if (n >= 15)
             namco_leds(p);
     }
+    else if (p[0] == 0x7D || p[0] == 0x7E)
+        used = 15; // unknown, they would make the whole poll's reply an error
     else if (p[0] == 0x7F)
         used = 1;
     if (!used || used > n)
@@ -2063,6 +2082,41 @@ static const Wangan g_wangans[] = {
      0x6A0C86, {0xE9, 0x4E, 0x0B, 0x00, 0x00}, {0xE9, 0xD1, 0x00, 0x00, 0x00}, 0xAFB5A0},
 };
 
+// v1.06.35's dongle ID, as JVSEmuMK.dll gives it: its function (+0x1f1d80, the device in eax, no
+// argument on the stack) returns the device's text at +0x36 or NULL, read as the ID by its callers
+#if defined(_M_IX86)
+static void *g_keySerialOriginal;
+
+static void *__cdecl key_serial_write(void *text)
+{
+    static const wchar_t serial[] = L"271013\0" L"023010";
+    if (!text)
+        return (void *)serial;
+    memcpy(text, serial, 26);
+    return text;
+}
+
+__declspec(naked) static void key_serial_hook(void)
+{
+    __asm {
+        call dword ptr [g_keySerialOriginal] // eax still the device
+        push eax
+        call key_serial_write
+        add esp, 4
+        ret
+    }
+}
+
+static void key_serial_patch(unsigned char *function)
+{
+    wl_hook_code(function, (void *)key_serial_hook, &g_keySerialOriginal, "the dongle's ID (MK_AGP3_FINAL.exe+0x1f1d80, v1.06.35)");
+}
+#else
+static void key_serial_patch(unsigned char *) // the game is 32 bits
+{
+}
+#endif
+
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -2169,12 +2223,16 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
     DWORD built = ((IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew))->FileHeader.TimeDateStamp;
     int v118 = built == 0x5FB222AA, v110 = built == 0x55A38B64, v105 = built == 0x582179A8;
+    // v1.06 has two builds with their own places: v1.06.35 (the copy, stamp of 1 August 2022) and
+    // the USA one of 17 November 2016 (Nono's, not tried here)
+    int v10635 = built == 0x62E76DA6, v106usa = built == 0x582D5E48;
+    g_v106 = v10635 || v106usa;
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    if (v118 || v110 || v105)
-        wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : v110 ? "v1.10" : "v1.05");
+    if (v118 || v110 || v105 || g_v106)
+        wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : v110 ? "v1.10" : v105 ? "v1.05" : v10635 ? "v1.06.35" : "v1.06 (USA)");
     else
-        wl_log("game: %s, unknown version (program built 0x%08lX): only v1.05, v1.10 and v1.18 are known, their code changes "
+        wl_log("game: %s, unknown version (program built 0x%08lX): only v1.05, v1.06, v1.10 and v1.18 are known, their code changes "
                "(the security key, the network authentication, the offline limit) not made, the game may stop on an error",
                *title, (unsigned long)built);
     wl_game_set_boards("Controls on JVS board, Namco NA-JV Ver6.01, JVS 3.0 (COM3)",
@@ -2227,6 +2285,31 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         // file). The first use of "last_auth.bin" (its 56 bytes read, a stdcall of one argument), as
         // v1.18's +0x62e60
         wl_hook_code(exe + 0x6A180, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x6a180, v1.05)");
+        InitializeCriticalSection(&g_nfcLock);
+        wl_vdev_register(&g_com4);
+        wl_vdev_label("COM4", WL_N("Lecteur de cartes"));
+    }
+    else if (g_v106)
+    {
+        // Its dongle check: the status taken as answered (jne made je after "cmp eax, 3"), the deeper
+        // check passed (jne made jmp). Nono's patch; v1.06.35's places as JVSEmuMK.dll writes them
+        static const unsigned char jne[2] = {0x0F, 0x85}, jeLong[2] = {0x0F, 0x84}, jneShort[1] = {0x75}, jmpShort[1] = {0xEB};
+        wl_patch_code(exe + (v10635 ? 0x1EB83C : 0x1E7CD9), jne, jeLong, 2, "the dongle's answer not required (v1.06)");
+        wl_patch_code(exe + (v10635 ? 0x1F2DA3 : 0x1F0DA3), jneShort, jmpShort, 1, "the dongle's deeper check passed (v1.06)");
+        if (v10635)
+        {
+            key_serial_patch(exe + 0x1F1D80);
+            // E19-10 "USB DONGLE ERROR1" in its test menu: error 0x52, its HASP login failing (+0x1f0672).
+            // Its failure stays remembered (+0x118), not raised (jump over the call and +0xb0)
+            static const unsigned char raise[2] = {0x8B, 0x13}, over[2] = {0xEB, 0x0C};
+            wl_patch_code(exe + 0x1F0AF6, raise, over, 2, "the dongle's login error not raised (v1.06.35)");
+        }
+        else
+        {
+            // Its boot check's camera step retries for ever without a capture device (Nono's patch)
+            static const unsigned char jneCamera[2] = {0x75, 0x45}, nops[2] = {0x90, 0x90};
+            wl_patch_code(exe + 0x1E7F70, jneCamera, nops, 2, "the boot check's camera step skipped (v1.06 USA)");
+        }
         InitializeCriticalSection(&g_nfcLock);
         wl_vdev_register(&g_com4);
         wl_vdev_label("COM4", WL_N("Lecteur de cartes"));

@@ -32,6 +32,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Wasteland Racers 2071 (Trio Tech PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | Mario Kart Arcade GP DX 1.18 (Namco ES3) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Mario Kart Arcade GP DX 1.10 (Namco ES3, mod français) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| Mario Kart Arcade GP DX 1.06.35 (Namco ES3) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ⏳ | ⚠️ | ⏳ |
 | Battle Gear 4 (Taito Type X+, 2006) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
@@ -1308,6 +1309,25 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
   « Connexion impossible au service BanaPassport » puis Continue sur les deux, « Deux Joueurs VERSUS », le même
   circuit (Château de Peach, « En attente d'autres joueurs » puis « Confirmé! »), la course à deux : même chrono
   (250, puis 233/232), 1er et 2e sur 2, les deux karts sur chaque carte. Marqué « oui » dans la liste des jeux.
+
+## Mario Kart Arcade GP DX 1.06 (Namco System ES3)
+
+D'après les patchs de Nono et l'analyse statique de `JVSEmuMK.dll`. Deux compilations, chacune avec ses adresses :
+« MK3 Rev.1.06.35/OF » (horodatage 0x62E76DA6, CRC32 0x81D94584, essayée ici le 06/11) et la 1.06 USA de Nono
+(0x582D5E48, CRC32 0x2A5F62F3, pas essayée ici). `MK_AGP3_FINAL_v1.06.35.exe` (CRC32 0xE3CB2153) a le même code que
+l'original : il n'ajoute que l'import de `JVSEmuMK.dll`, qui se chargerait avant windowsloader. Il n'est pas pris en
+charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est modifié.
+
+- Lancement ✅ (1.06.35) : le dongle (`+0x1EB83C` jne devenu je, `+0x1F2DA3` jne devenu jmp) et son numéro
+  (`+0x1F1D80`, « 271013-023010 » à l'écran), comme la DLL ; I/O OK, caméra émulée OK, attraction.
+  « E19-10 USB DONGLE ERROR1 » au menu de test : l'erreur 0x52, la connexion à la clé Sentinel HASP qui échoue
+  (`+0x1F0672`). Elle n'est plus levée (`+0x1F0AF6`, un saut de plus que la DLL) : bandeau parti, aucune erreur vue
+  sous cdb au démarrage, au menu de test et en course.
+- Commandes ✅ (mode agent) : test verrouillé (le menu reste ouvert, un second appui revient à l'attraction), frein en interrupteur sur le bit 0x0080 (vu ON
+  et OFF au test des contacts), objet, partie jusqu'à la course (accélère, tourne), JVS 0x7D et 0x7E répondus.
+- Retour de force ⚠️ : commandes de la carte moteur reçues en course (raideur, amortissement, vibration), pas essayé
+  au volant.
+- Pas essayé : link, lecteur de cartes (COM4 déclaré comme en 1.05 et 1.10), vraie caméra, sélecteur, borne.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 
