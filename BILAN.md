@@ -1328,7 +1328,14 @@ charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est m
   et OFF au test des contacts), objet, partie jusqu'à la course (accélère, tourne), JVS 0x7D et 0x7E répondus.
 - Retour de force ⚠️ : commandes de la carte moteur reçues en course (raideur, amortissement, vibration), pas essayé
   au volant.
-- Pas essayé : link, lecteur de cartes (COM4 déclaré comme en 1.05 et 1.10), vraie caméra, sélecteur, borne.
+- Borne ⚠️ (racecab1, 20261107-1, 07/11, par la commande d'AttractPlus et vJoy) : fenêtre en 6 s, pièce, Start, puis
+  course ; commandes moteur qui suivent le volant (raideur 19 à 50, amortissement 49 à 76) et paquets DirectInput reçus
+  par vJoy, BFF fermé : force pas ressentie. Vignette du joueur noire en course : la vraie
+  caméra (DV20, CAMERA = AUTO) ouverte en YUY2 640x480, mais sa première image presque noire (luminance moyenne 2.0 :
+  salle sombre ou objectif couvert, à voir à la borne). Réglages du jeu déjà sur ON (rien à changer, pas de ligne au
+  journal dans cette version).
+  Sortie par Échap.
+- Pas essayé : link, lecteur de cartes (COM4 déclaré comme en 1.05 et 1.10), la force au volant, sélecteur.
 
 ## Mario Kart Arcade GP DX 1.05 (Namco System ES3)
 

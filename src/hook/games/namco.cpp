@@ -1244,7 +1244,10 @@ static void mkdx_settings_read(unsigned char *d, DWORD size, unsigned long long 
         return;
     }
     if (d[0x1D] && d[0x1E])
+    {
+        wl_log("namco: the game's settings read with NAMCAM and STEERING WHEEL REACTION already ON");
         return;
+    }
     wl_log("namco: the game's settings read with NAMCAM %s and STEERING WHEEL REACTION %s: both given ON (the file left as it is)",
            d[0x1D] ? "ON" : "OFF", d[0x1E] ? "ON" : "OFF");
     d[0x1D] = d[0x1E] = 1;
