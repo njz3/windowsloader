@@ -29,6 +29,7 @@
 #define WL_ENV_NOSAVE   L"WINDOWSLOADER_NOSAVE"   // then the essential files' working copies: %TEMP%\windowsloader-nosave-<launcher's pid>
 #define WL_ENV_COMPANION_OF L"WINDOWSLOADER_COMPANION_OF" // a companion's only: the program of the game it goes with
 #define WL_ENV_LANGUAGE L"WINDOWSLOADER_LANGUAGE" // [Launcher] LANGUAGE (or --set's): AUTO or a language's code (lang.h)
+#define WL_ENV_GAME_EXE L"WINDOWSLOADER_GAME_EXE" // set when a copy of the game runs (writedir.h): the game's program, shown as its own
 #define WL_ENV_OLDER    L"WINDOWSLOADER_OLDER"    // the write folder's settings files older than their first place's: "COPY|FIRST", one per line
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id

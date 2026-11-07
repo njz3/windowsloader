@@ -25,6 +25,7 @@
 struct sockaddr; // read as bytes: winsock's headers are not needed
 
 #include "hooks.h"
+#include "wlshared.h"
 #include "ioports.h"
 #include "link.h"
 #include "log.h"
@@ -2066,4 +2067,62 @@ static WlHook g_hooks[] = {
 void wl_system_hooks(void)
 {
     wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+}
+
+// A copy of the game's program runs (the launcher's WL_ENV_GAME_EXE): the game and windowsloader see
+// the program in the game's folder, where their files are
+static wchar_t g_gameExeW[MAX_PATH];
+static char g_gameExeA[MAX_PATH * 2];
+
+static DWORD(WINAPI *oGetModuleFileNameW)(HMODULE, LPWSTR, DWORD);
+static DWORD WINAPI hGetModuleFileNameW(HMODULE module, LPWSTR name, DWORD size)
+{
+    if (module && module != GetModuleHandleW(NULL))
+        return oGetModuleFileNameW(module, name, size);
+    DWORD length = (DWORD)wcslen(g_gameExeW);
+    if (size)
+    {
+        wcsncpy_s(name, size, g_gameExeW, _TRUNCATE);
+        if (length >= size)
+        {
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return size;
+        }
+    }
+    return size ? length : 0;
+}
+
+static DWORD(WINAPI *oGetModuleFileNameA)(HMODULE, LPSTR, DWORD);
+static DWORD WINAPI hGetModuleFileNameA(HMODULE module, LPSTR name, DWORD size)
+{
+    if (module && module != GetModuleHandleW(NULL))
+        return oGetModuleFileNameA(module, name, size);
+    DWORD length = (DWORD)strlen(g_gameExeA);
+    if (size)
+    {
+        strncpy_s(name, size, g_gameExeA, _TRUNCATE);
+        if (length >= size)
+        {
+            SetLastError(ERROR_INSUFFICIENT_BUFFER);
+            return size;
+        }
+    }
+    return size ? length : 0;
+}
+
+static WlHook g_gameExeHooks[] = {
+    WL_HOOK(L"kernel32.dll", GetModuleFileNameW),
+    WL_HOOK(L"kernel32.dll", GetModuleFileNameA),
+};
+
+void wl_game_exe_hooks(void)
+{
+    if (!GetEnvironmentVariableW(WL_ENV_GAME_EXE, g_gameExeW, MAX_PATH) || !g_gameExeW[0])
+        return;
+    WideCharToMultiByte(CP_ACP, 0, g_gameExeW, -1, g_gameExeA, sizeof g_gameExeA, NULL, NULL);
+    SetEnvironmentVariableW(WL_ENV_GAME_EXE, NULL); // the game's own, not the programs it starts
+    wl_hooks_add(g_gameExeHooks, sizeof g_gameExeHooks / sizeof g_gameExeHooks[0]);
+    wl_hooks_install_pending(); // now: the game's module asks where it is before the other hooks
+    char u[MAX_PATH * 2];
+    wl_log("system: a copy of the game's program runs, shown to the game as %s", wl_u8(g_gameExeW, u, sizeof u));
 }

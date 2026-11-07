@@ -144,6 +144,63 @@ static void cap_forget(HANDLE h)
 }
 
 // ------------------------------------------------------------------------------
+// A game's file changed as it is read (wl_files_read_filter): its handles opened for reading
+// remembered, what each read gives passed to the module's function
+// ------------------------------------------------------------------------------
+
+static wchar_t g_filterName[64];
+static WlReadFilter g_filter;
+static HANDLE g_filtered[8];
+static SRWLOCK g_filterLock = SRWLOCK_INIT;
+
+static int wild(const wchar_t *name, const wchar_t *pat, const wchar_t *end);
+
+void wl_files_read_filter(const char *name, WlReadFilter fn)
+{
+    MultiByteToWideChar(CP_UTF8, 0, name, -1, g_filterName, (int)(sizeof g_filterName / sizeof g_filterName[0]));
+    g_filter = fn;
+}
+
+static void filter_track(const char *path, DWORD access, HANDLE h)
+{
+    if (!g_filter || h == INVALID_HANDLE_VALUE || !(access & (GENERIC_READ | GENERIC_ALL | FILE_READ_DATA)))
+        return;
+    const char *slash = strrchr(path, '\\'), *other = strrchr(path, '/');
+    const char *name = other > slash ? other + 1 : slash ? slash + 1 : path;
+    wchar_t wname[MAX_PATH];
+    if (!MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_PATH) || !wild(wname, g_filterName, g_filterName + wcslen(g_filterName)))
+        return;
+    AcquireSRWLockExclusive(&g_filterLock);
+    for (int i = 0; i < (int)(sizeof g_filtered / sizeof g_filtered[0]); i++)
+        if (!g_filtered[i])
+        {
+            g_filtered[i] = h;
+            break;
+        }
+    ReleaseSRWLockExclusive(&g_filterLock);
+}
+
+static int filter_has(HANDLE h)
+{
+    int has = 0;
+    AcquireSRWLockShared(&g_filterLock);
+    for (int i = 0; i < (int)(sizeof g_filtered / sizeof g_filtered[0]); i++)
+        if (g_filtered[i] == h)
+            has = 1;
+    ReleaseSRWLockShared(&g_filterLock);
+    return has;
+}
+
+static void filter_forget(HANDLE h)
+{
+    AcquireSRWLockExclusive(&g_filterLock);
+    for (int i = 0; i < (int)(sizeof g_filtered / sizeof g_filtered[0]); i++)
+        if (g_filtered[i] == h)
+            g_filtered[i] = NULL;
+    ReleaseSRWLockExclusive(&g_filterLock);
+}
+
+// ------------------------------------------------------------------------------
 // Fixed folders redirected (wl_files_redirect): C:\Sega, a Taito Type X's D:\ and E:\...
 // ------------------------------------------------------------------------------
 
@@ -997,6 +1054,8 @@ static void merged_close(HANDLE h)
 
 static void on_create(const char *path, DWORD access, DWORD disp, DWORD flags, HANDLE h, DWORD err, const void *caller)
 {
+    // The file filtered whoever opens it: the game's C library (msvcr*.dll) is outside its folder
+    filter_track(path, access, h);
     // Devices opened by Windows itself (DirectInput scanning the joysticks) are not the cabinet's
     if (wl_is_system_caller(caller))
         return;
@@ -1168,6 +1227,15 @@ static BOOL WINAPI hReadFile(HANDLE h, LPVOID buf, DWORD size, LPDWORD read, LPO
 
     DWORD err = GetLastError();
     DWORD got = ok ? (read ? *read : ov ? (DWORD)ov->InternalHigh : 0) : 0;
+    if (got && g_filter && !emulated && filter_has(h))
+    {
+        LARGE_INTEGER at = {}, zero = {};
+        if (ov)
+            at.QuadPart = (LONGLONG)ov->Offset | (LONGLONG)ov->OffsetHigh << 32;
+        else if (SetFilePointerEx(h, zero, &at, FILE_CURRENT))
+            at.QuadPart -= got;
+        g_filter((unsigned char *)buf, got, (unsigned long long)at.QuadPart);
+    }
     WlDevice d;
     if (!ok && err == ERROR_IO_PENDING)
     {
@@ -1229,6 +1297,8 @@ static BOOL WINAPI hCloseHandle(HANDLE h)
     int was = wl_dev_untrack(h, &d, nested);
     if (!nested && g_capBytes)
         cap_forget(h);
+    if (!nested && g_filter)
+        filter_forget(h);
     if (was && !nested)
         wl_log("CloseHandle %s", d.name);
     if (!nested && wl_vhid_is_handle(h))

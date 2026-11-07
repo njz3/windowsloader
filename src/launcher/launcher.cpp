@@ -216,6 +216,27 @@ static int pe_console(const wchar_t *path)
     return console;
 }
 
+// Mario Kart DX 1.05 needs more than 2 GB here, without saying so in its program's header: with less
+// than 25 MB in one piece left, its title's textures never load, and the title never reads the item
+// button. A process's limit comes from its program's header, when it is made (writedir.h)
+static int needs_large_address(const wchar_t *path)
+{
+    const wchar_t *base = wcsrchr(path, L'\\');
+    if (_wcsicmp(base ? base + 1 : path, L"MK_AGP3_FINAL.exe"))
+        return 0;
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        return 0;
+    IMAGE_DOS_HEADER dos;
+    IMAGE_NT_HEADERS32 nt;
+    DWORD rd;
+    int needs = ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
+                SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, &nt, sizeof nt, &rd, NULL) &&
+                rd == sizeof nt && nt.FileHeader.TimeDateStamp == 0x582179A8 && !(nt.FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE);
+    CloseHandle(f);
+    return needs;
+}
+
 // The log of the run before kept: x.log renamed x.old.log (the one before it gone), the new one
 // made by the game's side
 static void keep_previous_log(const wchar_t *path)
@@ -1170,8 +1191,30 @@ int wmain(int argc, wchar_t **argv)
     }
     if (pe_console(gamePath))
         flags |= CREATE_NO_WINDOW;
+    // A copy of the program started from the write folder, or beside the launcher without one; in
+    // the game's folder, and shown to it as its own (the DLL's WL_ENV_GAME_EXE). Nothing written when
+    // the write folder cannot be written: the owner's rule, the game then runs with its 2 GB
+    static wchar_t startedPath[MAX_PATH];
+    wcscpy_s(startedPath, MAX_PATH, gamePath);
+    SetEnvironmentVariableW(WL_ENV_GAME_EXE, NULL);
+    if (needs_large_address(gamePath))
+    {
+        wchar_t copy[MAX_PATH];
+        if (write < 0)
+            say("windowsloader: this version needs a copy of its program with more than 2 GB, and the write folder cannot be written: "
+                "started as it is, it may stop on a black screen after its attract\n");
+        else if (wl_write_dir_large_address(write ? writeDir : selfDir, L"mkdx", gamePath, copy, MAX_PATH))
+        {
+            wcscpy_s(startedPath, MAX_PATH, copy);
+            SetEnvironmentVariableW(WL_ENV_GAME_EXE, gamePath);
+            say("  copy:   %s (more than 2 GB; the game's file left as it is)\n", u8(copy));
+        }
+        else
+            say("windowsloader: the copy of the program with more than 2 GB cannot be written (error %lu): started as it is, it may stop on "
+                "a black screen after its attract\n", wl_write_dir_error());
+    }
     PROCESS_INFORMATION pi;
-    BOOL started = CreateProcessW(gamePath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);
+    BOOL started = CreateProcessW(startedPath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);
     if (listed)
         DeleteProcThreadAttributeList(attrs);
     if (attrs)

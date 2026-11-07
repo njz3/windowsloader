@@ -97,7 +97,7 @@ static const WlVirtualJoystick g_wheel = {"Namco Steering Wheel", 0x0B9A, 0x0001
 // 0x4000, the select switch up 0x2000 and down 0x1000, Enter 0x0200, the item button 0x0020 (0x0010
 // too), the Mario button 0x0002; Start 0x8000 has no use. Steering (left low), accelerator, brake
 // on channels 0, 1, 2, against the calibration of the test menu's "analog volume" page.
-static int g_v106; // Mario Kart Arcade GP DX v1.06, either build: its test switch and its brake
+static int g_brakeSwitch; // Mario Kart Arcade GP DX v1.05 and v1.06: their test switch and their brake
 
 static void jvs_state(WlJvsState *s)
 {
@@ -108,9 +108,9 @@ static void jvs_state(WlJvsState *s)
         coins++;
     coinWas = coin;
     int test = wl_input_get(&g_inputs[IN_TEST]);
-    if (g_v106)
+    if (g_brakeSwitch)
     {
-        // v1.06 leaves its test menu as soon as the switch opens (a slide switch on the cabinet):
+        // They leave their test menu as soon as the switch opens (a slide switch on the cabinet):
         // a push turns it on, the next off (Nono's patch)
         static int testWas, testOn;
         if (test && !testWas)
@@ -132,8 +132,8 @@ static void jvs_state(WlJvsState *s)
     s->analog[0] = (unsigned short)wl_input_get(&g_inputs[IN_STEERING]);
     s->analog[1] = (unsigned short)wl_input_get(&g_inputs[IN_GAS]);
     s->analog[2] = (unsigned short)wl_input_get(&g_inputs[IN_BRAKE]);
-    // v1.06's brake is a switch (its switch test: BRAKE ON/OFF; Nono's patch): the pedal past half way
-    if (g_v106 && s->analog[2] > 0x8000)
+    // Their brake is a switch (their switch test: BRAKE ON/OFF; Nono's patch): the pedal past half way
+    if (g_brakeSwitch && s->analog[2] > 0x8000)
         s->player[0] |= 0x0080;
 }
 
@@ -1214,12 +1214,52 @@ static HANDLE WINAPI link_CreateMutexW(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPC
     return olink_CreateMutexW(sa, owner, own);
 }
 
+// v1.05 and v1.06's settings (F:\TestMode\testmode_<n>.bin and its copy in G:\, 168 bytes): a
+// CRC-16 (ARC: 0x8005 reflected, from 0) of bytes 2..165 first, its complement in the last two.
+// GAME OPTIONS' NAMCAM and STEERING WHEEL REACTION are its bytes 0x1d and 0x1e, 1 ON: copies
+// without them show "The camera is currently unavailable" and send the motor board nothing. Turned
+// ON as the game reads the file (CAMERA_WHEEL_ON), the file left as it is
+static int g_cameraWheelOn;
+
+static unsigned short crc16_arc(const unsigned char *p, size_t n)
+{
+    unsigned c = 0;
+    while (n--)
+    {
+        c ^= *p++;
+        for (int i = 0; i < 8; i++)
+            c = c & 1 ? c >> 1 ^ 0xA001 : c >> 1;
+    }
+    return (unsigned short)c;
+}
+
+static void mkdx_settings_read(unsigned char *d, DWORD size, unsigned long long offset)
+{
+    if (!g_cameraWheelOn || offset || size != 168)
+        return;
+    unsigned short crc = crc16_arc(d + 2, 164);
+    if ((d[0] | d[1] << 8) != crc || (d[166] | d[167] << 8) != (unsigned short)~crc || d[0x1D] > 1 || d[0x1E] > 1)
+    {
+        wl_log("namco: the game's settings (testmode_*.bin) not in the form known: NAMCAM and STEERING WHEEL REACTION left as they are");
+        return;
+    }
+    if (d[0x1D] && d[0x1E])
+        return;
+    wl_log("namco: the game's settings read with NAMCAM %s and STEERING WHEEL REACTION %s: both given ON (the file left as it is)",
+           d[0x1D] ? "ON" : "OFF", d[0x1E] ? "ON" : "OFF");
+    d[0x1D] = d[0x1E] = 1;
+    crc = crc16_arc(d + 2, 164);
+    d[0] = (unsigned char)crc, d[1] = (unsigned char)(crc >> 8);
+    d[166] = (unsigned char)~crc, d[167] = (unsigned char)(~crc >> 8);
+}
+
 // The link's settings: LINK's addresses, CABINET the cabinet's number (0: the first of LINK's
 // addresses that is this PC's)
 static void mkdx_settings(void)
 {
     // The players' photos (Media Foundation): the PC's camera, or an emulated one
     wl_camera_settings();
+    g_cameraWheelOn = wl_game_option_bool("CAMERA_WHEEL_ON");
     char list[256];
     wl_game_option("LINK", list, sizeof list);
     g_cabinet = wl_game_option_int("CABINET");
@@ -1273,11 +1313,24 @@ static void mkdx_settings(void)
         wl_log("namco: cabinet %d (192.168.112.%d), alone", g_cabinet, 10 + g_cabinet);
 }
 
+#define MKDX_CABINET_OPTION                                                                                                             \
+    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                      \
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, " \
+          "dans le fichier)."),                                                                                                         \
+     WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL}
+
 static const WlGameOption g_mkdxOptions[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL},
+    MKDX_CABINET_OPTION,
+    WL_CAMERA_OPTIONS,
+};
+
+// v1.05 and v1.06: the same, and their test menu's camera and wheel's force turned on
+static const WlGameOption g_mkdx105Options[] = {
+    MKDX_CABINET_OPTION,
+    {"CAMERA_WHEEL_ON", WL_N("Caméra et retour de force activés"),
+     WL_N("Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le "
+          "fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."),
+     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
     WL_CAMERA_OPTIONS,
 };
 
@@ -2082,8 +2135,8 @@ static const Wangan g_wangans[] = {
      0x6A0C86, {0xE9, 0x4E, 0x0B, 0x00, 0x00}, {0xE9, 0xD1, 0x00, 0x00, 0x00}, 0xAFB5A0},
 };
 
-// v1.06.35's dongle ID, as JVSEmuMK.dll gives it: its function (+0x1f1d80, the device in eax, no
-// argument on the stack) returns the device's text at +0x36 or NULL, read as the ID by its callers
+// The dongle's ID of v1.05 and v1.06.35, as JVSEmuMK.dll gives it: its function (the device in eax,
+// no argument on the stack) returns the device's text at +0x36 or NULL, read as the ID by its callers
 #if defined(_M_IX86)
 static void *g_keySerialOriginal;
 
@@ -2107,12 +2160,12 @@ __declspec(naked) static void key_serial_hook(void)
     }
 }
 
-static void key_serial_patch(unsigned char *function)
+static void key_serial_patch(unsigned char *function, const char *what)
 {
-    wl_hook_code(function, (void *)key_serial_hook, &g_keySerialOriginal, "the dongle's ID (MK_AGP3_FINAL.exe+0x1f1d80, v1.06.35)");
+    wl_hook_code(function, (void *)key_serial_hook, &g_keySerialOriginal, what);
 }
 #else
-static void key_serial_patch(unsigned char *) // the game is 32 bits
+static void key_serial_patch(unsigned char *, const char *) // the game is 32 bits
 {
 }
 #endif
@@ -2226,10 +2279,11 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     // v1.06 has two builds with their own places: v1.06.35 (the copy, stamp of 1 August 2022) and
     // the USA one of 17 November 2016 (Nono's, not tried here)
     int v10635 = built == 0x62E76DA6, v106usa = built == 0x582D5E48;
-    g_v106 = v10635 || v106usa;
+    int v106 = v10635 || v106usa;
+    g_brakeSwitch = v105 || v106;
     *name = "mkdx";
     *title = "Mario Kart Arcade GP DX";
-    if (v118 || v110 || v105 || g_v106)
+    if (v118 || v110 || v105 || v106)
         wl_log("game: %s %s (Namco System ES3)", *title, v118 ? "v1.18" : v110 ? "v1.10" : v105 ? "v1.05" : v10635 ? "v1.06.35" : "v1.06 (USA)");
     else
         wl_log("game: %s, unknown version (program built 0x%08lX): only v1.05, v1.06, v1.10 and v1.18 are known, their code changes "
@@ -2256,7 +2310,13 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     // The boot check's link step looks for the other cabinets by broadcast on UDP 20199: alone, the
     // cabinet hears itself (nothing leaves the PC); linked, its packets go to the other cabinets
     wl_system_loopback_broadcast(1);
-    wl_game_set_options(g_mkdxOptions, (int)(sizeof g_mkdxOptions / sizeof g_mkdxOptions[0]));
+    if (v105 || v106)
+    {
+        wl_game_set_options(g_mkdx105Options, (int)(sizeof g_mkdx105Options / sizeof g_mkdx105Options[0]));
+        wl_files_read_filter("testmode_*.bin", mkdx_settings_read);
+    }
+    else
+        wl_game_set_options(g_mkdxOptions, (int)(sizeof g_mkdxOptions / sizeof g_mkdxOptions[0]));
     wl_game_on_settings(mkdx_settings);
     if (!patch_ws2((HMODULE)exe, 2, "bind", (void *)link_bind, (void **)&olink_bind) ||
         !patch_ws2((HMODULE)exe, 20, "sendto", (void *)link_sendto, (void **)&olink_sendto) ||
@@ -2281,15 +2341,29 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     }
     else if (v105)
     {
-        // No USB key of the later versions (no interface GUID: a DongleDevice with its F:\DongleData
-        // file). The first use of "last_auth.bin" (its 56 bytes read, a stdcall of one argument), as
-        // v1.18's +0x62e60
+        // The launcher starts a copy marked large address aware (its needs_large_address)
+        if (!(((IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew))->FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE))
+            wl_log("namco: v1.05 limited to 2 GB: its title's textures may never load (a black screen after the attract, the item button not read)");
+        // Not the USB key of v1.10 and v1.18 (no interface GUID) but v1.06's Sentinel HASP. The first use
+        // of "last_auth.bin" (its 56 bytes read, a stdcall of one argument), as v1.18's +0x62e60
         wl_hook_code(exe + 0x6A180, (void *)cabinet_auth_recent, &was, "the network authentication's age (MK_AGP3_FINAL.exe+0x6a180, v1.05)");
+        // E19-10 "USB DONGLE ERROR1": v1.06's dongle check, at its own places (as JVSEmuMK.dll writes them)
+        static const unsigned char jne[2] = {0x0F, 0x85}, jeLong[2] = {0x0F, 0x84}, jneShort[1] = {0x75}, jmpShort[1] = {0xEB};
+        wl_patch_code(exe + 0x1EF639, jne, jeLong, 2, "the dongle's answer not required (v1.05)");
+        wl_patch_code(exe + 0x1F81E3, jneShort, jmpShort, 1, "the dongle's deeper check passed (v1.05)");
+        key_serial_patch(exe + 0x1F7070, "the dongle's ID (MK_AGP3_FINAL.exe+0x1f7070, v1.05)");
+        // E19-10 in its test menu: error 0x52, its HASP login failing (+0x1f38e9). As in v1.06.35 the
+        // failure stays remembered (mov [device + 0x110], 0x52), not raised: on to the function's end
+        static const unsigned char raise[20] = {0x8B, 0x36, 0x33, 0xC0, 0x8D, 0x4E, 0x3C, 0xBF, 0x52, 0x00,
+                                                0x00, 0x00, 0x39, 0x39, 0x0F, 0x84, 0xD1, 0x08, 0x00, 0x00};
+        static const unsigned char remembered[20] = {0x8B, 0x44, 0x24, 0x14, 0xC7, 0x80, 0x10, 0x01, 0x00, 0x00,
+                                                     0x52, 0x00, 0x00, 0x00, 0xE9, 0xE2, 0x08, 0x00, 0x00, 0x90};
+        wl_patch_code(exe + 0x1F38F6, raise, remembered, 20, "the dongle's login error not raised (v1.05)");
         InitializeCriticalSection(&g_nfcLock);
         wl_vdev_register(&g_com4);
         wl_vdev_label("COM4", WL_N("Lecteur de cartes"));
     }
-    else if (g_v106)
+    else if (v106)
     {
         // Its dongle check: the status taken as answered (jne made je after "cmp eax, 3"), the deeper
         // check passed (jne made jmp). Nono's patch; v1.06.35's places as JVSEmuMK.dll writes them
@@ -2298,7 +2372,7 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_patch_code(exe + (v10635 ? 0x1F2DA3 : 0x1F0DA3), jneShort, jmpShort, 1, "the dongle's deeper check passed (v1.06)");
         if (v10635)
         {
-            key_serial_patch(exe + 0x1F1D80);
+            key_serial_patch(exe + 0x1F1D80, "the dongle's ID (MK_AGP3_FINAL.exe+0x1f1d80, v1.06.35)");
             // E19-10 "USB DONGLE ERROR1" in its test menu: error 0x52, its HASP login failing (+0x1f0672).
             // Its failure stays remembered (+0x118), not raised (jump over the call and +0xb0)
             static const unsigned char raise[2] = {0x8B, 0x13}, over[2] = {0xEB, 0x0C};

@@ -89,6 +89,12 @@ void wl_files_set_ini_override(WlIniOverride fn);
 // path ends with nameEnd)
 void wl_files_cap(const char *nameEnd, unsigned long long maxBytes);
 
+// A file of the game changed as the game reads it, by its name's wildcard ("testmode_*.bin", any
+// folder): fn is given each read's data, its size and its place in the file, and may change it.
+// The file itself is left as it is (Mario Kart DX's settings: its camera and wheel's force on)
+typedef void (*WlReadFilter)(unsigned char *data, DWORD size, unsigned long long offset);
+void wl_files_read_filter(const char *name, WlReadFilter fn);
+
 // A folder the game uses at a fixed place ("C:\Sega", GRID's) taken from another one (the copy
 // beside the game): the game's paths under from go to the same paths under to, so nothing is
 // written at the fixed place on this PC. Paths are compared without regard to case or / and \.
@@ -183,6 +189,7 @@ void wl_registry_add_key(const char *path, const WlRegValue *values, int count);
 void wl_files_hooks(void);
 void wl_devices_hooks(void);
 void wl_system_hooks(void);
+void wl_game_exe_hooks(void); // a copy of the game's program runs: shown as the one in the game's folder
 void wl_netenv_hooks(void);
 void wl_window_hooks(void);
 void wl_d3d8_hooks(void);

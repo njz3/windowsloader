@@ -230,7 +230,9 @@ A real board can replace an emulated one on a serial port (passthrough, linuxloa
 
 A game that photographs its players has a camera option in its "Options du jeu" page, its own for
 each game (Daytona Championship USA, both editions; Mario Kart Arcade GP DX, whose test menu's ゲーム設定 →
-ナムカム（カメラ）の使用 must be ON for it to take photos): `CAMERA = AUTO` (the default: the PC's
+ナムカム（カメラ）の使用 must be ON for it to take photos; 1.05 and 1.06: its GAME OPTIONS' NAMCAM and
+STEERING WHEEL REACTION, the wheel's force, are given ON as the game reads its settings, the file
+left as it is, unless `CAMERA_WHEEL_ON = false`): `CAMERA = AUTO` (the default: the PC's
 camera, else the emulated one), `PICTURE` (the emulated one) or the name of one of the PC's video
 capture devices, which the list shows (that one, else the emulated one); the emulated camera shows
 `CAMERA_PICTURE` (a JPG or PNG file, put at the game's size; black when empty).
@@ -354,6 +356,12 @@ only in its first place stays there. A game's companion (Initial D 7 and 8's `pi
 `amdaemon.exe`, which the launcher starts beside it) writes in its game's `WRITE_DIR\<game>`, so the
 files they share stay shared. The picker reads and writes the write folder's `windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
 place.
+Mario Kart DX 1.05's program is limited to 2 GB, too little for its title's textures here (a black
+screen after the attract, the item button not read). The limit comes from the program's header, when
+the process is made: the launcher starts a copy with only that flag changed, in
+`WRITE_DIR\mkdx\large-address` (beside the launcher without a write folder), made when missing or
+different, in the game's folder and shown to the game as its own program. The game's file is not
+changed. With a write folder that cannot be used, no copy: the game starts as it is, and says so.
 A write folder that cannot be used (it cannot be made, a test file cannot be made, written and
 removed in it, or the settings cannot be copied there; the DLL tests `WRITE_DIR\<game>` the same
 way) is still the only place written to, so nothing is written at all: the settings and the game's

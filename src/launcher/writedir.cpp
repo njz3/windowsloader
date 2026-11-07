@@ -86,6 +86,73 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
     return probe(root) ? 1 : -2;
 }
 
+static unsigned char *read_whole(const wchar_t *path, DWORD *length)
+{
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        return NULL;
+    DWORD size = GetFileSize(f, NULL), got = 0;
+    unsigned char *data = size != INVALID_FILE_SIZE && size ? (unsigned char *)HeapAlloc(GetProcessHeap(), 0, size) : NULL;
+    if (data && (!ReadFile(f, data, size, &got, NULL) || got != size))
+    {
+        HeapFree(GetProcessHeap(), 0, data);
+        data = NULL;
+    }
+    CloseHandle(f);
+    *length = size;
+    return data;
+}
+
+int wl_write_dir_large_address(const wchar_t *root, const wchar_t *name, const wchar_t *game, wchar_t *copy, size_t size)
+{
+    const wchar_t *base = wcsrchr(game, L'\\');
+    base = base ? base + 1 : game;
+    wchar_t folder[MAX_PATH], temp[MAX_PATH];
+    swprintf(folder, MAX_PATH, L"%s\\%s\\large-address", root, name);
+    swprintf(copy, size, L"%s\\%s", folder, base);
+    swprintf(temp, MAX_PATH, L"%s.tmp", copy);
+    DWORD length = 0;
+    unsigned char *data = read_whole(game, &length);
+    if (!data)
+    {
+        g_error = GetLastError();
+        return 0;
+    }
+    int done = 0;
+    IMAGE_DOS_HEADER *dos = (IMAGE_DOS_HEADER *)data;
+    if (length > sizeof *dos && dos->e_magic == IMAGE_DOS_SIGNATURE && (DWORD)dos->e_lfanew + sizeof(IMAGE_NT_HEADERS32) <= length)
+    {
+        ((IMAGE_NT_HEADERS32 *)(data + dos->e_lfanew))->FileHeader.Characteristics |= IMAGE_FILE_LARGE_ADDRESS_AWARE;
+        DWORD had = 0;
+        unsigned char *old = read_whole(copy, &had);
+        done = old && had == length && !memcmp(old, data, length); // the one made before, perhaps running
+        if (old)
+            HeapFree(GetProcessHeap(), 0, old);
+        if (!done)
+        {
+            SHCreateDirectoryExW(NULL, folder, NULL);
+            HANDLE f = CreateFileW(temp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL);
+            if (f != INVALID_HANDLE_VALUE)
+            {
+                DWORD n = 0;
+                BOOL ok = WriteFile(f, data, length, &n, NULL) && n == length;
+                g_error = GetLastError();
+                CloseHandle(f);
+                done = ok && MoveFileExW(temp, copy, MOVEFILE_REPLACE_EXISTING);
+                if (!done)
+                {
+                    g_error = GetLastError();
+                    DeleteFileW(temp);
+                }
+            }
+            else
+                g_error = GetLastError();
+        }
+    }
+    HeapFree(GetProcessHeap(), 0, data);
+    return done;
+}
+
 int wl_log_setting(const wchar_t *iniPath)
 {
     wchar_t v[16];

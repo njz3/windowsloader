@@ -34,6 +34,11 @@ unsigned long wl_write_dir_error(void);
 // (linuxloader warns the same way); 0 otherwise; -1 when the copy fails (path left as it was)
 int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, size_t size);
 
+// A copy of the game's program marked large address aware, the game's file left as it is: the flag is
+// read when a process is made, nothing can change it later. In root\<name>\large-address, written
+// when missing or different; the game still runs in its own folder. 1 and its path, 0 when it fails
+int wl_write_dir_large_address(const wchar_t *root, const wchar_t *name, const wchar_t *game, wchar_t *copy, size_t size);
+
 // [Launcher] LOG of the settings file: the log, windowsloader.log, written (1, the default) or not
 // (false, 0, no, off). It is beside the launcher, or at the write folder's root when there is one,
 // made anew at each start; --log names another. Changed in the picker or the game's menu, it counts

@@ -33,6 +33,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Mario Kart Arcade GP DX 1.18 (Namco ES3) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Mario Kart Arcade GP DX 1.10 (Namco ES3, mod français) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
 | Mario Kart Arcade GP DX 1.06.35 (Namco ES3) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ⏳ | ⚠️ | ⏳ |
+| Mario Kart Arcade GP DX 1.05 (Namco ES3) | ✅ | ⚠️ | ⏳ | ⚠️ | ✅ | ⏳ | ⚠️ | ⏳ |
 | Battle Gear 4 (Taito Type X+, 2006) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | D1GP Arcade (Taito Type X2) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⚠️ |
 | Valve Limit R (Taito Type X) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
@@ -1328,6 +1329,41 @@ charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est m
 - Retour de force ⚠️ : commandes de la carte moteur reçues en course (raideur, amortissement, vibration), pas essayé
   au volant.
 - Pas essayé : link, lecteur de cartes (COM4 déclaré comme en 1.05 et 1.10), vraie caméra, sélecteur, borne.
+
+## Mario Kart Arcade GP DX 1.05 (Namco System ES3)
+
+« MK3 Rev.1.05.21/OF » (horodatage 0x582179A8, CRC32 0x3CED423E ; la liste connaissait déjà 0xC7BD1948, même horodatage).
+Les patchs de Nono pour la 1.06, aux adresses de cette version, essayés ici le 06/11 en mode agent. Aucun fichier du
+jeu modifié (la copie relevée avant et après est identique).
+
+- Lancement ✅ : le dongle (`+0x1EF639` jne devenu je, `+0x1F81E3` jne devenu jmp) et son numéro (`+0x1F7070`,
+  « 271013-023010 » à l'écran), aux adresses de `JVSEmuMK.dll` ; I/O OK, attraction. « E19-10 USB DONGLE ERROR1 », au
+  démarrage et au menu de test : la connexion HASP échoue (`+0x1F38E9`), l'échec reste en mémoire (`+0x110`) sans
+  être levé (`+0x1F38F6`, comme en 1.06.35). Plus aucune erreur 0x52 sous cdb.
+- Commandes ✅ : test verrouillé, frein en interrupteur sur le bit 0x0080 (vu ON et OFF au test des contacts), objet et
+  accélérateur vus au même test, JVS 0x7D et 0x7E répondus.
+- Caméra et retour de force ⚠️ (mode agent) : NAMCAM et STEERING WHEEL REACTION sont sur OFF dans les réglages de la copie
+  (`testmode_*.bin`, octets 0x1D et 0x1E). Caméra OFF, le jeu affiche « The camera is currently unavailable » et la carte
+  moteur ne reçoit que des consignes nulles. Le fichier (168 octets) commence par un CRC-16/ARC des octets 2 à 165 et finit
+  par son complément. windowsloader met les deux octets à 1 et refait les deux sommes au moment où le jeu le lit (F et G),
+  sans toucher au fichier ; option `CAMERA_WHEEL_ON` (cochée par défaut), en 1.05 et en 1.06. Le fichier est ouvert par la
+  bibliothèque C du jeu, hors de son dossier : le filtre de lecture (`wl_files_read_filter`) suit ce fichier quel que soit
+  l'appelant. Vu, en partant de la copie d'origine : caméra émulée ouverte dès le démarrage, image prise à la sélection,
+  consignes du moteur en course (raideur 50, amortissement 50, visée 0x183 dans un virage). Décochée : réglages laissés tels
+  quels. 1.06.35 (déjà ON) : rien de changé.
+- Partie ✅ (mode agent), par une copie de l'exécutable : l'original n'atteint pas la course, faute d'espace d'adressage. Il n'a pas le drapeau
+  `LARGE_ADDRESS_AWARE` (0x0102, la 1.06.35 l'a) : 2 Go, dont moins de 25 Mo d'un seul tenant à l'attraction (« largest
+  free 14 MB » au journal, 1 827 Mo en 1.06.35). `titletex.pac` (25 Mo) ne se charge jamais, seul fichier de textures dans
+  ce cas : la couche `title` reste à l'état 1, son filtre (`+0x30B7FF`) n'a jamais lu Item, la scène de sélection (9) n'est
+  pas demandée, et l'attraction tourne sur un écran noir (scènes 5, 53, 5).
+  Le lanceur écrit donc une copie où seul ce drapeau change (CRC32 0x2ACCAB46) dans `<dossier d'écriture>\mkdx\large-address`,
+  à côté du lanceur sans dossier d'écriture, seulement si elle manque ou diffère, et la lance dans le dossier du jeu. La DLL
+  la montre comme le programme du dossier du jeu (`GetModuleFileName`). Le fichier du jeu n'est pas touché. Vu : sélection,
+  course, commandes moteur reçues, caméra émulée lue, plus de 1,8 Go libres. Dossier d'écriture inutilisable : rien n'est écrit,
+  l'original est lancé, le lanceur et le journal préviennent (2 Go, écran noir possible).
+  Écartés, retirés un par un à l'essai, même résultat : les crochets `+0x6A180` et `+0x1F7070`, le saut `+0x1F38F6`.
+- Pas essayé : sans dossier d'écriture configuré, retour de force ressenti au volant, link (le pare-feu voit le chemin de la
+  copie), lecteur de cartes, vraie caméra, sélecteur, borne.
 
 ## Crazy Ride (UNIS PC, Unreal Engine 4, 64 bits)
 

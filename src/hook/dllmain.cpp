@@ -88,6 +88,7 @@ static void wl_init(void)
 
     wl_crash_init();
     wl_hooks_init();
+    wl_game_exe_hooks();
     wl_files_hooks();
     wl_devices_hooks();
     wl_vdev_hooks();
