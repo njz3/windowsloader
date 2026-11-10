@@ -407,6 +407,10 @@ Outputs.OUTPUTS_NETWORK=...` of the launcher still wins at those. A port another
 told there (`OUTPUTS_NETWORK_PORT` to change in the file). The agent's `menu outputs on|off` does the
 same.
 
+Sound: on an output set above 48000 Hz in Windows, a game using XAudio2 2.0 to 2.7 that asks for the
+output's rate gets a mastering voice at 48000 Hz (XAudio2's reverb stops there). The log's `xaudio2:`
+lines give the output's rate and channels and what the game asks for.
+
 ## License
 
 GPL v3 (see `LICENSE`), by Benjamin Maurin - njz3. Code taken from other projects (MAME,

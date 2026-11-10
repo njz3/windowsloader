@@ -1437,6 +1437,70 @@ static void hook_filter_graph(IUnknown *object)
     graph->Release();
 }
 
+// ------------------------------------------------------------------------------
+// XAudio2 2.0 to 2.7, made through COM by the games (Mario Kart DX, Wangan Midnight, SWDC). Asked
+// for the default rate, the mastering voice takes the output's; its reverb (XAUDIO2FX_REVERB_MAX_
+// FRAMERATE) stops at 48000 Hz, and a game may not survive the refusal. On a sound output set
+// higher (192000 Hz seen, a linuxloader user's crash with FAudio) the voice asks for 48000 Hz.
+// ------------------------------------------------------------------------------
+
+static const GUID g_xaudio2[] = {
+    {0xfac23f48, 0x31f5, 0x45a8, {0xb4, 0x9b, 0x52, 0x25, 0xd6, 0x14, 0x01, 0xaa}}, // 2.0
+    {0xe21a7345, 0xeb21, 0x468e, {0xbe, 0x50, 0x80, 0x4d, 0xb9, 0x7c, 0xf7, 0x08}}, // 2.1
+    {0xb802058a, 0x464a, 0x42db, {0xbc, 0x10, 0xb6, 0x50, 0xd6, 0xf2, 0x58, 0x6a}}, // 2.2
+    {0x4c5e637a, 0x16c7, 0x4de3, {0x9c, 0x46, 0x5e, 0xd2, 0x21, 0x81, 0x96, 0x2d}}, // 2.3
+    {0x03219e78, 0x5bc3, 0x44d1, {0xb9, 0x2e, 0xf6, 0x3d, 0x89, 0xcc, 0x65, 0x26}}, // 2.4
+    {0x4c9b6dde, 0x6809, 0x46e6, {0xa2, 0x78, 0x9b, 0x6a, 0x97, 0x58, 0x86, 0x70}}, // 2.5
+    {0x3eda9b49, 0x2085, 0x498b, {0x9b, 0xb2, 0x39, 0xa6, 0x77, 0x84, 0x93, 0xde}}, // 2.6
+    {0x5a508685, 0xa254, 0x4fba, {0x9b, 0x82, 0x9a, 0x24, 0xb0, 0x03, 0x06, 0xaf}}, // 2.7
+};
+
+#define XA2_MAX_RATE 48000
+enum
+{
+    SLOT_XA2_GETDEVICEDETAILS = 4,
+    SLOT_XA2_CREATEMASTERINGVOICE = 10
+};
+
+typedef HRESULT(STDMETHODCALLTYPE *Xa2DetailsFn)(void *, UINT32, void *);
+typedef HRESULT(STDMETHODCALLTYPE *Xa2MasteringFn)(void *, void **, UINT32, UINT32, UINT32, UINT32, const void *);
+static Xa2MasteringFn oXa2Mastering;
+
+static HRESULT STDMETHODCALLTYPE hXa2Mastering(void *xa, void **voice, UINT32 channels, UINT32 rate, UINT32 flags, UINT32 device, const void *chain)
+{
+    struct // XAUDIO2_DEVICE_DETAILS, down to the output's rate
+    {
+        WCHAR id[256], name[256];
+        DWORD role;
+        WORD tag, channels;
+        DWORD rate;
+        BYTE rest[64];
+    } d;
+    memset(&d, 0, sizeof d);
+    HRESULT hr = ((Xa2DetailsFn)(*(void ***)xa)[SLOT_XA2_GETDEVICEDETAILS])(xa, device, &d);
+    UINT32 asked = rate;
+    if (SUCCEEDED(hr))
+        wl_log("xaudio2: output %u at %lu Hz, %u channels; the game asks for %u Hz (0: the output's), %u channels (0: the output's)", device, d.rate, d.channels, rate, channels);
+    else
+        wl_log("xaudio2: output %u not described (0x%08lx); the game asks for %u Hz", device, hr, rate);
+    if (SUCCEEDED(hr) && !rate && d.rate > XA2_MAX_RATE)
+        rate = XA2_MAX_RATE;
+    hr = oXa2Mastering(xa, voice, channels, rate, flags, device, chain);
+    if (rate != asked || FAILED(hr))
+        wl_log("xaudio2: mastering voice at %u Hz -> 0x%08lx", rate, hr);
+    return hr;
+}
+
+static void hook_xaudio2(REFCLSID cls, void *object)
+{
+    static volatile LONG hooked;
+    int known = 0;
+    for (int i = 0; i < (int)(sizeof g_xaudio2 / sizeof g_xaudio2[0]) && !known; i++)
+        known = IsEqualCLSID(cls, g_xaudio2[i]);
+    if (known && !InterlockedExchange(&hooked, 1))
+        wl_hook_code((*(void ***)object)[SLOT_XA2_CREATEMASTERINGVOICE], (void *)hXa2Mastering, (void **)&oXa2Mastering, "IXAudio2::CreateMasteringVoice");
+}
+
 static HRESULT(WINAPI *oCoCreateInstance)(REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID *);
 static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx, REFIID iid, LPVOID *out)
 {
@@ -1452,6 +1516,8 @@ static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx
     HRESULT hr = oCoCreateInstance(cls, outer, ctx, iid, out);
     if (SUCCEEDED(hr) && out && *out && !outer && IsEqualCLSID(cls, g_filterGraph))
         hook_filter_graph((IUnknown *)*out);
+    if (SUCCEEDED(hr) && out && *out && !outer)
+        hook_xaudio2(cls, *out);
     if (SUCCEEDED(hr))
         wl_link_dpnet(); // DirectPlay's, linked (link.h)
     if (SUCCEEDED(hr) && out && *out && IsEqualCLSID(cls, g_directInput) &&
