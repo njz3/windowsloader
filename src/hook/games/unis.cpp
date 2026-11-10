@@ -218,10 +218,10 @@ static void motor_force(int raw)
 {
     static int flip;
     double left = (64 - raw) / 63.0; // the wheel, +1 at the left end
-    double force = g_motor[0] == 3 ? -left * g_motor[1] / 127.0 : 0;
+    double spring = g_motor[0] == 3 ? -left * g_motor[1] / 127.0 : 0, shake = 0;
     if (g_motor[2])
-        force += (flip ^= 1) ? g_motor[2] / 20.0 : -g_motor[2] / 20.0;
-    wl_ffb_set(force > 1 ? 1 : force < -1 ? -1 : force);
+        shake = (flip ^= 1) ? g_motor[2] / 20.0 : -g_motor[2] / 20.0;
+    wl_ffb_set_parts(0, spring, 0, shake);
 }
 
 static int BIND_GetSteeringWheelAngle(void)

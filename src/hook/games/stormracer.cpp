@@ -133,7 +133,7 @@ static void motor_out(int wheel)
     if (k > 1)
         k = 1;
     // the game's wheel units grow to the right; > 0 pushes left
-    wl_ffb_set(k * (at - target));
+    wl_ffb_set_parts(0, k * (at - target), 0, 0);
 }
 
 static int __cdecl io_InitSystem(int n)

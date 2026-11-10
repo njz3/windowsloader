@@ -757,7 +757,7 @@ static DWORD WINAPI src_board_thread(LPVOID)
 
         double deflection = (g_srcSteering - 128) * 32767.0 / 128;
         double panel = g_srcPanel / 100.0;
-        double force = 0;
+        double force = 0, brake = 0;
         int power = (effect & 0x1F) + 1 + g_srcDip;
         if ((effect & 0xE0) == 0x80 || (effect & 0xE0) == 0xC0)
         {
@@ -786,16 +786,17 @@ static DWORD WINAPI src_board_thread(LPVOID)
             // A brake: against the wheel's movement, its full power at 1024 a frame (57.5 Hz)
             double v = ms > 0 ? (deflection - lastDeflection) * (1000.0 / 57.5245) / ms : 0;
             v = v < -1024 ? -1024 : v > 1024 ? 1024 : v;
-            force = power / 32.0 * v / 1024;
+            brake = power / 32.0 * v / 1024;
         }
         lastDeflection = deflection;
-        double out = force + src_panel_spring(deflection, panel);
+        double spring = src_panel_spring(deflection, panel);
+        double out = force + brake + spring;
         out = out < -1 ? -1 : out > 1 ? 1 : out;
         // Sent when it changes by 256 in 32767 at least, or reaches or leaves 0
         if ((out - sent) * 32767 >= 256 || (sent - out) * 32767 >= 256 || (out == 0) != (sent == 0))
         {
             sent = out;
-            wl_ffb_set(out);
+            wl_ffb_set_parts(force, spring, brake, 0);
         }
     }
 }
@@ -871,7 +872,7 @@ static void jvs_state(WlJvsState *s)
         if (steering >= 160)
             s->player3[0] |= 0x80;
         // The vibration, played as a light shake at 10 Hz
-        wl_ffb_set(g_lgsVibration ? (((GetTickCount() / 50) & 1) ? 0.25 : -0.25) : 0);
+        wl_ffb_set_parts(0, 0, 0, g_lgsVibration ? (((GetTickCount() / 50) & 1) ? 0.25 : -0.25) : 0);
     }
     if (g_game->inputs == g_srcInputs)
         src_drive_board(steering);

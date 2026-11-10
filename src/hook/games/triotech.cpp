@@ -117,7 +117,7 @@ static void motor_out(double wheel)
     double stiffness = (short)g_stiffness / 32768.0, target = (short)g_target / 32768.0;
     if (stiffness < 0)
         stiffness = 0;
-    wl_ffb_set(stiffness * (wheel - target)); // > 0 pushes left: the wheel turned right (wheel > target) is pulled back
+    wl_ffb_set_parts(0, stiffness * (wheel - target), 0, 0); // > 0 pushes left: the wheel turned right (wheel > target) is pulled back
 }
 
 static float __cdecl sdc_GetAxisData(int axis)

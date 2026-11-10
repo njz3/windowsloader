@@ -146,19 +146,19 @@ static double g_qpcPerSecond;
 
 static void play(void) // under g_fxLock
 {
-    double force = 0;
+    double torque = 0, sine = 0;
     if (g_enabled && !(g_shortMode && GetTickCount64() - g_lastFrame > SHORT_MODE_MS))
     {
-        double sine = 0;
         if (g_sineFrequency && g_sineAmplitude)
         {
             LARGE_INTEGER now;
             QueryPerformanceCounter(&now);
             sine = g_sineAmplitude * sin(6.283185307179586 * (g_sineFrequency / 2.0) * ((double)now.QuadPart / g_qpcPerSecond));
         }
-        force = (g_torque + sine) * g_gain / 127.0 / 127.0;
+        torque = g_torque * g_gain / 127.0 / 127.0;
+        sine = sine * g_gain / 127.0 / 127.0;
     }
-    wl_ffb_set(force);
+    wl_ffb_set_parts(torque, 0, 0, sine);
 }
 
 static DWORD WINAPI effects_thread(LPVOID unused)

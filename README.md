@@ -277,6 +277,15 @@ of that name, player 1's, else the first. While it is not connected, at the star
 during the game, player 1's wheel plays them; plugged in again, it takes them back with the current
 force. The menu's force feedback page lists "Automatique" and the connected devices ("<name> (non
 connecté)" for a chosen one that is absent); a choice there takes effect at once and is saved.
+Each kind of effect has its gain in the settings file's `[ForceFeedback]` (linuxloader's names),
+in percent, 100 by default, 0 (off) to 200, read at the start, under `FFB_Strength`:
+`FFB_GAIN_CONSTANT` (the torque the game computes, a ramp), `FFB_GAIN_SPRING` (a spring, also one
+windowsloader makes from a stiffness and a target position: Mario Kart DX, Trio Tech, Storm Racer
+G, the panel springs of Sega Racing Classic and Daytona), `FFB_GAIN_DAMPER` (a brake against the
+wheel's movement: Sega Racing Classic, Daytona) and `FFB_GAIN_SINE` (a vibration, a shake, any
+periodic wave). A game whose module gives only one torque has it under `FFB_GAIN_CONSTANT`. The
+DirectInput dampers are not played; the Sega board's raw frames sent to BackForceFeeder by the
+network outputs stay as the game sent them. The log says the gains read (`ffb: gains`).
 The force's direction is SDL's own, as linuxloader's: a positive constant force pushes the wheel to
 the left (SDL gives the direction a force comes from). Up to the 20261028-3 release, windowsloader
 sent it the other way round: a `controls.ini` saved with `FFB_Invert = 1` to make up for it must go

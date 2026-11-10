@@ -17,8 +17,18 @@
 // to the left (linuxloader's convention). The game module sets it from the emulated hardware;
 // controls.cpp plays it on the player's wheel (SDL haptic), the agent reads its changes.
 
-void wl_ffb_set(double force);
+void wl_ffb_set(double force); // the game's own torque: a constant force
 double wl_ffb_get(unsigned *serial); // serial changes with each new value
+
+// The same force made of parts, each under its gain ([ForceFeedback] FFB_GAIN_CONSTANT, _SPRING,
+// _DAMPER, _SINE of the settings file, percent, 100 by default, 0..200), summed then held to -1..1:
+// a constant force (a torque, a ramp), a spring (also one windowsloader makes from a stiffness and
+// a position), a damper (friction, inertia, a brake against the wheel's movement) and a vibration
+// (a sine or any periodic wave, a shake)
+void wl_ffb_set_parts(double constant, double spring, double damper, double sine);
+
+// The gains read (once the settings are known, from DllMain)
+void wl_ffb_settings(void);
 
 // Effects the wheel holds by itself, beside the constant force, for a game whose cabinet's motor
 // board plays such effects: a spring pulling the wheel to its centre, 0 none to 1 the strongest

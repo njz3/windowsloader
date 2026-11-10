@@ -452,7 +452,7 @@ static DWORD WINAPI board_thread(LPVOID)
         board_byte(&g_board_, command);
         board_step(&g_board_, counts, ms, breakaway);
         int power = g_board_.power > 0x3F ? 0x3F : g_board_.power;
-        double torque = 0;
+        double torque = 0, brake = 0;
         if (g_board_.side != SIDE_NONE)
             torque = power / 63.0 * (g_board_.side == SIDE_LEFT ? 1 : -1) * (mirrored ? -1 : 1);
         else if (power > 0)
@@ -460,16 +460,17 @@ static DWORD WINAPI board_thread(LPVOID)
             // A brake against the movement: the axis's change in a frame of the game (57.5 Hz)
             double v = ms > 0 ? (deflection - lastDeflection) * (1000.0 / 57.5245) / ms : 0;
             v = v < -1024 ? -1024 : v > 1024 ? 1024 : v;
-            torque = power / 63.0 * v / 1024;
+            brake = power / 63.0 * v / 1024;
         }
         lastDeflection = deflection;
         // Sent when it changes by 256 in 32767 at least, or reaches or leaves 0 (sm2-emu's way):
         // the brake's noise does not flood the wheel's driver
-        double out = torque + panel_spring(deflection, panelFull);
+        double spring = panel_spring(deflection, panelFull);
+        double out = torque + brake + spring;
         if (fabs(out - sent) * 32767 >= 256 || (out == 0) != (sent == 0))
         {
             sent = out;
-            wl_ffb_set(out);
+            wl_ffb_set_parts(torque, spring, brake, 0);
         }
     }
 }

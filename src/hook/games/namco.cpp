@@ -421,8 +421,7 @@ static int motor_command(const unsigned char *b, DWORD size)
     int target = b[2] | (b[3] & 0x3F) << 8;
     int stiffness = b[4], damper = b[6], vibration = (signed char)b[8];
     double wheel = (wl_input_get(g_steering) - 32768) / 32768.0;
-    double force = stiffness / 127.0 * (wheel - (target - 0x200) / 512.0) + vibration / 128.0;
-    wl_ffb_set(force < -1 ? -1 : force > 1 ? 1 : force);
+    wl_ffb_set_parts(0, stiffness / 127.0 * (wheel - (target - 0x200) / 512.0), 0, vibration / 128.0);
     static int last[4] = {-1, -1, -1, -1}, logged;
     if ((target != last[0] || stiffness != last[1] || damper != last[2] || vibration != last[3]) && logged++ < 200)
         wl_log("namco: motor target %04x stiffness %d damper %d vibration %d (wheel %.2f)", target, stiffness, damper, vibration, wheel);

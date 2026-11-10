@@ -482,10 +482,8 @@ static void vlr_effects(unsigned char cmd, unsigned char arg)
     else if (cmd == 0x06)
         sineAmp = arg;
     double left = (128 - wl_input_get(&g_inputs[IN_STEERING])) / 127.0; // the wheel, +1 at the left end
-    double force = (constant - 0x80) / 127.0 - left * spring / 64.0;
-    if (sineHz && sineAmp)
-        force += sineAmp / 255.0 * sin(GetTickCount() * 0.001 * sineHz * 6.283185307179586);
-    wl_ffb_set(force > 1 ? 1 : force < -1 ? -1 : force);
+    double sine = sineHz && sineAmp ? sineAmp / 255.0 * sin(GetTickCount() * 0.001 * sineHz * 6.283185307179586) : 0;
+    wl_ffb_set_parts((constant - 0x80) / 127.0, -left * spring / 64.0, 0, sine);
 }
 
 static void wheel_command(unsigned char cmd, unsigned char arg)

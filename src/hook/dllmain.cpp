@@ -21,6 +21,7 @@
 #include "agent.h"
 #include "controls.h"
 #include "display.h"
+#include "ffb.h"
 #include "game.h"
 #include "hooks.h"
 #include "lang.h"
@@ -107,6 +108,7 @@ static void wl_init(void)
     wl_game_settings();
     wl_vdev_settings();
     wl_display_load();
+    wl_ffb_settings();
     wl_outputs_init();
     wl_pause_init();
     wl_hooks_install_pending();

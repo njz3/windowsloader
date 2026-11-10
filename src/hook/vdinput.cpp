@@ -432,6 +432,11 @@ class VirtualEffect : public IDirectInputEffect
         return DIERR_UNSUPPORTED;
     }
 
+    int kind()
+    {
+        return effect_kind(m_guid);
+    }
+
     // Its force now towards +X, -10000..10000, the wheel at x (-10000 left .. 10000 right)
     double force(LONG x, DWORD now)
     {
@@ -540,19 +545,20 @@ class VirtualEffect : public IDirectInputEffect
     DICONDITION m_condition; // the first axis's
 };
 
-// The effects together, played on windowsloader's force (> 0 to the left), the wheel at x
+// The effects together, played on windowsloader's force (> 0 to the left), the wheel at x: summed
+// by kind (constant and ramp, periodic, spring, the conditions left out), each under its gain (ffb.h)
 static void ffb_update(unsigned short x)
 {
     LONG pos = (LONG)x * 20000 / 65535 - 10000;
     DWORD now = GetTickCount();
-    double total = 0;
+    double parts[6] = {0};
     EnterCriticalSection(&g_effectsLock);
     for (int i = 0; i < MAX_EFFECTS; i++)
         if (g_effects[i])
-            total += g_effects[i]->force(pos, now);
+            parts[g_effects[i]->kind()] += g_effects[i]->force(pos, now);
     LeaveCriticalSection(&g_effectsLock);
-    total = g_actuators ? total * g_deviceGain / 10000.0 / 10000.0 : 0;
-    wl_ffb_set(total > 1 ? -1 : total < -1 ? 1 : -total);
+    double k = g_actuators ? -(double)g_deviceGain / 10000.0 / 10000.0 : 0;
+    wl_ffb_set_parts((parts[1] + parts[2]) * k, parts[4] * k, parts[5] * k, parts[3] * k);
 }
 
 // DirectInput 7's devices (legacy) have the same methods at the same places as DirectInput 8's,
