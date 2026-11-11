@@ -316,8 +316,20 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 315 | 10/11 | Commit, pousse et fais une release | ✅ commit dc7a798 poussé ; release 20261110-1 : la voix principale XAudio2 à 48 000 Hz ; zip 3 914 367 octets, SHA-256 05b13d5a…6a4e2c10, programmes AFE9C46D (windowsloader.exe), A72F70B8 (64.exe), 09A536D2 (32.dll), 3948E967 (64.dll) ; vérifiée dépaquetée (--list-games en 32 et 64 bits) |
 | 316 | 10/11 | Un gain par effet de FFB (ressort, sinus, force constante, amortisseur) dans le .ini ; demander à Linuxloader FFB edition de prendre les mêmes noms | ⚠️ `[ForceFeedback]` FFB_GAIN_CONSTANT, FFB_GAIN_SPRING, FFB_GAIN_DAMPER, FFB_GAIN_SINE (pourcentage, 100, de 0 à 200), dans le modèle du fichier ; chaque source découpée (DirectInput, carte Sega, Namco, Taito, Unis, Trio Tech, Storm Racer G, Sega Racing Classic, Daytona). Vu en course sur Mario Kart DX 1.06.35 (mode agent, volant à droite) : force max 0,222 à 100 %, 0 à 0 %, 0,445 à 200 % ; les autres gains et les autres jeux pas essayés (copies absentes ou bloquées en mode agent). Noms envoyés à Linuxloader FFB edition, réponse pas reçue |
 | 317 | 10/11 | Commite et pousse, puis fais une release | ✅ commit 43609ae poussé ; release 20261110-2 : les gains par effet ; zip 3 916 151 octets, SHA-256 a279d3ef…d8dc0970, programmes 8DA7D28E (windowsloader.exe), 3D459D22 (64.exe), 6845BD6A (32.dll), B9ADFFC1 (64.dll) ; vérifiée dépaquetée (--list-games en 32 et 64 bits) |
+| 318 | 11/11 | Note de vérifier le mode fenêtre sans bordure plein écran : certains jeux gardent un menu « File » affiché (Sega Racing Classic par exemple) | ⏳ noté dans les points ouverts, rien de modifié. Essayé ici (release 20261110-2) : Wangan 5 et Mario Kart DX 1.06.35 en BORDERLESS, Mario Kart aussi en WINDOW : aucune barre de menu (GetMenu nul, écran capturé sans menu), donc pas reproduit ; il manque la copie de Sega Racing Classic sur ce PC |
+| 319 | 11/11 | Corrige sans essayer | ⚠️ `display.cpp` (apply_mode) retire la barre de menu de la fenêtre du jeu en FULLSCREEN et BORDERLESS (et leurs _STRETCH), la remet en fenêtre, une ligne au journal (« menu bar taken off ») ; en fenêtre, la taille compte le menu s'il y en a un. Pas essayé sur un jeu qui a un menu (Sega Racing Classic absent) ; Mario Kart DX (BORDERLESS, WINDOW) et Wangan 5 (BORDERLESS) placés comme avant |
 ## Points ouverts
 
+- **Menu « File » en BORDERLESS (à vérifier, demande 318).** En fenêtre sans bordure plein écran
+  (`DISPLAY_MODE = BORDERLESS` ou `BORDERLESS_STRETCH`), certains jeux gardent leur barre de menu
+  « File » en haut de l'image, Sega Racing Classic par exemple (vu par l'utilisateur). Piste, pas
+  vérifiée : `display.cpp` change le style de la fenêtre (WS_CAPTION...) mais ne touche pas au menu
+  de la fenêtre (SetMenu, hMenu de CreateWindowEx), qui reste donc affiché. À regarder sur les jeux
+  qui en ont un, en BORDERLESS, FULLSCREEN et en fenêtre, et quand on bascule de l'un à l'autre (F11).
+  Le 11/11, Wangan 5 et Mario Kart DX n'ont pas de menu (GetMenu nul) : pas reproduit sur ce PC, la
+  copie de Sega Racing Classic (`d1a.exe`) y manque. Corrigé sans essai (demande 319) : le menu est
+  retiré en plein écran et sans bordure ; à voir sur Sega Racing Classic (la ligne « menu bar taken
+  off » au journal, plus de « File » à l'écran). Pas traité : un jeu qui remettrait son menu ensuite.
 - **Licences du code à reprendre.** linuxloader n'a pas de fichier `LICENSE` dans son dépôt : vérifier
   la licence d'upstream (lindbergh-loader) avant d'en copier du code dans un projet GPL v3. Flycast :
   GPL v2 « ou toute version ultérieure » dans ses en-têtes, donc compatible. MAME : GPL v2 pour

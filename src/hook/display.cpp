@@ -65,6 +65,9 @@ static int g_gdiSetting;           // [Display] PRESENT: GDI (1) or DIRECT (0, t
 static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
 static int g_appliedMode = -1;
+// The game window's menu bar ("File", Sega Racing Classic's as a user saw it), taken off in full
+// screen and borderless, given back in a window
+static HMENU g_menu;
 static RECT g_dest, g_client;      // what shows the picture in the client area, and that area
 static RECT g_pic;                 // the whole picture's place (beyond g_dest when it is cropped)
 static RECT g_src;                 // the back buffer's part shown (Direct3D 9's Present, cropped)
@@ -613,8 +616,25 @@ static void apply_mode(void)
     DWORD ex = (DWORD)GetWindowLongW(g_wnd, GWL_EXSTYLE) & ~(WS_EX_TOPMOST | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME);
     int x, y, w, h;
     DWORD style;
+    int full = mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH || mode == WL_MODE_BORDERLESS || mode == WL_MODE_BORDERLESS_STRETCH;
+    HMENU menu = GetMenu(g_wnd);
+    if (full && menu)
+    {
+        g_menu = menu;
+        wl_busy_enter();
+        SetMenu(g_wnd, NULL);
+        wl_busy_leave();
+        wl_log("display: the game window's menu bar taken off (%s)", g_modeNames[mode]);
+    }
+    else if (!full && !menu && g_menu)
+    {
+        wl_busy_enter();
+        SetMenu(g_wnd, g_menu);
+        wl_busy_leave();
+        wl_log("display: the game window's menu bar given back (%s)", g_modeNames[mode]);
+    }
 
-    if (mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH || mode == WL_MODE_BORDERLESS || mode == WL_MODE_BORDERLESS_STRETCH)
+    if (full)
     {
         style = WS_POPUP | WS_VISIBLE | (g_child ? WS_CLIPCHILDREN : 0);
         x = mi.rcMonitor.left;
@@ -627,7 +647,7 @@ static void apply_mode(void)
         style = mode == WL_MODE_WINDOW_STRETCH ? WS_OVERLAPPEDWINDOW | WS_VISIBLE : WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE;
         style |= g_child ? WS_CLIPCHILDREN : 0;
         RECT frame = {0, 0, 0, 0};
-        AdjustWindowRectEx(&frame, style, FALSE, ex);
+        AdjustWindowRectEx(&frame, style, GetMenu(g_wnd) != NULL, ex);
         int frameW = frame.right - frame.left, frameH = frame.bottom - frame.top;
         const RECT &work = mi.rcWork;
 

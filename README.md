@@ -128,7 +128,8 @@ is on another graphics chip than the game's), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`; `FULLSCREEN`, `FULLSCREEN_STRETCH`: the screen switched to its smallest mode holding the game's picture;
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or
-Alt+Enter switches between window and full screen. A game's
+Alt+Enter switches between window and full screen. In full screen and borderless, a menu bar of
+the game's window ("File") is taken off, and given back in a window. A game's
 own `<short name>.ini` next to `windowsloader.ini` (`gticlub3.ini`) is read instead when it exists.
 
 A game's own options are in its `[Game.<short name>]` section, as linuxloader has them (keys in
