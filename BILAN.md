@@ -491,7 +491,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   copie en 0x220), réglé au lancement ; le menu de test du jeu n'a pas les réglages de pièces (ils sont dans
   celui du système de la borne). Décochée : les pièces sont comptées (CREDIT(S) 1, 2, 3) et Start en prend une.
 - Retour de force ⚠️ : le test de la carte passe ; en course, le couple (84) de −16 à +20 sur 127, une trentaine
-  de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) est noté sans être joué. Sens pas
+  de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) noté sans être joué jusqu'au 12/11 ; depuis, la servoboard joue tous ses effets (demande 324). Sens pas
   vérifié au volant.
 - vJoy ✅ : course avec les manettes ouvertes, retour de force sur le joueur 1.
 - Menu Tab ✅ : toutes les pages, dont « Options du jeu ».

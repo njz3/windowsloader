@@ -21,8 +21,9 @@
 //   test and the encoder's index (busy once);
 // - 84: torque = ((v1 << 7) | v2) - 0x80, -128..127, > 0 to the left;
 // - 85: a sine, v1 its frequency in half hertz, v2 its amplitude.
-// The torque and the sine, under the gain and 80's on/off, go to the force feedback (ffb.cpp); the
-// other effects are logged only (below). K.O. Drive (RingWide) reads 4 bytes as its answer.
+// Every effect is played (below): the torque, the sine and a page as forces, the spring and the
+// damper as effects the player's wheel holds itself (ffb.cpp). K.O. Drive (RingWide) reads 4
+// bytes as its answer.
 // The same emulation for every Sega game with this board: Initial D 6, 7 and 8, K.O. Drive, Sonic
 // (ringedge.cpp), SWDC and Initial D Zero (alls.cpp).
 // Sonic & Sega All-Stars Racing checks the status byte: 3 bits, repeated in the high nibble; it
@@ -61,12 +62,38 @@ static unsigned g_logged;
 //   encoder's index for 4.05 s after FC, 00 set up), and their sum (b0 ^ b1 ^ b2) & 0x7F;
 // - 14: the same with the encoder's position (the centre, 0x2000) in place of the state;
 // - 00 to 0F: the values of the last command 80 to 8F read back, 0x80 | xx, the two values, their
-//   sum (Harley-Davidson's board: FA 00 00, then 80 01 01 answered 80 01 01 00).
+//   sum (Harley-Davidson's board: FA 00 00, then 80 01 01 answered 80 01 01 00);
+// - 1D: the last 9D, its index and page; 1E: the value of the parameter it selects (14 bits).
 // Every command gets its mode's answer; the reset (FF) the one of the mode it ends (Race TV's in
 // mode 14: 94 ...; Harley-Davidson's 94, then 11 for the next command).
 #define REPLY_SHORT 0x1F
+#define REPLY_SELECTED 0x1D
+#define REPLY_PARAMETER 0x1E
 static int g_reply = REPLY_SHORT;
 static unsigned char g_params[16][2]; // the values of the last commands 80 to 8F
+
+// The board's parameters, 16 pages of 16 (9D picks one, 9E writes it, FB plays a page): index 0
+// a page's step in milliseconds [guess], 1 to 15 torques around 0x80, its zero. The values a MIDI
+// board (838-14174) gave cold and after an initialisation, the same (DRIVEBOARD.md, "Reading the
+// parameters back"); indices 4 to 15 are 0x80 on every page
+static const unsigned short g_coldPages[16][4] = {
+    {0x20, 0xC0, 0x80, 0x80}, {0x20, 0xB0, 0x80, 0x80}, {0x20, 0xA0, 0x80, 0x80}, {0x20, 0x90, 0x80, 0x80},
+    {0x30, 0xAB, 0x80, 0x80}, {0x40, 0xA0, 0x80, 0x80}, {0x40, 0x90, 0x80, 0x80}, {0x60, 0x95, 0x80, 0x80},
+    {0x10, 0xC0, 0x40, 0x80}, {0x10, 0xA0, 0x60, 0x80}, {0x10, 0xC0, 0xC0, 0x40}, {0x10, 0xA0, 0xA0, 0x60},
+    {0x10, 0xC0, 0x40, 0x40}, {0x10, 0xA0, 0x60, 0x60}, {0x10, 0xC0, 0x40, 0xC0}, {0x10, 0xA0, 0x60, 0xA0},
+};
+static unsigned short g_pages[16][16]; // [page][index]
+static int g_selIndex, g_selPage;      // the last 9D within the table
+static int g_selected = 1;             // the last 9D was within it
+
+static void cold_pages(void)
+{
+    for (int p = 0; p < 16; p++)
+        for (int i = 0; i < 16; i++)
+            g_pages[p][i] = i < 4 ? g_coldPages[p][i] : 0x80;
+    g_selIndex = g_selPage = 0;
+    g_selected = 1;
+}
 static int g_setUp;                   // the index found since the last reset
 static ULONGLONG g_indexSince;        // FC's search under way: its start
 #define INDEX_SEARCH_MS 4050          // 4.03 to 4.06 s in five cabinets' captures (OutRun 2 SP, Harley, Hummer, R-Tuned, Race TV)
@@ -88,6 +115,13 @@ static void long_answer(unsigned char *a)
         a[0] = (unsigned char)(0x80 | g_reply);
         a[1] = g_params[g_reply][0];
         a[2] = g_params[g_reply][1];
+    }
+    else if (g_reply == REPLY_SELECTED || g_reply == REPLY_PARAMETER)
+    {
+        unsigned short v = g_pages[g_selPage][g_selIndex];
+        a[0] = (unsigned char)((g_setUp ? 0x80 : 0xA0) | g_reply);
+        a[1] = (unsigned char)(g_reply == REPLY_SELECTED ? g_selIndex : (v >> 7) & 0x7F);
+        a[2] = (unsigned char)(g_reply == REPLY_SELECTED ? g_selPage : v & 0x7F);
     }
     else
     {
@@ -129,45 +163,99 @@ int wl_servoboard_free_wheel(int *steering)
     return 1;
 }
 
-// The effects (DRIVEBOARD.md's operation codes): 84 the torque, 85 a sine (its frequency in half
-// hertz, its amplitude; either at 0 stops it), scaled by the gain 83 (00..7F, full until the game
-// sets one), played while 80 has them on (80 a 01; on after a reset too, for a game that never
-// sends 80). 80's short mode (80 01 b): the board drops the force about 240 ms after the last
-// frame, any frame. 81 (a maximum force, which DRIVEBOARD.md reads two ways), 86 the damper and
-// 87, 88, 8B the spring are logged only: the force feedback here is one constant force. A thread
-// plays the sine between the frames and the short mode's drop.
+// The effects, every one the board takes (DRIVEBOARD.md's operation codes and measures on a real
+// board; the readings not measured, marked [guess], as njz3's linuxloader forceFeedback.c makes
+// them: its servoboard is the work of windowsloader's author, taken over here under GPL v3):
+// - the board's output: a level x (on 127) times the gain 83 (00..7F) / 127, held within the
+//   maximum force 81 (its first value, both ways: measured), on 127 of the board's strength. Cold
+//   and after a reset (FF): 81 40, 83 40, half of it [measured]; 81's second value (the force
+//   against the wheel's movement [guess]) is not used;
+// - 80 a b: b 0 every effect off, else on (on after a reset too, for a game that never sends 80);
+//   a 01 the short mode: the torque dropped about 240 ms after the last frame, any frame [measured];
+// - 84 the torque, centred, > 0 to the left; FB 00 pp adds page pp's torques to it (pp & 0x0F, its
+//   bit 0x10 the other way [guess]), indices 1 to 15 one after the other, around 0x80, each for
+//   index 0's milliseconds (0: 16, at most 1000) [guess]. 9D index page picks a parameter, 9E
+//   writes it (14 bits);
+// - 85 a sine: v1 its frequency in half hertz, v2 its amplitude; either at 0 stops it; played by
+//   the player's wheel itself (a period of 2000 / v1 ms);
+// - 86 the damper: v1 0 kept as 1 [measured], its coefficient v2 times 16 / v1 above 0x10 [guess]
+//   (86 10 7F strong, 86 40 40 light, 86 xx 00 none);
+// - the spring: 87 its point, centred, > 0 to the left, 128 counts about 90 degrees, taken here as
+//   two thirds of a 270-degree wheel's half travel [guess]; 88 v1 00 on, 01 off; 8B v1 its
+//   stiffness, 0 after a reset (no spring until a game sends one); the most it pulls, the board's
+//   output of 127.
+// The torque and a page are a force (wl_ffb_set_parts); the spring, the damper and the sine
+// effects the player's wheel holds itself (wl_ffb_set_conditions, wl_ffb_set_vibration), at the
+// wheel's own rate. A thread plays a page and the short mode's drop between the frames.
 #define SHORT_MODE_MS 240
+#define COLD_LEVEL 0x40              // 81's and 83's, cold
+#define SPRING_CENTRE_PER_COUNT (90.0 / 128 / 135) // of a 270-degree wheel's half travel
 
 static CRITICAL_SECTION g_fxLock;
 static int g_torque, g_sineFrequency, g_sineAmplitude;
-static int g_gain = 0x7F, g_enabled = 1, g_shortMode;
+static int g_gain = COLD_LEVEL, g_cap = COLD_LEVEL, g_enabled = 1, g_shortMode;
+static int g_damperSpeed = 1, g_damperParam;
+static int g_springOn = 1, g_springStiffness, g_springCentre;
+static int g_page = -1, g_pageInvert; // FB's page playing, -1 none
+static ULONGLONG g_pageStart;
 static ULONGLONG g_lastFrame;
 static double g_qpcPerSecond;
 
+// The board's output for a level on 127: a fraction of its strength
+static double board_out(double level)
+{
+    double x = level * g_gain / 127.0;
+    x = x > g_cap ? g_cap : x < -g_cap ? -g_cap : x;
+    return x / 127.0;
+}
+
+// The page's torque now, around 0; the page ended: -1 in g_page
+static int page_torque(void)
+{
+    if (g_page < 0)
+        return 0;
+    int step = g_pages[g_page][0];
+    step = step == 0 ? 16 : step > 1000 ? 1000 : step;
+    int index = 1 + (int)((GetTickCount64() - g_pageStart) / (ULONGLONG)step);
+    if (index > 15)
+    {
+        g_page = -1;
+        return 0;
+    }
+    int t = (int)g_pages[g_page][index] - 0x80;
+    return g_pageInvert ? -t : t;
+}
+
 static void play(void) // under g_fxLock
 {
-    double torque = 0, sine = 0;
-    if (g_enabled && !(g_shortMode && GetTickCount64() - g_lastFrame > SHORT_MODE_MS))
+    double torque = 0, sine = 0, spring = 0, saturation = 0, damper = 0;
+    if (g_enabled)
     {
+        int t = g_torque + page_torque();
+        t = t > 127 ? 127 : t < -127 ? -127 : t;
+        if (!(g_shortMode && GetTickCount64() - g_lastFrame > SHORT_MODE_MS))
+            torque = board_out(t);
         if (g_sineFrequency && g_sineAmplitude)
+            sine = board_out(g_sineAmplitude);
+        if (g_springOn && g_springStiffness)
         {
-            LARGE_INTEGER now;
-            QueryPerformanceCounter(&now);
-            sine = g_sineAmplitude * sin(6.283185307179586 * (g_sineFrequency / 2.0) * ((double)now.QuadPart / g_qpcPerSecond));
+            spring = board_out(g_springStiffness);
+            saturation = board_out(127);
         }
-        torque = g_torque * g_gain / 127.0 / 127.0;
-        sine = sine * g_gain / 127.0 / 127.0;
+        damper = board_out(g_damperParam * (g_damperSpeed > 0x10 ? 16.0 / g_damperSpeed : 1.0));
     }
-    wl_ffb_set_parts(torque, 0, 0, sine);
+    wl_ffb_set_parts(torque, 0, 0, 0);
+    wl_ffb_set_conditions(spring, g_springCentre * SPRING_CENTRE_PER_COUNT, saturation, damper);
+    wl_ffb_set_vibration(sine, sine ? 2000 / g_sineFrequency : 0);
 }
 
 static DWORD WINAPI effects_thread(LPVOID unused)
 {
     for (;;)
     {
-        Sleep(10);
+        Sleep(4);
         EnterCriticalSection(&g_fxLock);
-        if ((g_sineFrequency && g_sineAmplitude) || g_shortMode)
+        if (g_shortMode || g_page >= 0)
             play();
         LeaveCriticalSection(&g_fxLock);
     }
@@ -177,26 +265,66 @@ static void effects(const unsigned char *f, int value)
 {
     EnterCriticalSection(&g_fxLock);
     g_lastFrame = GetTickCount64();
+    int v1 = f[1] & 0x7F, v2 = f[2] & 0x7F;
     switch (f[0])
     {
     case 0x80:
-        g_shortMode = f[1] == 0x01;
-        g_enabled = f[2] != 0;
+        g_shortMode = v1 == 0x01;
+        g_enabled = v2 != 0;
+        break;
+    case 0x81:
+        g_cap = v1;
         break;
     case 0x83:
-        g_gain = f[1] & 0x7F;
+        g_gain = v1;
         break;
     case 0x84:
         g_torque = value;
         break;
     case 0x85:
-        g_sineFrequency = f[1] & 0x7F;
-        g_sineAmplitude = f[2] & 0x7F;
+        g_sineFrequency = v1;
+        g_sineAmplitude = v2;
         break;
-    case 0xFF: // the defaults
+    case 0x86:
+        g_damperSpeed = v1 ? v1 : 1;
+        g_damperParam = v2;
+        break;
+    case 0x87:
+        g_springCentre = value;
+        break;
+    case 0x88:
+        g_springOn = v1 == 0;
+        break;
+    case 0x8B:
+        g_springStiffness = v1;
+        break;
+    case 0x9D: // out of the table: nothing selected, the next 9E written nowhere
+        g_selected = v1 < 16 && v2 < 16;
+        if (g_selected)
+        {
+            g_selIndex = v1;
+            g_selPage = v2;
+        }
+        break;
+    case 0x9E:
+        if (g_selected)
+            g_pages[g_selPage][g_selIndex] = (unsigned short)(v1 << 7 | v2);
+        break;
+    case 0xFB:
+        g_page = v2 & 0x0F;
+        g_pageInvert = (v2 & 0x10) != 0;
+        g_pageStart = GetTickCount64();
+        break;
+    case 0xFF: // the board cold again
         g_torque = g_sineFrequency = g_sineAmplitude = g_shortMode = 0;
-        g_gain = 0x7F;
+        g_gain = g_cap = COLD_LEVEL;
         g_enabled = 1;
+        g_damperSpeed = 1;
+        g_damperParam = 0;
+        g_springOn = 1;
+        g_springStiffness = g_springCentre = 0;
+        g_page = -1;
+        cold_pages();
         break;
     default:
         break;
@@ -239,7 +367,7 @@ static void frame(const unsigned char *f)
         memset(g_params, 0, sizeof g_params);
         break;
     case 0xFA: // the answers' mode
-        if (f[2] <= 0x10 || f[2] == 0x14 || f[2] == REPLY_SHORT)
+        if (f[2] <= 0x10 || f[2] == 0x14 || f[2] == REPLY_SELECTED || f[2] == REPLY_PARAMETER || f[2] == REPLY_SHORT)
             g_reply = f[2];
         break;
     case 0xFC: // bounds test: busy the first time it is asked (short), the index looked for
@@ -340,6 +468,7 @@ void wl_servoboard_register(const char *port)
     LARGE_INTEGER f;
     QueryPerformanceFrequency(&f);
     g_qpcPerSecond = (double)f.QuadPart;
+    cold_pages();
     CloseHandle(CreateThread(NULL, 0, effects_thread, NULL, 0, NULL));
     g_port.name = port;
     wl_vdev_register(&g_port);

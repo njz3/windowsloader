@@ -12,6 +12,7 @@
 // its own project; such code is marked with its origin.
 
 #include <windows.h>
+#include <string.h>
 
 #include "agent.h"
 #include "ffb.h"
@@ -91,33 +92,69 @@ double wl_ffb_get(unsigned *serial)
     return f;
 }
 
-static double g_spring, g_vibration;
-static int g_period;
+static WlFfbEffects g_effects;
 static unsigned g_effectsSerial;
+
+static double clamp(double v, double lo, double hi)
+{
+    return v < lo ? lo : v > hi ? hi : v;
+}
+
+// Under g_lock: the effects changed, a new serial (the first 200 changes logged)
+static void effects_changed(const WlFfbEffects *e)
+{
+    if (memcmp(e, &g_effects, sizeof *e))
+    {
+        g_effects = *e;
+        g_effectsSerial++;
+        static int logged;
+        if (logged++ < 200)
+            wl_log("ffb: effects: spring %.3f at %+.3f (at most %.3f), damper %.3f, vibration %.3f (%d ms)", e->spring, e->springCentre, e->springSaturation,
+                   e->damper, e->vibration, e->periodMs);
+    }
+}
 
 void wl_ffb_set_effects(double spring, double vibration, int periodMs)
 {
-    spring *= g_gainSpring;
-    vibration *= g_gainSine;
-    spring = spring < -1 ? -1 : spring > 1 ? 1 : spring;
-    vibration = vibration < 0 ? 0 : vibration > 1 ? 1 : vibration;
+    spring = clamp(spring * g_gainSpring, -1, 1);
+    vibration = clamp(vibration * g_gainSine, 0, 1);
     AcquireSRWLockExclusive(&g_lock);
-    if (spring != g_spring || vibration != g_vibration || (vibration && periodMs != g_period))
-    {
-        g_spring = spring;
-        g_vibration = vibration;
-        g_period = periodMs;
-        g_effectsSerial++;
-    }
+    WlFfbEffects e = g_effects;
+    e.spring = spring;
+    e.springCentre = 0;
+    e.springSaturation = spring < 0 ? -spring : spring;
+    e.vibration = vibration;
+    e.periodMs = vibration ? periodMs : g_effects.periodMs;
+    effects_changed(&e);
     ReleaseSRWLockExclusive(&g_lock);
 }
 
-void wl_ffb_get_effects(double *spring, double *vibration, int *periodMs, unsigned *serial)
+void wl_ffb_set_conditions(double spring, double springCentre, double springSaturation, double damper)
+{
+    AcquireSRWLockExclusive(&g_lock);
+    WlFfbEffects e = g_effects;
+    e.spring = clamp(spring * g_gainSpring, -1, 1);
+    e.springCentre = clamp(springCentre, -1, 1);
+    e.springSaturation = clamp(springSaturation * g_gainSpring, 0, 1);
+    e.damper = clamp(damper * g_gainDamper, 0, 1);
+    effects_changed(&e);
+    ReleaseSRWLockExclusive(&g_lock);
+}
+
+void wl_ffb_set_vibration(double vibration, int periodMs)
+{
+    AcquireSRWLockExclusive(&g_lock);
+    WlFfbEffects e = g_effects;
+    e.vibration = clamp(vibration * g_gainSine, 0, 1);
+    e.periodMs = e.vibration ? periodMs : g_effects.periodMs;
+    effects_changed(&e);
+    ReleaseSRWLockExclusive(&g_lock);
+}
+
+void wl_ffb_get_effects(WlFfbEffects *e, unsigned *serial)
 {
     AcquireSRWLockShared(&g_lock);
-    *spring = g_spring;
-    *vibration = g_vibration;
-    *periodMs = g_period;
+    *e = g_effects;
     if (serial)
         *serial = g_effectsSerial;
     ReleaseSRWLockShared(&g_lock);

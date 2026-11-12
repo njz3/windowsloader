@@ -293,13 +293,20 @@ during the game, player 1's wheel plays them; plugged in again, it takes them ba
 force. The menu's force feedback page lists "Automatique" and the connected devices ("<name> (non
 connecté)" for a chosen one that is absent); a choice there takes effect at once and is saved.
 Each kind of effect has its gain in the settings file's `[ForceFeedback]` (linuxloader's names),
-in percent, 100 by default, 0 (off) to 200, read at the start, under `FFB_Strength`:
+in percent, 100 by default, 0 (off) to 200, read at the start, under `FFB_Strength` (0 to 200 %, the
+menu's "Force", for every effect: the constant force, the spring, the damper and the vibration):
 `FFB_GAIN_CONSTANT` (the torque the game computes, a ramp), `FFB_GAIN_SPRING` (a spring, also one
 windowsloader makes from a stiffness and a target position: Mario Kart DX, Trio Tech, Storm Racer
 G, the panel springs of Sega Racing Classic and Daytona), `FFB_GAIN_DAMPER` (a brake against the
 wheel's movement: Sega Racing Classic, Daytona) and `FFB_GAIN_SINE` (a vibration, a shake, any
 periodic wave). A game whose module gives only one torque has it under `FFB_GAIN_CONSTANT`. The
-DirectInput dampers are not played; the Sega board's raw frames sent to BackForceFeeder by the
+Sega servoboard (Initial D 6 to 8, Initial D Zero, SWDC, K.O. Drive, Sonic & Sega All-Stars
+Racing) plays all its effects: the torque and its pages of torques as a force, its spring (`87`
+the point, `88` on or off, `8B` the stiffness), its damper (`86`) and its sine (`85`) as effects
+the player's wheel holds itself (a friction for a wheel without a damper), all under the gain `83`
+and held within the maximum force `81`, as a real board (cold: `81 40`, `83 40`, half of its
+strength). The log gives the effects as they change (`ffb: effects`). The scales of the damper,
+of the spring's point and of the pages are readings, not measures. The other DirectInput dampers are not played; the Sega board's raw frames sent to BackForceFeeder by the
 network outputs stay as the game sent them. The log says the gains read (`ffb: gains`).
 The force's direction is SDL's own, as linuxloader's: a positive constant force pushes the wheel to
 the left (SDL gives the direction a force comes from). Up to the 20261028-3 release, windowsloader

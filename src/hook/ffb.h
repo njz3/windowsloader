@@ -36,7 +36,26 @@ void wl_ffb_settings(void);
 // period in milliseconds. The wheel answers its own position at once, where a spring made of
 // constant forces by the game answers a frame late, through the whole chain, and can swing it
 void wl_ffb_set_effects(double spring, double vibration, int periodMs);
-void wl_ffb_get_effects(double *spring, double *vibration, int *periodMs, unsigned *serial); // serial may be NULL
+
+// The same spring in full, and a damper, for a board that sets them itself (Sega's servoboard): the
+// spring's stiffness (0..1, below 0 pushing away), the point it pulls towards (-1..1 of the wheel's
+// half travel, > 0 to the left, 0 the centre) and the most it pulls (0..1); the damper's
+// coefficient (0 none to 1 the strongest), a force against the wheel's speed. The vibration is
+// left as wl_ffb_set_effects set it
+void wl_ffb_set_conditions(double spring, double springCentre, double springSaturation, double damper);
+
+// The vibration alone (0 none to 1 the strongest, its period in milliseconds), the spring and the
+// damper left as they are
+void wl_ffb_set_vibration(double vibration, int periodMs);
+
+struct WlFfbEffects
+{
+    double spring, springCentre, springSaturation; // springSaturation: |spring| for wl_ffb_set_effects
+    double damper;
+    double vibration;
+    int periodMs;
+};
+void wl_ffb_get_effects(WlFfbEffects *e, unsigned *serial); // serial may be NULL
 
 struct WlFfbEvent
 {
