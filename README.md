@@ -62,6 +62,9 @@ windowsloader               (alone: the game picker)
   --timeout <s>    stop the game after <s> seconds (for tests)
   --iolimit <n>    max reads/writes logged per device handle (default: 500)
   --quiet          do not echo the log on the console
+  --debug          start the game under the launcher as its debugger ([Launcher] DEBUG = true):
+                   the DLLs it loads, its errors and a crash in <log>.debug.log, a minidump in
+                   <log>.crash.dmp
   --agent          drive the game over stdin/stdout (linuxloader's agent protocol)
   --controllers    with --agent: the controllers are read and get the force feedback too
   -c, --config <file>      settings file (default: windowsloader.ini next to the launcher, or the
@@ -75,6 +78,17 @@ windowsloader               (alone: the game picker)
                    (yes, partly, no), the program, the program's CRC32 in the cabinets' copies
                    ("--------" when not known)
 ```
+
+A game that stops while it starts (an access violation, 0xC0000005) may do so before
+windowsloader's DLL is in it, in one of its own DLLs, leaving nothing in the log. `[Launcher] DEBUG
+= true` (the picker passes it on too) or `--debug` starts it under the launcher as its debugger, from
+its first instruction: `<log>.debug.log` beside the log (`windowsloader.debug.log`) lists the DLLs
+it loads and where, the threads it starts, its debug strings, its errors (the first 64, the C++
+exceptions left out), and for a crash no handler took, where it happened (module and offset, read
+or write address), the registers, the code addresses on the stack and the modules; the minidump
+`<log>.crash.dmp` opens in WinDbg or Visual Studio. Nothing is written without a log (the write
+folder's rule): the console only then. A game that looks for a debugger may run otherwise under it.
+The log itself gives each error's calls too (`calls:`).
 
 The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and in the write folder
 (`WRITE_DIR\<name>`). Daytona Championship USA's two editions are `daytona3` and `daytona3nse`, the

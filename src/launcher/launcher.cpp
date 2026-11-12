@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <wchar.h>
 
+#include "debugstart.h"
 #include "gamelist.h"
 #include "picker.h"
 #include "wlshared.h"
@@ -105,6 +106,8 @@ static void usage(void)
         "  --timeout <s>    stop the game after <s> seconds (for tests)\n"
         "  --iolimit <n>    max reads/writes logged per device handle (default: 500)\n"
         "  --quiet          do not echo the log on this console\n"
+        "  --debug          start the game under the launcher as its debugger ([Launcher] DEBUG): the DLLs it loads,\n"
+        "                   its errors and a crash, in <log>.debug.log, a minidump in <log>.crash.dmp\n"
         "  --agent          drive the game over stdin/stdout (linuxloader's agent protocol); messages go to stderr\n"
         "  --controllers    with --agent: the controllers are read and get the force feedback too (opens vJoy)\n"
         "  -c, --config <file>  settings file (default: windowsloader.ini next to this launcher, or the game's\n"
@@ -646,6 +649,29 @@ static void language_setting(const wchar_t *iniPath, const wchar_t *sets, wchar_
     }
 }
 
+// [Launcher] DEBUG (--set Launcher.DEBUG=... wins): the game started under the launcher's debugger
+static int debug_setting(const wchar_t *iniPath, const wchar_t *sets)
+{
+    wchar_t v[16];
+    GetPrivateProfileStringW(L"Launcher", L"DEBUG", L"false", v, 16, iniPath);
+    for (const wchar_t *line = sets; line && *line;)
+    {
+        const wchar_t *end = wcschr(line, L'\n');
+        size_t n = end ? (size_t)(end - line) : wcslen(line);
+        if (n >= 15 && !_wcsnicmp(line, L"Launcher.DEBUG=", 15))
+            swprintf(v, 16, L"%.*s", (int)(n - 15 < 15 ? n - 15 : 15), line + 15);
+        line = end ? end + 1 : NULL;
+    }
+    return !_wcsicmp(v, L"true") || !_wcsicmp(v, L"1") || !_wcsicmp(v, L"yes") || !_wcsicmp(v, L"on");
+}
+
+// The debugger's lines on the console, as the log's (not with --quiet)
+static void debug_out(const char *line)
+{
+    if (!g_quiet)
+        out_raw(line, (DWORD)strlen(line));
+}
+
 // The arguments the game's options give it (g_gameOptionArgs), added to its command line
 static void game_option_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first, const wchar_t *iniPath,
                              const wchar_t *sets)
@@ -874,6 +900,7 @@ int wmain(int argc, wchar_t **argv)
     int ioLimit = 500;
     int agent = 0;
     int controllers = 0;
+    int debugArg = 0;
     const wchar_t *configArg = NULL;
     static wchar_t sets[8192]; // --set's, one per line
     size_t setsLen = 0;
@@ -908,6 +935,8 @@ int wmain(int argc, wchar_t **argv)
             ioLimit = _wtoi(argv[++i]);
         else if (!wcscmp(a, L"--quiet"))
             g_quiet = 1;
+        else if (!wcscmp(a, L"--debug"))
+            debugArg = 1;
         else if (!wcscmp(a, L"--controllers"))
             controllers = 1;
         else if ((!wcscmp(a, L"-c") || !wcscmp(a, L"--config")) && hasValue)
@@ -1087,6 +1116,9 @@ int wmain(int argc, wchar_t **argv)
         say("  writes: %s\\<game> (the game's folder only read)\n", u8(writeDir));
     else if (write < 0)
         say("  writes: none, all refused (the game's folder only read)\n");
+    int debugStart = debugArg || debug_setting(iniPath, setsLen ? sets : NULL);
+    if (debugStart)
+        say("  debug:  the game started under the launcher as its debugger (%s)\n", debugArg ? "--debug" : "[Launcher] DEBUG");
 
     // Closing the launcher (Ctrl+C, agent stop) takes the game and its children down with it
     HANDLE job = CreateJobObjectW(NULL, NULL);
@@ -1214,7 +1246,8 @@ int wmain(int argc, wchar_t **argv)
                 "a black screen after its attract\n", wl_write_dir_error());
     }
     PROCESS_INFORMATION pi;
-    BOOL started = CreateProcessW(startedPath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);
+    BOOL started = debugStart ? wl_debug_start(startedPath, cmd, listed, flags, gameDir, &sie.StartupInfo, &pi, logPath, debug_out)
+                              : CreateProcessW(startedPath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);
     if (listed)
         DeleteProcThreadAttributeList(attrs);
     if (attrs)
@@ -1236,6 +1269,8 @@ int wmain(int argc, wchar_t **argv)
     if (!inject(&pi, dllPath))
     {
         TerminateProcess(pi.hProcess, 1);
+        if (debugStart)
+            wl_debug_end();
         CloseHandle(pi.hThread);
         CloseHandle(pi.hProcess);
         return 1;
@@ -1282,6 +1317,8 @@ int wmain(int argc, wchar_t **argv)
     if (log != INVALID_HANDLE_VALUE)
         CloseHandle(log);
 
+    if (debugStart)
+        wl_debug_end();
     DWORD code = 0;
     GetExitCodeProcess(pi.hProcess, &code);
     CloseHandle(pi.hProcess);

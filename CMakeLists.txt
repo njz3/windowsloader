@@ -81,6 +81,7 @@ endif()
 # Started alone, it shows the game picker (Dear ImGui on Direct3D 11)
 add_executable(wl_launcher
     src/launcher/launcher.cpp
+    src/launcher/debugstart.cpp
     src/launcher/gamelist.cpp
     src/launcher/picker.cpp
     src/launcher/writedir.cpp

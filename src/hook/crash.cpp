@@ -28,6 +28,10 @@
 static volatile LONG g_reported;
 static DWORD g_watchThread; // the freeze watch's: its stack walks' faults are not the game's
 
+static int walk_calls(CONTEXT c, void **calls, int max);
+static void log_calls(const char *prefix, void **calls, int n);
+#define EXCEPTION_CALLS 16
+
 static LONG CALLBACK on_exception(EXCEPTION_POINTERS *ep)
 {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
@@ -55,6 +59,9 @@ static LONG CALLBACK on_exception(EXCEPTION_POINTERS *ep)
     wl_log("  eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx esp=%08lx ebp=%08lx", c->Eax, c->Ebx, c->Ecx, c->Edx, c->Esi,
            c->Edi, c->Esp, c->Ebp);
 #endif
+    // The calls that led there (a frame without a frame pointer is skipped in 32 bits)
+    void *calls[EXCEPTION_CALLS];
+    log_calls("  calls: ", calls, walk_calls(*c, calls, EXCEPTION_CALLS));
     return EXCEPTION_CONTINUE_SEARCH; // the game's own handlers still run
 }
 
@@ -79,19 +86,9 @@ static void on_invalid_parameter(const wchar_t *expr, const wchar_t *func, const
 typedef LONG(NTAPI *NtQueryInformationThreadFn)(HANDLE, int, void *, ULONG, ULONG *);
 typedef HRESULT(WINAPI *GetThreadDescriptionFn)(HANDLE, PWSTR *);
 
-// The thread's calls, innermost first. It is held only while its registers are read: the walk,
-// done after, may read a running thread's stack moving under it, its faults caught.
-static int thread_calls(HANDLE t, void **calls, int max)
+// The calls from a context, innermost first; a stack moving under the walk or a bad one is caught
+static int walk_calls(CONTEXT c, void **calls, int max)
 {
-    CONTEXT c;
-    memset(&c, 0, sizeof c);
-    c.ContextFlags = CONTEXT_FULL;
-    if (SuspendThread(t) == (DWORD)-1)
-        return 0;
-    BOOL ok = GetThreadContext(t, &c);
-    ResumeThread(t);
-    if (!ok)
-        return 0;
     int n = 0;
     __try
     {
@@ -136,6 +133,32 @@ static int thread_calls(HANDLE t, void **calls, int max)
     {
     }
     return n;
+}
+
+static void log_calls(const char *prefix, void **calls, int n)
+{
+    char line[1600], where[128];
+    int len = 0;
+    for (int i = 0; i < n && len < (int)sizeof line - 130; i++)
+        len += snprintf(line + len, sizeof line - len, "%s%s", i ? " < " : "", wl_where(calls[i], where, sizeof where));
+    line[len] = 0;
+    wl_log("%s%s", prefix, n ? line : "(not read)");
+}
+
+// The thread's calls, innermost first. It is held only while its registers are read: the walk,
+// done after, may read a running thread's stack moving under it, its faults caught.
+static int thread_calls(HANDLE t, void **calls, int max)
+{
+    CONTEXT c;
+    memset(&c, 0, sizeof c);
+    c.ContextFlags = CONTEXT_FULL;
+    if (SuspendThread(t) == (DWORD)-1)
+        return 0;
+    BOOL ok = GetThreadContext(t, &c);
+    ResumeThread(t);
+    if (!ok)
+        return 0;
+    return walk_calls(c, calls, max);
 }
 
 static NtQueryInformationThreadFn g_query;
