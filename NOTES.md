@@ -319,18 +319,10 @@ Légende : ✅ fait et vérifié · 🔄 en cours · ⏳ à faire · ⚠️ fait
 | 318 | 11/11 | Note de vérifier le mode fenêtre sans bordure plein écran : certains jeux gardent un menu « File » affiché (Sega Racing Classic par exemple) | ⏳ noté dans les points ouverts, rien de modifié. Essayé ici (release 20261110-2) : Wangan 5 et Mario Kart DX 1.06.35 en BORDERLESS, Mario Kart aussi en WINDOW : aucune barre de menu (GetMenu nul, écran capturé sans menu), donc pas reproduit ; il manque la copie de Sega Racing Classic sur ce PC |
 | 319 | 11/11 | Corrige sans essayer | ⚠️ `display.cpp` (apply_mode) retire la barre de menu de la fenêtre du jeu en FULLSCREEN et BORDERLESS (et leurs _STRETCH), la remet en fenêtre, une ligne au journal (« menu bar taken off ») ; en fenêtre, la taille compte le menu s'il y en a un. Pas essayé sur un jeu qui a un menu (Sega Racing Classic absent) ; Mario Kart DX (BORDERLESS, WINDOW) et Wangan 5 (BORDERLESS) placés comme avant |
 | 320 | 12/11 | (un utilisateur ne lance pas DiRT Showdown : access violation) Un build avec plus d'informations de débogage au lancement d'un jeu | ⚠️ `[Launcher] DEBUG = true` ou `--debug` (`src/launcher/debugstart.cpp`) : le jeu démarré sous le lanceur comme débogueur, dès sa première instruction ; `<log>.debug.log` (DLL chargées, threads, chaînes de débogage, erreurs, et pour un plantage : l'endroit, les registres, les adresses de code sur la pile, les modules) et un minidump `<log>.crash.dmp` ; le journal du jeu donne aussi les appels de chaque erreur (`calls:`, `crash.cpp`). Essayé : un programme qui plante exprès (32 et 64 bits : endroit exact, minidump relu par cdb), Mario Kart DX (659 images, 275 modules) et Wangan 5 sous le débogueur, sans plantage. Copie de Showdown absente : pas essayé sur lui. Archive de débogage 20261112-debug |
+| 321 | 12/11 | Teste la présence du menu « File » en mode sans bordure avec Sega Racing Classic sur racecab2 | ✅ essayé par Image borne (accord du propriétaire) : avec la 20261107-2 installée, en BORDERLESS, la barre « &File » est visible et l'image réduite à 1884x1060 ; avec l'archive 20261112-debug (correctif 22cc5b0), en BORDERLESS, plus de menu (GetMenu nul, « menu bar taken off » au journal, image 1920x1080) ; en WINDOW le menu reste, fenêtre 1286x769 pour une image 1280x720. Aucun plantage ; installation de racecab2 inchangée. Point ouvert « Menu File » fermé |
+
 ## Points ouverts
 
-- **Menu « File » en BORDERLESS (à vérifier, demande 318).** En fenêtre sans bordure plein écran
-  (`DISPLAY_MODE = BORDERLESS` ou `BORDERLESS_STRETCH`), certains jeux gardent leur barre de menu
-  « File » en haut de l'image, Sega Racing Classic par exemple (vu par l'utilisateur). Piste, pas
-  vérifiée : `display.cpp` change le style de la fenêtre (WS_CAPTION...) mais ne touche pas au menu
-  de la fenêtre (SetMenu, hMenu de CreateWindowEx), qui reste donc affiché. À regarder sur les jeux
-  qui en ont un, en BORDERLESS, FULLSCREEN et en fenêtre, et quand on bascule de l'un à l'autre (F11).
-  Le 11/11, Wangan 5 et Mario Kart DX n'ont pas de menu (GetMenu nul) : pas reproduit sur ce PC, la
-  copie de Sega Racing Classic (`d1a.exe`) y manque. Corrigé sans essai (demande 319) : le menu est
-  retiré en plein écran et sans bordure ; à voir sur Sega Racing Classic (la ligne « menu bar taken
-  off » au journal, plus de « File » à l'écran). Pas traité : un jeu qui remettrait son menu ensuite.
 - **Licences du code à reprendre.** linuxloader n'a pas de fichier `LICENSE` dans son dépôt : vérifier
   la licence d'upstream (lindbergh-loader) avant d'en copier du code dans un projet GPL v3. Flycast :
   GPL v2 « ou toute version ultérieure » dans ses en-têtes, donc compatible. MAME : GPL v2 pour
