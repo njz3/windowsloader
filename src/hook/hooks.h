@@ -194,6 +194,9 @@ void wl_netenv_hooks(void);
 void wl_window_hooks(void);
 void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
+// A game's pixel shader (its instructions, comments left out, the end token included) made from
+// the assembly given instead; before the device is made. The arguments are kept
+void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why);
 void wl_dinput_hooks(void);
 void wl_dinput_hide_controllers(void); // the PC's game controllers kept from the game's DirectInput
 void wl_dinput_legacy(void *directInputA); // DirectInput 7 (ANSI) made through COM: its devices handled the same way

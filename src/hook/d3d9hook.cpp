@@ -41,6 +41,7 @@ enum
     SLOT_DEVICE_DRAWINDEXEDPRIMITIVEUP = 84,
     SLOT_DEVICE_SETVERTEXDECLARATION = 87,
     SLOT_DEVICE_SETFVF = 89,
+    SLOT_DEVICE_CREATEPIXELSHADER = 106,
     SLOT_SWAPCHAIN_PRESENT = 3,
 };
 
@@ -697,6 +698,113 @@ static HRESULT STDMETHODCALLTYPE hSetScissorRect(IDirect3DDevice9 *dev, const RE
     return oSetScissorRect(dev, &s);
 }
 
+// ------------------------------------------------------------------------------
+// A game's pixel shader replaced (wl_d3d9_replace_pixel_shader): the one whose instructions are
+// those given (its comments, the constant table, left out of the comparison) made from the
+// assembly given instead, by the D3DX the game loaded (D3DXAssembleShader)
+// ------------------------------------------------------------------------------
+
+static const DWORD *g_psTokens;
+static int g_psCount;
+static const char *g_psSource, *g_psWhy;
+
+void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why)
+{
+    g_psTokens = tokens;
+    g_psCount = count;
+    g_psSource = source;
+    g_psWhy = why;
+}
+
+// The shader's instructions equal the given ones, its comments skipped; else the first that
+// differs, in *differs (its place among the instructions), -1 when they are all the same
+static int same_shader(const DWORD *code, int *differs)
+{
+    int n = 0, i = 0;
+    *differs = -1;
+    for (; i < 4096 && n < g_psCount; i++)
+    {
+        DWORD t = code[i];
+        if (i > 0 && (t & 0xFFFF) == 0xFFFE)
+        {
+            i += (int)((t >> 16) & 0x7FFF);
+            continue;
+        }
+        if (t != g_psTokens[n++])
+        {
+            *differs = n - 1;
+            return 0;
+        }
+        if (t == 0x0000FFFF)
+            break;
+    }
+    return n == g_psCount;
+}
+
+typedef HRESULT(WINAPI *AssembleFn)(const char *, UINT, const void *, void *, DWORD, IUnknown **, IUnknown **);
+
+// The bytes of an ID3DXBuffer (QueryInterface, AddRef, Release, GetBufferPointer, GetBufferSize)
+static const void *buffer_bytes(IUnknown *b, size_t *size)
+{
+    void **vt = vtable_of(b);
+    *size = ((SIZE_T(WINAPI *)(IUnknown *))vt[4])(b);
+    return ((void *(WINAPI *)(IUnknown *))vt[3])(b);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oCreatePixelShader)(IDirect3DDevice9 *, const DWORD *, IDirect3DPixelShader9 **);
+static HRESULT STDMETHODCALLTYPE hCreatePixelShader(IDirect3DDevice9 *dev, const DWORD *code, IDirect3DPixelShader9 **out)
+{
+    int differs;
+    if (!code || !same_shader(code, &differs))
+    {
+        static int told;
+        if (code && told++ < 8)
+            wl_log("d3d9: pixel shader 0x%08lx not the one to replace (%s): instruction %d differs", code[0], g_psWhy, differs);
+        return oCreatePixelShader(dev, code, out);
+    }
+    static const wchar_t *dlls[] = {L"d3dx9_40.dll", L"d3dx9_43.dll", L"d3dx9_42.dll", L"d3dx9_41.dll"};
+    AssembleFn assemble = NULL;
+    for (int i = 0; i < 4 && !assemble; i++)
+    {
+        HMODULE m = GetModuleHandleW(dlls[i]);
+        assemble = m ? (AssembleFn)GetProcAddress(m, "D3DXAssembleShader") : NULL;
+    }
+    IUnknown *shader = NULL, *errors = NULL;
+    HRESULT hr = assemble ? assemble(g_psSource, (UINT)strlen(g_psSource), NULL, NULL, 0, &shader, &errors) : E_NOTIMPL;
+    if (FAILED(hr) || !shader)
+    {
+        size_t n = 0;
+        const char *e = errors ? (const char *)buffer_bytes(errors, &n) : "no D3DX";
+        wl_log("d3d9: pixel shader (%s) not replaced: 0x%08lx %.*s", g_psWhy, hr, (int)(n ? n : strlen(e)), e);
+        if (errors)
+            errors->Release();
+        return oCreatePixelShader(dev, code, out);
+    }
+    // The game's comments (its constant table, which D3DX's effects read back from the shader to
+    // set its constants) put back after the version token, the assembler's own left out
+    size_t n;
+    const DWORD *made = (const DWORD *)buffer_bytes(shader, &n);
+    size_t madeCount = n / 4, commentEnd = 1, madeStart = 1;
+    while (commentEnd < 4096 && (code[commentEnd] & 0xFFFF) == 0xFFFE)
+        commentEnd += 1 + ((code[commentEnd] >> 16) & 0x7FFF);
+    while (madeStart < madeCount && (made[madeStart] & 0xFFFF) == 0xFFFE)
+        madeStart += 1 + ((made[madeStart] >> 16) & 0x7FFF);
+    DWORD *joined = (DWORD *)malloc((commentEnd + madeCount) * sizeof(DWORD));
+    if (joined)
+    {
+        memcpy(joined, made, sizeof(DWORD));
+        memcpy(joined + 1, code + 1, (commentEnd - 1) * sizeof(DWORD));
+        memcpy(joined + commentEnd, made + madeStart, (madeCount - madeStart) * sizeof(DWORD));
+    }
+    hr = oCreatePixelShader(dev, joined ? joined : made, out);
+    free(joined);
+    shader->Release();
+    if (errors)
+        errors->Release();
+    wl_log("d3d9: pixel shader replaced (%s) -> 0x%08lx", g_psWhy, hr);
+    return SUCCEEDED(hr) ? hr : oCreatePixelShader(dev, code, out);
+}
+
 static void hook_device(IDirect3DDevice9 *dev)
 {
     static int done;
@@ -704,6 +812,8 @@ static void hook_device(IDirect3DDevice9 *dev)
         return;
     done = 1;
     void **vt = vtable_of(dev);
+    if (g_psTokens)
+        wl_hook_code(vt[SLOT_DEVICE_CREATEPIXELSHADER], (void *)hCreatePixelShader, (void **)&oCreatePixelShader, "IDirect3DDevice9::CreatePixelShader");
     wl_hook_code(vt[SLOT_DEVICE_PRESENT], (void *)hPresent, (void **)&oPresent, "IDirect3DDevice9::Present");
     wl_hook_code(vt[SLOT_DEVICE_RESET], (void *)hReset, (void **)&oReset, "IDirect3DDevice9::Reset");
     if (g_2dW > 0)
@@ -742,6 +852,9 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
         return hr;
     }
     log_pp("  asked", pp);
+    D3DADAPTER_IDENTIFIER9 id;
+    if (SUCCEEDED(d3d->GetAdapterIdentifier(adapter, 0, &id)))
+        wl_log("  on %s", id.Description);
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");

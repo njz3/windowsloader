@@ -1218,6 +1218,10 @@ static const WlGameOption g_srcOptions[] = {
           "dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k "
           "en SUB, CAR NUMBER k."),
      WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
+    {"PALETTE_FIX", WL_N("Palette lue au milieu de ses texels"),
+     WL_N("Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : "
+          "windowsloader le remplace par le même, lisant au milieu du texel."),
+     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
 };
 
 // Its amLib's own messages (amSramInit, amEepromInit, amBackupInit: why its test menu's settings
@@ -1259,9 +1263,54 @@ static void src_amlib_messages(void)
         *(volatile int *)levels[i] = 1;
 }
 
+// Its pixel shader (rom/shader/m2.fxo, ps_2_0): the texture's red times 4 the column, the
+// vertex's second texture coordinate the row of its colour RAM, a 64x1024 texture read without
+// filtering: both fall on the edge of a texel or just past it, which a board other than ATI's
+// rounds the other way (NVIDIA's: another row, the red specks on the road). Replaced by the same
+// shader with the column and the row taken in the middle of their texel
+static const DWORD g_srcPixelShader[] = {
+    0xFFFF0200, 0x05000051, 0xA00F0001, 0x40800000, 0x3F000000, 0x3F800000, 0x00000000, 0x0200001F, 0x80000000, 0x900F0000, 0x0200001F,
+    0x80000000, 0xB0030000, 0x0200001F, 0x80000000, 0xB0030001, 0x0200001F, 0x90000000, 0xA00F0800, 0x0200001F, 0x90000000, 0xA00F0801,
+    0x03000042, 0x800F0000, 0xB0E40000, 0xA0E40800, 0x02000001, 0x80020001, 0xB0550001, 0x03000005, 0x80010001, 0x80000000, 0xA0000001,
+    0x03000042, 0x800F0001, 0x80E40001, 0xA0E40801, 0x03000002, 0x80070000, 0x80E40000, 0x80E40000, 0x03000005, 0x80080002, 0x80FF0000,
+    0x90FF0000, 0x04000004, 0x80070000, 0x80E40001, 0xA0550001, 0x80E40000, 0x0300000A, 0x80010001, 0x80000000, 0xA0AA0001, 0x0300000A,
+    0x80020001, 0x80550000, 0xA0AA0001, 0x0300000A, 0x80040001, 0x80AA0000, 0xA0AA0001, 0x03000005, 0x80070002, 0x80E40001, 0x90E40000,
+    0x04000058, 0x800F0000, 0xA1000000, 0x90E40000, 0x80E40002, 0x02000001, 0x800F0800, 0x80E40000, 0x0000FFFF,
+};
+static const char g_srcPixelShaderFixed[] = "ps_2_0\n"
+                                            "def c1, 4, 0.5, 1, 0\n"
+                                            "def c2, 64, 1024, 0.25, 0.5\n"
+                                            "def c3, 0.015625, 0.0009765625, 0, 0\n"
+                                            "dcl v0\n"
+                                            "dcl t0.xy\n"
+                                            "dcl t1.xy\n"
+                                            "dcl_2d s0\n"
+                                            "dcl_2d s1\n"
+                                            "texld r0, t0, s0\n"
+                                            "mul r1.x, r0.x, c1.x\n"
+                                            "mov r1.y, t1.y\n"
+                                            "mad r1.xy, r1, c2, c2.z\n" // the texel, a quarter past its edge
+                                            "frc r3.xy, r1\n"
+                                            "add r1.xy, r1, -r3\n"
+                                            "add r1.xy, r1, c2.w\n" // its middle
+                                            "mul r1.xy, r1, c3\n"
+                                            "texld r1, r1, s1\n"
+                                            "add r0.xyz, r0, r0\n"
+                                            "mul r2.w, r0.w, v0.w\n"
+                                            "mad r0.xyz, r1, c1.y, r0\n"
+                                            "min r1.x, r0.x, c1.z\n"
+                                            "min r1.y, r0.y, c1.z\n"
+                                            "min r1.z, r0.z, c1.z\n"
+                                            "mul r2.xyz, r1, v0\n"
+                                            "cmp r0, -c0.x, v0, r2\n"
+                                            "mov oC0, r0\n";
+
 static void src_settings(void)
 {
     src_amlib_messages();
+    if (wl_game_option_bool("PALETTE_FIX"))
+        wl_d3d9_replace_pixel_shader(g_srcPixelShader, sizeof g_srcPixelShader / sizeof g_srcPixelShader[0], g_srcPixelShaderFixed,
+                                     "Sega Racing Classic's colour RAM read in the middle of its texels");
     char v[16];
     wl_game_option("DRIVE_DIP", v, sizeof v);
     src_apply_dip(v);

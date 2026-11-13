@@ -179,7 +179,7 @@ Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4
 (`[Game.grid]`, cabinets 1 to 6, 1 hosts; its discovery server's territory and track pack, none, made the searches' 0), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
 address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
-ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: its 192.168.75.k
+ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: `PALETTE_FIX`, true by default, its shader reading its colour RAM in the middle of a texel, without the red specks of NVIDIA boards; its 192.168.75.k
 are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES the count, cabinet
 k SUB with CAR NUMBER k, set twice on a blank save; raced on the cabinets), K.O. Drive
 (`[Game.kodrive]`, 2 to 6 cabinets: its 192.168.99.k of group A are `LINK`'s PCs, its LINK ID,

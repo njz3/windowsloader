@@ -544,6 +544,15 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   Test. Au démarrage du menu, un premier appui sur Service peut se perdre.
 - vJoy ✅ : course avec les manettes ouvertes (vJoy en joueur 1), retour de force sur le joueur 1 (accord de
   linuxloader).
+- Affichage sur NVIDIA ✅ (12/11) : points rouges sur la route (les traces de pneus) et trame sur l'herbe, sur une carte
+  NVIDIA seulement (vus ici sur une RTX 3050, pas sur l'Intel UHD du même PC). Le shader du jeu (`rom\shader\m2.fxo`,
+  ps_2_0) lit la couleur dans sa colour RAM (texture 64×1024, sans filtrage) à la colonne rouge × 4 de la texture et
+  à la ligne de la 2e coordonnée du sommet : au bord d'un texel, que NVIDIA arrondit de l'autre côté (le jeu visait la
+  Radeon de la RingEdge, `d1a.ini` 1002:94cb). `[Game.src] PALETTE_FIX` (vrai par défaut) : le même shader, la
+  colonne et la ligne prises au milieu de leur texel (`wl_d3d9_replace_pixel_shader`, assemblé par le D3DX du jeu,
+  sa table de constantes remise). Vu à l'attract sur la NVIDIA (plus de points ni de trame) et l'Intel (inchangé).
+  Écarté : le décodage des textures DXT5 (essayé, sans effet). Le correctif de la communauté (`SegafixNvidia.exe`,
+  uMod) et le « Red Road Fix » de TeknoParrot visent le même défaut.
 - Link entre bornes 🔄 (31/10) : UDP seulement (Winsock par nom, d1a.exe, « comm_lib » de Sega) : le nœud k (MAIN 0,
   les SUB leur CAR NUMBER) est 192.168.75.(1 + k) ; les SUB écrivent au port 26666 de MAIN, MAIN répond avec les
   adresses des nœuds, puis chacun envoie ses images à chaque nœud sur 26665. `[Game.src] LINK` / `CABINET` (1 à 4) :
