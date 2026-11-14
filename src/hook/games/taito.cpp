@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <wchar.h>
 #include <mmsystem.h>
+#include <mmreg.h>
 #include <dsound.h>
 
 #include "display.h"
@@ -341,8 +342,18 @@ static HWND WINAPI hGetForegroundWindow(void)
 // the PC on older Windows: ignored), then builds its primary format with as many channels as
 // GetSpeakerConfig gives, in a plain WAVEFORMATEX that DirectSound refuses past 2 channels
 // (SetFormat: DSERR_ALLOCATED, on a PC set to 5.1 or 7.1); the boot then waits for the sound
-// forever, black. It is told stereo: its mixer makes two mono buffers, side left and right.
+// forever, black. The first edition is told stereo: its mixer makes two mono buffers, side left
+// and right. Tuned told stereo plays its effects but not its music (a user, 15/11/2026; the same
+// said of other loaders, music back with 5.1 speakers): [Game.bg4] SPEAKERS = CABINET (the
+// default) gives it the speakers it asks for (7.1), and each format of more than 2 channels it
+// gives in a plain WAVEFORMATEX is given to DirectSound as a WAVEFORMATEXTENSIBLE, which it takes
+// whatever the PC's speakers and mixes down to them (this laptop, stereo: 6 and 8 channels plain
+// refused, DSERR_ALLOCATED for the primary buffer, E_INVALIDARG for the others; extensible taken
+// and played). STEREO: as before.
 // ------------------------------------------------------------------------------
+
+static int g_bg4Cabinet71;    // Tuned, SPEAKERS = CABINET
+static DWORD g_askedSpeakers; // the game's SetSpeakerConfig
 
 static HRESULT(STDMETHODCALLTYPE *oGetSpeakerConfig)(void *, DWORD *);
 static HRESULT STDMETHODCALLTYPE hGetSpeakerConfig(void *ds, DWORD *config)
@@ -350,10 +361,12 @@ static HRESULT STDMETHODCALLTYPE hGetSpeakerConfig(void *ds, DWORD *config)
     HRESULT hr = oGetSpeakerConfig(ds, config);
     if (SUCCEEDED(hr) && config)
     {
+        DWORD given = g_bg4Cabinet71 ? (g_askedSpeakers ? g_askedSpeakers : DSSPEAKER_7POINT1_SURROUND) : DSSPEAKER_STEREO;
         static int logged;
-        if (!logged++ && (*config & 0xFFFF) != DSSPEAKER_STEREO)
-            wl_log("sound: speakers 0x%lx given to the game as stereo", *config);
-        *config = DSSPEAKER_STEREO;
+        if (!logged++ && *config != given)
+            wl_log("sound: speakers 0x%lx given to the game as 0x%lx (%s)", *config, given,
+                   g_bg4Cabinet71 ? "the cabinet's, as it asks; Windows mixes them down to the PC's" : "stereo");
+        *config = given;
     }
     return hr;
 }
@@ -361,7 +374,70 @@ static HRESULT STDMETHODCALLTYPE hGetSpeakerConfig(void *ds, DWORD *config)
 static HRESULT(STDMETHODCALLTYPE *oSetSpeakerConfig)(void *, DWORD);
 static HRESULT STDMETHODCALLTYPE hSetSpeakerConfig(void *ds, DWORD config)
 {
+    g_askedSpeakers = config;
     return DS_OK;
+}
+
+// A plain format of more than 2 channels as an extensible one (the usual speakers of each count)
+static const WAVEFORMATEX *extensible(const WAVEFORMATEX *f, WAVEFORMATEXTENSIBLE *x)
+{
+    static const DWORD masks[9] = {0, 0x4, 0x3, 0x7, 0x33, 0x37, 0x3F, 0x13F, 0x63F};
+    if (!f || f->nChannels <= 2 || f->nChannels > 8 || (f->wFormatTag != WAVE_FORMAT_PCM && f->wFormatTag != WAVE_FORMAT_IEEE_FLOAT))
+        return f;
+    static const GUID pcm = {0x00000001, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
+    static const GUID flt = {0x00000003, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71}};
+    memset(x, 0, sizeof *x);
+    x->Format = *f;
+    x->Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+    x->Format.cbSize = sizeof *x - sizeof x->Format;
+    x->Samples.wValidBitsPerSample = f->wBitsPerSample;
+    x->dwChannelMask = masks[f->nChannels];
+    x->SubFormat = f->wFormatTag == WAVE_FORMAT_PCM ? pcm : flt;
+    return &x->Format;
+}
+
+static void log_format(const char *what, const WAVEFORMATEX *f, const WAVEFORMATEX *given, DWORD flags, HRESULT hr)
+{
+    static volatile LONG count;
+    if (InterlockedIncrement(&count) > 40)
+        return;
+    if (!f)
+        wl_log("sound: %s flags 0x%lx -> 0x%08lx", what, flags, (unsigned long)hr);
+    else
+        wl_log("sound: %s flags 0x%lx, %u channels, %lu Hz, %u bits, format %u%s -> 0x%08lx", what, flags, f->nChannels, f->nSamplesPerSec,
+               f->wBitsPerSample, f->wFormatTag, given != f ? " (given extensible)" : "", (unsigned long)hr);
+}
+
+static HRESULT(STDMETHODCALLTYPE *oBg4SetFormat)(IDirectSoundBuffer *, LPCWAVEFORMATEX);
+static HRESULT STDMETHODCALLTYPE hBg4SetFormat(IDirectSoundBuffer *b, LPCWAVEFORMATEX f)
+{
+    WAVEFORMATEXTENSIBLE x;
+    const WAVEFORMATEX *given = extensible(f, &x);
+    HRESULT hr = oBg4SetFormat(b, given);
+    log_format("primary format", f, given, 0, hr);
+    return hr;
+}
+
+static HRESULT(STDMETHODCALLTYPE *oBg4CreateSoundBuffer)(IDirectSound8 *, LPCDSBUFFERDESC, LPDIRECTSOUNDBUFFER *, LPUNKNOWN);
+static HRESULT STDMETHODCALLTYPE hBg4CreateSoundBuffer(IDirectSound8 *ds, LPCDSBUFFERDESC desc, LPDIRECTSOUNDBUFFER *out, LPUNKNOWN outer)
+{
+    WAVEFORMATEXTENSIBLE x;
+    DSBUFFERDESC d;
+    const WAVEFORMATEX *given = NULL;
+    if (desc && desc->dwSize >= sizeof(DSBUFFERDESC1))
+    {
+        memset(&d, 0, sizeof d);
+        memcpy(&d, desc, desc->dwSize < sizeof d ? desc->dwSize : sizeof d);
+        given = extensible(desc->lpwfxFormat, &x);
+        d.lpwfxFormat = (LPWAVEFORMATEX)given;
+    }
+    HRESULT hr = oBg4CreateSoundBuffer(ds, given ? &d : desc, out, outer);
+    log_format(desc && (desc->dwFlags & DSBCAPS_PRIMARYBUFFER) ? "primary buffer" : "buffer", desc ? desc->lpwfxFormat : NULL, given,
+               desc ? desc->dwFlags : 0, hr);
+    static int hooked;
+    if (SUCCEEDED(hr) && out && *out && desc && (desc->dwFlags & DSBCAPS_PRIMARYBUFFER) && !hooked++) // IDirectSoundBuffer: SetFormat 14
+        wl_hook_code((*(void ***)*out)[14], (void *)hBg4SetFormat, (void **)&oBg4SetFormat, "IDirectSoundBuffer::SetFormat");
+    return hr;
 }
 
 static HRESULT(WINAPI *oDirectSoundCreate8)(LPCGUID, LPDIRECTSOUND8 *, LPUNKNOWN);
@@ -371,7 +447,8 @@ static HRESULT WINAPI hDirectSoundCreate8(LPCGUID device, LPDIRECTSOUND8 *out, L
     static int hooked;
     if (SUCCEEDED(hr) && out && *out && !hooked++)
     {
-        void **vt = *(void ***)*out; // IDirectSound8: GetSpeakerConfig 8, SetSpeakerConfig 9
+        void **vt = *(void ***)*out; // IDirectSound8: CreateSoundBuffer 3, GetSpeakerConfig 8, SetSpeakerConfig 9
+        wl_hook_code(vt[3], (void *)hBg4CreateSoundBuffer, (void **)&oBg4CreateSoundBuffer, "IDirectSound8::CreateSoundBuffer");
         wl_hook_code(vt[8], (void *)hGetSpeakerConfig, (void **)&oGetSpeakerConfig, "IDirectSound8::GetSpeakerConfig");
         wl_hook_code(vt[9], (void *)hSetSpeakerConfig, (void **)&oSetSpeakerConfig, "IDirectSound8::SetSpeakerConfig");
     }
@@ -584,6 +661,12 @@ static const WlOptionChoice g_cabinets[] = {
     {NULL, NULL},
 };
 
+static const WlOptionChoice g_speakers[] = {
+    {"CABINET", WL_N("Comme la borne (7.1)")},
+    {"STEREO", WL_N("Stéréo")},
+    {NULL, NULL},
+};
+
 static const WlGameOption g_bg4Options[] = {
     {"CABINET", WL_N("Borne"),
      WL_N("Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu "
@@ -591,6 +674,10 @@ static const WlGameOption g_bg4Options[] = {
      WL_OPTION_CHOICE, g_cabinets, 0, 0, "STANDARD", 1, NULL},
     {"HOLD_GEAR", WL_N("Garder le rapport (borne Pro)"),
      WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
+    {"SPEAKERS", WL_N("Haut-parleurs"),
+     WL_N("Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : "
+          "l'ancien réglage, sans la musique."),
+     WL_OPTION_CHOICE, g_speakers, 0, 0, "CABINET", 1, NULL},
 };
 
 // Battle Gear 4's link (link.h, [Game.bg4] / [Game.bg4eng] LINK), both editions, 4 cabinets, the
@@ -648,6 +735,9 @@ static void bg4_settings(void)
 {
     bg4_link();
     char v[32];
+    wl_game_option("SPEAKERS", v, sizeof v);
+    g_bg4Cabinet71 = _stricmp(v, "STEREO") != 0;
+    wl_log("game: sound %s ([Game.bg4] SPEAKERS = %s)", g_bg4Cabinet71 ? "on the cabinet's 7.1 speakers, mixed down by Windows" : "told stereo", v);
     wl_game_option("CABINET", v, sizeof v);
     if (_stricmp(v, "PRO"))
         return;

@@ -846,7 +846,7 @@ msgstr "Controls"
 msgid "Affichage"
 msgstr "Display"
 
-#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:507 src/launcher/picker.cpp:684
+#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:508 src/launcher/picker.cpp:684
 msgid "Retour de force"
 msgstr "Force feedback"
 
@@ -1028,44 +1028,44 @@ msgstr "Dashboard (838-15415)"
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:518 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:388 src/hook/games/ringedge.cpp:1189 src/hook/games/ringedge.cpp:1215 src/hook/games/ringedge.cpp:1292 src/hook/games/segarally3.cpp:180 src/hook/games/stormracer.cpp:628 src/hook/games/unis.cpp:492 src/hook/games/wahlap.cpp:347
+#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:388 src/hook/games/ringedge.cpp:1190 src/hook/games/ringedge.cpp:1216 src/hook/games/ringedge.cpp:1342 src/hook/games/segarally3.cpp:180 src/hook/games/stormracer.cpp:628 src/hook/games/unis.cpp:492 src/hook/games/wahlap.cpp:347
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:389 src/hook/games/segarally3.cpp:181 src/hook/games/stormracer.cpp:629 src/hook/games/unis.cpp:493 src/hook/games/wahlap.cpp:348
+#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:520 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:389 src/hook/games/segarally3.cpp:181 src/hook/games/stormracer.cpp:629 src/hook/games/unis.cpp:493 src/hook/games/wahlap.cpp:348
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
-#: src/hook/games/daytona.cpp:501
+#: src/hook/games/daytona.cpp:502
 msgid "Carte moteur de la borne"
 msgstr "Cabinet's motor board"
 
-#: src/hook/games/daytona.cpp:502
+#: src/hook/games/daytona.cpp:503
 msgid "Octet du port parallèle"
 msgstr "Parallel port byte"
 
-#: src/hook/games/daytona.cpp:508
+#: src/hook/games/daytona.cpp:509
 msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
 msgstr "Cabinet's motor board: Daytona USA's board played from the game's commands and the wheel's position, with the panel spring (as sm2-emu does). Parallel port byte: the force the game sends to the motor, its centring made of constant forces from one frame to the next, which can make a strong wheel swing."
 
-#: src/hook/games/daytona.cpp:512 src/hook/games/ringedge.cpp:1208
+#: src/hook/games/daytona.cpp:513 src/hook/games/ringedge.cpp:1209
 msgid "Puissance de la carte (interrupteurs)"
 msgstr "Board power (DIP switches)"
 
-#: src/hook/games/daytona.cpp:513
+#: src/hook/games/daytona.cpp:514
 msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
 msgstr "The motor board's DIP switches: each step adds 4 to the effects' power."
 
-#: src/hook/games/daytona.cpp:515 src/hook/games/ringedge.cpp:1212
+#: src/hook/games/daytona.cpp:516 src/hook/games/ringedge.cpp:1213
 #, c-format
 msgid "Ressort du panneau (%)"
 msgstr "Panel spring (%)"
 
-#: src/hook/games/daytona.cpp:516 src/hook/games/ringedge.cpp:1213
+#: src/hook/games/daytona.cpp:517 src/hook/games/ringedge.cpp:1214
 msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
 msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre without the motor."
 
-#: src/hook/games/daytona.cpp:555
+#: src/hook/games/daytona.cpp:556
 msgid "la borne Model 2 (lampes)"
 msgstr "the Model 2 cabinet (lamps)"
 
@@ -1095,47 +1095,55 @@ msgstr "intensity (0-15)"
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/hook/games/namco.cpp:387 src/hook/games/taito.cpp:595
+#: src/hook/games/namco.cpp:387 src/hook/games/taito.cpp:676
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
-#: src/hook/games/namco.cpp:1330
+#: src/hook/games/namco.cpp:1332
 msgid "Caméra et retour de force activés"
 msgstr "Camera and force feedback on"
 
-#: src/hook/games/namco.cpp:1331
+#: src/hook/games/namco.cpp:1333
 msgid "Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."
 msgstr "Checked: NAMCAM and STEERING WHEEL REACTION (GAME OPTIONS of the test menu) set ON at each start, without changing the game's settings file. Unchecked: the game's settings as they are."
 
-#: src/hook/games/namco.cpp:2214 src/hook/games/namco.cpp:2300
+#: src/hook/games/namco.cpp:2216 src/hook/games/namco.cpp:2302
 msgid "Carte du moteur du volant"
 msgstr "Wheel's motor board"
 
-#: src/hook/games/namco.cpp:2364 src/hook/games/namco.cpp:2389 src/hook/games/namco.cpp:2400
+#: src/hook/games/namco.cpp:2366 src/hook/games/namco.cpp:2391 src/hook/games/namco.cpp:2402
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
-#: src/hook/games/ringedge.cpp:1175 src/hook/games/ringedge.cpp:1186
+#: src/hook/games/ringedge.cpp:1176 src/hook/games/ringedge.cpp:1187
 msgid "Jeu gratuit"
 msgstr "Free play"
 
-#: src/hook/games/ringedge.cpp:1176 src/hook/games/ringedge.cpp:1187
+#: src/hook/games/ringedge.cpp:1177 src/hook/games/ringedge.cpp:1188
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr "Unchecked: one game per coin. The game's test menu does not have this setting (the cabinet's system has it)."
 
-#: src/hook/games/ringedge.cpp:1190
+#: src/hook/games/ringedge.cpp:1191
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The CABINET ID of the game's test menu must be the same."
 
-#: src/hook/games/ringedge.cpp:1209
+#: src/hook/games/ringedge.cpp:1210
 msgid "Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 le maximum du volant)."
 msgstr "Switches 1 to 3 of the drive board (Sega Rally's): each step adds 1 to every torque's power (32 is the wheel's maximum)."
 
-#: src/hook/games/ringedge.cpp:1216
+#: src/hook/games/ringedge.cpp:1217
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). The game's test menu, GAME ASSIGNMENTS: cabinet 1 as MAIN (TOTAL NODES: the number of cabinets), cabinet k as SUB, CAR NUMBER k."
 
-#: src/hook/games/ringedge.cpp:1293
+#: src/hook/games/ringedge.cpp:1221
+msgid "Palette lue au milieu de ses texels"
+msgstr "Palette read in the middle of its texels"
+
+#: src/hook/games/ringedge.cpp:1222
+msgid "Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : windowsloader le remplace par le même, lisant au milieu du texel."
+msgstr "The game's shader reads its palette (the colour RAM) at a texel's edge, which a card other than ATI rounds differently: windowsloader replaces it with the same one, reading in the middle of the texel."
+
+#: src/hook/games/ringedge.cpp:1343
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). Cabinet 1 leads the race."
 
@@ -1148,27 +1156,43 @@ msgstr "the USB I/O board, UsbIO_SetLedLightStatu (usb_io.dll)"
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr "PWM light %d of the USB I/O board, UsbIO_SetPWMLightStatu (usb_io.dll), 0 off to 255"
 
-#: src/hook/games/taito.cpp:584
+#: src/hook/games/taito.cpp:659
 msgid "Standard"
 msgstr "Standard"
 
-#: src/hook/games/taito.cpp:585
+#: src/hook/games/taito.cpp:660
 msgid "Pro"
 msgstr "Pro"
 
-#: src/hook/games/taito.cpp:590
+#: src/hook/games/taito.cpp:665
+msgid "Comme la borne (7.1)"
+msgstr "As the cabinet (7.1)"
+
+#: src/hook/games/taito.cpp:666
+msgid "Stéréo"
+msgstr "Stereo"
+
+#: src/hook/games/taito.cpp:671
 msgid "Borne"
 msgstr "Cabinet"
 
-#: src/hook/games/taito.cpp:591
+#: src/hook/games/taito.cpp:672
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and H-shifter (a second I/O board). The game changes its own settings at the next start and closes once: start it again."
 
-#: src/hook/games/taito.cpp:594
+#: src/hook/games/taito.cpp:675
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/hook/games/taito.cpp:1045 src/hook/games/taito.cpp:1073
+#: src/hook/games/taito.cpp:677
+msgid "Haut-parleurs"
+msgstr "Speakers"
+
+#: src/hook/games/taito.cpp:678
+msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
+msgstr "As the cabinet: the game plays in 7.1, Windows brings the sound down to the PC's speakers; its music depends on it. Stereo: the former setting, without the music."
+
+#: src/hook/games/taito.cpp:1144 src/hook/games/taito.cpp:1172
 msgid "Carte du volant"
 msgstr "Wheel's board"
 

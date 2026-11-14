@@ -219,6 +219,8 @@ static struct
 } g_redirs[8];
 static int g_redirCount;
 
+static void own_dir(void);
+
 static void add_redirect(const char *from, const char *to, int prefix)
 {
     if (g_redirCount >= (int)(sizeof g_redirs / sizeof g_redirs[0]))
@@ -240,19 +242,72 @@ static void add_redirect(const char *from, const char *to, int prefix)
     wchar_t *slash = wcsrchr(keep, L'\\');
     if (slash && slash - keep > 2)
         *slash = 0;
+    own_dir();
     wl_log("files: %s redirected to %s%s", g_redirs[g_redirCount].from, g_redirs[g_redirCount].to, prefix ? " (as a prefix)" : "");
     g_redirCount++;
 }
 
-// The path in redirection r's kept folder (the game's)
+// The path in folder (its first len characters, no case, '/' as '\'); a drive's root never
+static int under(const wchar_t *path, const wchar_t *folder, size_t len)
+{
+    size_t i = 0;
+    while (len > 3 && (folder[len - 1] == L'\\' || folder[len - 1] == L'/'))
+        len--;
+    if (len <= 3)
+        return 0;
+    while (i < len && path[i] && towlower(path[i] == L'/' ? L'\\' : path[i]) == towlower(folder[i]))
+        i++;
+    return i == len && (!path[i] || path[i] == L'\\' || path[i] == L'/');
+}
+
+// windowsloader's own folders on a redirected drive (a user's E:\windowsloader beside the game's
+// E:\windowsloader\games\D1GP, 15/11/2026: its controls.ini looked for in the game's folder, not
+// found nor made, no control bound): the one of its DLL, the one of its settings file, the write
+// folder, left in their places; a drive's root cannot be (the game's drive would not be redirected)
+static wchar_t g_ownDir[MAX_PATH];
+static volatile LONG g_ownTold;
+static const wchar_t *write_root(void);
+
+static void own_dir(void)
+{
+    HMODULE self = NULL;
+    if (g_ownDir[0] || !GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                           (LPCWSTR)(void *)own_dir, &self) ||
+        !GetModuleFileNameW(self, g_ownDir, MAX_PATH))
+        return;
+    wchar_t *slash = wcsrchr(g_ownDir, L'\\');
+    if (slash)
+        *slash = 0;
+    if (wcslen(g_ownDir) <= 3)
+        wl_log("files: windowsloader is in the root of %ls: on a drive the game's folders are redirected from, its own files are "
+               "looked for in the game's folder; put it in a folder of its own",
+               g_ownDir);
+}
+
+static int own(int r, const wchar_t *path)
+{
+    const wchar_t *settings = wl_settings_file();
+    const wchar_t *slash = settings ? wcsrchr(settings, L'\\') : NULL;
+    const wchar_t *folder = NULL;
+    if (under(path, g_ownDir, wcslen(g_ownDir)))
+        folder = g_ownDir;
+    else if (slash && under(path, settings, (size_t)(slash - settings)))
+        folder = settings;
+    else if (under(path, write_root(), wcslen(write_root())))
+        folder = write_root();
+    if (!folder)
+        return 0;
+    if (!InterlockedExchange(&g_ownTold, 1))
+        wl_log("files: %ls left in its place (windowsloader's own files, on the drive %s redirects)", path, g_redirs[r].from);
+    return 1;
+}
+
+// The path in redirection r's kept folder (the game's), or in windowsloader's own
 static int kept(int r, const wchar_t *path)
 {
     const wchar_t *keep = g_redirs[r].keep;
-    size_t i = 0;
-    while (keep[i] && path[i] && towlower(path[i] == L'/' ? L'\\' : path[i]) == towlower(keep[i]))
-        i++;
-    if (!keep[0] || keep[i] || (path[i] && path[i] != L'\\' && path[i] != L'/'))
-        return 0;
+    if (!under(path, keep, wcslen(keep)))
+        return own(r, path);
     if (!InterlockedExchange(&g_redirs[r].told, 1))
         wl_log("files: %ls left in its place (the game's folder, on the drive %s redirects)", keep, g_redirs[r].from);
     return 1;
@@ -366,6 +421,11 @@ static __declspec(thread) int g_writeAllowed; // windowsloader's own file the ag
 static wchar_t g_tempGame[MAX_PATH];    // then: the working copies' folder, %TEMP%\windowsloader-nosave-<pid>
 static wchar_t g_tempNames[1024];       // the files written there: their names' wildcards, ';' between them
 static __declspec(thread) int g_tempForced; // wl_files_write_path: a board's memory windowsloader keeps
+
+static const wchar_t *write_root(void)
+{
+    return g_writeRoot;
+}
 
 // The system's folders, each in a folder of its own in WRITE_DIR\<game>: appdata, temp,
 // programdata, windows, so a disk under a write filter (UWF) but for the write folder keeps them;

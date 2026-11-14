@@ -157,7 +157,9 @@ jeu" page or by `--set Game.KEY=VALUE` for the game launched. Battle Gear 4 Tune
 `Clutch`, `Gear1` to `Gear6`; the game switches its own settings at the next start and closes once,
 start it again; with a write folder, the Pro cabinet's settings and saves are kept apart in
 `bg4pro`, so going from one cabinet to the other no longer closes the game each time),
-`HOLD_GEAR = true` to keep the gear engaged once the lever is let go. Sonic &
+`HOLD_GEAR = true` to keep the gear engaged once the lever is let go, `SPEAKERS = CABINET` (the
+default) for the cabinet's 7.1 speakers, which Windows mixes down to the PC's (the game's music needs
+them: told stereo, it plays its effects only), `STEREO` for the former setting. Sonic &
 Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
 default; the game's test menu has no coin settings, the cabinet's system menu has them).
 
