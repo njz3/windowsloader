@@ -44,6 +44,9 @@ const wchar_t *wl_game_companion_of(void);
 // companion's module gives its game's, so both write in the same place
 const char *wl_game_write_name(void);
 void wl_game_set_write_name(const char *name);
+// The folder's name from the game's options (read then, before WRITE_DIR's folder is set); NULL:
+// the one above
+void wl_game_set_write_name_of(const char *(*fn)(void));
 void wl_game_init(void);
 
 // The cabinet's boards, for the menu's "Jeu" page, given by the game's module: how the controls

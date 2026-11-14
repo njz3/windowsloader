@@ -818,9 +818,72 @@ static void focus_step(void)
 // The window procedure: the settings menu's input, Alt+Enter, repainting the bars
 // ------------------------------------------------------------------------------
 
+// The window in front, for the log: its program and class
+static void front_window(char *out, size_t n)
+{
+    HWND fg = GetForegroundWindow();
+    DWORD pid = 0;
+    GetWindowThreadProcessId(fg, &pid);
+    char cls[64] = "";
+    if (fg)
+        GetClassNameA(fg, cls, sizeof cls);
+    char exe[MAX_PATH] = "?";
+    HANDLE p = pid ? OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) : NULL;
+    if (p)
+    {
+        DWORD len = sizeof exe;
+        if (QueryFullProcessImageNameA(p, 0, exe, &len))
+        {
+            const char *slash = strrchr(exe, '\\');
+            if (slash)
+                memmove(exe, slash + 1, strlen(slash + 1) + 1);
+        }
+        CloseHandle(p);
+    }
+    _snprintf_s(out, n, _TRUNCATE, "%p, %s, class '%s'%s", (void *)fg, exe, cls, pid == GetCurrentProcessId() ? ", the game's" : "");
+}
+
+// What ends or puts aside the game's window, logged (Battle Gear 4 Pro and Tuned on racecab1, one
+// start in three: the game saved its settings, hid its window and quit by itself 3.5 s after its
+// start, a DXUT game that closes on WM_CLOSE or Escape)
+static void log_window_event(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    const char *what = NULL;
+    char extra[48] = "";
+    switch (msg)
+    {
+    case WM_CLOSE: what = "WM_CLOSE"; break;
+    case WM_DESTROY: what = "WM_DESTROY"; break;
+    case WM_ENDSESSION: what = "WM_ENDSESSION"; break;
+    case WM_ACTIVATEAPP: what = wp ? "WM_ACTIVATEAPP (active)" : "WM_ACTIVATEAPP (inactive)"; break;
+    case WM_SHOWWINDOW: what = wp ? NULL : "WM_SHOWWINDOW (hidden)"; break;
+    case WM_SYSCOMMAND:
+        if ((wp & 0xFFF0) == SC_CLOSE || (wp & 0xFFF0) == SC_MINIMIZE)
+            what = (wp & 0xFFF0) == SC_CLOSE ? "WM_SYSCOMMAND SC_CLOSE" : "WM_SYSCOMMAND SC_MINIMIZE";
+        break;
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+        if (wp == VK_ESCAPE || wp == VK_F4)
+        {
+            what = msg == WM_KEYDOWN ? "WM_KEYDOWN" : "WM_SYSKEYDOWN";
+            _snprintf_s(extra, sizeof extra, _TRUNCATE, " %s%s", wp == VK_ESCAPE ? "Escape" : "F4", (lp & (1 << 30)) ? " (repeat)" : "");
+        }
+        break;
+    }
+    if (!what)
+        return;
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) > 40)
+        return;
+    char front[MAX_PATH + 96];
+    front_window(front, sizeof front);
+    wl_log("display: window %p: %s%s, in front %s", (void *)h, what, extra, front);
+}
+
 static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     LRESULT result;
+    log_window_event(h, msg, wp, lp);
     if (msg == g_focusMsg && g_focusMsg)
     {
         take_focus(h);

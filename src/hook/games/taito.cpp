@@ -633,6 +633,17 @@ static void bg4_link(void)
     wl_log("game: Battle Gear 4 linked: MACHINE NO %d", wl_link_cabinet());
 }
 
+// The Pro cabinet's settings and saves apart (WRITE_DIR\bg4pro): the game keeps its cabinet type
+// in its config.bin, rewrites it and closes when the boards it counts differ. Pro and Standard in
+// one folder (the same game.exe, CABINET apart), each start after a change of cabinet closed by
+// itself 3.5 s in (Image borne, racecab1, 14/11)
+static const char *bg4_write_name(void)
+{
+    char v[32];
+    wl_game_option("CABINET", v, sizeof v);
+    return _stricmp(v, "PRO") ? NULL : "bg4pro";
+}
+
 static void bg4_settings(void)
 {
     bg4_link();
@@ -1073,6 +1084,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     if (tuned)
     {
         wl_game_set_options(g_bg4Options, sizeof g_bg4Options / sizeof g_bg4Options[0]);
+        wl_game_set_write_name_of(bg4_write_name);
         wl_game_on_settings(bg4_settings);
     }
     else

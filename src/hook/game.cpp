@@ -51,10 +51,18 @@ const wchar_t *wl_game_companion_of(void)
 }
 
 static const char *g_writeName;
+static const char *(*g_writeNameOf)(void);
 
+// Asked once the settings are read (WRITE_DIR's folder): the module's own when it gives one
 const char *wl_game_write_name(void)
 {
-    return g_writeName ? g_writeName : g_name;
+    const char *of = g_writeNameOf ? g_writeNameOf() : NULL;
+    return of ? of : g_writeName ? g_writeName : g_name;
+}
+
+void wl_game_set_write_name_of(const char *(*fn)(void))
+{
+    g_writeNameOf = fn;
 }
 
 void wl_game_set_write_name(const char *name)
