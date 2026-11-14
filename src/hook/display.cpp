@@ -65,6 +65,10 @@ static int g_gdiSetting;           // [Display] PRESENT: GDI (1) or DIRECT (0, t
 static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
 static int g_appliedMode = -1;
+// Full screen and borderless: the window's place, size and style windowsloader gave it, kept
+// against the game's own changes (display_wndproc)
+static volatile LONG g_keepWindow;
+static RECT g_keptRect;
 // The game window's menu bar ("File", Sega Racing Classic's as a user saw it), taken off in full
 // screen and borderless, given back in a window
 static HMENU g_menu;
@@ -693,6 +697,8 @@ static void apply_mode(void)
         y = work.top + (work.bottom - work.top - h) / 2;
     }
 
+    SetRect(&g_keptRect, x, y, x + w, y + h);
+    InterlockedExchange(&g_keepWindow, full);
     wl_busy_enter();
     SetWindowLongW(g_wnd, GWL_STYLE, (LONG)style);
     SetWindowLongW(g_wnd, GWL_EXSTYLE, (LONG)ex);
@@ -856,6 +862,44 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_PAINT || msg == WM_SIZE || msg == WM_ERASEBKGND)
         InterlockedExchange(&g_repaint, 1);
+    // Full screen and borderless: the window stays where windowsloader put it, the whole screen,
+    // whatever the game does to it after (seen at 1024x768 on the cabinets: D1GP shrunk to the work
+    // area above the taskbar, SWDC back to its 853x640, Crazy Ride its framed window, Initial D
+    // Zero 1040x754, larger than the screen). Minimized or hidden, it is left alone
+    if (g_keepWindow && h == g_wnd && msg == WM_WINDOWPOSCHANGING && lp && !IsIconic(h))
+    {
+        WINDOWPOS *p = (WINDOWPOS *)lp;
+        int changed = 0;
+        if (!(p->flags & SWP_NOMOVE) && (p->x != g_keptRect.left || p->y != g_keptRect.top))
+        {
+            p->x = g_keptRect.left;
+            p->y = g_keptRect.top;
+            changed = 1;
+        }
+        int w = g_keptRect.right - g_keptRect.left, hh = g_keptRect.bottom - g_keptRect.top;
+        if (!(p->flags & SWP_NOSIZE) && (p->cx != w || p->cy != hh))
+        {
+            p->cx = w;
+            p->cy = hh;
+            changed = 1;
+        }
+        static volatile LONG told;
+        if (changed && InterlockedIncrement(&told) <= 5)
+            wl_log("display: the game moved or sized its window: kept at %ldx%ld at %ld,%ld (%s)", (long)w, (long)hh, g_keptRect.left, g_keptRect.top,
+                   g_modeNames[g_appliedMode]);
+    }
+    if (g_keepWindow && h == g_wnd && msg == WM_STYLECHANGING && lp)
+    {
+        STYLESTRUCT *s = (STYLESTRUCT *)lp;
+        const DWORD frame = WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_CHILD;
+        const DWORD exFrame = WS_EX_TOPMOST | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME | WS_EX_STATICEDGE;
+        DWORD want = wp == (WPARAM)GWL_STYLE ? (s->styleNew & ~frame) | WS_POPUP : s->styleNew & ~exFrame;
+        static volatile LONG told;
+        if (want != s->styleNew && InterlockedIncrement(&told) <= 5)
+            wl_log("display: the game changed its window's %s (0x%08lx): its frame left out (%s)", wp == (WPARAM)GWL_STYLE ? "style" : "extended style",
+                   s->styleNew, g_modeNames[g_appliedMode]);
+        s->styleNew = want;
+    }
     // The window's size is windowsloader's: a game that limits it (Frenzy Express: 640x480 at most,
     // its cabinet's screen) gets Windows' own limits back
     if (msg == WM_GETMINMAXINFO && lp)

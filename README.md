@@ -143,7 +143,11 @@ is on another graphics chip than the game's), `DISPLAY_MODE` (`WINDOW`,
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or
 Alt+Enter switches between window and full screen. In full screen and borderless, a menu bar of
-the game's window ("File") is taken off, and given back in a window. A game's
+the game's window ("File") is taken off, and given back in a window; the window keeps the place,
+size and borderless style windowsloader gave it whatever the game does to it after (a game that
+resizes its window to its own resolution, to the work area above the taskbar, or puts its frame
+back). A Direct3D 9 `Present` that Windows answers "window hidden" or "mode changed"
+(`S_PRESENT_OCCLUDED`, `S_PRESENT_MODE_CHANGED`) is told `D3D_OK` to the game. A game's
 own `<short name>.ini` next to `windowsloader.ini` (`gticlub3.ini`) is read instead when it exists.
 
 A game's own options are in its `[Game.<short name>]` section, as linuxloader has them (keys in

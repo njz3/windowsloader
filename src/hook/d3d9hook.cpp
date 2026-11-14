@@ -459,9 +459,20 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     static HRESULT lastHr = S_OK;
     if (hr != lastHr)
     {
-        wl_log("Present -> 0x%08lx%s", hr, hr == D3DERR_DEVICELOST ? " (device lost)" : hr == S_OK ? " (drawing again)" : "");
+        wl_log("Present -> 0x%08lx%s", hr,
+               hr == D3DERR_DEVICELOST                           ? " (device lost)"
+               : hr == S_PRESENT_OCCLUDED                         ? " (the window hidden: the game told S_OK)"
+               : hr == S_PRESENT_MODE_CHANGED                     ? " (the desktop's mode changed: the game told S_OK)"
+               : hr == S_OK                                       ? " (drawing again)"
+                                                                  : "");
         lastHr = hr;
     }
+    // The window hidden (another one over it, the cabinet's front end still in front as the game
+    // starts) or the desktop's mode changed: success codes of Windows 8 and later's d3d9 that a
+    // game of before takes for a failure (Battle Gear 4 Tuned and Pro wrote their settings and
+    // quit, 3 s after the start); the frame is just not seen
+    if (hr == S_PRESENT_OCCLUDED || hr == S_PRESENT_MODE_CHANGED)
+        hr = S_OK;
 
     ULONGLONG now = GetTickCount64();
     if (!frames++)
