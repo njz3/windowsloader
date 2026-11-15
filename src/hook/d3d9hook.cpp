@@ -525,6 +525,28 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     if (dev != g_gameDev)
         return oReset(dev, pp);
     log_pp("Reset", pp);
+    // Settings that can only fail (no swap effect), the back buffer's size unchanged: nothing to
+    // reset, the device's settings given back and the Reset told done. The DirectX SDK framework's
+    // Reset after its window was moved or sized (Battle Gear 4 Tuned, +0xe3f0: its copy of the
+    // settings left empty, its device made from others, and its resources still there, so that
+    // even the device's own settings fail): the game's "the device could not be reset", then a
+    // crash. A cabinet in full screen never sees it
+    if (pp && (pp->SwapEffect < D3DSWAPEFFECT_DISCARD || pp->SwapEffect > 5 /* D3DSWAPEFFECT_FLIPEX */))
+    {
+        IDirect3DSwapChain9 *sc = NULL;
+        D3DPRESENT_PARAMETERS cur;
+        int same = SUCCEEDED(dev->GetSwapChain(0, &sc)) && sc && SUCCEEDED(sc->GetPresentParameters(&cur)) &&
+                   (!pp->BackBufferWidth || pp->BackBufferWidth == cur.BackBufferWidth) &&
+                   (!pp->BackBufferHeight || pp->BackBufferHeight == cur.BackBufferHeight);
+        if (sc)
+            sc->Release();
+        if (same)
+        {
+            *pp = cur;
+            wl_log("  no swap effect, the same size: not reset, the device's settings given back");
+            return D3D_OK;
+        }
+    }
     wl_menu_device_reset();
     gdi_release(); // its render target, in the default pool, would make the Reset fail
     int forced = make_windowed(pp);
