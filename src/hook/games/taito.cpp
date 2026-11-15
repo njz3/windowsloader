@@ -1165,6 +1165,15 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     unsigned char *at = (unsigned char *)(ULONG_PTR)(tuned ? 0x457ACE : 0x446E3E);
     if (wl_patch_code(at, pad15, cave, 15, "intro fix") && wl_patch_code(at + 0x19, pad15, tuned ? backTuned : backFirst, 5, "intro fix, back"))
         wl_patch_code((void *)(ULONG_PTR)(tuned ? 0x457F01 : 0x4471B5), storeWas, tuned ? toCaveTuned : toCaveFirst, 6, "intro fix, jump");
+    // Tuned's music and effects on the right side 46 dB down: its master volume (+0x256e00, for
+    // each of the mixer's first six buffers) goes to DirectSound as a pan, 5420 - 10000 x volume,
+    // -4580 at full volume (measured: STEREO's right side 45 dB down, CABINET's mixed down 10 dB
+    // down, here and on the cabinets). Given as 0, the middle (mov eax, 5420; sub eax, [ebp+0xc]
+    // to xor eax, eax); the volume was never applied
+    static const unsigned char panWas[8] = {0xB8, 0x2C, 0x15, 0x00, 0x00, 0x2B, 0x45, 0x0C};
+    static const unsigned char panMiddle[8] = {0x31, 0xC0, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};
+    if (tuned)
+        wl_patch_code((void *)(ULONG_PTR)0x656E41, panWas, panMiddle, 8, "its volume given as a pan: the middle");
     wl_hooks_add(g_bg4Hooks, sizeof g_bg4Hooks / sizeof g_bg4Hooks[0]);
     // The game takes the first DirectInput game controller, exclusively (vJoy on the test PC)
     wl_dinput_hide_controllers();

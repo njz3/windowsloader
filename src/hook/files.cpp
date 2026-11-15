@@ -1357,7 +1357,20 @@ static DWORD WINAPI hBaseSearchPathW(LPCWSTR folders, LPCWSTR name, LPCWSTR ext,
     if (path != name)
         path = ov_read(path, obuf);
     DWORD n = oBaseSearchPathW(folders, path, ext, size, out, part);
+    DWORD err = GetLastError();
+    if (path != name)
+    {
+        // mmioOpen then opens the path found, past the redirection: logged here
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 50)
+        {
+            char a[WL_PATH * 2], b[WL_PATH * 2], where[128];
+            wl_log("files: \"%s\" found by Windows for the game at \"%s\" -> %s [%s]", wl_u8(name, a, sizeof a), wl_u8(path, b, sizeof b),
+                   n ? "ok" : "missing", wl_where(WL_CALLER, where, sizeof where));
+        }
+    }
     wl_busy_leave();
+    SetLastError(err);
     return n;
 }
 
