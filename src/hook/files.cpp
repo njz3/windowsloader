@@ -1272,6 +1272,95 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
     return h;
 }
 
+// KERNELBASE's CreateFileW and CreateFileA, where kernel32's and Windows' own DLLs open their files:
+// a file Windows opens for the game past the hooks above (winmm's mmioOpen and PlaySound, OpenFile,
+// _lopen: Battle Gear 4 Tuned's music, "E:\data\Sound\Bgm\*.wav", E:\ being its folder) taken from
+// the redirected folder, as the game's own opens are. Only a redirected path is changed (and then
+// written in the write folder, as above); the game's own calls come here nested, untouched.
+static HANDLE(WINAPI *oBaseCreateFileW)(LPCWSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+static HANDLE(WINAPI *oBaseCreateFileA)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);
+
+static void log_base(const wchar_t *from, const wchar_t *to, HANDLE h, DWORD err, const void *caller)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) > 50)
+        return;
+    char a[WL_PATH * 2], b[WL_PATH * 2], where[128];
+    wl_log("files: \"%s\" opened by Windows for the game, from \"%s\" -> %s (error %lu) [%s]", wl_u8(from, a, sizeof a), wl_u8(to, b, sizeof b),
+           h != INVALID_HANDLE_VALUE ? "ok" : "failed", h != INVALID_HANDLE_VALUE ? 0 : err, wl_where(caller, where, sizeof where));
+}
+
+static HANDLE base_open(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl,
+                        const void *caller)
+{
+    wchar_t rbuf[MAX_PATH * 2], obuf[WL_PATH];
+    const wchar_t *path = redirW(name, rbuf, MAX_PATH * 2);
+    if (path == name)
+        return NULL; // not redirected: the caller opens it as it is
+    if (g_writeGame[0])
+        path = ov_create(path, &access, &disp, obuf);
+    if (g_writeDenied && create_writes(path, access, disp) && refused(path, "CreateFile"))
+        return INVALID_HANDLE_VALUE;
+    HANDLE h = oBaseCreateFileW(path, access, share, sa, disp, flags, tmpl);
+    DWORD err = GetLastError();
+    log_base(name, path, h, err, caller);
+    SetLastError(err);
+    return h;
+}
+
+static HANDLE WINAPI hBaseCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
+{
+    if (wl_busy() || !name || !g_redirCount)
+        return oBaseCreateFileW(name, access, share, sa, disp, flags, tmpl);
+    wl_busy_enter();
+    HANDLE h = base_open(name, access, share, sa, disp, flags, tmpl, WL_CALLER);
+    wl_busy_leave();
+    return h ? h : oBaseCreateFileW(name, access, share, sa, disp, flags, tmpl);
+}
+
+static HANDLE WINAPI hBaseCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
+{
+    wchar_t w[WL_PATH];
+    if (wl_busy() || !name || !g_redirCount || !to_wide(name, w))
+        return oBaseCreateFileA(name, access, share, sa, disp, flags, tmpl);
+    wl_busy_enter();
+    HANDLE h = base_open(w, access, share, sa, disp, flags, tmpl, WL_CALLER);
+    wl_busy_leave();
+    return h ? h : oBaseCreateFileA(name, access, share, sa, disp, flags, tmpl);
+}
+
+// What winmm asks before it opens a file (mmioOpen: SearchPath, then the attributes): the same
+// redirected path, so it finds the file the open above then takes
+static DWORD(WINAPI *oBaseGetFileAttributesW)(LPCWSTR);
+static DWORD WINAPI hBaseGetFileAttributesW(LPCWSTR name)
+{
+    if (wl_busy() || !name || !g_redirCount)
+        return oBaseGetFileAttributesW(name);
+    wl_busy_enter();
+    wchar_t rbuf[MAX_PATH * 2], obuf[WL_PATH];
+    const wchar_t *path = redirW(name, rbuf, MAX_PATH * 2);
+    if (path != name)
+        path = ov_read(path, obuf);
+    DWORD attr = oBaseGetFileAttributesW(path);
+    wl_busy_leave();
+    return attr;
+}
+
+static DWORD(WINAPI *oBaseSearchPathW)(LPCWSTR, LPCWSTR, LPCWSTR, DWORD, LPWSTR, LPWSTR *);
+static DWORD WINAPI hBaseSearchPathW(LPCWSTR folders, LPCWSTR name, LPCWSTR ext, DWORD size, LPWSTR out, LPWSTR *part)
+{
+    if (wl_busy() || !name || !g_redirCount)
+        return oBaseSearchPathW(folders, name, ext, size, out, part);
+    wl_busy_enter();
+    wchar_t rbuf[MAX_PATH * 2], obuf[WL_PATH];
+    const wchar_t *path = redirW(name, rbuf, MAX_PATH * 2);
+    if (path != name)
+        path = ov_read(path, obuf);
+    DWORD n = oBaseSearchPathW(folders, path, ext, size, out, part);
+    wl_busy_leave();
+    return n;
+}
+
 static BOOL(WINAPI *oReadFile)(HANDLE, LPVOID, DWORD, LPDWORD, LPOVERLAPPED);
 static BOOL WINAPI hReadFile(HANDLE h, LPVOID buf, DWORD size, LPDWORD read, LPOVERLAPPED ov)
 {
@@ -2070,6 +2159,10 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", SetCurrentDirectoryA),
     WL_HOOK(L"kernel32.dll", CreateFileA),
     WL_HOOK(L"kernel32.dll", CreateFileW),
+    {L"kernelbase.dll", "CreateFileW", (void *)hBaseCreateFileW, (void **)&oBaseCreateFileW, 0},
+    {L"kernelbase.dll", "CreateFileA", (void *)hBaseCreateFileA, (void **)&oBaseCreateFileA, 0},
+    {L"kernelbase.dll", "GetFileAttributesW", (void *)hBaseGetFileAttributesW, (void **)&oBaseGetFileAttributesW, 0},
+    {L"kernelbase.dll", "SearchPathW", (void *)hBaseSearchPathW, (void **)&oBaseSearchPathW, 0},
     WL_HOOK(L"kernel32.dll", ReadFile),
     WL_HOOK(L"kernel32.dll", WriteFile),
     WL_HOOK(L"kernel32.dll", CloseHandle),

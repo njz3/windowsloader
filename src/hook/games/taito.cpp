@@ -404,8 +404,9 @@ static void log_format(const char *what, const WAVEFORMATEX *f, const WAVEFORMAT
     if (!f)
         wl_log("sound: %s flags 0x%lx -> 0x%08lx", what, flags, (unsigned long)hr);
     else
-        wl_log("sound: %s flags 0x%lx, %u channels, %lu Hz, %u bits, format %u%s -> 0x%08lx", what, flags, f->nChannels, f->nSamplesPerSec,
-               f->wBitsPerSample, f->wFormatTag, given != f ? " (given extensible)" : "", (unsigned long)hr);
+        wl_log("sound: %s flags 0x%lx, %u channels (speakers 0x%lx), %lu Hz, %u bits, format %u%s -> 0x%08lx", what, flags, f->nChannels,
+               f->wFormatTag == WAVE_FORMAT_EXTENSIBLE && f->cbSize >= 22 ? ((const WAVEFORMATEXTENSIBLE *)f)->dwChannelMask : 0,
+               f->nSamplesPerSec, f->wBitsPerSample, f->wFormatTag, given != f ? " (given extensible)" : "", (unsigned long)hr);
 }
 
 static HRESULT(STDMETHODCALLTYPE *oBg4SetFormat)(IDirectSoundBuffer *, LPCWAVEFORMATEX);
