@@ -28,18 +28,9 @@
 
 #define CAMERA_MAX 16
 
-const char g_wlCameraLabel[] = WL_N("Caméra");
-const char g_wlCameraHelp[] =
-    WL_N("Les photos des joueurs (le link de Daytona ne tient pas sans caméra). Auto : la caméra du PC, sinon l'image fixe. Image fixe : une "
-         "caméra émulée qui montre l'image ci-dessous. Ou une caméra du PC par son nom (l'image fixe si elle ne s'ouvre pas).");
-const char g_wlCameraPictureLabel[] = WL_N("Image fixe (JPG ou PNG)");
-const char g_wlCameraPictureHelp[] = WL_N("Le chemin de l'image de la caméra émulée ; vide : une image noire.");
-
-// Auto, the still picture, then each camera of the PC by its name, made when the menu shows it
-WlOptionChoice g_wlCameraChoices[2 + CAMERA_MAX + 1] = {
-    {"AUTO", WL_N("Auto (la caméra du PC, sinon l'image fixe)")},
-    {"PICTURE", WL_N("Image fixe")},
-};
+// Auto, the still picture (gameoptions.cpp's), then each camera of the PC by its name, made when
+// the menu shows it
+static WlOptionChoice g_wlCameraChoices[2 + CAMERA_MAX + 1];
 static char g_names[CAMERA_MAX][128];
 static char g_value[WL_OPTION_VALUE_SIZE], g_picture[WL_OPTION_VALUE_SIZE];
 
@@ -89,11 +80,18 @@ const WlOptionChoice *wl_camera_choices(void)
     if (!made)
     {
         made = 1;
+        g_wlCameraChoices[0] = g_wlCameraChoicesBase[0];
+        g_wlCameraChoices[1] = g_wlCameraChoicesBase[1];
         int n = wl_camera_devices(g_names, CAMERA_MAX);
         for (int i = 0; i < n; i++)
             g_wlCameraChoices[2 + i].value = g_wlCameraChoices[2 + i].label = g_names[i];
     }
     return g_wlCameraChoices;
+}
+
+void wl_camera_options(void)
+{
+    wl_game_option_hooks("CAMERA", NULL, wl_camera_choices);
 }
 
 void wl_camera_settings(void)

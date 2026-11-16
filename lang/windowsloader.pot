@@ -10,6 +10,211 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "X-Source-Language: fr\n"
 
+#: src/common/gameoptions.cpp:27
+msgid "Caméra"
+msgstr ""
+
+#: src/common/gameoptions.cpp:29
+msgid "Les photos des joueurs (le link de Daytona ne tient pas sans caméra). Auto : la caméra du PC, sinon l'image fixe. Image fixe : une caméra émulée qui montre l'image ci-dessous. Ou une caméra du PC par son nom (l'image fixe si elle ne s'ouvre pas)."
+msgstr ""
+
+#: src/common/gameoptions.cpp:31
+msgid "Image fixe (JPG ou PNG)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:32
+msgid "Le chemin de l'image de la caméra émulée ; vide : une image noire."
+msgstr ""
+
+#: src/common/gameoptions.cpp:34
+msgid "Auto (la caméra du PC, sinon l'image fixe)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:35
+msgid "Image fixe"
+msgstr ""
+
+#: src/common/gameoptions.cpp:47
+msgid "English"
+msgstr ""
+
+#: src/common/gameoptions.cpp:48
+msgid "Japanese"
+msgstr ""
+
+#: src/common/gameoptions.cpp:49
+msgid "Chinese"
+msgstr ""
+
+#: src/common/gameoptions.cpp:53
+msgid "Cabinet"
+msgstr ""
+
+#: src/common/gameoptions.cpp:54
+msgid "MiniCabinet"
+msgstr ""
+
+#: src/common/gameoptions.cpp:58
+msgid "Type de borne"
+msgstr ""
+
+#: src/common/gameoptions.cpp:59
+msgid "Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu."
+msgstr ""
+
+#: src/common/gameoptions.cpp:62 src/common/gameoptions.cpp:67
+msgid "Langue des messages d'amdaemon"
+msgstr ""
+
+#: src/common/gameoptions.cpp:63
+msgid "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."
+msgstr ""
+
+#: src/common/gameoptions.cpp:67
+msgid "Les écrans d'erreur et d'avertissement de la plateforme."
+msgstr ""
+
+#: src/common/gameoptions.cpp:73 src/common/gameoptions.cpp:79 src/common/gameoptions.cpp:103 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:120 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:163 src/common/gameoptions.cpp:176 src/common/gameoptions.cpp:187 src/common/gameoptions.cpp:195 src/common/gameoptions.cpp:203 src/common/gameoptions.cpp:211 src/common/gameoptions.cpp:219
+msgid "Numéro de la borne (link)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:74 src/common/gameoptions.cpp:80 src/common/gameoptions.cpp:104 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:131 src/common/gameoptions.cpp:196 src/common/gameoptions.cpp:204 src/common/gameoptions.cpp:212 src/common/gameoptions.cpp:220
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
+msgstr ""
+
+#: src/common/gameoptions.cpp:87
+msgid "Carte moteur de la borne"
+msgstr ""
+
+#: src/common/gameoptions.cpp:88
+msgid "Octet du port parallèle"
+msgstr ""
+
+#: src/common/gameoptions.cpp:92 src/hook/menu.cpp:1707 src/launcher/picker.cpp:821
+msgid "Retour de force"
+msgstr ""
+
+#: src/common/gameoptions.cpp:93
+msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
+msgstr ""
+
+#: src/common/gameoptions.cpp:97 src/common/gameoptions.cpp:169
+msgid "Puissance de la carte (interrupteurs)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:98
+msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
+msgstr ""
+
+#: src/common/gameoptions.cpp:100 src/common/gameoptions.cpp:173
+#, c-format
+msgid "Ressort du panneau (%)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:101 src/common/gameoptions.cpp:174
+msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
+msgstr ""
+
+#: src/common/gameoptions.cpp:128
+msgid "Garder le rapport"
+msgstr ""
+
+#: src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:242
+msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
+msgstr ""
+
+#: src/common/gameoptions.cpp:146
+msgid "Caméra et retour de force activés"
+msgstr ""
+
+#: src/common/gameoptions.cpp:147
+msgid "Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."
+msgstr ""
+
+#: src/common/gameoptions.cpp:155 src/common/gameoptions.cpp:160
+msgid "Jeu gratuit"
+msgstr ""
+
+#: src/common/gameoptions.cpp:156 src/common/gameoptions.cpp:161
+msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
+msgstr ""
+
+#: src/common/gameoptions.cpp:164
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
+msgstr ""
+
+#: src/common/gameoptions.cpp:170
+msgid "Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 le maximum du volant)."
+msgstr ""
+
+#: src/common/gameoptions.cpp:177
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
+msgstr ""
+
+#: src/common/gameoptions.cpp:181
+msgid "Palette lue au milieu de ses texels"
+msgstr ""
+
+#: src/common/gameoptions.cpp:182
+msgid "Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : windowsloader le remplace par le même, lisant au milieu du texel."
+msgstr ""
+
+#: src/common/gameoptions.cpp:188
+msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
+msgstr ""
+
+#: src/common/gameoptions.cpp:227
+msgid "Standard"
+msgstr ""
+
+#: src/common/gameoptions.cpp:228
+msgid "Pro"
+msgstr ""
+
+#: src/common/gameoptions.cpp:232
+msgid "Comme la borne (7.1)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:233
+msgid "Stéréo"
+msgstr ""
+
+#: src/common/gameoptions.cpp:237
+msgid "Borne"
+msgstr ""
+
+#: src/common/gameoptions.cpp:238
+msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
+msgstr ""
+
+#: src/common/gameoptions.cpp:241
+msgid "Garder le rapport (borne Pro)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:243
+msgid "Haut-parleurs"
+msgstr ""
+
+#: src/common/gameoptions.cpp:244
+msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
+msgstr ""
+
+#: src/common/gameoptions.cpp:247
+msgid "Serveur NESYS"
+msgstr ""
+
+#: src/common/gameoptions.cpp:248
+msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut. Vide : le jeu ne sort pas du PC, NESYS hors ligne."
+msgstr ""
+
+#: src/common/gameoptions.cpp:250
+msgid "Clé d'entrée NESYS"
+msgstr ""
+
+#: src/common/gameoptions.cpp:251
+msgid "La clé du joueur dans le lecteur de la borne dès le lancement ; l'action « EntryKey » la met ou la retire. Son identifiant : OpenParrot\\KeyId.txt du dossier du jeu (celui du KeyManager de NESYS Revival)."
+msgstr ""
+
 #: src/common/lang.cpp:626
 #, c-format
 msgid "Automatique (%s)"
@@ -17,30 +222,6 @@ msgstr ""
 
 #: src/common/lang.cpp:631
 msgid "Automatique (langue de Windows)"
-msgstr ""
-
-#: src/hook/camera.cpp:31
-msgid "Caméra"
-msgstr ""
-
-#: src/hook/camera.cpp:33
-msgid "Les photos des joueurs (le link de Daytona ne tient pas sans caméra). Auto : la caméra du PC, sinon l'image fixe. Image fixe : une caméra émulée qui montre l'image ci-dessous. Ou une caméra du PC par son nom (l'image fixe si elle ne s'ouvre pas)."
-msgstr ""
-
-#: src/hook/camera.cpp:35
-msgid "Image fixe (JPG ou PNG)"
-msgstr ""
-
-#: src/hook/camera.cpp:36
-msgid "Le chemin de l'image de la caméra émulée ; vide : une image noire."
-msgstr ""
-
-#: src/hook/camera.cpp:40
-msgid "Auto (la caméra du PC, sinon l'image fixe)"
-msgstr ""
-
-#: src/hook/camera.cpp:41
-msgid "Image fixe"
 msgstr ""
 
 #: src/hook/game.cpp:26
@@ -350,7 +531,7 @@ msgstr ""
 msgid "Périphériques"
 msgstr ""
 
-#: src/hook/menu.cpp:1024 src/hook/menu.cpp:1618
+#: src/hook/menu.cpp:1024 src/hook/menu.cpp:1585
 msgid "Nom"
 msgstr ""
 
@@ -585,7 +766,7 @@ msgstr ""
 msgid "Rien n'est sauvegardé : impossible d'écrire dans le dossier d'écriture %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1281 src/hook/menu.cpp:1294 src/hook/menu.cpp:1569
+#: src/hook/menu.cpp:1281 src/hook/menu.cpp:1294 src/hook/menu.cpp:1536 src/launcher/picker.cpp:649
 #, c-format
 msgid "Impossible d'écrire %s"
 msgstr ""
@@ -631,11 +812,11 @@ msgstr ""
 msgid "Redirection d'écriture active, dossier : %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1358 src/hook/menu.cpp:1807
+#: src/hook/menu.cpp:1358 src/hook/menu.cpp:1774
 msgid "Impossible d'écrire dans le dossier d'écriture"
 msgstr ""
 
-#: src/hook/menu.cpp:1360 src/hook/menu.cpp:1810
+#: src/hook/menu.cpp:1360 src/hook/menu.cpp:1777
 msgid "Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne sont pas écrits."
 msgstr ""
 
@@ -683,7 +864,7 @@ msgstr ""
 msgid "Au prochain lancement. Émulée : windowsloader joue la carte. Un port du PC : le jeu parle à la vraie carte branchée dessus ([Emulation] EMULATE_JVS ou EMULATE_DRIVEBOARD = false, [Paths] JVS_PATH ou SERIAL_n_PATH)."
 msgstr ""
 
-#: src/hook/menu.cpp:1478
+#: src/hook/menu.cpp:1478 src/launcher/picker.cpp:670
 #, c-format
 msgid "[%s] de %s, pour ce jeu seulement"
 msgstr ""
@@ -696,164 +877,160 @@ msgstr ""
 msgid "Aucune option pour ce jeu."
 msgstr ""
 
-#: src/hook/menu.cpp:1528
+#: src/hook/menu.cpp:1495
 msgid "(au prochain lancement)"
 msgstr ""
 
-#: src/hook/menu.cpp:1549
+#: src/hook/menu.cpp:1516
 msgid "Des changements ne prendront effet qu'au prochain lancement du jeu : enregistrez-les (« Sauvegarder » ou « Sauvegarder pour ce jeu »), puis relancez le jeu."
 msgstr ""
 
-#: src/hook/menu.cpp:1558
+#: src/hook/menu.cpp:1525
 msgid "Le serveur précédent s'arrête encore : réessayez dans un instant."
 msgstr ""
 
-#: src/hook/menu.cpp:1565 src/hook/menu.cpp:1672
+#: src/hook/menu.cpp:1532 src/hook/menu.cpp:1639
 msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : pour cette fois seulement"
 msgstr ""
 
-#: src/hook/menu.cpp:1567
+#: src/hook/menu.cpp:1534
 #, c-format
 msgid "[Outputs] OUTPUTS_NETWORK = %s, enregistré dans %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1582
+#: src/hook/menu.cpp:1549
 msgid "Envoyer les sorties réseau (OUTPUTS_NETWORK)"
 msgstr ""
 
-#: src/hook/menu.cpp:1591
+#: src/hook/menu.cpp:1558
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s), début annoncé à 127.0.0.1:%d (UDP)."
 msgstr ""
 
-#: src/hook/menu.cpp:1594
+#: src/hook/menu.cpp:1561
 #, c-format
 msgid "Sorties réseau actives : port TCP %d, %d client(s) connecté(s)."
 msgstr ""
 
-#: src/hook/menu.cpp:1597
+#: src/hook/menu.cpp:1564
 #, c-format
 msgid "Sorties réseau : ouverture du port TCP %d..."
 msgstr ""
 
-#: src/hook/menu.cpp:1599
+#: src/hook/menu.cpp:1566
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d est déjà pris par un autre programme."
 msgstr ""
 
-#: src/hook/menu.cpp:1601
+#: src/hook/menu.cpp:1568
 #, c-format
 msgid "Sorties réseau coupées : le port TCP %d n'a pas pu être ouvert (erreur %d)."
 msgstr ""
 
-#: src/hook/menu.cpp:1603
+#: src/hook/menu.cpp:1570
 msgid "Sorties réseau coupées. Les valeurs ci-dessous sont celles que le jeu donne."
 msgstr ""
 
-#: src/hook/menu.cpp:1604
+#: src/hook/menu.cpp:1571
 msgid "Lignes « nom = valeur » terminées par \\r, comme MAME (BackForceFeeder, MAMEHooker)."
 msgstr ""
 
-#: src/hook/menu.cpp:1619
+#: src/hook/menu.cpp:1586
 msgid "Type"
 msgstr ""
 
-#: src/hook/menu.cpp:1620
+#: src/hook/menu.cpp:1587
 msgid "Valeur"
 msgstr ""
 
-#: src/hook/menu.cpp:1621
+#: src/hook/menu.cpp:1588
 msgid "Description"
 msgstr ""
 
-#: src/hook/menu.cpp:1644
+#: src/hook/menu.cpp:1611
 msgid "Ce jeu n'envoie ni lampes ni carte moteur pour l'instant."
 msgstr ""
 
-#: src/hook/menu.cpp:1649
+#: src/hook/menu.cpp:1616
 #, c-format
 msgid "windowsloader %s %s (%d bits)"
 msgstr ""
 
-#: src/hook/menu.cpp:1650
+#: src/hook/menu.cpp:1617
 msgid "Benjamin Maurin - njz3, licence GPL v3."
 msgstr ""
 
-#: src/hook/menu.cpp:1652
+#: src/hook/menu.cpp:1619
 msgid "Avec :"
 msgstr ""
 
-#: src/hook/menu.cpp:1654
+#: src/hook/menu.cpp:1621
 msgid "MinHook, Tsuda Kageyu (BSD 2 clauses)"
 msgstr ""
 
-#: src/hook/menu.cpp:1657
+#: src/hook/menu.cpp:1624
 msgid "Conventions de linuxloader : controls.ini, menu Tab, mode agent."
 msgstr ""
 
-#: src/hook/menu.cpp:1662
+#: src/hook/menu.cpp:1629
 msgid "Langue"
 msgstr ""
 
-#: src/hook/menu.cpp:1665
+#: src/hook/menu.cpp:1632
 msgid "Langue de l'interface"
 msgstr ""
 
-#: src/hook/menu.cpp:1670
+#: src/hook/menu.cpp:1637
 #, c-format
 msgid "[Launcher] LANGUAGE = %s, enregistré dans %s"
 msgstr ""
 
-#: src/hook/menu.cpp:1678
+#: src/hook/menu.cpp:1645
 msgid "Les textes des jeux décrits au lancement (sorties réseau) changent de langue au prochain lancement. Une autre langue : un fichier lang\\<code>.po à côté du lanceur (voir README.md)."
 msgstr ""
 
-#: src/hook/menu.cpp:1684 src/launcher/picker.cpp:719
+#: src/hook/menu.cpp:1651 src/launcher/picker.cpp:863
 msgid "Journal"
 msgstr ""
 
-#: src/hook/menu.cpp:1693
+#: src/hook/menu.cpp:1660
 msgid "Écrire le journal (windowsloader.log)"
 msgstr ""
 
-#: src/hook/menu.cpp:1698
+#: src/hook/menu.cpp:1665
 #, c-format
 msgid "[Launcher] LOG = %s, enregistré dans %s : au prochain lancement"
 msgstr ""
 
-#: src/hook/menu.cpp:1701
+#: src/hook/menu.cpp:1668
 msgid "Pas de fichier de réglages (lancé sans windowsloader.exe) : non enregistré"
 msgstr ""
 
-#: src/hook/menu.cpp:1707
+#: src/hook/menu.cpp:1674
 msgid "Le journal, pour le débogage : à côté du lanceur, ou dans le dossier d'écriture quand il y en a un, refait à chaque lancement ; le précédent gardé dans windowsloader.old.log."
 msgstr ""
 
-#: src/hook/menu.cpp:1736
+#: src/hook/menu.cpp:1703
 msgid "Jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1737
+#: src/hook/menu.cpp:1704 src/launcher/picker.cpp:664
 msgid "Options du jeu"
 msgstr ""
 
-#: src/hook/menu.cpp:1738
+#: src/hook/menu.cpp:1705
 msgid "Contrôles"
 msgstr ""
 
-#: src/hook/menu.cpp:1739
+#: src/hook/menu.cpp:1706
 msgid "Affichage"
 msgstr ""
 
-#: src/hook/menu.cpp:1740 src/hook/games/daytona.cpp:508 src/launcher/picker.cpp:684
-msgid "Retour de force"
-msgstr ""
-
-#: src/hook/menu.cpp:1741
+#: src/hook/menu.cpp:1708
 msgid "Sorties et réseau"
 msgstr ""
 
-#: src/hook/menu.cpp:1742
+#: src/hook/menu.cpp:1709
 msgid "À propos"
 msgstr ""
 
@@ -933,7 +1110,7 @@ msgstr ""
 msgid "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1008 src/hook/games/alls.cpp:1017 src/hook/games/stormracer.cpp:660
+#: src/hook/games/alls.cpp:1008 src/hook/games/alls.cpp:1017 src/hook/games/stormracer.cpp:654
 msgid "intensité (0-255)"
 msgstr ""
 
@@ -967,104 +1144,27 @@ msgstr ""
 msgid "Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1442
-msgid "English"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1443
-msgid "Japanese"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1444
-msgid "Chinese"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1450
-msgid "Cabinet"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1451
-msgid "MiniCabinet"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1456
-msgid "Type de borne"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1457
-msgid "Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu."
-msgstr ""
-
-#: src/hook/games/alls.cpp:1460 src/hook/games/alls.cpp:1467
-msgid "Langue des messages d'amdaemon"
-msgstr ""
-
-#: src/hook/games/alls.cpp:1461
-msgid "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."
-msgstr ""
-
-#: src/hook/games/alls.cpp:1467
-msgid "Les écrans d'erreur et d'avertissement de la plateforme."
-msgstr ""
-
-#: src/hook/games/alls.cpp:1548 src/hook/games/alls.cpp:1632
+#: src/hook/games/alls.cpp:1523 src/hook/games/alls.cpp:1607
 msgid "Lecteur de cartes Aime"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1564 src/hook/games/alls.cpp:1641
+#: src/hook/games/alls.cpp:1539 src/hook/games/alls.cpp:1616
 msgid "Carte des lampes (837-15070)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1629
+#: src/hook/games/alls.cpp:1604
 msgid "Afficheur du lecteur de paiement (VFD)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1644
+#: src/hook/games/alls.cpp:1619
 msgid "Tableau de bord (838-15415)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1656
+#: src/hook/games/alls.cpp:1631
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr ""
 
-#: src/hook/games/codemasters.cpp:172 src/hook/games/codemasters.cpp:185 src/hook/games/daytona.cpp:519 src/hook/games/fordracing.cpp:233 src/hook/games/konami.cpp:281 src/hook/games/namco.cpp:388 src/hook/games/ringedge.cpp:1190 src/hook/games/ringedge.cpp:1216 src/hook/games/ringedge.cpp:1342 src/hook/games/segarally3.cpp:180 src/hook/games/stormracer.cpp:628 src/hook/games/unis.cpp:492 src/hook/games/wahlap.cpp:347
-msgid "Numéro de la borne (link)"
-msgstr ""
-
-#: src/hook/games/codemasters.cpp:173 src/hook/games/codemasters.cpp:186 src/hook/games/daytona.cpp:520 src/hook/games/fordracing.cpp:234 src/hook/games/konami.cpp:282 src/hook/games/namco.cpp:389 src/hook/games/segarally3.cpp:181 src/hook/games/stormracer.cpp:629 src/hook/games/unis.cpp:493 src/hook/games/wahlap.cpp:348
-msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
-msgstr ""
-
-#: src/hook/games/daytona.cpp:502
-msgid "Carte moteur de la borne"
-msgstr ""
-
-#: src/hook/games/daytona.cpp:503
-msgid "Octet du port parallèle"
-msgstr ""
-
-#: src/hook/games/daytona.cpp:509
-msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
-msgstr ""
-
-#: src/hook/games/daytona.cpp:513 src/hook/games/ringedge.cpp:1209
-msgid "Puissance de la carte (interrupteurs)"
-msgstr ""
-
-#: src/hook/games/daytona.cpp:514
-msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
-msgstr ""
-
-#: src/hook/games/daytona.cpp:516 src/hook/games/ringedge.cpp:1213
-#, c-format
-msgid "Ressort du panneau (%)"
-msgstr ""
-
-#: src/hook/games/daytona.cpp:517 src/hook/games/ringedge.cpp:1214
-msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
-msgstr ""
-
-#: src/hook/games/daytona.cpp:556
+#: src/hook/games/daytona.cpp:531
 msgid "la borne Model 2 (lampes)"
 msgstr ""
 
@@ -1090,108 +1190,24 @@ msgstr ""
 msgid "intensité (0-15)"
 msgstr ""
 
-#: src/hook/games/namco.cpp:386
-msgid "Garder le rapport"
-msgstr ""
-
-#: src/hook/games/namco.cpp:387 src/hook/games/taito.cpp:676
-msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
-msgstr ""
-
-#: src/hook/games/namco.cpp:1332
-msgid "Caméra et retour de force activés"
-msgstr ""
-
-#: src/hook/games/namco.cpp:1333
-msgid "Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."
-msgstr ""
-
-#: src/hook/games/namco.cpp:2216 src/hook/games/namco.cpp:2302
+#: src/hook/games/namco.cpp:2189 src/hook/games/namco.cpp:2275
 msgid "Carte du moteur du volant"
 msgstr ""
 
-#: src/hook/games/namco.cpp:2366 src/hook/games/namco.cpp:2391 src/hook/games/namco.cpp:2402
+#: src/hook/games/namco.cpp:2343 src/hook/games/namco.cpp:2368 src/hook/games/namco.cpp:2379
 msgid "Lecteur de cartes"
 msgstr ""
 
-#: src/hook/games/ringedge.cpp:1176 src/hook/games/ringedge.cpp:1187
-msgid "Jeu gratuit"
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1177 src/hook/games/ringedge.cpp:1188
-msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1191
-msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1210
-msgid "Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 le maximum du volant)."
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1217
-msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1221
-msgid "Palette lue au milieu de ses texels"
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1222
-msgid "Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : windowsloader le remplace par le même, lisant au milieu du texel."
-msgstr ""
-
-#: src/hook/games/ringedge.cpp:1343
-msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
-msgstr ""
-
-#: src/hook/games/stormracer.cpp:654
+#: src/hook/games/stormracer.cpp:648
 msgid "la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"
 msgstr ""
 
-#: src/hook/games/stormracer.cpp:659
+#: src/hook/games/stormracer.cpp:653
 #, c-format
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr ""
 
-#: src/hook/games/taito.cpp:659
-msgid "Standard"
-msgstr ""
-
-#: src/hook/games/taito.cpp:660
-msgid "Pro"
-msgstr ""
-
-#: src/hook/games/taito.cpp:665
-msgid "Comme la borne (7.1)"
-msgstr ""
-
-#: src/hook/games/taito.cpp:666
-msgid "Stéréo"
-msgstr ""
-
-#: src/hook/games/taito.cpp:671
-msgid "Borne"
-msgstr ""
-
-#: src/hook/games/taito.cpp:672
-msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
-msgstr ""
-
-#: src/hook/games/taito.cpp:675
-msgid "Garder le rapport (borne Pro)"
-msgstr ""
-
-#: src/hook/games/taito.cpp:677
-msgid "Haut-parleurs"
-msgstr ""
-
-#: src/hook/games/taito.cpp:678
-msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
-msgstr ""
-
-#: src/hook/games/taito.cpp:1144 src/hook/games/taito.cpp:1172
+#: src/hook/games/taito.cpp:1320 src/hook/games/taito.cpp:1357
 msgid "Carte du volant"
 msgstr ""
 
@@ -1372,16 +1388,16 @@ msgstr ""
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr ""
 
-#: src/launcher/picker.cpp:225
+#: src/launcher/picker.cpp:226
 msgid "version non prise en charge"
 msgstr ""
 
-#: src/launcher/picker.cpp:378
+#: src/launcher/picker.cpp:379
 #, c-format
 msgid "Impossible de lancer %s (erreur %lu)."
 msgstr ""
 
-#: src/launcher/picker.cpp:425
+#: src/launcher/picker.cpp:426
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1389,7 +1405,7 @@ msgid ""
 "%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."
 msgstr ""
 
-#: src/launcher/picker.cpp:429
+#: src/launcher/picker.cpp:430
 #, c-format
 msgid ""
 "Le jeu s'est arrêté aussitôt (code %ld).\n"
@@ -1397,133 +1413,154 @@ msgid ""
 "%s%sPas de journal : cocher « Journal » et relancer le jeu."
 msgstr ""
 
-#: src/launcher/picker.cpp:450
+#: src/launcher/picker.cpp:451
 msgid "Dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:556
+#: src/launcher/picker.cpp:557
 msgid "Jouable"
 msgstr ""
 
-#: src/launcher/picker.cpp:559
+#: src/launcher/picker.cpp:560
 msgid "Jouable, avec des réserves"
 msgstr ""
 
-#: src/launcher/picker.cpp:562
+#: src/launcher/picker.cpp:563
 msgid "En cours : ne se joue pas encore"
 msgstr ""
 
-#: src/launcher/picker.cpp:569
+#: src/launcher/picker.cpp:570
 msgid "oui"
 msgstr ""
 
-#: src/launcher/picker.cpp:569
+#: src/launcher/picker.cpp:570
 msgid "en partie (voir BILAN.md)"
 msgstr ""
 
-#: src/launcher/picker.cpp:569
+#: src/launcher/picker.cpp:570
 msgid "non"
 msgstr ""
 
-#: src/launcher/picker.cpp:607
+#: src/launcher/picker.cpp:638
+msgid "Rien n'est sauvegardé : le dossier d'écriture ne peut pas être écrit"
+msgstr ""
+
+#: src/launcher/picker.cpp:649
+#, c-format
+msgid "Enregistré dans %s : pris au prochain lancement du jeu"
+msgstr ""
+
+#: src/launcher/picker.cpp:695
+msgid "Enregistrer"
+msgstr ""
+
+#: src/launcher/picker.cpp:698
+msgid "Fermer (Échap)"
+msgstr ""
+
+#: src/launcher/picker.cpp:744
 #, c-format
 msgid "%d jeux dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:607
+#: src/launcher/picker.cpp:744
 #, c-format
 msgid "%d jeu dans %s"
 msgstr ""
 
-#: src/launcher/picker.cpp:614
+#: src/launcher/picker.cpp:751
 #, c-format
 msgid "Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu par windowsloader devient une ligne de la liste."
 msgstr ""
 
-#: src/launcher/picker.cpp:666
+#: src/launcher/picker.cpp:803
 msgid "Version non prise en charge : le jeu peut s'arrêter sur une erreur"
 msgstr ""
 
-#: src/launcher/picker.cpp:673
+#: src/launcher/picker.cpp:810
 msgid "Plateforme"
 msgstr ""
 
-#: src/launcher/picker.cpp:675
+#: src/launcher/picker.cpp:812
 msgid "celle des bornes Racecab"
 msgstr ""
 
-#: src/launcher/picker.cpp:676
+#: src/launcher/picker.cpp:813
 msgid "Version"
 msgstr ""
 
-#: src/launcher/picker.cpp:676
+#: src/launcher/picker.cpp:813
 msgid "une autre"
 msgstr ""
 
-#: src/launcher/picker.cpp:677
+#: src/launcher/picker.cpp:814
 msgid "Versions prises en charge"
 msgstr ""
 
-#: src/launcher/picker.cpp:678
+#: src/launcher/picker.cpp:815
 msgid "Dossier"
 msgstr ""
 
-#: src/launcher/picker.cpp:679
+#: src/launcher/picker.cpp:816
 msgid "Programme"
 msgstr ""
 
-#: src/launcher/picker.cpp:680
+#: src/launcher/picker.cpp:817
 msgid "Arguments"
 msgstr ""
 
-#: src/launcher/picker.cpp:685
+#: src/launcher/picker.cpp:822
 msgid "Link"
 msgstr ""
 
-#: src/launcher/picker.cpp:686
+#: src/launcher/picker.cpp:823
 msgid "Émulé"
 msgstr ""
 
-#: src/launcher/picker.cpp:690
+#: src/launcher/picker.cpp:827
 msgid "Jouer (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:699
+#: src/launcher/picker.cpp:833
+msgid "Options du jeu (O)"
+msgstr ""
+
+#: src/launcher/picker.cpp:843
 msgid "Dossier des jeux (Tab)"
 msgstr ""
 
-#: src/launcher/picker.cpp:702
+#: src/launcher/picker.cpp:846
 msgid "Actualiser (F5)"
 msgstr ""
 
-#: src/launcher/picker.cpp:705
+#: src/launcher/picker.cpp:849
 msgid "Quitter (Échap)"
 msgstr ""
 
-#: src/launcher/picker.cpp:725
+#: src/launcher/picker.cpp:869
 #, c-format
 msgid ""
 "Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage) ;\n"
 "le précédent gardé dans windowsloader.old.log. Pris en compte au prochain lancement d'un jeu."
 msgstr ""
 
-#: src/launcher/picker.cpp:731
-msgid "Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"
+#: src/launcher/picker.cpp:875
+msgid "Entrée : jouer   Flèches : choisir   O : options du jeu   Tab : dossier des jeux"
 msgstr ""
 
-#: src/launcher/picker.cpp:741
+#: src/launcher/picker.cpp:885
 msgid "Le jeu n'a pas démarré"
 msgstr ""
 
-#: src/launcher/picker.cpp:748
+#: src/launcher/picker.cpp:892
 msgid "OK (Entrée)"
 msgstr ""
 
-#: src/launcher/picker.cpp:780
+#: src/launcher/picker.cpp:930
 #, c-format
 msgid "windowsloader %s %s — choix du jeu"
 msgstr ""
 
-#: src/launcher/picker.cpp:830
+#: src/launcher/picker.cpp:980
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr ""

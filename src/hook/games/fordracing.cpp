@@ -229,12 +229,6 @@ static void read_calibration(const wchar_t *gameDir)
 // The link between cabinets (link.h): its cabinets find each other by broadcast (the Sega protocol
 // of net_sega.c, "SEGA_PROTOCOL_IM_SERVER_WHOS_WITH_ME"), ports from 54001, its address from the PC's
 // cards (WSAIoctl SIO_GET_INTERFACE_LIST)
-static const WlGameOption g_options[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
-};
 
 static void ford_settings(void)
 {
@@ -285,7 +279,7 @@ int wl_game_fordracing(const wchar_t *exePath, const char **title)
     wl_display_set_internal_supported(1);
     if (!shell)
     {
-        wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+        wl_game_use_options("fordracing");
         wl_game_on_settings(ford_settings);
     }
     return 1;

@@ -1172,26 +1172,11 @@ static void use_toolmode(void)
 
 #define COUNT(a) (int)(sizeof a / sizeof a[0])
 
-static const WlGameOption g_creditOptions[] = {
-    {"FREE_PLAY", WL_N("Jeu gratuit"),
-     WL_N("Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."),
-     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
-};
-
 // Sonic & Sega All-Stars Racing's link between cabinets (link.h, [Game.ssasr] LINK): UDP only, its
 // sync on 47616 and 47872 broadcast to 192.168.88.255, its match presence to 255.255.255.255:48879.
 // It gives itself 192.168.88.<CABINET ID> (its test menu's, in the SRAM), not the platform's
 // address: those addresses are LINK's PCs (wl_link_virtual_net), the CABINET ID of each cabinet
 // its place in LINK
-static const WlGameOption g_ssrOptions[] = {
-    {"FREE_PLAY", WL_N("Jeu gratuit"),
-     WL_N("Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."),
-     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."),
-     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
-};
 
 static void ssr_settings(void)
 {
@@ -1205,24 +1190,6 @@ static void ssr_settings(void)
 // are LINK's PCs (wl_link_virtual_net); the address it asks the platform for is 192.168.75.<its
 // place in LINK>. Its test menu (GAME ASSIGNMENTS) must agree: START UP MODE MAIN on LINK's PC 1,
 // TOTAL NODES LINK's count; SUB on PC k, CAR NUMBER k (as its menu shows it)
-static const WlGameOption g_srcOptions[] = {
-    {"DRIVE_DIP", WL_N("Puissance de la carte (interrupteurs)"),
-     WL_N("Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 "
-          "le maximum du volant)."),
-     WL_OPTION_INT, NULL, 0, 7, "0", 0, src_apply_dip},
-    {"PANEL_SPRING", WL_N("Ressort du panneau (%)"),
-     WL_N("Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."), WL_OPTION_INT, NULL, 0, 100, "20", 0,
-     src_apply_panel},
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k "
-          "en SUB, CAR NUMBER k."),
-     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
-    {"PALETTE_FIX", WL_N("Palette lue au milieu de ses texels"),
-     WL_N("Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : "
-          "windowsloader le remplace par le même, lisant au milieu du texel."),
-     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
-};
 
 // Its amLib's own messages (amSramInit, amEepromInit, amBackupInit: why its test menu's settings
 // were not kept, 31/10), printed only at its modules' debug levels (0 in its build): made 1, its
@@ -1338,12 +1305,6 @@ static void src_settings(void)
 // LINK's count and group A, so the test menu has nothing to set. LINK ID 0 is the race's master.
 // Those addresses are LINK's PCs (wl_link_virtual_net_from), the one it asks the platform for its
 // own
-static const WlGameOption g_kodOptions[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier). La borne 1 mène la course."),
-     WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
-};
 
 static char __cdecl kod_link_id(void)
 {
@@ -1443,21 +1404,23 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
                                                                : "Motor board: Sega-like servoboard (COM1)");
     if (!strcmp(g_game->name, "ssasr"))
     {
-        wl_game_set_options(g_ssrOptions, COUNT(g_ssrOptions));
+        wl_game_use_options("ssasr");
         wl_game_on_settings(ssr_settings);
     }
     else if (!strcmp(g_game->name, "src"))
     {
-        wl_game_set_options(g_srcOptions, COUNT(g_srcOptions));
+        wl_game_use_options("src");
+        wl_game_option_hooks("DRIVE_DIP", src_apply_dip, NULL);
+        wl_game_option_hooks("PANEL_SPRING", src_apply_panel, NULL);
         wl_game_on_settings(src_settings);
     }
     else if (!strcmp(g_game->name, "kodrive") && _wcsicmp(base, g_game->testMode)) // the game, not its TestMode.exe
     {
-        wl_game_set_options(g_kodOptions, COUNT(g_kodOptions));
+        wl_game_use_options("kodrive");
         wl_game_on_settings(kod_settings);
     }
     else if (g_game->freePlayOption)
-        wl_game_set_options(g_creditOptions, COUNT(g_creditOptions));
+        wl_game_use_options("credit");
 
     wchar_t table[MAX_PATH];
     swprintf(table, MAX_PATH, L"%s%s", g_dir, g_game->table);

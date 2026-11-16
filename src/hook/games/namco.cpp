@@ -382,15 +382,6 @@ static void wmmt5_settings(void)
     wangan_link_settings();
 }
 
-static const WlGameOption g_wmmt5Options[] = {
-    {"HOLD_GEAR", WL_N("Garder le rapport"),
-     WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 0, hold_gear_apply},
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
-};
-
 static void wmmt5_output(const unsigned char *data, int length);
 static WlJvsBoard g_jvsWmmt5 = {"COM3", "namco ltd.;NA-JV;Ver6.01;JPN,Multipurpose.", 1, 2, 2, 8, 10, 16, wmmt5_state, wmmt5_output, 1, NULL, namco_vendor};
 
@@ -1315,26 +1306,7 @@ static void mkdx_settings(void)
         wl_log("namco: cabinet %d (192.168.112.%d), alone", g_cabinet, 10 + g_cabinet);
 }
 
-#define MKDX_CABINET_OPTION                                                                                                             \
-    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                      \
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, " \
-          "dans le fichier)."),                                                                                                         \
-     WL_OPTION_INT, NULL, 0, LINK_MAX, "0", 1, NULL}
-
-static const WlGameOption g_mkdxOptions[] = {
-    MKDX_CABINET_OPTION,
-    WL_CAMERA_OPTIONS,
-};
-
 // v1.05 and v1.06: the same, and their test menu's camera and wheel's force turned on
-static const WlGameOption g_mkdx105Options[] = {
-    MKDX_CABINET_OPTION,
-    {"CAMERA_WHEEL_ON", WL_N("Caméra et retour de force activés"),
-     WL_N("Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le "
-          "fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."),
-     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
-    WL_CAMERA_OPTIONS,
-};
 
 // ------------------------------------------------------------------------------
 // System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014) and 5 DX+ (the
@@ -2209,7 +2181,8 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
         wl_inputs_set_table(g_wmmt5Inputs, g_wmmt5Probe ? W_COUNT : W_PROBE);
         g_steering = &g_wmmt5Inputs[W_STEERING];
         wl_jvs_register(&g_jvsWmmt5);
-        wl_game_set_options(g_wmmt5Options, (int)(sizeof g_wmmt5Options / sizeof g_wmmt5Options[0]));
+        wl_game_use_options("wmmt5");
+        wl_game_option_hooks("HOLD_GEAR", hold_gear_apply, NULL);
         wl_game_on_settings(wmmt5_settings);
         InitializeCriticalSection(&g_motorLock);
         wl_vdev_register(&g_str3);
@@ -2314,11 +2287,15 @@ int wl_game_namco(const wchar_t *exePath, const char **name, const char **title)
     wl_system_loopback_broadcast(1);
     if (v105 || v106)
     {
-        wl_game_set_options(g_mkdx105Options, (int)(sizeof g_mkdx105Options / sizeof g_mkdx105Options[0]));
+        wl_game_use_options("mkdx105");
+        wl_camera_options();
         wl_files_read_filter("testmode_*.bin", mkdx_settings_read);
     }
     else
-        wl_game_set_options(g_mkdxOptions, (int)(sizeof g_mkdxOptions / sizeof g_mkdxOptions[0]));
+    {
+        wl_game_use_options("mkdx");
+        wl_camera_options();
+    }
     wl_game_on_settings(mkdx_settings);
     if (!patch_ws2((HMODULE)exe, 2, "bind", (void *)link_bind, (void **)&olink_bind) ||
         !patch_ws2((HMODULE)exe, 20, "sendto", (void *)link_sendto, (void **)&olink_sendto) ||

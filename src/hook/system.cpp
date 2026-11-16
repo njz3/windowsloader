@@ -1715,6 +1715,42 @@ static int WINAPI hgetsockname(UINT_PTR s, struct sockaddr *a, int *len)
     return ogetsockname(s, a, len);
 }
 
+// A game's online server (wl_system_game_server: Battle Gear 4 Tuned's NESYS): the connect calls
+// made at one place of the game's code all go to the server given, whatever host the game asked
+// (its own server's name still resolves to a host out there). Address and port as in a sockaddr_in
+// (network order)
+static struct
+{
+    const void *caller;
+    unsigned char toIp[4], toPort[2];
+    const char *name;
+} g_server;
+
+void wl_system_game_server(const void *caller, unsigned toIp, unsigned short toPort, const char *name)
+{
+    unsigned char v[6] = {(unsigned char)(toIp >> 24), (unsigned char)(toIp >> 16), (unsigned char)(toIp >> 8), (unsigned char)toIp,
+                          (unsigned char)(toPort >> 8), (unsigned char)toPort};
+    memcpy(g_server.toIp, v, 4);
+    memcpy(g_server.toPort, v + 4, 2);
+    g_server.name = name;
+    g_server.caller = caller;
+}
+
+int wl_system_game_server_route(const void *caller, struct sockaddr *a, int len)
+{
+    unsigned char *b = (unsigned char *)a;
+    if (!g_server.caller || caller != g_server.caller || !a || len < 8 || ((const unsigned short *)a)[0] != 2 /* AF_INET */)
+        return 0;
+    static volatile LONG logged;
+    char t[32], u[32];
+    sockaddr_text(a, len, t, sizeof t);
+    memcpy(b + 4, g_server.toIp, 4);
+    memcpy(b + 2, g_server.toPort, 2);
+    if (InterlockedIncrement(&logged) <= 20)
+        wl_log("connect %s: %s, sent to %s", t, g_server.name, sockaddr_text(a, len, u, sizeof u));
+    return 1;
+}
+
 static int(WINAPI *oconnect)(UINT_PTR, const struct sockaddr *, int);
 static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
 {
@@ -1722,7 +1758,14 @@ static int WINAPI hconnect(UINT_PTR s, const struct sockaddr *a, int len)
     probe_forget(s);
     if (game && udp_probe(s, a, len))
         return 0;
-    if (game && lan_refused(a, len, "connect", WL_CALLER))
+    unsigned char routed[16];
+    if (game && a && len >= 16 && g_server.caller)
+    {
+        memcpy(routed, a, 16);
+        if (wl_system_game_server_route(WL_CALLER, (struct sockaddr *)routed, 16))
+            a = (const struct sockaddr *)routed, len = 16;
+    }
+    if (game && a != (const struct sockaddr *)routed && lan_refused(a, len, "connect", WL_CALLER))
         return -1; // SOCKET_ERROR
     int r = oconnect(s, a, len);
     DWORD err = GetLastError(); // WSAEWOULDBLOCK on a non-blocking socket: the game reads it

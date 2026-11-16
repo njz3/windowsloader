@@ -35,6 +35,7 @@
 #include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_win32.h"
 
+#include "gameoptions.h"
 #include "gamelist.h"
 #include "lang.h"
 #include "picker.h"
@@ -578,6 +579,142 @@ static void field(const char *name, const char *value)
     ImGui::TextWrapped("%s", value);
 }
 
+// The chosen game's own options ([Game.<short name>], gameoptions.h), shown and saved without
+// starting it, as the game's menu has them ("Options du jeu"): in its own <short name>.ini next to
+// windowsloader.ini when it has one (the game then reads that file alone, settings.cpp), else in
+// windowsloader.ini. Read as the game reads them (a box as true or false, empty the default)
+#define PICKER_OPTIONS 32
+static struct
+{
+    int open;
+    const WlGameOption *options;
+    int count;
+    char values[PICKER_OPTIONS][WL_OPTION_VALUE_SIZE];
+    wchar_t file[MAX_PATH], section[80];
+    char title[300], fileShown[MAX_PATH * 3], status[MAX_PATH * 3 + 128];
+} g_opt;
+
+static const WlGameOption *options_of(const Entry *e, int *count)
+{
+    *count = 0;
+    const char *id = wl_game_options_table_of(e->game->name, e->game->version);
+    return id ? wl_game_options_table(id, count) : NULL;
+}
+
+static void options_open(const Entry *e)
+{
+    memset(&g_opt, 0, sizeof g_opt);
+    g_opt.options = options_of(e, &g_opt.count);
+    if (!g_opt.options)
+        return;
+    if (g_opt.count > PICKER_OPTIONS)
+        g_opt.count = PICKER_OPTIONS;
+    snprintf(g_opt.title, sizeof g_opt.title, "%s", e->title);
+    swprintf(g_opt.section, 80, L"Game.%S", e->game->name);
+    wcscpy_s(g_opt.file, MAX_PATH, g_ini);
+    wchar_t *slash = wcsrchr(g_opt.file, L'\\');
+    wchar_t own[MAX_PATH];
+    swprintf(own, MAX_PATH, L"%.*s%S.ini", slash ? (int)(slash + 1 - g_opt.file) : 0, g_opt.file, e->game->name);
+    if (GetFileAttributesW(own) != INVALID_FILE_ATTRIBUTES)
+        wcscpy_s(g_opt.file, MAX_PATH, own);
+    const wchar_t *base = wcsrchr(g_opt.file, L'\\');
+    u8(base ? base + 1 : g_opt.file, g_opt.fileShown, sizeof g_opt.fileShown);
+    for (int i = 0; i < g_opt.count; i++)
+    {
+        wchar_t key[64], v[WL_OPTION_VALUE_SIZE];
+        char read[WL_OPTION_VALUE_SIZE * 3];
+        wide(g_opt.options[i].key, key, 64);
+        GetPrivateProfileStringW(g_opt.section, key, L"", v, WL_OPTION_VALUE_SIZE, g_opt.file);
+        u8(v, read, sizeof read);
+        wl_game_option_normalize(&g_opt.options[i], read, g_opt.values[i], WL_OPTION_VALUE_SIZE);
+    }
+    g_opt.open = 1;
+}
+
+static void options_save(void)
+{
+    if (g_iniReadOnly)
+    {
+        snprintf(g_opt.status, sizeof g_opt.status, "%s", wl_tr("Rien n'est sauvegardé : le dossier d'écriture ne peut pas être écrit"));
+        return;
+    }
+    int ok = 1;
+    for (int i = 0; i < g_opt.count; i++)
+    {
+        wchar_t key[64], v[WL_OPTION_VALUE_SIZE];
+        wide(g_opt.options[i].key, key, 64);
+        wide(g_opt.values[i], v, WL_OPTION_VALUE_SIZE);
+        ok &= WritePrivateProfileStringW(g_opt.section, key, v, g_opt.file) != 0;
+    }
+    snprintf(g_opt.status, sizeof g_opt.status, ok ? wl_tr("Enregistré dans %s : pris au prochain lancement du jeu") : wl_tr("Impossible d'écrire %s"),
+             g_opt.fileShown);
+}
+
+// The options' window over the picker; 1 while it is open
+static int options_draw(void)
+{
+    if (!g_opt.open)
+        return 0;
+    ImGuiIO &io = ImGui::GetIO();
+    if (!ImGui::IsPopupOpen("###options"))
+        ImGui::OpenPopup("###options");
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.75f, io.DisplaySize.y * 0.85f));
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    char name[128];
+    snprintf(name, sizeof name, "%s###options", wl_tr("Options du jeu"));
+    if (!ImGui::BeginPopupModal(name, NULL, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings))
+        return 1;
+    ImGui::TextUnformatted(g_opt.title);
+    char section[96];
+    u8(g_opt.section, section, sizeof section);
+    ImGui::TextDisabled(wl_tr("[%s] de %s, pour ce jeu seulement"), section, g_opt.fileShown);
+    ImGui::Separator();
+    float buttons = ImGui::GetFrameHeightWithSpacing() * 2 + ImGui::GetStyle().ItemSpacing.y;
+    ImGui::BeginChild("options", ImVec2(0, -buttons), ImGuiChildFlags_NavFlattened); // the keyboard and the gamepad go on to the buttons
+    for (int i = 0; i < g_opt.count; i++)
+    {
+        const WlGameOption *o = &g_opt.options[i];
+        ImGui::PushID(i);
+        if (i == 0 && ImGui::IsWindowAppearing())
+            ImGui::SetKeyboardFocusHere();
+        if (wl_game_option_widget(o, g_opt.values[i], NULL))
+            g_opt.status[0] = 0;
+        if (o->help)
+        {
+            ImGui::Indent();
+            ImGui::PushTextWrapPos(0);
+            ImGui::TextDisabled("%s", wl_tr(o->help));
+            ImGui::PopTextWrapPos();
+            ImGui::Unindent();
+        }
+        ImGui::Spacing();
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    ImGui::Separator();
+    if (ImGui::Button(wl_tr("Enregistrer")))
+        options_save();
+    ImGui::SameLine();
+    int close = ImGui::Button(wl_tr("Fermer (Échap)"));
+    if (g_opt.status[0])
+    {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", g_opt.status);
+    }
+    // Escape, or the gamepad's B, unless a field is being typed in
+    if (!ImGui::IsAnyItemActive() && (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)))
+        close = 1;
+    if (close)
+    {
+        g_opt.open = 0;
+        g_focusSelected = 1;
+        g_keysFrom = GetTickCount64() + 300; // the key that closed it is not the list's
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+    return 1;
+}
+
 // What the frame asks for, done once it is shown: a scan in the middle of it would release the
 // picture it still draws
 enum
@@ -689,6 +826,13 @@ static int draw(int *selected, int *action)
         ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
         if (ImGui::Button(wl_tr("Jouer (Entrée)")))
             *action = ACT_PLAY;
+        int optionCount;
+        if (options_of(e, &optionCount))
+        {
+            ImGui::SameLine();
+            if (ImGui::Button(wl_tr("Options du jeu (O)")))
+                options_open(e);
+        }
         ImGui::PopItemFlag();
         ImGui::EndChild();
     }
@@ -728,7 +872,7 @@ static int draw(int *selected, int *action)
     }
     ImGui::PopItemFlag();
     ImGui::SameLine();
-    ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   Tab : dossier des jeux"));
+    ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   O : options du jeu   Tab : dossier des jeux"));
 
     // A game that would not start: what the launcher said, until OK. Its title in the language
     // shown, its name (###failed) the same in all
@@ -755,10 +899,16 @@ static int draw(int *selected, int *action)
         }
         ImGui::EndPopup();
     }
+    int options = options_draw();
     ImGui::End();
 
-    if (message || GetTickCount64() < g_keysFrom)
+    if (message || options || GetTickCount64() < g_keysFrom)
         return quit;
+    if (g_count && (ImGui::IsKeyPressed(ImGuiKey_O, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceUp, false)))
+    {
+        options_open(&g_entries[*selected]);
+        return quit;
+    }
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) ||
         ImGui::IsKeyPressed(ImGuiKey_GamepadStart, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false))
         *action = ACT_PLAY;

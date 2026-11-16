@@ -58,6 +58,7 @@ enum
     IN_CLUTCH, // Battle Gear 4 Pro's
     IN_GEAR1,  // Battle Gear 4 Pro's H shifter, 1 to 6
     IN_LEVER = IN_GEAR1 + 6, // Wacky Races' slot lever
+    IN_ENTRY_KEY,            // Battle Gear 4 Tuned's NESYS entry key put in its reader
     IN_COUNT
 };
 
@@ -85,7 +86,10 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
     {"Lever", "Item", WL_INPUT_SWITCH, 0, 1, 0},
+    {"EntryKey", "EntryKey", WL_INPUT_SWITCH, 0, 1, 0},
 };
+
+static int g_entryKey; // the NESYS entry key in its reader ([Game.bg4] ENTRY_KEY at the start, EntryKey after)
 
 enum
 {
@@ -124,6 +128,22 @@ static void jvs_state(WlJvsState *s)
         static const unsigned short bits[] = {1u << 13, 1u << 12, 1u << 11, 1u << 9, 1u << 8, 1u << 7};
         if (wl_input_get(&g_inputs[IN_START]))
             s->player[0] |= 0x8000;
+        // The NESYS entry key's sensor, bit 10, active low: set, no key in the reader (as
+        // TeknoParrotUI starts it, its "Key", GPL v3; left at 0 before, a key the reader could
+        // not read: "エントリーキーは使用できません"). EntryKey puts it in, then takes it out
+        if (g_bg4 == BG4_TUNED)
+        {
+            static int held;
+            int now = wl_input_get(&g_inputs[IN_ENTRY_KEY]);
+            if (now && !held)
+            {
+                g_entryKey = !g_entryKey;
+                wl_log("game: NESYS entry key %s (EntryKey)", g_entryKey ? "put in the reader" : "taken out");
+            }
+            held = now;
+            if (!g_entryKey)
+                s->player[0] |= 1u << 10;
+        }
         for (int i = 0; i < (g_pro ? 4 : 6); i++)
             if (wl_input_get(&g_inputs[IN_VIEW + i]))
                 s->player[0] |= bits[i];
@@ -656,30 +676,187 @@ static void bg4_tick(void)
 // config.bin and closes once. HOLD_GEAR: the gear stays engaged once the shifter leaves it
 // (OpenParrot's "Hold Gear", TypeX2Generic.cpp, GPL v3: the neutral's store at +0x8adff taken
 // out), for shifters whose positions do not stay.
-static const WlOptionChoice g_cabinets[] = {
-    {"STANDARD", WL_N("Standard")},
-    {"PRO", WL_N("Pro")},
-    {NULL, NULL},
-};
 
-static const WlOptionChoice g_speakers[] = {
-    {"CABINET", WL_N("Comme la borne (7.1)")},
-    {"STEREO", WL_N("Stéréo")},
-    {NULL, NULL},
-};
+// The NESYS entry key's reader (Tuned), on the first JVS board: Taito's commands, answered as
+// TeknoParrotUI's JvsPackageEmulator.cs does (GPL v3, teknogods), the lengths from the game's own
+// (+0x2800c0 to +0x280219): 0x6A (8 bytes, the tag chosen), 0x6B (the tag's 44 bytes read: a
+// space, the key's 7 characters, 0xFF, "W_OK" at the end), 0x6C (8 + 44 bytes written: taken),
+// 0x6D (status 0), 0x6E, 0x6F, 0x70 (the tag's serial, its last byte not 0). The key's 7 bytes
+// are read at each 0x6B from <game>\OpenParrot\KeyId.txt (its copy in the write folder first),
+// as TeknoParrotUI does, the file the NESYS Revival Project's KeyManager keeps; without one, a key
+// made as TeknoParrotUI makes it (two letters, T, four digits) is written there
+static void bg4_key_id(unsigned char id[7])
+{
+    static unsigned char made[7];
+    wchar_t path[MAX_PATH], buf[MAX_PATH * 2];
+    GetModuleFileNameW(NULL, path, MAX_PATH);
+    wchar_t *slash = wcsrchr(path, L'\\');
+    if (slash)
+        wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - path), L"OpenParrot\\KeyId.txt");
+    wl_busy_enter();
+    // The game folder's first (the KeyManager's), then the one windowsloader made in the write folder
+    DWORD got = 0;
+    for (int pass = 0; pass < 2 && got != 7; pass++)
+    {
+        const wchar_t *from = pass ? wl_files_write_path(path, buf, MAX_PATH * 2) : path;
+        if (pass && !wcscmp(from, path))
+            break;
+        got = 0;
+        HANDLE h = CreateFileW(from, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
+        if (h != INVALID_HANDLE_VALUE)
+        {
+            ReadFile(h, id, 7, &got, NULL);
+            CloseHandle(h);
+        }
+    }
+    static char last[8];
+    if (got == 7)
+    {
+        if (memcmp(last, id, 7))
+            wl_log("game: NESYS entry key \"%.7s\" (OpenParrot\\KeyId.txt)", (const char *)id);
+        memcpy(last, id, 7);
+        wl_busy_leave();
+        return;
+    }
+    if (!made[0])
+    {
+        srand(GetTickCount());
+        made[0] = (unsigned char)('A' + rand() % 26), made[1] = (unsigned char)('A' + rand() % 26), made[2] = 'T';
+        for (int i = 3; i < 7; i++)
+            made[i] = (unsigned char)('0' + rand() % 10);
+        const wchar_t *to = wl_files_write_path(path, buf, MAX_PATH * 2);
+        wchar_t dir[MAX_PATH * 2];
+        wcscpy_s(dir, MAX_PATH * 2, to);
+        wchar_t *end = wcsrchr(dir, L'\\');
+        if (end && !wl_files_write_refused(to))
+            *end = 0, CreateDirectoryW(dir, NULL);
+        DWORD put = 0;
+        HANDLE h = wl_files_write_refused(to) ? INVALID_HANDLE_VALUE : CreateFileW(to, GENERIC_WRITE, 0, NULL, CREATE_NEW, 0, NULL);
+        if (h != INVALID_HANDLE_VALUE)
+        {
+            WriteFile(h, made, 7, &put, NULL);
+            CloseHandle(h);
+        }
+        wl_log("game: NESYS entry key: no OpenParrot\\KeyId.txt, \"%.7s\" made%s", (const char *)made, put == 7 ? ", written there" : " (not written)");
+    }
+    memcpy(id, made, 7);
+    wl_busy_leave();
+}
 
-static const WlGameOption g_bg4Options[] = {
-    {"CABINET", WL_N("Borne"),
-     WL_N("Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu "
-          "change ses propres réglages au lancement suivant et se ferme une fois : le relancer."),
-     WL_OPTION_CHOICE, g_cabinets, 0, 0, "STANDARD", 1, NULL},
-    {"HOLD_GEAR", WL_N("Garder le rapport (borne Pro)"),
-     WL_N("Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."), WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
-    {"SPEAKERS", WL_N("Haut-parleurs"),
-     WL_N("Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : "
-          "l'ancien réglage, sans la musique."),
-     WL_OPTION_CHOICE, g_speakers, 0, 0, "CABINET", 1, NULL},
-};
+static int bg4_key_reader(const unsigned char *p, int n, unsigned char *r, int *k)
+{
+    static int logged[0x20];
+    int c = p[0], used;
+    switch (c)
+    {
+    case 0x65: // one byte; its report and A0, the real board's (TeknoParrotUI): the reader's replies
+               // after it, in the same packet, read one byte off without it ("KEY ID: ERROR:READ")
+        if (n < 2)
+            return 0;
+        r[(*k)++] = 0x01;
+        r[(*k)++] = 0xA0;
+        return 2;
+    case 0x6A:
+        used = 9;
+        break;
+    case 0x6C:
+        used = 53;
+        break;
+    case 0x6B:
+    case 0x6D:
+    case 0x6E:
+    case 0x6F:
+    case 0x70:
+        used = 1;
+        break;
+    default:
+        return 0;
+    }
+    if (n < used)
+        return 0;
+    r[(*k)++] = 0x01;
+    if (c == 0x6B)
+    {
+        unsigned char *tag = r + *k;
+        memset(tag, 0xFF, 44);
+        tag[0] = 0x20;
+        bg4_key_id(tag + 1);
+        memcpy(tag + 40, "W_OK", 4);
+        *k += 44;
+    }
+    else if (c == 0x6D)
+        r[(*k)++] = 0x00;
+    else if (c == 0x70)
+    {
+        static const unsigned char serial[8] = {0, 0, 0, 0, 0, 0, 0, 0x09};
+        memcpy(r + *k, serial, 8);
+        *k += 8;
+    }
+    if (logged[c - 0x60]++ < 3)
+    {
+        if (c == 0x6C)
+            wl_log_hex("jvs: entry key reader, tag written (0x6c):", p + 9, 44);
+        else
+            wl_log("jvs: entry key reader, command %02x answered", c);
+    }
+    return used;
+}
+
+// NESYS (Tuned): its client (+0x20ac40) posts HTTP/1.0 requests (/giant_baba/cgi-bin/bg4sv.kgr,
+// "Host: siru4cc.battlegear.net", "User-Agent: BG4KYOUTAI", binary) from one connect (+0x20adfc),
+// to siru4cc.battlegear.net:80 (172.18.18.8, the arcade's NESYS router, its default), a name that
+// still resolves to 210.148.144.82, where nothing answers (16/11/2026). [Game.bg4] NESYS_SERVER =
+// host[:port] (80 by default) sends each of them to that server, past the refusal of any address
+// off the PC (system.cpp) and the link's. Empty: refused as before, NESYS offline
+static void bg4_nesys(void)
+{
+    char v[WL_OPTION_VALUE_SIZE];
+    wl_game_option("NESYS_SERVER", v, sizeof v);
+    char *s = v;
+    while (*s == ' ' || *s == '\t')
+        s++;
+    for (char *e = s + strlen(s); e > s && (e[-1] == ' ' || e[-1] == '\t'); *--e = 0)
+        ;
+    if (!*s)
+        return;
+    static const unsigned char connectWas[5] = {0xE8, 0x07, 0xD7, 0x08, 0x00}; // call connect (its thunk)
+    if (memcmp((void *)0x60ADFC, connectWas, sizeof connectWas))
+    {
+        wl_log("game: NESYS_SERVER = %s: the NESYS client's connect (+0x20adfc) not found, NESYS stays offline", s);
+        return;
+    }
+    unsigned port = 80;
+    char *colon = strrchr(s, ':');
+    if (colon)
+    {
+        char *end;
+        unsigned long p = strtoul(colon + 1, &end, 10);
+        if (*end || !p || p > 65535)
+        {
+            wl_log("game: NESYS_SERVER = %s: the port is not a number from 1 to 65535, NESYS stays offline", s);
+            return;
+        }
+        port = (unsigned)p;
+        *colon = 0;
+    }
+    unsigned ip;
+    if (!wl_netenv_resolve(s, &ip))
+    {
+        wl_log("game: NESYS_SERVER = %s: not found (DNS), NESYS stays offline", s);
+        return;
+    }
+    wl_system_game_server((void *)0x60AE01, ip, (unsigned short)port, "NESYS");
+    // Its network's check at the start ("通信初期化中"): the cabinet must hear its own broadcast
+    // (UDP 8821, [0x8deb10] at +0xa107d), else "サーバーへの通信：無効", error 1, and NESYS stays
+    // off. Without LINK (which sends it to each PC, this one too) it comes back on 127.0.0.1
+    if (!wl_link_count())
+    {
+        wl_system_loopback_broadcast(1);
+        wl_log("game: NESYS: its broadcast (UDP 8821) heard by itself on 127.0.0.1, for its network's check");
+    }
+    wl_log("game: NESYS: the game's server at %s, %u.%u.%u.%u:%u ([Game.bg4] NESYS_SERVER)", s, ip >> 24, ip >> 16 & 255,
+           ip >> 8 & 255, ip & 255, port);
+}
 
 // Battle Gear 4's link (link.h, [Game.bg4] / [Game.bg4eng] LINK), both editions, 4 cabinets, the
 // two editions apart (their packets' magic differ): each cabinet broadcasts its state (432 bytes
@@ -735,6 +912,11 @@ static const char *bg4_write_name(void)
 static void bg4_settings(void)
 {
     bg4_link();
+    bg4_nesys();
+    g_jvs.vendor = bg4_key_reader;
+    g_entryKey = wl_game_option_bool("ENTRY_KEY");
+    wl_log("game: NESYS entry key reader on the JVS board, the key %s ([Game.bg4] ENTRY_KEY = %s)",
+           g_entryKey ? "in it at the start" : "out of it at the start", g_entryKey ? "true" : "false");
     char v[32];
     wl_game_option("SPEAKERS", v, sizeof v);
     g_bg4Cabinet71 = _stricmp(v, "STEREO") != 0;
@@ -802,13 +984,6 @@ static char *__cdecl wacky_text(const char *name)
 }
 
 // Linked (Wacky Races, Valve Limit R: cabinets 1 to 4, their NETWORK-ID; D1GP, Chase H.Q. 2: 1 and 2)
-#define LINK_OPTION(most)                                                                                                                                      \
-    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "                    \
-          "dans le fichier)."),                                                                                                                                \
-     WL_OPTION_INT, NULL, 0, most, "0", 1, NULL}
-static const WlGameOption g_link4Options[] = {LINK_OPTION(4)};
-static const WlGameOption g_link2Options[] = {LINK_OPTION(2)};
 
 static void wacky_settings(void)
 {
@@ -1106,14 +1281,14 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
             wl_hook_code((void *)0x401F30, (void *)chq2_text, (void **)&oChq2Text, "chq2.ini's text settings (+0x1f30): HOSTADDR from LINK");
         if (!memcmp((void *)0x465BF0, networkWas, sizeof networkWas))
             wl_hook_code((void *)0x465BF0, (void *)chq2_network, (void **)&oChq2Network, "its network check (+0x65bf0): network ID from LINK");
-        wl_game_set_options(g_link2Options, sizeof g_link2Options / sizeof g_link2Options[0]);
+        wl_game_use_options("link2");
         wl_game_on_settings(chq2_settings);
         return 1;
     }
     if (d1gp)
     {
         wl_vdinput_register(&g_d1gpWheel);
-        wl_game_set_options(g_link2Options, sizeof g_link2Options / sizeof g_link2Options[0]);
+        wl_game_use_options("link2");
         wl_game_on_settings(d1gp_settings);
         g_d1gp = 1;
         return 1;
@@ -1132,7 +1307,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
             wl_hook_code(lookup, (void *)wacky_setting, (void **)&oWackySetting, "wr.ini's settings (Launcher.exe+0x3390): LINKID 0 by default");
         if (!memcmp(text, textWas, sizeof textWas))
             wl_hook_code(text, (void *)wacky_text, (void **)&oWackyText, "wr.ini's text settings (Launcher.exe+0x3320): HOSTADDR from LINK");
-        wl_game_set_options(g_link4Options, sizeof g_link4Options / sizeof g_link4Options[0]);
+        wl_game_use_options("link4");
         wl_game_on_settings(wacky_settings);
         g_wacky = 1;
         return 1;
@@ -1143,7 +1318,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
         InitializeCriticalSection(&g_wheelLock);
         wl_vdev_register(&g_wheel);
         wl_vdev_label("COM1", WL_N("Carte du volant"));
-        wl_game_set_options(g_link4Options, sizeof g_link4Options / sizeof g_link4Options[0]);
+        wl_game_use_options("link4");
         wl_game_on_settings(vlimitr_settings);
         g_vlimitr = 1;
         return 1;
@@ -1183,7 +1358,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     wl_log("emulated steering board on COM1 (Taito)");
     if (tuned)
     {
-        wl_game_set_options(g_bg4Options, sizeof g_bg4Options / sizeof g_bg4Options[0]);
+        wl_game_use_options("bg4");
         wl_game_set_write_name_of(bg4_write_name);
         wl_game_on_settings(bg4_settings);
     }

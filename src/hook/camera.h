@@ -14,7 +14,7 @@
 //                   PICTURE: the emulated one
 //                   a camera's name: that camera of the PC, else the emulated one
 //   CAMERA_PICTURE  what the emulated camera shows: a JPG or PNG file, black without one
-// The module puts WL_CAMERA_OPTIONS in its options, calls wl_camera_settings() once they are read,
+// The module puts WL_CAMERA_OPTIONS in its table (wl_camera_options), calls wl_camera_settings() once they are read,
 // and emulates the camera through the game's own API (Daytona: OpenCV's cv::VideoCapture).
 // [Emulation] CAMERA = false keeps the PC's cameras from the game: the emulated one then.
 
@@ -24,16 +24,11 @@
 
 #include "game.h"
 
+// The two options are in its table (gameoptions.cpp's WL_CAMERA_OPTIONS); the module calls
+// wl_camera_options() after wl_game_use_options: the list, auto, the still picture then each camera
+// of the PC by its name, made when the menu shows it
 const WlOptionChoice *wl_camera_choices(void);
-extern WlOptionChoice g_wlCameraChoices[];
-// The two options' texts, in camera.cpp (where the catalogues find them)
-extern const char g_wlCameraLabel[], g_wlCameraHelp[], g_wlCameraPictureLabel[], g_wlCameraPictureHelp[];
-
-#define WL_CAMERA_OPTIONS                                                                                                                     \
-    {"CAMERA", g_wlCameraLabel, g_wlCameraHelp, WL_OPTION_CHOICE, g_wlCameraChoices, 0, 0, "AUTO", 1, NULL, wl_camera_choices},                \
-    {                                                                                                                                         \
-        "CAMERA_PICTURE", g_wlCameraPictureLabel, g_wlCameraPictureHelp, WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL                              \
-    }
+void wl_camera_options(void);
 
 // The options read (from the module's settings callback); the PC's cameras allowed unless PICTURE
 void wl_camera_settings(void);

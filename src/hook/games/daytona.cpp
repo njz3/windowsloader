@@ -498,31 +498,6 @@ static void apply_panel(const char *value)
     InterlockedExchange(&g_panel, v < 0 ? 0 : v > 100 ? 100 : v);
 }
 
-static const WlOptionChoice g_ffbChoices[] = {
-    {"BOARD", WL_N("Carte moteur de la borne")},
-    {"PORT", WL_N("Octet du port parallèle")},
-    {NULL, NULL},
-};
-
-static const WlGameOption g_options[] = {
-    {"FFB", WL_N("Retour de force"),
-     WL_N("Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le "
-          "ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de "
-          "forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."),
-     WL_OPTION_CHOICE, g_ffbChoices, 0, 0, "BOARD", 0, apply_ffb},
-    {"DRIVE_DIP", WL_N("Puissance de la carte (interrupteurs)"),
-     WL_N("Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."), WL_OPTION_INT, NULL, 0, 7, "0", 0,
-     apply_dip},
-    {"PANEL_SPRING", WL_N("Ressort du panneau (%)"),
-     WL_N("Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."), WL_OPTION_INT, NULL, 0, 100, "20", 0,
-     apply_panel},
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
-    WL_CAMERA_OPTIONS,
-};
-
 static void read_options(void)
 {
     char v[16];
@@ -1449,7 +1424,11 @@ int wl_game_daytona(const wchar_t *exePath, const char **name, const char **titl
     g_shell.freeplay = GetPrivateProfileIntW(L"Credit", L"Freeplay", 0, ini) != 0;
     read_calibration(dir);
     find_build();
-    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_use_options("daytona");
+    wl_game_option_hooks("FFB", apply_ffb, NULL);
+    wl_game_option_hooks("DRIVE_DIP", apply_dip, NULL);
+    wl_game_option_hooks("PANEL_SPRING", apply_panel, NULL);
+    wl_camera_options();
     wl_game_on_settings(daytona_settings);
     link_patch();
     camera_patch();

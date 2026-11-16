@@ -315,6 +315,25 @@ int wl_netenv_fake_ip(unsigned *ip)
     return g_fake.on;
 }
 
+int wl_netenv_resolve(const char *host, unsigned *ip)
+{
+    WSADATA wsa;
+    if (!host || !*host || !ip || WSAStartup(MAKEWORD(2, 2), &wsa))
+        return 0;
+    addrinfo hints = {}, *res = NULL;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    wl_busy_enter();
+    int ok = !getaddrinfo(host, NULL, &hints, &res) && res && res->ai_addr;
+    if (ok)
+        *ip = ntohl(((sockaddr_in *)res->ai_addr)->sin_addr.s_addr);
+    if (res)
+        freeaddrinfo(res);
+    wl_busy_leave();
+    WSACleanup();
+    return ok;
+}
+
 // A ping: answered at once, as by every host of the cabinet's network; nothing is sent
 static int echo_reply(IPAddr dest, LPVOID reply, DWORD replySize)
 {

@@ -1438,35 +1438,10 @@ static int has_icf(const wchar_t *folder)
 // reads its settings. The game's own texts are Japanese whatever the language.
 
 // amdaemon's languages, those of its resources (am_resources\error.<language>.dll), by their English names
-static const WlOptionChoice g_languages[] = {
-    {"ENGLISH", WL_N("English")},
-    {"JAPANESE", WL_N("Japanese")},
-    {"CHINESE", WL_N("Chinese")},
-    {NULL, NULL},
-};
 
 // The cabinet the game plays: the launcher gives it -launch= (launcher.cpp, g_gameOptionArgs)
-static const WlOptionChoice g_cabinets[] = {
-    {"CABINET", WL_N("Cabinet")},
-    {"MINI", WL_N("MiniCabinet")},
-    {NULL, NULL},
-};
-
-static const WlGameOption g_swdcOptions[] = {
-    {"CABINET", WL_N("Type de borne"),
-     WL_N("Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties "
-          "réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu."),
-     WL_OPTION_CHOICE, g_cabinets, 0, 0, "CABINET", 1, NULL},
-    {"LANGUAGE", WL_N("Langue des messages d'amdaemon"),
-     WL_N("Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."),
-     WL_OPTION_CHOICE, g_languages, 0, 0, "ENGLISH", 1, NULL},
-};
 
 // Initial D Zero's: the same language of amdaemon's messages
-static const WlGameOption g_idzOptions[] = {
-    {"LANGUAGE", WL_N("Langue des messages d'amdaemon"), WL_N("Les écrans d'erreur et d'avertissement de la plateforme."), WL_OPTION_CHOICE,
-     g_languages, 0, 0, "ENGLISH", 1, NULL},
-};
 
 static void amdaemon_settings(void)
 {
@@ -1585,7 +1560,7 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     if (g_game->nu)
     {
         wl_game_set_boards("Controls on JVS board, Sega 837-14572, JVS 3.0 (mxjvs driver, amdaemon)", "Motor board: (the game)");
-        wl_game_set_options(g_idzOptions, (int)(sizeof g_idzOptions / sizeof g_idzOptions[0]));
+        wl_game_use_options("idz");
         if (daemon)
             wl_game_on_settings(amdaemon_settings);
         nu_setup(daemon, box);
@@ -1594,7 +1569,7 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     g_table = g_inputs;
     g_tableCount = IN_COUNT;
     wl_game_set_boards("Controls on USB I/O board, Sega 837-15257 \"IO4\" (amdaemon)", "Motor board: (COM1, the game)");
-    wl_game_set_options(g_swdcOptions, (int)(sizeof g_swdcOptions / sizeof g_swdcOptions[0]));
+    wl_game_use_options("swdc");
     if (daemon)
         wl_game_on_settings(amdaemon_settings);
     drive("D:", L"D");

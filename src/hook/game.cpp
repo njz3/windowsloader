@@ -119,15 +119,37 @@ void wl_game_on_settings(void (*fn)(void))
 
 #define MAX_OPTIONS 32
 
-static const WlGameOption *g_options;
+static WlGameOption g_options[MAX_OPTIONS]; // the module's table, with its callbacks
 static int g_optionCount;
 static char g_started[MAX_OPTIONS][WL_OPTION_VALUE_SIZE], g_edited[MAX_OPTIONS][WL_OPTION_VALUE_SIZE];
 static char g_section[64];
 
 void wl_game_set_options(const WlGameOption *options, int count)
 {
-    g_options = options;
     g_optionCount = count < MAX_OPTIONS ? count : MAX_OPTIONS;
+    for (int i = 0; i < g_optionCount; i++)
+        g_options[i] = options[i];
+}
+
+void wl_game_use_options(const char *table)
+{
+    int count;
+    const WlGameOption *options = wl_game_options_table(table, &count);
+    if (!options)
+        wl_log("game: no options table \"%s\" (gameoptions.cpp)", table);
+    wl_game_set_options(options, count);
+}
+
+void wl_game_option_hooks(const char *key, void (*apply)(const char *value), const WlOptionChoice *(*list)(void))
+{
+    for (int i = 0; i < g_optionCount; i++)
+        if (!_stricmp(g_options[i].key, key))
+        {
+            g_options[i].apply = apply;
+            g_options[i].list = list;
+            return;
+        }
+    wl_log("game: no option %s for its callbacks", key);
 }
 
 const char *wl_game_option_section(void)

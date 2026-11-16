@@ -61,41 +61,16 @@ const char *wl_game_motor(void);
 void wl_game_on_settings(void (*fn)(void));
 void wl_game_settings(void);
 
-// A game's own options, as linuxloader has them: section [Game.<short name>] of the settings file
-// ([Game.bg4]), keys in capitals; a list's values in capitals, true/false for a box, a number for
-// a slider; --set Game.KEY=VALUE for the game launched. The menu's "Options du jeu" page lists
-// them; "Sauvegarder" and "Sauvegarder pour ce jeu" write them with the other settings.
-enum
-{
-    WL_OPTION_BOOL,   // a box
-    WL_OPTION_CHOICE, // a list
-    WL_OPTION_INT,    // a slider, min..max
-    WL_OPTION_TEXT    // a field (a path)
-};
+// A game's own options (gameoptions.h, their tables gameoptions.cpp's); --set Game.KEY=VALUE for
+// the game launched. The menu's "Options du jeu" page lists them; "Sauvegarder" and "Sauvegarder
+// pour ce jeu" write them with the other settings; the picker too, without starting the game.
+#include "gameoptions.h"
 
-struct WlOptionChoice
-{
-    const char *value; // in capitals, as in the file
-    const char *label;
-};
-
-struct WlGameOption
-{
-    const char *key;   // in capitals
-    const char *label; // for the menu
-    const char *help;  // a sentence under it, or NULL
-    int type;
-    const WlOptionChoice *choices; // WL_OPTION_CHOICE: ended by {NULL, NULL}
-    int min, max;                  // WL_OPTION_INT
-    const char *def;               // the default, as written in the file
-    int nextStart;                 // 1: taken at the game's next start
-    void (*apply)(const char *value); // the others: told each change, or NULL
-    // WL_OPTION_CHOICE: the list made when the menu shows it (the PC's cameras), in place of choices
-    const WlOptionChoice *(*list)(void);
-};
-
-// Given by the module while it recognizes its game
+// Given by the module while it recognizes its game: a table (copied), or gameoptions.cpp's by its
+// name; then the callbacks of one of them that only the module has (its apply, its list)
 void wl_game_set_options(const WlGameOption *options, int count);
+void wl_game_use_options(const char *table);
+void wl_game_option_hooks(const char *key, void (*apply)(const char *value), const WlOptionChoice *(*list)(void));
 // A value: --set's, else the file's, else the default
 void wl_game_option(const char *key, char *out, size_t size);
 int wl_game_option_bool(const char *key);
@@ -109,4 +84,3 @@ char *wl_game_option_edit(int i); // WL_OPTION_VALUE_SIZE bytes
 const char *wl_game_option_started(int i);
 const char *wl_game_option_section(void); // "Game.bg4"
 int wl_game_options_save(const wchar_t *file);
-#define WL_OPTION_VALUE_SIZE 260 // a path

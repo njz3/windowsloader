@@ -116,7 +116,12 @@ to the launcher or one or two levels up (`C:\Racecab\Games` for
 it there. Each of its folders is a game when a program windowsloader knows is found in it, six
 levels down at most (the table is `src/launcher/gamelist.cpp`). A picture shows when the folder has
 `snap`, `title`, `art`, `cover` or its own name as `.png` or `.jpg`. Arrows or a gamepad to choose,
-F5 to scan again, Escape or F9 to quit.
+F5 to scan again, Escape or F9 to quit. O (the gamepad's Y, or the "Options du jeu" button) shows
+the chosen game's own options without starting it, the same page as the game's menu has, and
+"Enregistrer" writes them in its `[Game.<short name>]` section: of its own `<short name>.ini` when
+there is one next to `windowsloader.ini` (the game then reads that file alone), else of
+`windowsloader.ini`; taken at the game's next start. Their tables are `src/common/gameoptions.cpp`,
+shared by the picker and the games' modules.
 
 In windowed mode the game also leaves the desktop alone: no display mode change, no cursor
 clipping, no global keyboard hook, no shutdown or program started on its behalf.
@@ -159,7 +164,16 @@ start it again; with a write folder, the Pro cabinet's settings and saves are ke
 `bg4pro`, so going from one cabinet to the other no longer closes the game each time),
 `HOLD_GEAR = true` to keep the gear engaged once the lever is let go, `SPEAKERS = CABINET` (the
 default) for the cabinet's 7.1 speakers, which Windows mixes down to the PC's (the game's music needs
-them: told stereo, it plays its effects only), `STEREO` for the former setting. Sonic &
+them: told stereo, it plays its effects only), `STEREO` for the former setting,
+`NESYS_SERVER = host[:port]` (port 80 by default) for NESYS, the game's online service: its
+requests (HTTP, to `siru4cc.battlegear.net`, a name that still leads to a host where nothing
+answers) all go to that server, past windowsloader's refusal of any host off the PC, and without
+`LINK` its broadcast comes back to it, as its network check at the start wants; empty by default,
+NESYS offline. The player's NESYS entry key is in the cabinet's reader from the start with
+`ENTRY_KEY = true`, and the `EntryKey` action puts it in or takes it out (out by default); its 7
+characters are read from `OpenParrot\KeyId.txt` in the game's folder, as TeknoParrot does (the
+file the NESYS Revival Project's KeyManager keeps), else from the one windowsloader makes in the
+write folder (two letters, `T`, four digits; the I/O test's `KEY ID`). Sonic &
 Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
 default; the game's test menu has no coin settings, the cabinet's system menu has them).
 

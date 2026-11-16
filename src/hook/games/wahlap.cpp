@@ -343,13 +343,6 @@ static void lock(void)
 // sends in its packets. LINK's PCs and the PC's address of LINK are all it needs (link.cpp)
 // ------------------------------------------------------------------------------
 
-static const WlGameOption g_options[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
-};
-
 static void settings(void)
 {
     int n = wl_link_settings(GetModuleHandleW(NULL));
@@ -373,7 +366,7 @@ int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title
     memory_load(dir);
     lock();
     wl_hooks_add(g_ioHooks, sizeof g_ioHooks / sizeof g_ioHooks[0]);
-    wl_game_set_options(g_options, sizeof g_options / sizeof g_options[0]);
+    wl_game_use_options("stormrider");
     wl_game_on_settings(settings);
     return 1;
 }

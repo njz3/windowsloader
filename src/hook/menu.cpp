@@ -1488,40 +1488,7 @@ static void page_game_options(void)
         char *value = wl_game_option_edit(i), was[WL_OPTION_VALUE_SIZE];
         memcpy(was, value, sizeof was);
         ImGui::PushID(i);
-        if (o->type == WL_OPTION_BOOL)
-        {
-            bool on = !_stricmp(value, "true");
-            if (ImGui::Checkbox(wl_tr(o->label), &on))
-                snprintf(value, WL_OPTION_VALUE_SIZE, "%s", on ? "true" : "false");
-        }
-        else if (o->type == WL_OPTION_TEXT)
-        {
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
-            ImGui::InputText(wl_tr(o->label), value, WL_OPTION_VALUE_SIZE);
-        }
-        else if (o->type == WL_OPTION_CHOICE)
-        {
-            const WlOptionChoice *choices = o->list ? o->list() : o->choices;
-            const char *shown = value;
-            for (const WlOptionChoice *c = choices; c && c->value; c++)
-                if (!_stricmp(c->value, value))
-                    shown = wl_tr(c->label);
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-            if (ImGui::BeginCombo(wl_tr(o->label), shown))
-            {
-                for (const WlOptionChoice *c = choices; c && c->value; c++)
-                    if (ImGui::Selectable(wl_tr(c->label), !_stricmp(c->value, value)))
-                        snprintf(value, WL_OPTION_VALUE_SIZE, "%s", c->value);
-                ImGui::EndCombo();
-            }
-        }
-        else
-        {
-            int n = atoi(value);
-            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x * 0.45f);
-            if (ImGui::SliderInt(wl_tr(o->label), &n, o->min, o->max))
-                snprintf(value, WL_OPTION_VALUE_SIZE, "%d", n);
-        }
+        wl_game_option_widget(o, value, o->list ? o->list() : NULL); // gameoptions.cpp's, the picker's too
         if (o->nextStart)
         {
             ImGui::SameLine();

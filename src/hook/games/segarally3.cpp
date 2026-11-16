@@ -176,12 +176,6 @@ static void read_calibration(const wchar_t *gameDir)
 
 // The link between cabinets (link.h): 1 to 4 (Demonware's LAN play: its cabinets found by a
 // broadcast, a session joined; GetAdaptersInfo for its address, Winsock 1 by number)
-static const WlGameOption g_options[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
-};
 
 static void sr3_settings(void)
 {
@@ -224,7 +218,7 @@ int wl_game_segarally3(const wchar_t *exePath)
     wl_ioports_set_writer(port_write);
     wl_files_set_ini_override(ini_override);
     wl_display_set_internal_supported(1);
-    wl_game_set_options(g_options, (int)(sizeof g_options / sizeof g_options[0]));
+    wl_game_use_options("segarally3");
     wl_game_on_settings(sr3_settings);
     return 1;
 }

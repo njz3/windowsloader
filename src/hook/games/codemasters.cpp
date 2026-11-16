@@ -168,12 +168,6 @@ static int ini_override(const char *file, const char *section, const char *key, 
 
 // Showdown's link between cabinets (link.h): its "linked_group_mode", the sessions it finds on
 // its network
-static const WlGameOption g_showdownOptions[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
-};
 
 static void showdown_settings(void)
 {
@@ -181,12 +175,6 @@ static void showdown_settings(void)
 }
 
 // GRID's: cabinets 1 to 6
-static const WlGameOption g_gridOptions[] = {
-    {"CABINET", WL_N("Numéro de la borne (link)"),
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
-          "dans le fichier)."),
-     WL_OPTION_INT, NULL, 0, 6, "0", 1, NULL},
-};
 
 // GRID linked: its LAN discovery server (its port 12001, +0x66ca40) answers a cabinet's search only
 // when every field read matches its own; the searches say territory 0 and track pack 0, its server
@@ -373,7 +361,7 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
         snprintf(ini, MAX_PATH, "%s\\ShellData\\ShellData.ini", sega);
         g_shell.freeplay = GetPrivateProfileIntA("Credit", "Freeplay", 1, ini) != 0;
         wl_segashell_start(&g_shell);
-        wl_game_set_options(g_showdownOptions, (int)(sizeof g_showdownOptions / sizeof g_showdownOptions[0]));
+        wl_game_use_options("showdown");
         wl_game_on_settings(showdown_settings);
     }
     if (grid)
@@ -383,7 +371,7 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
         // this PC; the write is taken out
         static const unsigned char crash[] = {0x89, 0x00}, nop2[] = {0x90, 0x90};
         wl_patch_code((void *)0x5AB9E5, crash, nop2, 2, "the deliberate stop");
-        wl_game_set_options(g_gridOptions, (int)(sizeof g_gridOptions / sizeof g_gridOptions[0]));
+        wl_game_use_options("grid");
         wl_game_on_settings(grid_settings);
     }
     return 1;

@@ -495,6 +495,8 @@ static int WSAAPI l_connect(SOCKET s, const sockaddr *a, int len)
         return o_connect(s, a, len);
     sockaddr_in real;
     memcpy(&real, a, sizeof real);
+    if (wl_system_game_server_route(WL_CALLER, (sockaddr *)&real, sizeof real)) // its online server
+        return o_connect(s, (const sockaddr *)&real, sizeof real);
     real.sin_addr.s_addr = to_real(real.sin_addr.s_addr);
     a = (const sockaddr *)&real;
     len = sizeof real;
