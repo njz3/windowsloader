@@ -245,12 +245,16 @@ static const WlGameOption g_bg4Options[] = {
           "l'ancien réglage, sans la musique."),
      WL_OPTION_CHOICE, g_bg4Speakers, 0, 0, "CABINET", 1, NULL},
     {"NESYS_SERVER", WL_N("Serveur NESYS"),
-     WL_N("Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut. Vide : le jeu ne sort pas du PC, NESYS hors ligne."),
-     WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL},
-    {"ENTRY_KEY", WL_N("Clé d'entrée NESYS"),
-     WL_N("La clé du joueur dans le lecteur de la borne dès le lancement ; l'action « EntryKey » la met ou la retire. Son "
-          "identifiant : OpenParrot\\KeyId.txt du dossier du jeu (celui du KeyManager de NESYS Revival)."),
-     WL_OPTION_BOOL, NULL, 0, 0, "false", 1, NULL},
+     WL_N("Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne "
+          "sort pas du PC, NESYS hors ligne."),
+     WL_OPTION_TEXT, NULL, 0, 0, "124.146.156.106", 1, NULL},
+    // ENTRY_KEY (the key in the reader from the start) is read from the file only: not on the page
+    {"KEY_ID", WL_N("Identifiant de la clé NESYS"),
+     WL_N("Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action "
+          "« EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux "
+          "d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par "
+          "windowsloader."),
+     WL_OPTION_TEXT, NULL, 0, 0, "", 0, NULL},
 };
 #define LINK_OPTION(most)                                                                                                                                      \
     {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \

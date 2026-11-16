@@ -905,6 +905,9 @@ static const char *g_defaults =
     "# The brake pressed fully, as a button. Default: KEY_Down\r\n"
     "P1_Brake_Digital = KEY_Down\r\n"
     "\r\n"
+    "# The clutch pressed fully, as a button. Default: KEY_X\r\n"
+    "P1_Clutch_Digital = KEY_X\r\n"
+    "\r\n"
     "# Changes the view (Sega Rally 3, Daytona...). Default: KEY_V, GC0_BUTTON_Y\r\n"
     "ViewChange = KEY_V, GC0_BUTTON_Y\r\n"
     "\r\n"
@@ -931,6 +934,10 @@ static const char *g_defaults =
     "\r\n"
     "# The game's action button: an item, a weapon (GTI Club 3, Mario Kart DX). Default: KEY_C\r\n"
     "Action = KEY_C\r\n"
+    "\r\n"
+    "# Puts the player's NESYS entry key in the cabinet's reader, or takes it out (Battle Gear 4\r\n"
+    "# Tuned). Default: KEY_K\r\n"
+    "EntryKey = KEY_K\r\n"
     "\r\n"
     "# Selection up, in the menus of the games that have selection buttons. Default: KEY_PageUp\r\n"
     "SelectUp = KEY_PageUp\r\n"
@@ -977,9 +984,6 @@ static const char *g_defaults =
     "# H shifter, 6th gear. Default: KEY_U\r\n"
     "Gear6 = KEY_U\r\n"
     "\r\n"
-    "# The clutch pressed fully, as a button. Default: KEY_X\r\n"
-    "P1_Clutch_Digital = KEY_X\r\n"
-    "\r\n"
     "# Left foot pedal of a motorbike (Frenzy Express). Default: KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
     "PedalLeft = KEY_Z, GC0_BUTTON_LEFTSHOULDER\r\n"
     "\r\n"
@@ -1010,6 +1014,11 @@ static const char *g_defaults =
     "# The brake pedal: a gamepad's left trigger, else the first controller's Z from its middle (released)\r\n"
     "# to its low end (pressed). Default: GC0_AXIS_LEFTTRIGGER, JOY0_AXIS_2_NEGATIVE_SIDE\r\n"
     "P1_Brake = GC0_AXIS_LEFTTRIGGER, JOY0_AXIS_2_NEGATIVE_SIDE\r\n"
+    "\r\n"
+    "# The clutch pedal (Battle Gear 4 Tuned's Pro cabinet): an axis, as the brake's (JOY0_AXIS_3_NEGATIVE_SIDE:\r\n"
+    "# the first controller's fourth axis from its middle to its low end). Default: none, the clutch\r\n"
+    "# taken from P1_Clutch_Digital; bound with \"Lier\" on the controller's page\r\n"
+    "P1_Clutch =\r\n"
     "\r\n"
     "[ControllerGUIDs]\r\n"
     "# P1_GUID, P2_GUID...: player <n>'s controller by its SDL GUID (the log gives each controller's), written\r\n"
@@ -1211,7 +1220,66 @@ static void trim_both(char *s)
     memmove(s, s + b, n - b + 1);
 }
 
+static int controls_rows_read(const char *section, WlControlRow *rows, int max);
+
+// A key's place in a new controls.ini's section (g_defaults), the keys it lacks after them all
+static int default_order(const char *section, const char *key)
+{
+    char line[256], current[64] = "";
+    int order = 0;
+    for (const char *d = g_defaults; *d;)
+    {
+        size_t n = strcspn(d, "\r\n");
+        snprintf(line, sizeof line, "%.*s", (int)n, d);
+        d += n;
+        while (*d == '\r' || *d == '\n')
+            d++;
+        if (line[0] == '[')
+        {
+            snprintf(current, sizeof current, "%s", line + 1);
+            char *end = strchr(current, ']');
+            if (end)
+                *end = 0;
+            continue;
+        }
+        char *eq = strchr(line, '=');
+        if (!eq || line[0] == '#' || _stricmp(current, section))
+            continue;
+        *eq = 0;
+        trim_both(line);
+        if (!_stricmp(line, key))
+            return order;
+        order++;
+    }
+    return 100000;
+}
+
 int wl_controls_rows(const char *section, WlControlRow *rows, int max)
+{
+    int n = controls_rows_read(section, rows, max);
+    // In a new file's order (the clutch after the brake...), whatever the order of the user's file,
+    // to which a new key is added at its section's end; the others after, in their own order
+    static int order[256];
+    for (int i = 0; i < n && i < 256; i++)
+        order[i] = default_order(section, rows[i].key);
+    static WlControlRow moving;
+    for (int i = 1; i < n && i < 256; i++)
+    {
+        int o = order[i], k = i;
+        moving = rows[i];
+        while (k > 0 && order[k - 1] > o)
+        {
+            rows[k] = rows[k - 1];
+            order[k] = order[k - 1];
+            k--;
+        }
+        rows[k] = moving;
+        order[k] = o;
+    }
+    return n;
+}
+
+static int controls_rows_read(const char *section, WlControlRow *rows, int max)
 {
     if (!g_ini[0])
         return 0;
@@ -1235,6 +1303,35 @@ int wl_controls_rows(const char *section, WlControlRow *rows, int max)
         trim_both(rows[n].value);
         if (rows[n].key[0])
             n++;
+    }
+    // The game's own actions the file lacks (no default line: Battle Gear 4's Item, Codemasters'
+    // Pause...), unbound, so that a device's page can bind them too
+    for (int i = 0; i < wl_inputs_count() && i < MAX_INPUTS && n < max; i++)
+    {
+        const WlInput *in = wl_input_at(i);
+        if (!in->action || _stricmp(section_of(in), section))
+            continue;
+        char keys[3][96];
+        int k = 0;
+        snprintf(keys[k++], sizeof keys[0], "%s", in->action);
+        if (in->type == WL_INPUT_AXIS)
+        {
+            snprintf(keys[k++], sizeof keys[0], "%s_Left", in->action);
+            snprintf(keys[k++], sizeof keys[0], "%s_Right", in->action);
+        }
+        else if (in->type == WL_INPUT_ANALOG)
+            snprintf(keys[k++], sizeof keys[0], "%s_Digital", in->action);
+        for (int j = 0; j < k && n < max; j++)
+        {
+            int there = 0;
+            for (int r = 0; r < n && !there; r++)
+                there = !_stricmp(rows[r].key, keys[j]);
+            if (there)
+                continue;
+            snprintf(rows[n].key, sizeof rows[n].key, "%s", keys[j]);
+            rows[n].value[0] = 0;
+            n++;
+        }
     }
     return n;
 }

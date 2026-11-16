@@ -354,6 +354,7 @@ static const struct
     {"Nitro", WL_N("Nitro")},
     {"ShiftNitro", WL_N("Nitro (levier)")},
     {"Action", WL_N("Action")},
+    {"EntryKey", WL_N("Clé d'entrée NESYS (mettre / retirer)")},
     {"SelectUp", WL_N("Choix : haut")},
     {"SelectDown", WL_N("Choix : bas")},
     {"SelectLeft", WL_N("Choix : gauche")},
@@ -1578,13 +1579,14 @@ static void page_outputs(void)
         height = ImGui::GetTextLineHeightWithSpacing() * 8;
     ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
                             ImGuiTableFlags_Resizable;
+    // The name, the type and the value as wide as their texts, the description the rest, wrapped
+    // (fixed widths in font sizes left it a letter wide in a small window)
     if (ImGui::BeginTable("outputs", 4, flags, ImVec2(0, height)))
     {
-        float em = ImGui::GetFontSize();
         ImGui::TableSetupScrollFreeze(0, 1); // the titles stay
-        ImGui::TableSetupColumn(wl_tr("Nom"), ImGuiTableColumnFlags_WidthFixed, em * 7);
-        ImGui::TableSetupColumn(wl_tr("Type"), ImGuiTableColumnFlags_WidthFixed, em * 10);
-        ImGui::TableSetupColumn(wl_tr("Valeur"), ImGuiTableColumnFlags_WidthFixed, em * 6);
+        ImGui::TableSetupColumn(wl_tr("Nom"), ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(wl_tr("Type"), ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(wl_tr("Valeur"), ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(wl_tr("Description"), ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
         for (int i = 0; i < n; i++)
@@ -1680,7 +1682,12 @@ static void draw_menu(void)
 {
     ImGuiIO &io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.64f, io.DisplaySize.y * 0.74f), ImGuiCond_Always);
+    // Two thirds of the picture, but 56 font sizes wide at least (its tabs, the outputs' table), up
+    // to nearly the whole width: a small 4:3 picture (Battle Gear 4 Tuned's 800×600) gets it wider
+    float w = io.DisplaySize.x * 0.64f, least = ImGui::GetFontSize() * 56, most = io.DisplaySize.x * 0.96f;
+    if (w < least)
+        w = least < most ? least : most;
+    ImGui::SetNextWindowSize(ImVec2(w, io.DisplaySize.y * 0.74f), ImGuiCond_Always);
     char title[128];
     snprintf(title, sizeof title, "windowsloader — %s###menu", game_title());
     if (ImGui::Begin(title, NULL, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoSavedSettings))
@@ -1700,11 +1707,13 @@ static void draw_menu(void)
                 int tab;
                 void (*draw)(void);
             } pages[] = {
-                {WL_N("Jeu"), "###game", 0, page_game},
+                // hikaruloader's order (Display, Game, Controls, Sound, Emulation, Outputs, About):
+                // the game and its boards in Emulation's place, the force feedback in Sound's
+                {WL_N("Affichage"), "###display", 2, page_display},
                 {WL_N("Options du jeu"), "###options", 5, page_game_options},
                 {WL_N("Contrôles"), "###controls", 1, page_controls},
-                {WL_N("Affichage"), "###display", 2, page_display},
                 {WL_N("Retour de force"), "###ffb", 3, page_ffb},
+                {WL_N("Jeu"), "###game", 0, page_game},
                 {WL_N("Sorties et réseau"), "###outputs", 6, page_outputs},
                 {WL_N("À propos"), "###about", 4, page_about},
             };

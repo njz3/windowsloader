@@ -54,7 +54,8 @@ struct Entry
     char title[300];      // the game's, "(version non prise en charge)" for another version
     char label[512];      // in the list
     char folderName[512]; // UTF-8, as the others below
-    char exeShown[MAX_PATH * 3];
+    char exeShown[MAX_PATH * 3]; // the program's name
+    char exeDir[MAX_PATH * 3];   // the folder it was found in, its full path
     char args[256];
     ID3D11ShaderResourceView *art;
     int artW, artH, artTried;
@@ -205,7 +206,15 @@ static void scan_games(void)
         if (!e.game)
             continue;
         u8(fd.cFileName, e.folderName, sizeof e.folderName);
-        u8(e.exe + wcslen(e.folder) + 1, e.exeShown, sizeof e.exeShown);
+        {
+            wchar_t exeDir[MAX_PATH];
+            wcscpy_s(exeDir, MAX_PATH, e.exe);
+            wchar_t *slash = wcsrchr(exeDir, L'\\');
+            u8(slash ? slash + 1 : exeDir, e.exeShown, sizeof e.exeShown);
+            if (slash)
+                *slash = 0;
+            u8(exeDir, e.exeDir, sizeof e.exeDir);
+        }
         if (e.game->args)
             u8(e.game->args, e.args, sizeof e.args);
         if (e.otherVersion)
@@ -439,6 +448,40 @@ static void play(HWND wnd, const Entry *e)
 // The games folder, chosen in a folder dialog
 // ------------------------------------------------------------------------------
 
+// The games folder the user gave (the field at the top, or the folder dialog): relative to this
+// program's folder as [Launcher] GAMES_DIR, kept there, the list read again. 0 for a folder that
+// is not there (the one before kept)
+static char g_dirEdit[MAX_PATH * 3]; // the field at the top, UTF-8
+static int g_dirMissing;            // the folder typed was not found
+
+static int set_games_dir(const wchar_t *path)
+{
+    wchar_t joined[MAX_PATH], full[MAX_PATH];
+    if (path[0] && (path[1] == L':' || (path[0] == L'\\' && path[1] == L'\\')))
+        wcscpy_s(joined, MAX_PATH, path);
+    else
+        swprintf(joined, MAX_PATH, L"%s\\%s", g_selfDir, path);
+    if (!GetFullPathNameW(joined, MAX_PATH, full, NULL))
+        wcscpy_s(full, MAX_PATH, joined);
+    size_t n = wcslen(full);
+    while (n > 3 && full[n - 1] == L'\\')
+        full[--n] = 0;
+    if (!path[0] || !is_dir(full))
+    {
+        g_dirMissing = 1;
+        return 0;
+    }
+    g_dirMissing = 0;
+    wcscpy_s(g_gamesDir, MAX_PATH, full);
+    if (!g_iniReadOnly)
+    {
+        WritePrivateProfileStringW(L"Launcher", L"GAMES_DIR", g_gamesDir, g_ini);
+        WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", NULL, g_ini); // the old place, if any, gone
+    }
+    scan_games();
+    return 1;
+}
+
 static void choose_games_dir(HWND wnd)
 {
     IFileOpenDialog *dialog = NULL;
@@ -461,14 +504,8 @@ static void choose_games_dir(HWND wnd)
         wchar_t *path = NULL;
         if (SUCCEEDED(chosen->GetDisplayName(SIGDN_FILESYSPATH, &path)))
         {
-            wcscpy_s(g_gamesDir, MAX_PATH, path);
-            if (!g_iniReadOnly)
-            {
-                WritePrivateProfileStringW(L"Launcher", L"GAMES_DIR", g_gamesDir, g_ini);
-                WritePrivateProfileStringW(L"Picker", L"GAMES_DIR", NULL, g_ini); // the old place, if any, gone
-            }
+            set_games_dir(path);
             CoTaskMemFree(path);
-            scan_games();
         }
         chosen->Release();
     }
@@ -721,7 +758,8 @@ enum
 {
     ACT_NONE,
     ACT_PLAY,
-    ACT_FOLDER,
+    ACT_FOLDER, // Windows' folder dialog
+    ACT_SETDIR, // the folder typed at the top
     ACT_RESCAN
 };
 
@@ -741,14 +779,37 @@ static int draw(int *selected, int *action)
     ImGui::SameLine();
     ImGui::TextDisabled("  ");
     ImGui::SameLine(0, 0);
-    ImGui::TextDisabled(g_count > 1 ? wl_tr("%d jeux dans %s") : wl_tr("%d jeu dans %s"), g_count, dir);
+    ImGui::TextDisabled(g_count > 1 ? wl_tr("%d jeux") : wl_tr("%d jeu"), g_count);
+
+    // The games folder: typed in its field (Enter takes it, Escape gives the last one back) or
+    // chosen in Windows' dialog; kept in [Launcher] GAMES_DIR
+    static int typing;
+    if (!typing)
+        u8(g_gamesDir, g_dirEdit, sizeof g_dirEdit);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(wl_tr("Dossier des jeux"));
+    ImGui::SameLine();
+    const char *choose = wl_tr("Choisir...");
+    ImGuiStyle &style = ImGui::GetStyle();
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(choose).x - style.FramePadding.x * 2 - style.ItemSpacing.x);
+    if (ImGui::InputText("##gamesdir", g_dirEdit, sizeof g_dirEdit, ImGuiInputTextFlags_EnterReturnsTrue))
+        *action = ACT_SETDIR;
+    typing = ImGui::IsItemActive();
+    int fieldUsed = typing || ImGui::IsItemDeactivated(); // its keys (Enter, Escape, letters) are not the list's
+    ImGui::SameLine();
+    ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+    if (ImGui::Button(choose))
+        *action = ACT_FOLDER;
+    ImGui::PopItemFlag();
+    if (g_dirMissing)
+        ImGui::TextColored(ImVec4(0.9f, 0.45f, 0.4f, 1), wl_tr("Dossier introuvable : les jeux restent ceux de %s"), dir);
     ImGui::Separator();
 
     float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
     ImVec2 avail = ImGui::GetContentRegionAvail();
     if (!g_count)
     {
-        ImGui::TextWrapped(wl_tr("Aucun jeu trouvé dans %s. Choisissez le dossier des jeux (Tab) : chaque dossier qui y contient un jeu reconnu "
+        ImGui::TextWrapped(wl_tr("Aucun jeu trouvé dans %s. Choisissez le dossier des jeux en haut : chaque dossier qui y contient un jeu reconnu "
                                  "par windowsloader devient une ligne de la liste."),
                            dir);
     }
@@ -757,7 +818,7 @@ static int draw(int *selected, int *action)
         if (*selected >= g_count)
             *selected = g_count - 1;
         ImGui::BeginChild("list", ImVec2(avail.x * 0.42f, avail.y - footer), ImGuiChildFlags_Borders);
-        ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, true); // Tab is the games folder's, not a move in the list
+        ImGui::PushItemFlag(ImGuiItemFlags_NoTabStop, true); // Tab is no move in the list
         for (int i = 0; i < g_count; i++)
         {
             ImGui::PushID(i);
@@ -812,7 +873,7 @@ static int draw(int *selected, int *action)
         wl_known_versions(e->game, wl_tr("celle des bornes Racecab"), versions, sizeof versions);
         field(wl_tr("Version"), e->otherVersion ? wl_tr("une autre") : e->game->version);
         field(wl_tr("Versions prises en charge"), versions);
-        field(wl_tr("Dossier"), e->folderName);
+        field(wl_tr("Dossier"), e->exeDir);
         field(wl_tr("Programme"), e->exeShown);
         field(wl_tr("Arguments"), e->args);
         // Another version: what the supported ones get is not known for it
@@ -840,9 +901,6 @@ static int draw(int *selected, int *action)
     // The buttons are for the mouse: the keyboard and the gamepad stay in the list, Enter plays
     ImGui::Separator();
     ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
-    if (ImGui::Button(wl_tr("Dossier des jeux (Tab)")))
-        *action = ACT_FOLDER;
-    ImGui::SameLine();
     if (ImGui::Button(wl_tr("Actualiser (F5)")))
         *action = ACT_RESCAN;
     ImGui::SameLine();
@@ -872,7 +930,7 @@ static int draw(int *selected, int *action)
     }
     ImGui::PopItemFlag();
     ImGui::SameLine();
-    ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   O : options du jeu   Tab : dossier des jeux"));
+    ImGui::TextDisabled("  %s", wl_tr("Entrée : jouer   Flèches : choisir   O : options du jeu"));
 
     // A game that would not start: what the launcher said, until OK. Its title in the language
     // shown, its name (###failed) the same in all
@@ -902,7 +960,7 @@ static int draw(int *selected, int *action)
     int options = options_draw();
     ImGui::End();
 
-    if (message || options || GetTickCount64() < g_keysFrom)
+    if (message || options || fieldUsed || GetTickCount64() < g_keysFrom)
         return quit;
     if (g_count && (ImGui::IsKeyPressed(ImGuiKey_O, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceUp, false)))
     {
@@ -912,8 +970,6 @@ static int draw(int *selected, int *action)
     if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter, false) ||
         ImGui::IsKeyPressed(ImGuiKey_GamepadStart, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceDown, false))
         *action = ACT_PLAY;
-    if (ImGui::IsKeyPressed(ImGuiKey_Tab, false))
-        *action = ACT_FOLDER;
     if (ImGui::IsKeyPressed(ImGuiKey_F5, false))
         *action = ACT_RESCAN;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(ImGuiKey_F9, false))
@@ -1052,6 +1108,11 @@ int wl_picker_run(void)
             play(wnd, &g_entries[selected]);
         else if (action == ACT_FOLDER)
             choose_games_dir(wnd);
+        else if (action == ACT_SETDIR)
+        {
+            wchar_t typed[MAX_PATH];
+            set_games_dir(wide(g_dirEdit, typed, MAX_PATH));
+        }
         else if (action == ACT_RESCAN)
             scan_games();
     }

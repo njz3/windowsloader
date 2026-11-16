@@ -43,6 +43,7 @@ enum
     IN_STEERING,
     IN_GAS,
     IN_BRAKE,
+    IN_CLUTCH, // Battle Gear 4 Pro's (after the brake: the menu's controls page in this order)
     IN_START,
     IN_SERVICE,
     IN_TEST,
@@ -55,7 +56,6 @@ enum
     IN_SHIFT_DOWN,
     IN_NITRO, // Chase H.Q. 2's (its I/O test): PATO-NITRO bit 2, SHIFT-NITRO bit 12
     IN_SHIFT_NITRO,
-    IN_CLUTCH, // Battle Gear 4 Pro's
     IN_GEAR1,  // Battle Gear 4 Pro's H shifter, 1 to 6
     IN_LEVER = IN_GEAR1 + 6, // Wacky Races' slot lever
     IN_ENTRY_KEY,            // Battle Gear 4 Tuned's NESYS entry key put in its reader
@@ -66,6 +66,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 255, 128},
     {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 255, 0},
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 255, 0},
+    {"Clutch", "P1_Clutch", WL_INPUT_ANALOG, 0, 255, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
     {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
@@ -78,7 +79,6 @@ static WlInput g_inputs[IN_COUNT] = {
     {"ShiftDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
     {"Nitro", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
     {"ShiftNitro", "ShiftNitro", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Clutch", "P1_Clutch", WL_INPUT_ANALOG, 0, 255, 0},
     {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
@@ -685,8 +685,49 @@ static void bg4_tick(void)
 // are read at each 0x6B from <game>\OpenParrot\KeyId.txt (its copy in the write folder first),
 // as TeknoParrotUI does, the file the NESYS Revival Project's KeyManager keeps; without one, a key
 // made as TeknoParrotUI makes it (two letters, T, four digits) is written there
+// [Game.bg4] KEY_ID, the key's 7 characters given in the game's options (in place of KeyId.txt):
+// letters and digits, the letters in capitals; empty while the option is empty or not 7 of them
+static volatile char g_keyIdOption[8];
+
+// At the start (a value refused is logged), then at each change in the menu (each key typed)
+static void bg4_key_id_set(const char *value, int start)
+{
+    char v[8] = "";
+    while (*value == ' ' || *value == '\t')
+        value++;
+    size_t n = strlen(value);
+    while (n && (value[n - 1] == ' ' || value[n - 1] == '\t'))
+        n--;
+    int ok = n == 7;
+    for (size_t i = 0; ok && i < 7; i++)
+    {
+        char c = value[i];
+        if (c >= 'a' && c <= 'z')
+            c = (char)(c - 'a' + 'A');
+        ok = (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+        v[i] = c;
+    }
+    if (!ok)
+        v[0] = 0;
+    else if (memcmp((const char *)g_keyIdOption, v, 8))
+        wl_log("game: NESYS entry key \"%s\" ([Game.bg4] KEY_ID)", v);
+    if (!ok && n && start)
+        wl_log("game: [Game.bg4] KEY_ID \"%.*s\" left aside: 7 letters or digits wanted", (int)(n < 32 ? n : 32), value);
+    memcpy((char *)g_keyIdOption, v, 8);
+}
+
+static void bg4_key_id_apply(const char *value)
+{
+    bg4_key_id_set(value, 0);
+}
+
 static void bg4_key_id(unsigned char id[7])
 {
+    if (g_keyIdOption[0])
+    {
+        memcpy(id, (const char *)g_keyIdOption, 7);
+        return;
+    }
     static unsigned char made[7];
     wchar_t path[MAX_PATH], buf[MAX_PATH * 2];
     GetModuleFileNameW(NULL, path, MAX_PATH);
@@ -807,7 +848,8 @@ static int bg4_key_reader(const unsigned char *p, int n, unsigned char *r, int *
 // to siru4cc.battlegear.net:80 (172.18.18.8, the arcade's NESYS router, its default), a name that
 // still resolves to 210.148.144.82, where nothing answers (16/11/2026). [Game.bg4] NESYS_SERVER =
 // host[:port] (80 by default) sends each of them to that server, past the refusal of any address
-// off the PC (system.cpp) and the link's. Empty: refused as before, NESYS offline
+// off the PC (system.cpp) and the link's; 124.146.156.106 by default. OFF or empty: refused as before,
+// NESYS offline
 static void bg4_nesys(void)
 {
     char v[WL_OPTION_VALUE_SIZE];
@@ -817,8 +859,11 @@ static void bg4_nesys(void)
         s++;
     for (char *e = s + strlen(s); e > s && (e[-1] == ' ' || e[-1] == '\t'); *--e = 0)
         ;
-    if (!*s)
+    if (!*s || !_stricmp(s, "OFF"))
+    {
+        wl_log("game: NESYS_SERVER = %s: NESYS offline", *s ? s : "(empty)");
         return;
+    }
     static const unsigned char connectWas[5] = {0xE8, 0x07, 0xD7, 0x08, 0x00}; // call connect (its thunk)
     if (memcmp((void *)0x60ADFC, connectWas, sizeof connectWas))
     {
@@ -917,6 +962,9 @@ static void bg4_settings(void)
     g_entryKey = wl_game_option_bool("ENTRY_KEY");
     wl_log("game: NESYS entry key reader on the JVS board, the key %s ([Game.bg4] ENTRY_KEY = %s)",
            g_entryKey ? "in it at the start" : "out of it at the start", g_entryKey ? "true" : "false");
+    char id[WL_OPTION_VALUE_SIZE];
+    wl_game_option("KEY_ID", id, sizeof id);
+    bg4_key_id_set(id, 1);
     char v[32];
     wl_game_option("SPEAKERS", v, sizeof v);
     g_bg4Cabinet71 = _stricmp(v, "STEREO") != 0;
@@ -1359,6 +1407,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     if (tuned)
     {
         wl_game_use_options("bg4");
+        wl_game_option_hooks("KEY_ID", bg4_key_id_apply, NULL);
         wl_game_set_write_name_of(bg4_write_name);
         wl_game_on_settings(bg4_settings);
     }

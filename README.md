@@ -112,7 +112,7 @@ click to play. The game runs through `windowsloader.exe` again, its log in `wind
 to the launcher, and the picker comes back when it ends. The games folder is `[Launcher] GAMES_DIR` of
 `windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next
 to the launcher or one or two levels up (`C:\Racecab\Games` for
-`C:\Racecab\Emulators\windowsloader`); Tab or the "Dossier des jeux" button picks another and saves
+`C:\Racecab\Emulators\windowsloader`); its field at the top of the picker (typed, Enter to take it) or its "Choisir..." button picks another and saves
 it there. Each of its folders is a game when a program windowsloader knows is found in it, six
 levels down at most (the table is `src/launcher/gamelist.cpp`). A picture shows when the folder has
 `snap`, `title`, `art`, `cover` or its own name as `.png` or `.jpg`. Arrows or a gamepad to choose,
@@ -168,10 +168,10 @@ them: told stereo, it plays its effects only), `STEREO` for the former setting,
 `NESYS_SERVER = host[:port]` (port 80 by default) for NESYS, the game's online service: its
 requests (HTTP, to `siru4cc.battlegear.net`, a name that still leads to a host where nothing
 answers) all go to that server, past windowsloader's refusal of any host off the PC, and without
-`LINK` its broadcast comes back to it, as its network check at the start wants; empty by default,
-NESYS offline. The player's NESYS entry key is in the cabinet's reader from the start with
-`ENTRY_KEY = true`, and the `EntryKey` action puts it in or takes it out (out by default); its 7
-characters are read from `OpenParrot\KeyId.txt` in the game's folder, as TeknoParrot does (the
+`LINK` its broadcast comes back to it, as its network check at the start wants; `124.146.156.106` by default,
+`OFF` (or empty) for NESYS offline. The player's NESYS entry key is in the cabinet's reader from the start with
+`ENTRY_KEY = true`, and the `EntryKey` action (`KEY_K` by default) puts it in or takes it out (out by default); its 7
+characters are `KEY_ID` (letters and digits, set in the game's options, read at each reading of the key), else read from `OpenParrot\KeyId.txt` in the game's folder, as TeknoParrot does (the
 file the NESYS Revival Project's KeyManager keeps), else from the one windowsloader makes in the
 write folder (two letters, `T`, four digits; the I/O test's `KEY ID`). Sonic &
 Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
@@ -277,13 +277,13 @@ capture devices, which the list shows (that one, else the emulated one); the emu
 `true` always gives the PC's cameras; `false` never (the emulated one then).
 
 **Tab** pauses the game and opens the settings menu, Tab again closes it (F10 until October 2026;
-Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows): the game and its cabinet's boards (how the
-controls, the game's own options, display, force feedback (its device, strength and direction),
-the network outputs the game can send.
+Tab as in Flycast, linuxloader and Supermodel; Alt+Tab is left to Windows), its pages in hikaruloader's order: display, the game's own options,
+controls, force feedback (its device, strength and direction), the game and its cabinet's boards (how the
+controls are emulated), the network outputs the game can send.
 
 The controls page is linuxloader's (itself laid out as Flycast's): the devices found (the keyboard,
 then each controller with its `JOY<n>` / `GC<n>` prefix in `controls.ini`), each with a "Lier" button
-that opens its bindings page over the whole picture: every action of `[Common]` and `[Driving]`,
+that opens its bindings page over the whole picture: every action of `[Common]` and `[Driving]` (with the game's own actions the file lacks, unbound),
 grouped by player, with that device's inputs, their state now (an axis around its middle with its dead
 zone, a pedal's travel, a button's dot) and "Lier" (the device's next input replaces its own ones for
 the action, the other devices' kept), "Délier", and windowsloader's "Ajouter" (the device's next input
