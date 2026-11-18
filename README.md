@@ -187,7 +187,10 @@ that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deforme
 into the window, much slower, for a PC that shows nothing of `DIRECT`, such as a laptop whose screen
 is on another graphics chip than the game's), `SHOW_FRAME` (`true`: the number of the frame
 presented in the window's title, beside the frames per second, 4 times a second; a game that stops
-presenting keeps its last number; also on the menu's display page), `DISPLAY_MODE` (`WINDOW`,
+presenting keeps its last number; also on the menu's display page), `KEEP_ACTIVE` (`true` by
+default: the game is never told its window lost the activation, another program's window in front,
+and runs on as on a cabinet; Sega Rally 3 and Battle Gear 4 Tuned paused then; `false`: told, as
+Windows does; also on the menu's display page), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`; `FULLSCREEN`, `FULLSCREEN_STRETCH`: the screen switched to its smallest mode holding the game's picture;
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or
@@ -305,7 +308,7 @@ Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no netwo
 
 Sega Rally 3 pauses when its window loses the activation (another program's window in front: a
 race's loading or the race itself frozen until its window was clicked): windowsloader does not pass
-that loss on, the game runs on as on a cabinet.
+that loss on (`[Display] KEEP_ACTIVE`, for all the games), the game runs on as on a cabinet.
 
 Sega Rally 3 can also race Sega Rally Revo's tracks (the PC game, same engine): `[Game.segarally3]
 REVO_DIR` names the folder of a full Revo (with `Main_release\tracks`), relative to the game's `Rally`

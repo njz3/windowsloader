@@ -79,7 +79,7 @@ static int g_full = 1;             // the picture is the whole client area
 static int g_glPicture;            // an OpenGL game whose picture windowsloader copies into its window (glhook.cpp)
 static int g_hidden;               // a program of the cabinet's that shows nothing (wl_display_hidden)
 static volatile LONG g_showFrame;  // [Display] SHOW_FRAME: the frame's number in the window's title
-static int g_keepActive;           // the game never told it lost the activation (wl_display_keep_active)
+static volatile LONG g_keepActive = 1; // [Display] KEEP_ACTIVE: the game never told it lost the activation
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
 static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"};
@@ -141,6 +141,11 @@ static const char *g_defaults =
     "# Set to true to show the number of the frame presented in the window's title, beside the frames per\r\n"
     "# second (4 times a second): a game that stops presenting keeps its last number. Default: false\r\n"
     "SHOW_FRAME = false\r\n"
+    "\r\n"
+    "# true: the game is never told its window lost the activation (another program's window in front), and\r\n"
+    "# runs on as on a cabinet; the games that pause then (Sega Rally 3, Battle Gear 4) froze until their\r\n"
+    "# window was clicked. false: the game told, as Windows does. Default: true\r\n"
+    "KEEP_ACTIVE = true\r\n"
     "\r\n"
     "[Input]\r\n"
     "# The settings menu's controls page numbers a joystick's buttons from 1, as Windows and vJoy do (true),\r\n"
@@ -292,6 +297,7 @@ void wl_display_load(void)
     wl_settings_get("Display", "PRESENT", "DIRECT", v, sizeof v);
     g_gdiSetting = !_stricmp(v, "GDI");
     g_showFrame = wl_settings_get_bool("Display", "SHOW_FRAME", 0);
+    g_keepActive = wl_settings_get_bool("Display", "KEEP_ACTIVE", 1);
     g_width = wl_settings_get_int("Display", "WIDTH", 0);
     g_height = wl_settings_get_int("Display", "HEIGHT", 0);
     if (g_width <= 0 || g_height <= 0)
@@ -306,6 +312,7 @@ void wl_display_load(void)
            g_aspectNames[g_aspect], g_cropPosition, g_cropBarrel ? "true" : "false", g_barrelCenter, g_barrelRadius, g_modeNames[g_mode], res,
            g_gdiSetting ? "copied by GDI (PRESENT = GDI)" : "presented by the game (PRESENT = DIRECT)",
            g_showFrame ? ", the frame's number in the title (SHOW_FRAME)" : "");
+    wl_log("display: KEEP_ACTIVE %s", g_keepActive ? "true (the game never told its window lost the activation)" : "false");
 }
 
 int wl_display_save(const wchar_t *file)
@@ -321,6 +328,7 @@ int wl_display_save(const wchar_t *file)
     ok &= wl_settings_write(file, "Display", "BARREL_RADIUS", n);
     ok &= wl_settings_write(file, "Display", "DISPLAY_MODE", g_modeNames[g_modeChosen]);
     ok &= wl_settings_write(file, "Display", "SHOW_FRAME", g_showFrame ? "true" : "false");
+    ok &= wl_settings_write(file, "Display", "KEEP_ACTIVE", g_keepActive ? "true" : "false");
     snprintf(n, sizeof n, "%d", g_nextW);
     ok &= wl_settings_write(file, "Display", "WIDTH", g_nextW > 0 ? n : "AUTO");
     snprintf(n, sizeof n, "%d", g_nextH);
@@ -399,9 +407,14 @@ void wl_display_set_show_frame(int on)
 
 static int g_internalSupported;
 
-void wl_display_keep_active(void)
+int wl_display_keep_active(void)
 {
-    g_keepActive = 1;
+    return g_keepActive != 0;
+}
+
+void wl_display_set_keep_active(int on)
+{
+    InterlockedExchange(&g_keepActive, on != 0);
 }
 
 void wl_display_set_internal_supported(int supported)
@@ -910,7 +923,7 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     log_window_event(h, msg, wp, lp);
     // A game that pauses when its window loses the activation (Sega Rally 3: its threads stopped, a
     // race's loading or the race itself frozen while another program's window is in front, until the
-    // game's is clicked): a cabinet's game runs on, the loss not passed on
+    // game's is clicked; Battle Gear 4 too): a cabinet's game runs on, the loss not passed on (KEEP_ACTIVE)
     if (msg == WM_ACTIVATEAPP && !wp && g_keepActive)
     {
         static volatile LONG logged;

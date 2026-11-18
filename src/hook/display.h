@@ -96,9 +96,10 @@ void wl_display_internal_next(int *width, int *height);
 void wl_display_set_internal(int width, int height);
 void wl_display_set_internal_supported(int supported); // by the game's module
 
-// By the game's module: the game's window never told it lost the activation (WM_ACTIVATEAPP with
-// FALSE not passed on), for a game that pauses then (Sega Rally 3)
-void wl_display_keep_active(void);
+// KEEP_ACTIVE (true by default): the game's window never told it lost the activation (WM_ACTIVATEAPP
+// with FALSE not passed on), for the games that pause then (Sega Rally 3, Battle Gear 4)
+int wl_display_keep_active(void);
+void wl_display_set_keep_active(int on);
 int wl_display_internal_supported(void);
 
 // From the Direct3D 9 hooks

@@ -1071,8 +1071,7 @@ int wl_game_segarally3(const wchar_t *exePath)
     wl_display_set_internal_supported(1);
     // Its window procedure (+0x158770) pauses the game on WM_ACTIVATEAPP (inactive): another program's
     // window in front (another emulator's, the desktop's) froze a race or its loading until the game's
-    // was clicked; on a cabinet it runs on
-    wl_display_keep_active();
+    // was clicked; [Display] KEEP_ACTIVE (true by default, display.cpp) keeps that message from it
     wl_game_use_options("segarally3");
     wl_game_on_settings(sr3_settings);
     return 1;

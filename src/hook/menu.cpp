@@ -1229,6 +1229,13 @@ static void page_display(void)
     ImGui::PushTextWrapPos(0.0f);
     ImGui::TextDisabled("%s", wl_tr("À côté des images par seconde : un jeu bloqué n'affiche plus d'images, son numéro ne change plus."));
     ImGui::PopTextWrapPos();
+    bool keepActive = wl_display_keep_active() != 0;
+    if (ImGui::Checkbox(wl_tr("Le jeu continue quand une autre fenêtre passe devant"), &keepActive))
+        wl_display_set_keep_active(keepActive);
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("%s", wl_tr("Le jeu n'apprend pas que sa fenêtre a perdu la main, comme sur une borne. Décoché : certains jeux "
+                                    "(Sega Rally 3, Battle Gear 4) se mettent en pause jusqu'à un clic sur leur fenêtre."));
+    ImGui::PopTextWrapPos();
     ImGui::Spacing();
 
     int w, h, sw, sh, current = -1;
