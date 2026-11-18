@@ -270,6 +270,7 @@ static int g_itemCount;
 static volatile LONG g_pass; // 0: the environments, 1: an environment's tracks, 2: the championships
 static int g_env;
 static volatile LONG g_menuActive; // the page's list is ours
+static volatile LONG g_champPage; // the championships' list shown (state 3 to our page, then 4)
 
 static void revo_champs(void);
 
@@ -631,9 +632,18 @@ static void __cdecl fill_list(void *selector, void *caller)
 {
     // The menu's cards are made once, when the menu is (+0x22d710), one per entry of this list: the
     // environments' then, at least as many as an environment's tracks
-    if (caller == VA(0x62d22a))
+    // A selection left half way (linked: back to the lobby from a track select, the other cabinet
+    // gone) left an environment's tracks listed, 1 for Lakeside: the menu made again then had 1 card,
+    // and the next environments' page (6) went past it (+0x228ea9, racecab1 18/11). The menu's new
+    // cards always from the longest lists, the cards pack of the last page released (its cards gone)
+    int making = caller == VA(0x62d22a);
+    if (making)
+    {
         g_cardCount = 0; // the menu's cards about to be made
-    if (g_revoCount && !g_itemCount && revo_database())
+        cards_pack_release();
+        InterlockedExchange(&g_champPage, 0);
+    }
+    if (g_revoCount && (!g_itemCount || making) && revo_database())
     {
         // the longest of the lists shown on that page: as many cards
         InterlockedExchange(&g_pass, 0);
@@ -729,7 +739,6 @@ static void open_track_page(void)
 // A championship's 4 stages written over the database's (the game's own kept aside first), the
 // player's track its first stage's
 static int g_stagesGame[4], g_stagesKept;
-static volatile LONG g_champPage; // the championships' list shown (state 3 to our page, then 4)
 
 static void champ_apply(int k)
 {

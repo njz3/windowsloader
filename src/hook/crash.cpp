@@ -27,6 +27,7 @@
 
 static volatile LONG g_reported;
 static DWORD g_watchThread; // the freeze watch's: its stack walks' faults are not the game's
+static __declspec(thread) int t_walking; // walk_calls under way on this thread: its own faults (a broken frame chain) are caught there, not logged
 
 static int walk_calls(CONTEXT c, void **calls, int max);
 static void log_calls(const char *prefix, void **calls, int n);
@@ -36,7 +37,7 @@ static LONG CALLBACK on_exception(EXCEPTION_POINTERS *ep)
 {
     DWORD code = ep->ExceptionRecord->ExceptionCode;
     // Only errors; C++ exceptions (0xE06D7363), debug strings and thread names are normal
-    if (code < 0xC0000000 || GetCurrentThreadId() == g_watchThread || InterlockedIncrement(&g_reported) > 32)
+    if (code < 0xC0000000 || t_walking || GetCurrentThreadId() == g_watchThread || InterlockedIncrement(&g_reported) > 32)
         return EXCEPTION_CONTINUE_SEARCH;
 
     char where[128];
@@ -90,6 +91,7 @@ typedef HRESULT(WINAPI *GetThreadDescriptionFn)(HANDLE, PWSTR *);
 static int walk_calls(CONTEXT c, void **calls, int max)
 {
     int n = 0;
+    t_walking = 1;
     __try
     {
 #ifdef _WIN64
@@ -132,6 +134,7 @@ static int walk_calls(CONTEXT c, void **calls, int max)
     __except (EXCEPTION_EXECUTE_HANDLER)
     {
     }
+    t_walking = 0;
     return n;
 }
 
