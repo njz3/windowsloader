@@ -48,7 +48,7 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result);
 // The agent's "menu on|off"
 void wl_menu_request(int open);
 void wl_menu_request_tab(int tab); // "menu tab N": 0 Jeu, 1 Contrôles, 2 Affichage, 3 Retour de force, 4 À propos,
-                                   // 5 Options du jeu, 6 Sorties et réseau
+                                   // 5 Options du jeu, 6 Sorties réseau
 void wl_menu_request_map(int device); // "menu map N": the controls page's device N's bindings, -1 closed
 int wl_menu_is_open(void);
 
@@ -60,7 +60,7 @@ int wl_menu_rect(RECT *r);
 // [game]": 1 when written, status the message shown
 int wl_menu_save(int forGame, char *status, size_t size);
 
-// The "Sorties et réseau" page's box, also the agent's "menu outputs on|off": the network outputs'
+// The "Sorties réseau" page's box, also the agent's "menu outputs on|off": the network outputs'
 // server started or stopped at once, [Outputs] OUTPUTS_NETWORK written to the file read for the next
 // starts; 1 when done, status the message shown
 int wl_menu_outputs(int on, char *status, size_t size);

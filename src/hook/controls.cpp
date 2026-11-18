@@ -85,7 +85,14 @@ struct InputBinds
     Binding low;  // ACTION_Left of an axis, ACTION_Digital of a pedal
     Binding high; // ACTION_Right of an axis
     double deadzone;
+    double keyValue;           // where its keys and buttons have brought it (key_ramp)
+    unsigned long long keyLast; // when, QueryPerformanceCounter's
 };
+
+// [Config] Axis_Key_Ramp, Axis_Key_Return (hikaruloader's, as MAME's keys on an analog control): a
+// key or a button on an axis or a pedal takes it to its end in Axis_Key_Ramp ms, back to the
+// middle (or released) in Axis_Key_Return ms when let go or turned the other way; 0 at once
+static volatile LONG g_keyRampMs = 500, g_keyReturnMs = 250;
 
 #define MAX_INPUTS 64
 static InputBinds g_binds[MAX_INPUTS];
@@ -770,39 +777,77 @@ static double apply_deadzone(double v, double dz)
     return (v > 0 ? 1 : -1) * (m - dz) / (1 - dz);
 }
 
+// Where the keys and buttons of an axis or a pedal bring it now, toward target (-1, 0 or 1): to the
+// end in Axis_Key_Ramp, back to 0 in Axis_Key_Return when let go or turned the other way
+static double key_ramp(InputBinds *b, double target)
+{
+    LARGE_INTEGER now, freq;
+    QueryPerformanceCounter(&now);
+    QueryPerformanceFrequency(&freq);
+    double dt = b->keyLast ? (double)(now.QuadPart - (LONGLONG)b->keyLast) / (double)freq.QuadPart : 0;
+    if (dt > 0.05) // a pause of the thread (the menu, a load): no jump
+        dt = 0.05;
+    b->keyLast = (unsigned long long)now.QuadPart;
+    double ramp = g_keyRampMs / 1000.0, back = g_keyReturnMs / 1000.0;
+    double from = b->keyValue, to, step;
+    if (target == 0 || (from != 0 && (from > 0) != (target > 0)))
+        to = 0, step = back > 0 ? dt / back : 2;
+    else
+        to = target, step = ramp > 0 ? dt / ramp : 2;
+    b->keyValue = from < to ? (from + step < to ? from + step : to) : (from - step > to ? from - step : to);
+    return b->keyValue;
+}
+
+// A key, a button or half an axis as a button: ramped (key_ramp), not read as an analog value
+static int is_button_like(const Source *s)
+{
+    return (s->kind != SRC_JOY_AXIS && s->kind != SRC_GC_AXIS) || s->part == PART_POSITIVE || s->part == PART_NEGATIVE;
+}
+
 // The input's value in the agent's units (axis -1..1 with +1 left, pedal 0..1, switch 0/1)
-static double input_value(const WlInput *in, const InputBinds *b)
+static double input_value(const WlInput *in, InputBinds *b)
 {
     if (in->type == WL_INPUT_SWITCH)
         return binding_pressed(&b->main);
 
     if (in->type == WL_INPUT_ANALOG)
     {
-        double v = binding_pressed(&b->low) ? 1 : 0;
+        int down = binding_pressed(&b->low);
+        double v = 0;
         for (int i = 0; i < b->main.count; i++)
         {
-            double p = apply_deadzone(pedal_of(&b->main.alt[i].parts[0]), b->deadzone);
+            const Source *s = &b->main.alt[i].parts[0];
+            if (is_button_like(s))
+            {
+                down |= pressed(s);
+                continue;
+            }
+            double p = apply_deadzone(pedal_of(s), b->deadzone);
             if (p > v)
                 v = p;
         }
-        return v;
+        double k = key_ramp(b, down ? 1 : 0);
+        return k > v ? k : v;
     }
 
     // Axis: the source turned furthest wins; SDL's left is negative, ours positive
     double v = 0;
+    int left = binding_pressed(&b->low), right = binding_pressed(&b->high);
     for (int i = 0; i < b->main.count; i++)
     {
         const Source *s = &b->main.alt[i].parts[0];
-        double a = (s->kind == SRC_JOY_AXIS || s->kind == SRC_GC_AXIS) && s->part == PART_FULL ? -apply_deadzone(axis_value(s), b->deadzone)
-                                                                                                : (pressed(s) ? 1 : 0);
+        if (!((s->kind == SRC_JOY_AXIS || s->kind == SRC_GC_AXIS) && s->part == PART_FULL))
+        {
+            if (pressed(s))
+                left = 1; // a key on the axis itself turns it left, as before
+            continue;
+        }
+        double a = -apply_deadzone(axis_value(s), b->deadzone);
         if (fabs(a) > fabs(v))
             v = a;
     }
-    if (binding_pressed(&b->low))
-        v = 1;
-    if (binding_pressed(&b->high))
-        v = -1;
-    return v;
+    double k = key_ramp(b, (left ? 1 : 0) - (right ? 1 : 0));
+    return fabs(k) > fabs(v) ? k : v;
 }
 
 static int focus_is_ours(void)
@@ -865,6 +910,13 @@ static const char *g_defaults =
     "# Dead zone of the brake pedal's axis, 0 to 32767. Default: 500\r\n"
     "Brake_DeadZone = 500\r\n"
     "\r\n"
+    "# A key or a button on an axis or a pedal (P1_Steer_Left, P1_Gas_Digital...): milliseconds to take it\r\n"
+    "# all the way, as MAME's keys on an analog control; 0 at once. Default: 500\r\n"
+    "Axis_Key_Ramp = 500\r\n"
+    "\r\n"
+    "# The same, back to the middle (or released) when let go or turned the other way. Default: 250\r\n"
+    "Axis_Key_Return = 250\r\n"
+    "\r\n"
     "# Force feedback strength, in percent of the game's force. Default: 100\r\n"
     "FFB_Strength = 100\r\n"
     "\r\n"
@@ -876,21 +928,33 @@ static const char *g_defaults =
     "FFB_Device = AUTO\r\n"
     "\r\n"
     "[Common]\r\n"
-    "# The cabinet's test button (the game's test menu). Default: KEY_T\r\n"
-    "Test = KEY_T\r\n"
+    "# The keys of the common actions are MAME's (F2 the test menu, 5 and 6 the coins, 1 and 2 the start\r\n"
+    "# buttons, 9 and 0 the service buttons).\r\n"
+    "#\r\n"
+    "# The cabinet's test button (the game's test menu). Default: KEY_F2\r\n"
+    "Test = KEY_F2\r\n"
     "\r\n"
     "# Player 1's coin. Default: KEY_5\r\n"
     "P1_Coin = KEY_5\r\n"
     "\r\n"
+    "# Player 2's coin. Default: KEY_6\r\n"
+    "P2_Coin = KEY_6\r\n"
+    "\r\n"
     "# Player 1's start button. Default: KEY_1, GC0_BUTTON_START\r\n"
     "P1_Start = KEY_1, GC0_BUTTON_START\r\n"
     "\r\n"
-    "# Player 1's service button. Default: KEY_S\r\n"
-    "P1_Service = KEY_S\r\n"
+    "# Player 2's start button. Default: KEY_2\r\n"
+    "P2_Start = KEY_2\r\n"
+    "\r\n"
+    "# Player 1's service button. Default: KEY_9\r\n"
+    "P1_Service = KEY_9\r\n"
+    "\r\n"
+    "# Player 2's service button. Default: KEY_0\r\n"
+    "P2_Service = KEY_0\r\n"
     "\r\n"
     "# Ends the game and the programs started with it, as the settings menu's quit button. Default:\r\n"
-    "# KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10\r\n"
-    "ExitGame = KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10\r\n"
+    "# KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK\r\n"
+    "ExitGame = KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK\r\n"
     "\r\n"
     "[Driving]\r\n"
     "# The steering wheel turned fully left, as a button. Default: KEY_Left\r\n"
@@ -899,8 +963,8 @@ static const char *g_defaults =
     "# The steering wheel turned fully right, as a button. Default: KEY_Right\r\n"
     "P1_Steer_Right = KEY_Right\r\n"
     "\r\n"
-    "# The accelerator pressed fully, as a button. Default: KEY_Up\r\n"
-    "P1_Gas_Digital = KEY_Up\r\n"
+    "# The accelerator pressed fully, as a button (left Ctrl: MAME's pedal 1). Default: KEY_Up, KEY_LCtrl\r\n"
+    "P1_Gas_Digital = KEY_Up, KEY_LCtrl\r\n"
     "\r\n"
     "# The brake pressed fully, as a button. Default: KEY_Down\r\n"
     "P1_Brake_Digital = KEY_Down\r\n"
@@ -934,6 +998,9 @@ static const char *g_defaults =
     "\r\n"
     "# The game's action button: an item, a weapon (GTI Club 3, Mario Kart DX). Default: KEY_C\r\n"
     "Action = KEY_C\r\n"
+    "\r\n"
+    "# Pauses the game, as its own pause button (the Codemasters games: GRID, DiRT Showdown). Default: KEY_P\r\n"
+    "Pause = KEY_P\r\n"
     "\r\n"
     "# Puts the player's NESYS entry key in the cabinet's reader, or takes it out (Battle Gear 4\r\n"
     "# Tuned). Default: KEY_K\r\n"
@@ -1039,6 +1106,10 @@ static void load_bindings(void)
     char s[96];
     read_binding("Common", "ExitGame", &g_exitGame);
     wl_log("controls: ExitGame = [Common] ExitGame (%d bindings)", g_exitGame.count);
+    int ramp = GetPrivateProfileIntW(L"Config", L"Axis_Key_Ramp", 500, g_ini), back = GetPrivateProfileIntW(L"Config", L"Axis_Key_Return", 250, g_ini);
+    InterlockedExchange(&g_keyRampMs, ramp < 0 ? 0 : ramp > 10000 ? 10000 : ramp);
+    InterlockedExchange(&g_keyReturnMs, back < 0 ? 0 : back > 10000 ? 10000 : back);
+    wl_log("controls: keys on an axis or a pedal: %ld ms to the end, %ld ms back (Axis_Key_Ramp, Axis_Key_Return)", g_keyRampMs, g_keyReturnMs);
     for (int i = 0; i < wl_inputs_count() && i < MAX_INPUTS; i++)
     {
         WlInput *in = wl_input_at(i);

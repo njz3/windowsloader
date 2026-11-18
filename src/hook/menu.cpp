@@ -1552,7 +1552,7 @@ int wl_menu_outputs(int on, char *status, size_t size)
     return 1;
 }
 
-// "Sorties et réseau": what the game can send to BackForceFeeder or MAMEHooker ([Outputs]
+// "Sorties réseau": what the game can send to BackForceFeeder or MAMEHooker ([Outputs]
 // OUTPUTS_NETWORK, outputs.cpp), each value's type and its last one, in a list of its own that
 // scrolls. The box starts or stops the server at once, the game going on
 static void page_outputs(void)
@@ -1727,7 +1727,7 @@ static void draw_menu(void)
                 {WL_N("Contrôles"), "###controls", 1, page_controls},
                 {WL_N("Retour de force"), "###ffb", 3, page_ffb},
                 {WL_N("Jeu"), "###game", 0, page_game},
-                {WL_N("Sorties et réseau"), "###outputs", 6, page_outputs},
+                {WL_N("Sorties réseau"), "###outputs", 6, page_outputs},
                 {WL_N("À propos"), "###about", 4, page_about},
             };
             for (int i = 0; i < (int)(sizeof pages / sizeof pages[0]); i++)

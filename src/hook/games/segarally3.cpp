@@ -44,6 +44,7 @@
 #include "lang.h"
 #include "link.h"
 #include "log.h"
+#include "outputs.h"
 #include "vhid.h"
 
 enum
@@ -1067,6 +1068,9 @@ int wl_game_segarally3(const wchar_t *exePath)
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_vhid_register(&g_board);
     wl_ioports_set_writer(port_write);
+    // Its motor is that port's byte, no Sega servo board: no RawDrive frames made from its force
+    // (network outputs); its I/O board gets nothing from the game (no lamps)
+    wl_outputs_no_servo();
     wl_files_set_ini_override(ini_override);
     wl_display_set_internal_supported(1);
     // Its window procedure (+0x158770) pauses the game on WM_ACTIVATEAPP (inactive): another program's

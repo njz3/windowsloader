@@ -25,7 +25,7 @@
 // sent as the Sega servo board's frames, as linuxloader does for Dead Heat's and Gaelco's boards:
 // 80 00 01 (effects on), 81 7F 7F (no cap), 83 7F 00 (full gain) once, then 84 the torque, centred
 // on 0x80, on 14 bits.
-// The values are kept even when they are not sent: the menu's "Sorties et réseau" page lists those
+// The values are kept even when they are not sent: the menu's "Sorties réseau" page lists those
 // the game can send (the boards declare them as they are registered) with their last value.
 
 #include <winsock2.h>
@@ -526,9 +526,16 @@ static void servo_frame(unsigned char command, int first, int second)
     }
 }
 
+static volatile LONG g_noServo; // wl_outputs_no_servo
+
+void wl_outputs_no_servo(void)
+{
+    InterlockedExchange(&g_noServo, 1);
+}
+
 void wl_outputs_force(double force)
 {
-    if (!g_lockReady)
+    if (!g_lockReady || g_noServo)
         return;
     // The servoboard's torque as servoboard.cpp reads it: 84's value - 0x80, > 0 pushing left
     int torque = (int)(force * 127 + (force < 0 ? -0.5 : 0.5));
@@ -659,7 +666,7 @@ int wl_outputs_list(WlOutputInfo *out, int max)
     if (g_driveDeclared)
         list_add(out, max, &n, "RawDrive", wl_tr("octets (0-255), un par ligne"),
                  wl_tr("Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"), g_lastDrive >= 0, g_lastDrive);
-    else if (wl_game_motor())
+    else if (wl_game_motor() && !g_noServo)
         list_add(out, max, &n, "RawDrive", wl_tr("octets (0-255), un par ligne"),
                  wl_tr("Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"), g_lastDrive >= 0,
                  g_lastDrive);

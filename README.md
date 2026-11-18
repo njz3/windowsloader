@@ -1,5 +1,7 @@
 # windowsloader
 
+<img src="res/windowsloader.png" width="96" alt="windowsloader's logo">
+
 Runs Windows arcade games (Sega Europa-R, RingEdge, RingWide, Nu, ALLS, Raw Thrills, Sega Racing
 Classic...) on a PC, with the cabinet hardware emulated: I/O boards (JVS, USB HID), drive board and
 force feedback, dongles and network. It is the Windows counterpart of
@@ -76,6 +78,10 @@ cmake --build --preset msvc-x64-release
 
 The DLL must have the bitness of the game, so both presets are needed: everything lands in
 `bin/Release`, and each launcher hands a game of the other bitness to its sibling.
+
+The launchers' icon (the Explorer's, the picker window's in the taskbar) is `res/windowsloader.ico`,
+built into them by `src/launcher/launcher.rc`; `python scripts/make_logo.py` (Pillow) draws it again,
+each size from 16 to 256 pixels on its own, with `res/windowsloader.png`.
 
 The build's version is named as the release archives are, `<version>-<the build's day>-njz3`
 (`0.1.0-20261025-njz3`), followed by the branch's edition, "FFB Edition": in the game's window
@@ -409,10 +415,22 @@ sent it the other way round: a `controls.ini` saved with `FFB_Invert = 1` to mak
 back to `FFB_Invert = 0` ("Inverser le sens" unticked).
 
 `[Common] ExitGame` ends the game, as linuxloader's (and Escape under TeknoParrot): by default
-`KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK, JOY0_BUTTON_11 + JOY0_BUTTON_10`, added to an existing
+`KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK` (also `JOY0_BUTTON_11 + JOY0_BUTTON_10` up to the
+20261118-1 release), added to an existing
 `controls.ini` that lacks it; `ExitGame =` (empty) turns it off. The keyboard counts only while the
 game's window has the focus, nothing while the settings menu is open; the launcher then closes the
 programs it started with the game.
+
+The common actions' default keys are MAME's: `Test` F2 (T before), `P1_Coin` 5, `P2_Coin` 6,
+`P1_Start` 1, `P2_Start` 2, `P1_Service` 9 (S before), `P2_Service` 0; also `P1_Gas_Digital` left Ctrl (MAME's pedal 1, the Up arrow kept) and `Pause` P
+(the Codemasters games). An existing `controls.ini` gets the lines it lacks (`P2_Coin`, `P2_Start`,
+`P2_Service`, `Pause`); its own lines (`Test = KEY_T`...) stay as they are.
+
+A key or a button on an axis or a pedal (`P1_Steer_Left`, `P1_Steer_Right`, `P1_Gas_Digital`...)
+moves it as MAME's keys move an analog control, hikaruloader's settings: `[Config] Axis_Key_Ramp`
+milliseconds to take it all the way (500 by default), `Axis_Key_Return` back to the middle or
+released when let go or turned the other way (250); 0 at once (windowsloader's way before). Also on
+the menu's controls page, with the dead zones.
 
 `controls.ini` numbers a joystick's buttons as SDL does, from 0 (`JOY0_BUTTON_0` is the first one),
 where Windows' and vJoy's panels count from 1. The menu's controls page shows them from 1 by default
@@ -511,7 +529,8 @@ to each client that connects, and `mame_stop = 1` when the game ends; a UDP data
 start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `RawLamps`,
 `RawLamps1`... and `lamp0`... (the JVS board's general purpose outputs), `RawDrive` (the bytes the game
 sends to a Sega servoboard; for the other boards, the Sega servoboard's frames made from the force:
-80, 81, 83 once, then 84 the torque). A game's companion opens no server: the port is the game's.
+80, 81, 83 once, then 84 the torque; none for Sega Rally 3, whose motor is a parallel port's byte,
+and whose I/O board gets no lamps from the game). A game's companion opens no server: the port is the game's.
 The lamps of boards that are not JVS ones go out the same way (`RawLamps`..., `lamp<n>`): Wasteland
 Racers 2071's SDC2 board (`SetDigitalOut`, `lamp0` to `lamp15`, named after its `Inputs.xml`),
 SWDC's IO4 board (14 outputs, `lamp0` Start, passed on by amdaemon), Storm Racer G's USB board
@@ -523,7 +542,7 @@ of their own: Storm Racer G's PWM lights `pwm0` to `pwm5` (0 to 255), GTI Club 3
 0x7A, 9 RGB LEDs each): `led0_r`, `led0_g`, `led0_b` ... `led26_b`, 0 to 15 (the colours' order
 supposed, as Crazy Ride's), SWDC's in a full cabinet (its LED board and dashboard, see above); the
 other games give their I/O board no lamps.
-The menu's "Sorties et réseau" page lists the values the running game can send, with their type and
+The menu's "Sorties réseau" page lists the values the running game can send, with their type and
 their last value (kept even when `OUTPUTS_NETWORK` is off), and the server's state. Its box "Envoyer
 les sorties réseau" starts or stops the server at once, the game going on (no new start needed):
 started, it announces the game by UDP and gives each client that connects every known value;

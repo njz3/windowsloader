@@ -1056,8 +1056,8 @@ msgid "Jeu"
 msgstr "Game"
 
 #: src/hook/menu.cpp:1730
-msgid "Sorties et réseau"
-msgstr "Outputs and network"
+msgid "Sorties réseau"
+msgstr "Network outputs"
 
 #: src/hook/menu.cpp:1731
 msgid "À propos"
@@ -1067,46 +1067,46 @@ msgstr "About"
 msgid "la carte JVS"
 msgstr "the JVS board"
 
-#: src/hook/outputs.cpp:637
+#: src/hook/outputs.cpp:644
 msgid "texte"
 msgstr "text"
 
-#: src/hook/outputs.cpp:637
+#: src/hook/outputs.cpp:644
 msgid "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu"
 msgstr "At the game's start, and to each client that connects: the game's short name"
 
-#: src/hook/outputs.cpp:645
+#: src/hook/outputs.cpp:652
 #, c-format
 msgid "Lampes %d à %d de %s, la première sur le bit 7"
 msgstr "Lamps %d to %d of %s, the first one on bit 7"
 
-#: src/hook/outputs.cpp:646
+#: src/hook/outputs.cpp:653
 msgid "octet (0-255)"
 msgstr "byte (0-255)"
 
-#: src/hook/outputs.cpp:653
+#: src/hook/outputs.cpp:660
 #, c-format
 msgid "%s : sortie %d de %s"
 msgstr "%s: output %d of %s"
 
-#: src/hook/outputs.cpp:655
+#: src/hook/outputs.cpp:662
 #, c-format
 msgid "Sortie %d de %s (une lampe)"
 msgstr "Output %d of %s (a lamp)"
 
-#: src/hook/outputs.cpp:660 src/hook/outputs.cpp:663
+#: src/hook/outputs.cpp:667 src/hook/outputs.cpp:670
 msgid "octets (0-255), un par ligne"
 msgstr "bytes (0-255), one per line"
 
-#: src/hook/outputs.cpp:661
+#: src/hook/outputs.cpp:668
 msgid "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"
 msgstr "What the game sends to the Sega drive board, as it is (Raw mode, for a servoboard)"
 
-#: src/hook/outputs.cpp:664
+#: src/hook/outputs.cpp:671
 msgid "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"
 msgstr "Sega servoboard frames made from the game's force: 80, 81, 83 once, then 84 and the torque"
 
-#: src/hook/outputs.cpp:668
+#: src/hook/outputs.cpp:675
 msgid "Quand le jeu se termine"
 msgstr "When the game ends"
 
@@ -1603,7 +1603,7 @@ msgstr "OK (Enter)"
 msgid "windowsloader %s %s — choix du jeu"
 msgstr "windowsloader %s %s — game selection"
 
-#: src/launcher/picker.cpp:1036
+#: src/launcher/picker.cpp:1041
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
 

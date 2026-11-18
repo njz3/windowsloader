@@ -472,6 +472,6 @@ void wl_servoboard_register(const char *port)
     CloseHandle(CreateThread(NULL, 0, effects_thread, NULL, 0, NULL));
     g_port.name = port;
     wl_vdev_register(&g_port);
-    wl_outputs_declare_drive(); // for the menu's "Sorties et réseau" page
+    wl_outputs_declare_drive(); // for the menu's "Sorties réseau" page
     wl_log("emulated servoboard on %s", port);
 }

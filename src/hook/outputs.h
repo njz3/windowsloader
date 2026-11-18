@@ -21,7 +21,7 @@ void wl_outputs_init(void);
 // "mame_stop = 1" sent to the clients, the server stopped: at the game's end (ExitProcess,
 // TerminateProcess of itself). Once; harmless when the server never started
 void wl_outputs_stop(void);
-// The menu's switch ("Sorties et réseau"): the server started or stopped at once, without the game
+// The menu's switch ("Sorties réseau"): the server started or stopped at once, without the game
 // started again ("mame_stop = 1" to its clients when stopped). 0 when it cannot start: a
 // companion's, or the previous server still stopping; a port it cannot listen on is told
 // afterwards by wl_outputs_error
@@ -36,8 +36,11 @@ void wl_outputs_drive(const unsigned char *bytes, size_t count);
 // The force of the other boards (wl_ffb_set's, -1..1, > 0 pushing left), sent as the Sega servo
 // board's torque frames; nothing once a Sega drive board's own bytes were sent
 void wl_outputs_force(double force);
+// By the game's module: no servo board's frames made from its force, no RawDrive (a motor that is
+// no servo board: Sega Rally 3's parallel port)
+void wl_outputs_no_servo(void);
 
-// What the game can send, for the menu's "Sorties et réseau" page. The boards declare theirs as
+// What the game can send, for the menu's "Sorties réseau" page. The boards declare theirs as
 // they are registered; a game whose motor is another board (wl_game_motor) sends the servo board's
 // frames made from its force
 void wl_outputs_declare_lamps(int outputs); // the JVS board's general purpose outputs (16: lamp0..lamp15)

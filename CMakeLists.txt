@@ -85,6 +85,7 @@ add_executable(wl_launcher
     src/launcher/gamelist.cpp
     src/launcher/picker.cpp
     src/launcher/writedir.cpp
+    src/launcher/launcher.rc
     src/common/lang.cpp
     src/common/gameoptions.cpp
     src/imgui/imgui.cpp

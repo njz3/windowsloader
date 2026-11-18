@@ -23,7 +23,8 @@
 //   GC<n>_BUTTON_<name>, GC<n>_AXIS_<name>[suffix]   (SDL gamepads: A, B, START, LEFTX, RIGHTTRIGGER...)
 //   suffixes: _POSITIVE, _NEGATIVE (half an axis as a button), _POSITIVE_HALF, _NEGATIVE_HALF,
 //             _INVERTED
-//   [Config] <name>_DeadZone = 0..32767, FFB_Strength = percent, FFB_Invert = 0/1,
+//   [Config] <name>_DeadZone = 0..32767, Axis_Key_Ramp / Axis_Key_Return = ms (keys on an axis or a
+//            pedal), FFB_Strength = percent, FFB_Invert = 0/1,
 //            FFB_Device = AUTO or a force feedback device's name (--set ForceFeedback.FFB_DEVICE=)
 //   [ControllerGUIDs] P<n>_GUID = SDL joystick GUID
 // <n> is the player: P1_GUID's device is JOY0 / GC0, the other devices follow in order. A real Sega

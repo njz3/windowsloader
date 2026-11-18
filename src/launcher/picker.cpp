@@ -1022,7 +1022,12 @@ int wl_picker_run(void)
     CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     ImGui_ImplWin32_EnableDpiAwareness();
     WNDCLASSEXW wc = {sizeof wc, CS_CLASSDC, wnd_proc, 0, 0, GetModuleHandleW(NULL)};
-    wc.hIcon = LoadIconW(NULL, IDI_APPLICATION);
+    // windowsloader's logo (launcher.rc), in the taskbar and the title bar
+    wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(1));
+    wc.hIconSm = (HICON)LoadImageW(wc.hInstance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON),
+                                   GetSystemMetrics(SM_CYSMICON), 0);
+    if (!wc.hIcon)
+        wc.hIcon = LoadIconW(NULL, IDI_APPLICATION);
     wc.hCursor = LoadCursorW(NULL, IDC_ARROW);
     wc.lpszClassName = L"windowsloader picker";
     RegisterClassExW(&wc);

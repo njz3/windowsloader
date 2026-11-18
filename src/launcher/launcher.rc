@@ -1,0 +1,8 @@
+// windowsloader - runs Windows arcade games with emulated cabinet hardware
+// Copyright (C) 2026 Benjamin Maurin - njz3
+// License: GNU General Public License version 3 (GPL v3)
+//
+// The launcher's resources: its icon (res\windowsloader.ico, made by scripts\make_logo.py), the
+// program's in the Explorer and the picker window's in the taskbar (picker.cpp, icon 1)
+
+1 ICON "../../res/windowsloader.ico"

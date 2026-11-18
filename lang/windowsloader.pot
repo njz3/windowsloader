@@ -1055,7 +1055,7 @@ msgid "Jeu"
 msgstr ""
 
 #: src/hook/menu.cpp:1730
-msgid "Sorties et réseau"
+msgid "Sorties réseau"
 msgstr ""
 
 #: src/hook/menu.cpp:1731
@@ -1066,46 +1066,46 @@ msgstr ""
 msgid "la carte JVS"
 msgstr ""
 
-#: src/hook/outputs.cpp:637
+#: src/hook/outputs.cpp:644
 msgid "texte"
 msgstr ""
 
-#: src/hook/outputs.cpp:637
+#: src/hook/outputs.cpp:644
 msgid "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu"
 msgstr ""
 
-#: src/hook/outputs.cpp:645
+#: src/hook/outputs.cpp:652
 #, c-format
 msgid "Lampes %d à %d de %s, la première sur le bit 7"
 msgstr ""
 
-#: src/hook/outputs.cpp:646
+#: src/hook/outputs.cpp:653
 msgid "octet (0-255)"
 msgstr ""
 
-#: src/hook/outputs.cpp:653
+#: src/hook/outputs.cpp:660
 #, c-format
 msgid "%s : sortie %d de %s"
 msgstr ""
 
-#: src/hook/outputs.cpp:655
+#: src/hook/outputs.cpp:662
 #, c-format
 msgid "Sortie %d de %s (une lampe)"
 msgstr ""
 
-#: src/hook/outputs.cpp:660 src/hook/outputs.cpp:663
+#: src/hook/outputs.cpp:667 src/hook/outputs.cpp:670
 msgid "octets (0-255), un par ligne"
 msgstr ""
 
-#: src/hook/outputs.cpp:661
+#: src/hook/outputs.cpp:668
 msgid "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"
 msgstr ""
 
-#: src/hook/outputs.cpp:664
+#: src/hook/outputs.cpp:671
 msgid "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"
 msgstr ""
 
-#: src/hook/outputs.cpp:668
+#: src/hook/outputs.cpp:675
 msgid "Quand le jeu se termine"
 msgstr ""
 
@@ -1594,6 +1594,6 @@ msgstr ""
 msgid "windowsloader %s %s — choix du jeu"
 msgstr ""
 
-#: src/launcher/picker.cpp:1036
+#: src/launcher/picker.cpp:1041
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr ""

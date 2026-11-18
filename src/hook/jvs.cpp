@@ -457,7 +457,7 @@ void wl_jvs_register(const WlJvsBoard *board)
     InitializeCriticalSection(&g_lock);
     g_ports[0].name = board->port;
     wl_vdev_register(&g_ports[0]);
-    wl_outputs_declare_lamps(board->outputs); // for the menu's "Sorties et réseau" page
+    wl_outputs_declare_lamps(board->outputs); // for the menu's "Sorties réseau" page
     wl_log("emulated JVS board on %s: %s, %d players, %d analog channels", board->port, board->id, board->players, board->analogChannels);
 }
 

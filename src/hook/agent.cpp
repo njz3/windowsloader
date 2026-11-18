@@ -33,12 +33,12 @@
 //                          "FRAME Steering constant FORCE", FORCE -1..1, > 0 pushing left
 //   menu [on|off]          open or close the settings menu; "menu open" or "menu closed"
 //   menu tab N             show its page N (0 game, 1 controls, 2 display, 3 force feedback, 4 about,
-//                          5 game options, 6 outputs and network)
+//                          5 game options, 6 network outputs)
 //   menu map [N]           on the controls page, open device N's bindings (0 the keyboard, then the
 //                          controllers in the list's order); without N, close them
 //   menu save [game]       its button "Sauvegarder" (or "Sauvegarder pour ce jeu"): "ok MESSAGE" or
 //                          "err MESSAGE"
-//   menu outputs on|off    the "Sorties et réseau" page's box: the network outputs' server started or
+//   menu outputs on|off    the "Sorties réseau" page's box: the network outputs' server started or
 //                          stopped at once, OUTPUTS_NETWORK written: "ok MESSAGE" or "err MESSAGE"
 //   quit                   "bye", and the game ends
 
