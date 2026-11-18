@@ -194,8 +194,12 @@ static void read_calibration(const wchar_t *gameDir)
 // With REVO_DIR: Revo's tracks found there are added as hidden nodes (their folders redirected
 // there, their time limits those of the Sega Rally 3 track of their environment); the page lists
 // the environments first, then, the page opened again, that environment's tracks; the position
-// chosen is turned into the track's id, and the vote keeps a Revo track chosen. Not in a link (each
-// cabinet would vote its own).
+// chosen is turned into the track's id, and the vote counts every track (link_vote). Linked: each
+// cabinet sends its player's choice by its id (a Revo track's from its place in the list of the 24,
+// the same on every cabinet with the same tracks), every cabinet votes on the same data, the host
+// gives the race's track by its name (+0x1b9190); the network id made from the Revo tracks found
+// keeps a cabinet from linking with one of other tracks or without Revo. Revo's championships stay
+// off in a link.
 #if defined(_M_IX86)
 enum
 {
@@ -245,10 +249,12 @@ static struct
 {
     const char *base;
     int env;
+    int slot;      // its place in g_revoTracks: its id is the database's last + 1 + slot
     int id;
     char text[24]; // its name's text id: WL_REVO_<base>
 } g_revo[REVO_MAX];
 static int g_revoCount;
+static unsigned g_revoMask; // the Revo tracks found, bit n for g_revoTracks[n]
 static unsigned g_firstRevoId = 0xFFFFFFFF; // the vote's: an id from there on is a Revo track
 static void *g_curTrackAddr, *g_dbAddr;     // 0x9dbdb0 (the track chosen), 0xb2a850 (the database)
 static volatile LONG g_dbDone;
@@ -304,7 +310,10 @@ static int revo_database(void)
         unsigned *n = (unsigned *)VirtualAlloc(NULL, 0x40, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         if (!n)
             break;
-        g_revo[i].id = (int)(maxId + 1 + i);
+        // Linked, the cabinets send each other their player's track by its id (+0x1afd80): an id of
+        // the list's place, the same on every cabinet with the same Revo tracks (the network id,
+        // revo_setup, keeps the others apart), whichever folders another has
+        g_revo[i].id = (int)(maxId + 1 + g_revo[i].slot);
         n[0] = 0;
         n[1] = (unsigned)g_revo[i].id;
         n[2] = g_envs[e].surface;
@@ -321,7 +330,8 @@ static int revo_database(void)
     *(unsigned char **)(db + 0xc) = more;
     revo_champs();
     InterlockedExchange(&g_dbDone, 1);
-    wl_log("segarally3: Revo: %d tracks added to the database (ids %u to %u, after %d)", g_revoCount, maxId + 1, maxId + g_revoCount, count);
+    wl_log("segarally3: Revo: %d tracks added to the database (ids %u to %u by their place in the list of %d, after %d)", g_revoCount,
+           maxId + 1 + g_revo[0].slot, maxId + 1 + g_revo[g_revoCount - 1].slot, REVO_MAX, count);
     return 1;
 }
 
@@ -623,7 +633,7 @@ static void __cdecl fill_list(void *selector, void *caller)
     // environments' then, at least as many as an environment's tracks
     if (caller == VA(0x62d22a))
         g_cardCount = 0; // the menu's cards about to be made
-    if (g_revoCount && !g_itemCount && !wl_link_count() && revo_database())
+    if (g_revoCount && !g_itemCount && revo_database())
     {
         // the longest of the lists shown on that page: as many cards
         InterlockedExchange(&g_pass, 0);
@@ -631,7 +641,7 @@ static void __cdecl fill_list(void *selector, void *caller)
         if (g_champsOn && g_champCount > g_itemCount)
             revo_champ_items();
     }
-    if (!g_revoCount || wl_link_count() || !revo_database() || !g_itemCount)
+    if (!g_revoCount || !revo_database() || !g_itemCount)
     {
         InterlockedExchange(&g_menuActive, 0);
         call_fill(selector);
@@ -799,7 +809,7 @@ static int __cdecl state9(int *machine)
     {
         InterlockedExchange(&g_pass, 0);
         revo_env_items();
-        if (g_revoCount && !wl_link_count())
+        if (g_revoCount)
         {
             cards_pack_load();
             cards_pictures();
@@ -853,7 +863,10 @@ static int __cdecl state10(int *machine)
             wl_log("segarally3: Revo: environment %s chosen (%s), %d tracks", names[g_env], chosen ? "confirmed" : "time over", g_itemCount);
             ((int(__cdecl *)(int, int, int, int))VA(0x666be0))(0, 0x17, 0, 0);
             cards_pictures();
-            *(unsigned __int64 *)VA(0xae31c8) = menu_now();
+            // Its own 15 s; linked, what is left of the environments' (the other cabinets wait for
+            // this one's choice, +0x24f030), 5 s at least
+            unsigned __int64 now = menu_now();
+            *(unsigned __int64 *)VA(0xae31c8) = !wl_link_count() ? now : now - started < 10000 ? started : now - 10000;
             return 10;
         }
     }
@@ -863,20 +876,100 @@ static int __cdecl state10(int *machine)
     return next;
 }
 
-// The vote's result (+0x24efca, the id in eax): the track chosen when it is a Revo one
+// The vote (+0x24ed00), linked or not, every cabinet on the same data: the players' cars (their ids
+// on its stack, +0x28 + 8 n, n < [+0x10], kept when their +0x2d8/+0x2dc are [+0x20]/[+0x24]),
+// each car's track at +0x2e8 (sent by its cabinet as an id, +0x1afd80); the game's counts only
+// Tropical4, Canyon4 and Alpine4 (by name), the most voted, Tropical4 first on a tie, then Canyon4,
+// Tropical4 without a vote. Ours at its end (+0x24efca, its result in eax), when a Revo track is
+// among the choices: every track counted by its id, the most voted, on a tie the game's order then
+// the lowest id (the same on every cabinet, as their data); Sega Rally 3's tracks only: the game's
+// result, unchanged; no vote: the track chosen here when it is a Revo one (alone), else the game's
+typedef void *(__stdcall *CarFn)(void *cars, unsigned lo, unsigned hi, int create);
+
+static const char *track_base(unsigned id)
+{
+    unsigned char *db = *(unsigned char **)g_dbAddr;
+    for (unsigned *node = db ? *(unsigned **)(db + 8) + 2 : NULL; node; node = (unsigned *)node[0])
+        if (node[1] == id)
+            return (const char *)node[6];
+    return "?";
+}
+
+static int vote_rank(unsigned id)
+{
+    static const char *const order[3] = {"Tropical4", "Canyon4", "Alpine4"};
+    const char *base = track_base(id);
+    for (int i = 0; i < 3; i++)
+        if (!strcmp(base, order[i]))
+            return i;
+    return 3;
+}
+
+static unsigned __cdecl link_vote(const unsigned char *frame, unsigned gameChoice)
+{
+    unsigned count = *(const unsigned *)(frame + 0x10), s0 = *(const unsigned *)(frame + 0x20), s1 = *(const unsigned *)(frame + 0x24);
+    unsigned ids[6];
+    int votes[6], kinds = 0, players = 0;
+    for (unsigned i = 0; i < count && i < 6; i++)
+    {
+        unsigned lo = *(const unsigned *)(frame + 0x28 + i * 8), hi = *(const unsigned *)(frame + 0x2c + i * 8);
+        unsigned char *car = (unsigned char *)((CarFn)VA(0x5af900))(VA(0x9db478), lo, hi, 0);
+        if (!car || *(unsigned *)(car + 0x2d8) != s0 || *(unsigned *)(car + 0x2dc) != s1)
+            continue;
+        unsigned *node = *(unsigned **)(car + 0x2e8);
+        if (!node)
+            continue;
+        players++;
+        int k = 0;
+        while (k < kinds && ids[k] != node[1])
+            k++;
+        if (k == kinds)
+        {
+            ids[kinds] = node[1];
+            votes[kinds++] = 0;
+        }
+        votes[k]++;
+    }
+    unsigned result = gameChoice;
+    int revo = 0;
+    for (int k = 0; k < kinds; k++)
+        revo |= ids[k] >= g_firstRevoId;
+    if (kinds && !revo)
+        ; // Sega Rally 3's tracks only: the game's own result (Classic Race's Desert4 as the game has it)
+    else if (kinds)
+    {
+        int best = 0;
+        for (int k = 1; k < kinds; k++)
+        {
+            int rk = vote_rank(ids[k]), rb = vote_rank(ids[best]);
+            if (votes[k] > votes[best] || (votes[k] == votes[best] && (rk < rb || (rk == rb && ids[k] < ids[best]))))
+                best = k;
+        }
+        result = ids[best];
+    }
+    else
+    {
+        unsigned *cur = *(unsigned **)g_curTrackAddr;
+        if (cur && cur[1] >= g_firstRevoId)
+            result = cur[1];
+    }
+    char text[256];
+    int n = snprintf(text, sizeof text, "segarally3: Revo: the vote, %d player(s) of %u:", players, count);
+    for (int k = 0; k < kinds && n < (int)sizeof text; k++)
+        n += snprintf(text + n, sizeof text - n, " %s (%u) %d", track_base(ids[k]), ids[k], votes[k]);
+    wl_log("%s; %s (%u)%s", text, track_base(result), result, result == gameChoice ? ", as the game's" : "");
+    return result;
+}
+
 __declspec(naked) static void vote_hook(void)
 {
     __asm {
-        mov ecx, g_curTrackAddr
-        mov ecx, [ecx]
-        test ecx, ecx
-        jz keep
-        mov edx, [ecx + 4]
-        cmp edx, g_firstRevoId
-        jb keep
-        mov eax, edx
-    keep:
-        mov edx, g_dbAddr
+        push eax          // the game's result
+        lea ecx, [esp + 8] // the vote's stack, as at +0x24efca
+        push ecx
+        call link_vote
+        add esp, 8
+        mov edx, g_dbAddr // the instruction replaced: mov edx, [0xb2a850]
         mov edx, [edx]
         ret
     }
@@ -973,6 +1066,8 @@ static void revo_setup(const wchar_t *gameDir)
         g_revo[g_revoCount].base = g_revoTracks[i].base;
         snprintf(g_revo[g_revoCount].text, sizeof g_revo[0].text, "WL_REVO_%s", g_revoTracks[i].base);
         g_revo[g_revoCount].env = g_revoTracks[i].env;
+        g_revo[g_revoCount].slot = i;
+        g_revoMask |= 1u << i;
         g_revoCount++;
         perEnv[g_revoTracks[i].env]++;
     }
@@ -981,9 +1076,26 @@ static void revo_setup(const wchar_t *gameDir)
         wl_log("segarally3: Revo: no track of Sega Rally Revo in %s (REVO_DIR): Main_release\\tracks\\<track>\\ expected", folder);
         return;
     }
-    wl_log("segarally3: Revo: %d tracks in %s (tropical %d, canyon %d, alpine %d, lakeside %d, safari %d, arctic %d)%s", g_revoCount, folder,
-           perEnv[ENV_TROPICAL], perEnv[ENV_CANYON], perEnv[ENV_ALPINE], perEnv[ENV_LAKESIDE], perEnv[ENV_SAFARI], perEnv[ENV_ARCTIC],
-           wl_link_count() ? "; linked: Sega Rally 3's tracks only (each cabinet would vote its own)" : "");
+    wl_log("segarally3: Revo: %d tracks in %s (tropical %d, canyon %d, alpine %d, lakeside %d, safari %d, arctic %d), list 0x%06X", g_revoCount, folder,
+           perEnv[ENV_TROPICAL], perEnv[ENV_CANYON], perEnv[ENV_ALPINE], perEnv[ENV_LAKESIDE], perEnv[ENV_SAFARI], perEnv[ENV_ARCTIC], g_revoMask);
+    // The network id (Demonware's title id, +0x197de0: 1 at +0x30caa4, else NetworkTitleID.txt, + 1000
+    // for a twin cabinet; the game info screen's "NETWORK ID"): the local network's sessions of
+    // another id are not listed (+0x2655xx, "discovery/gameinfo"). Ours from the Revo tracks found:
+    // a cabinet links only with those that have the same ones (the tracks sent by their ids), never
+    // with Sega Rally 3 alone or another list
+    {
+        unsigned h = 2166136261u;
+        for (int b = 0; b < 4; b++)
+            h = (h ^ ((g_revoMask >> (8 * b)) & 0xFF)) * 16777619u;
+        unsigned one = 1, id = 1 + ((0x4000u | ((h ^ (h >> 14)) & 0x3FFF)) << 16);
+        wchar_t file[MAX_PATH];
+        swprintf(file, MAX_PATH, L"%sNetworkTitleID.txt", gameDir);
+        if (GetFileAttributesW(file) != INVALID_FILE_ATTRIBUTES)
+            wl_log("segarally3: Revo: NetworkTitleID.txt in the game's folder: its id is the game's, not Revo's (cabinets without Revo may join)");
+        if (wl_patch_code(VA(0x70caa4), &one, &id, 4, "Sega Rally 3's network id (Revo's tracks)"))
+            wl_log("segarally3: Revo: network id %u (NETWORK ID, + 1000 on a twin cabinet): linked with the cabinets of the same Revo tracks only",
+                   id);
+    }
     wl_hook_code(VA(0x600660), (void *)fill_hook, &g_fillOriginal, "Sega Rally 3's track list (Revo's tracks)");
     wl_hook_code(VA(0x62aa30), (void *)card_made, &g_cardOriginal, "Sega Rally 3's track cards (Revo's tracks)");
     wl_hook_code(VA(0x595130), (void *)unlock_set_hook, &g_unlockSetOriginal, "Sega Rally 3's track unlocks (Revo's tracks)");

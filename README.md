@@ -323,20 +323,26 @@ safari, arctic) are added to Quick Race, read from that folder (nothing copied);
 lists the environments first, then, the environment chosen, its tracks (Sega Rally 3's own first, then
 Revo's). A Revo track's time limits are those of the Sega Rally 3 track of its environment (Desert for
 safari, Alpine for arctic), its audio events too. For `Rally.exe` 9228B72E (the cabinets' editions)
-only; not in a link (each cabinet would vote its own track). The championship keeps its four stages,
-and Revo championships of four stages are added, one per environment with four Revo tracks (two with
-five: A its first four, B its last four; none for Lakeside, with one): after the gearbox, a page lists
-Sega Rally 3's own championship first, then the Revo ones. Their races keep the championship's 22
-places (5 cars on the track, the others met as the player overtakes): a Revo track has none of the
-start points Sega Rally 3's tracks give those 5 cars, which windowsloader then places 150 segments
-apart, as the game does when a track has fewer than five (its own completion writes nothing when it has
-none). The Revo tracks are named after their environment and their route's number (Alpine 6 for
-alpine6; Revo's own names are in its encoded language files), the environment's name in the game's
-language, Arctic and Safari in English; in the race, the environment's name. Their cards are Revo's
-(its frontend track cards, the same file in Sega Rally 3's folder, which the game never loads: loaded
-while Quick Race's track select is shown only, the game's resources holding 16 libraries at most). Sega
-Rally 3's own tracks stay: Tropical, Canyon and Alpine first in their environment's list, Lakeside as
-the championship's last stage (never in Quick Race, as in the game), Desert.
+only. Linked too (Quick Race): every cabinet votes on the tracks chosen, Revo's counted (the most
+chosen, on a tie Tropical, Canyon, Alpine then the Revo tracks in their list's order), and the track
+select's second page gets what is left of its 15 seconds (5 at least); the cabinets must have the same
+Revo tracks: windowsloader gives the game a network id of its own made from them (the game info
+screen's NETWORK ID; the game's own is 1, 1001 on a twin cabinet), so that a cabinet links only with
+those of the same tracks, never with one without Revo. Revo's championships are not in a link. The
+championship keeps its four stages, and Revo championships of four stages are added, one per
+environment with four Revo tracks (two with five: A its first four, B its last four; none for Lakeside,
+with one): after the gearbox, a page lists Sega Rally 3's own championship first, then the Revo ones.
+Their races keep the championship's 22 places (5 cars on the track, the others met as the player
+overtakes): a Revo track has none of the start points Sega Rally 3's tracks give those 5 cars, which
+windowsloader then places 150 segments apart, as the game does when a track has fewer than five (its
+own completion writes nothing when it has none). The Revo tracks are named after their environment and
+their route's number (Alpine 6 for alpine6; Revo's own names are in its encoded language files), the
+environment's name in the game's language, Arctic and Safari in English; in the race, the environment's
+name. Their cards are Revo's (its frontend track cards, the same file in Sega Rally 3's folder, which
+the game never loads: loaded while Quick Race's track select is shown only, the game's resources
+holding 16 libraries at most). Sega Rally 3's own tracks stay: Tropical, Canyon and Alpine first in
+their environment's list, Lakeside as the championship's last stage (never in Quick Race, as in the
+game), Desert.
 
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,
@@ -413,6 +419,10 @@ The force's direction is SDL's own, as linuxloader's: a positive constant force 
 the left (SDL gives the direction a force comes from). Up to the 20261028-3 release, windowsloader
 sent it the other way round: a `controls.ini` saved with `FFB_Invert = 1` to make up for it must go
 back to `FFB_Invert = 0` ("Inverser le sens" unticked).
+
+When the game ends (its own end, `ExitGame`, the menu's or the agent's quit), the wheel's force
+feedback effects are stopped and the wheel closed before the process goes (SDL_StopHapticEffects,
+by the controls thread); a crash or a game killed from outside leaves them to the wheel's driver.
 
 `[Common] ExitGame` ends the game, as linuxloader's (and Escape under TeknoParrot): by default
 `KEY_Escape, GC0_BUTTON_START + GC0_BUTTON_BACK` (also `JOY0_BUTTON_11 + JOY0_BUTTON_10` up to the
@@ -525,7 +535,8 @@ after a crash; nothing else is written there (as linuxloader's working copies).
 Network outputs (`[Outputs] OUTPUTS_NETWORK = true`, linuxloader's keys and protocol, MAME's, as in the
 njz3 forks of Supermodel and sm2-emu): a TCP server on `OUTPUTS_NETWORK_PORT` (8000) sends
 `name = value\r` lines to BackForceFeeder or MAMEHooker, `mame_start = <game>` and the known values
-to each client that connects, and `mame_stop = 1` when the game ends; a UDP datagram announces the
+to each client that connects, and `mame_stop = 1` when the game ends (after a servo board frame of no
+torque when windowsloader made them from the force); a UDP datagram announces the
 start to 127.0.0.1:`OUTPUTS_NETWORK_UDP_PORT` (8001, 0 for none). The values: `RawLamps`,
 `RawLamps1`... and `lamp0`... (the JVS board's general purpose outputs), `RawDrive` (the bytes the game
 sends to a Sega servoboard; for the other boards, the Sega servoboard's frames made from the force:

@@ -318,6 +318,7 @@ static SRWLOCK g_devicesLock = SRWLOCK_INIT;
 // ------------------------------------------------------------------------------
 
 static SDL_Haptic *g_haptic;
+static volatile LONG g_ffbStopped; // the game ends: its effects stopped, the wheel not opened again (ffb_stop_now)
 static int g_hapticEffect = -1;
 static int g_springEffect = -1, g_sineEffect = -1, g_damperEffect = -1; // ffb.h's effects the wheel holds, made at their first use
 static int g_springTried, g_sineTried, g_damperTried;
@@ -499,6 +500,8 @@ static int extra_effect(SDL_HapticEffect *e, unsigned feature, const char *name)
 static void open_haptic(void)
 {
     close_haptic();
+    if (g_ffbStopped)
+        return;
     list_ffb_devices();
     SDL_Joystick *joy = g_players[0].joy;
     SDL_Haptic *player1 = joy && SDL_IsJoystickHaptic(joy) ? SDL_OpenHapticFromJoystick(joy) : NULL, *own = player1;
@@ -1149,6 +1152,41 @@ static volatile LONG g_running;
 static volatile LONG g_reload; // controls.ini changed by the settings menu: reload the bindings
 static void capture_step(void);
 
+// The game ending (wl_controls_ffb_stop): the wheel's effects are infinite (SDL_HAPTIC_INFINITY),
+// they would be left to the device's driver as the process goes. Stopped by the controls thread,
+// the one that talks to SDL; asked by another thread, which then waits for it a little
+static DWORD g_controlsThread;
+static volatile LONG g_ffbStopAsked;
+static HANDLE g_ffbStopDone;
+
+static void ffb_stop_now(void)
+{
+    if (InterlockedExchange(&g_ffbStopped, 1))
+        return;
+    if (g_haptic)
+    {
+        SDL_StopHapticEffects(g_haptic);
+        wl_log("controls: force feedback: the effects stopped on %s (the game ends)", SDL_GetHapticName(g_haptic));
+    }
+    else
+        wl_log("controls: force feedback: no wheel open, nothing to stop (the game ends)");
+    close_haptic();
+}
+
+void wl_controls_ffb_stop(void)
+{
+    if (!g_running || g_ffbStopped)
+        return;
+    if (GetCurrentThreadId() == g_controlsThread)
+    {
+        ffb_stop_now();
+        return;
+    }
+    InterlockedExchange(&g_ffbStopAsked, 1);
+    if (g_ffbStopDone)
+        WaitForSingleObject(g_ffbStopDone, 300);
+}
+
 // ExitGame pressed: the game ends at once, as with the menu's "Quitter le jeu" (the launcher then
 // closes the programs it started with it). Not while the settings menu is open (Escape is its own
 // there), nor for a press already held before: only a new one counts
@@ -1166,6 +1204,7 @@ static void exit_step(void)
 
 static DWORD WINAPI controls_thread(LPVOID)
 {
+    g_controlsThread = GetCurrentThreadId();
     InterlockedExchange(&g_running, 1);
     wl_busy_enter(); // SDL's own file and device calls go through the hooks untouched
 
@@ -1202,6 +1241,11 @@ static DWORD WINAPI controls_thread(LPVOID)
                 continue;
             InterlockedExchange(&in->raw, wl_input_raw_of(in, input_value(in, &g_binds[i])));
         }
+        if (InterlockedExchange(&g_ffbStopAsked, 0))
+        {
+            ffb_stop_now();
+            SetEvent(g_ffbStopDone);
+        }
         update_haptic();
         Sleep(2);
     }
@@ -1229,6 +1273,7 @@ void wl_controls_start(const wchar_t *iniPath)
     wl_controls_load(iniPath);
     if (!wl_inputs_count())
         return;
+    g_ffbStopDone = CreateEventW(NULL, TRUE, FALSE, NULL);
     HANDLE t = CreateThread(NULL, 0, controls_thread, NULL, 0, NULL);
     if (t)
         CloseHandle(t);

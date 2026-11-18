@@ -38,6 +38,11 @@ void wl_controls_start(const wchar_t *iniPath);
 void wl_controls_load(const wchar_t *iniPath);
 int wl_controls_has_file(void);
 
+// The game ends (ExitProcess, TerminateProcess of itself: its own end, ExitGame, the menu's and the
+// agent's quit): the wheel's effects stopped and the wheel closed, by the controls thread (waited
+// for 300 ms at most from another thread); nothing opened again after
+void wl_controls_ffb_stop(void);
+
 // For the settings menu's page (linuxloader's: the devices, each binding the actions to its own inputs)
 int wl_controls_running(void);
 const char *wl_controls_player_name(int player);

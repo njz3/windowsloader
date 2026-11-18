@@ -26,6 +26,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 
 #include "hooks.h"
 #include "wlshared.h"
+#include "controls.h"
 #include "ioports.h"
 #include "link.h"
 #include "log.h"
@@ -2061,7 +2062,8 @@ static void WINAPI hExitProcess(UINT code)
 {
     char where[128];
     wl_log("ExitProcess(%u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
-    wl_outputs_stop(); // "mame_stop" to BackForceFeeder, while the server's thread still runs
+    wl_controls_ffb_stop(); // the wheel's effects stopped, while the controls thread still runs
+    wl_outputs_stop();      // no torque left, then "mame_stop" to BackForceFeeder, while the server's thread still runs
     oExitProcess(code);
 }
 
@@ -2075,7 +2077,8 @@ static BOOL WINAPI hTerminateProcess(HANDLE process, UINT code)
             char where[128];
             wl_log("TerminateProcess(self, %u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
         }
-        wl_outputs_stop(); // the agent's and the menu's "quit" too
+        wl_controls_ffb_stop(); // ExitGame, the agent's and the menu's "quit" too
+        wl_outputs_stop();
     }
     return oTerminateProcess(process, code);
 }

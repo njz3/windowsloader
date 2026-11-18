@@ -91,6 +91,8 @@ static int g_stopping;
 static int g_rawDrive;     // a Sega drive board's own bytes seen: the force is not made into frames
 static int g_servoStarted; // the servo board's first frames sent
 static int g_sentTorque = 1000;
+static volatile LONG g_noServo; // wl_outputs_no_servo
+static void servo_frame(unsigned char command, int first, int second);
 
 static void pending_append(const char *text, size_t length)
 {
@@ -469,6 +471,13 @@ void wl_outputs_stop(void)
     int already = g_stopping;
     if (!already)
     {
+        // The servo board's frames made from the force: no torque left before the end (the game's
+        // own drive board bytes, RawDrive as it sent them, are left as they are)
+        if (g_servoStarted && !g_rawDrive && !g_noServo && g_sentTorque != 0)
+        {
+            servo_frame(0x84, 0x80 >> 7, 0x80);
+            g_sentTorque = 0;
+        }
         pending_append("mame_stop = 1\r", strlen("mame_stop = 1\r"));
         g_stopping = 1;
     }
@@ -525,8 +534,6 @@ static void servo_frame(unsigned char command, int first, int second)
         g_lastDrive = f[i];
     }
 }
-
-static volatile LONG g_noServo; // wl_outputs_no_servo
 
 void wl_outputs_no_servo(void)
 {
