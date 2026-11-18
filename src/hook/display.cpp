@@ -78,6 +78,8 @@ static RECT g_src;                 // the back buffer's part shown (Direct3D 9's
 static int g_full = 1;             // the picture is the whole client area
 static int g_glPicture;            // an OpenGL game whose picture windowsloader copies into its window (glhook.cpp)
 static int g_hidden;               // a program of the cabinet's that shows nothing (wl_display_hidden)
+static volatile LONG g_showFrame;  // [Display] SHOW_FRAME: the frame's number in the window's title
+static int g_keepActive;           // the game never told it lost the activation (wl_display_keep_active)
 
 static const char *g_aspectNames[WL_ASPECT_COUNT] = {"ORIGINAL", "4:3", "16:9", "4:3_LETTERBOX", "4:3_STRETCH", "16:9_STRETCH", "4:3_CROP", "16:9_CROP"};
 static const char *g_modeNames[WL_MODE_COUNT] = {"WINDOW", "WINDOW_STRETCH", "FULLSCREEN", "FULLSCREEN_STRETCH", "BORDERLESS", "BORDERLESS_STRETCH"};
@@ -135,6 +137,10 @@ static const char *g_defaults =
     "# that shows nothing of DIRECT (a laptop whose screen is on another graphics chip than the game's).\r\n"
     "# Default: DIRECT\r\n"
     "PRESENT = DIRECT\r\n"
+    "\r\n"
+    "# Set to true to show the number of the frame presented in the window's title, beside the frames per\r\n"
+    "# second (4 times a second): a game that stops presenting keeps its last number. Default: false\r\n"
+    "SHOW_FRAME = false\r\n"
     "\r\n"
     "[Input]\r\n"
     "# The settings menu's controls page numbers a joystick's buttons from 1, as Windows and vJoy do (true),\r\n"
@@ -285,6 +291,7 @@ void wl_display_load(void)
     // frame read back and drawn by the processor); GDI for the PCs that show nothing of DIRECT
     wl_settings_get("Display", "PRESENT", "DIRECT", v, sizeof v);
     g_gdiSetting = !_stricmp(v, "GDI");
+    g_showFrame = wl_settings_get_bool("Display", "SHOW_FRAME", 0);
     g_width = wl_settings_get_int("Display", "WIDTH", 0);
     g_height = wl_settings_get_int("Display", "HEIGHT", 0);
     if (g_width <= 0 || g_height <= 0)
@@ -295,9 +302,10 @@ void wl_display_load(void)
     if (g_width)
         snprintf(res, sizeof res, "%dx%d", g_width, g_height);
     wl_log("display: ASPECT_RATIO %s (CROP_POSITION %ld, CROP_BARREL %s, BARREL_CENTER %ld, BARREL_RADIUS %ld), DISPLAY_MODE %s, resolution %s, "
-           "picture %s",
+           "picture %s%s",
            g_aspectNames[g_aspect], g_cropPosition, g_cropBarrel ? "true" : "false", g_barrelCenter, g_barrelRadius, g_modeNames[g_mode], res,
-           g_gdiSetting ? "copied by GDI (PRESENT = GDI)" : "presented by the game (PRESENT = DIRECT)");
+           g_gdiSetting ? "copied by GDI (PRESENT = GDI)" : "presented by the game (PRESENT = DIRECT)",
+           g_showFrame ? ", the frame's number in the title (SHOW_FRAME)" : "");
 }
 
 int wl_display_save(const wchar_t *file)
@@ -312,6 +320,7 @@ int wl_display_save(const wchar_t *file)
     snprintf(n, sizeof n, "%ld", g_barrelRadius);
     ok &= wl_settings_write(file, "Display", "BARREL_RADIUS", n);
     ok &= wl_settings_write(file, "Display", "DISPLAY_MODE", g_modeNames[g_modeChosen]);
+    ok &= wl_settings_write(file, "Display", "SHOW_FRAME", g_showFrame ? "true" : "false");
     snprintf(n, sizeof n, "%d", g_nextW);
     ok &= wl_settings_write(file, "Display", "WIDTH", g_nextW > 0 ? n : "AUTO");
     snprintf(n, sizeof n, "%d", g_nextH);
@@ -378,7 +387,22 @@ void wl_display_set_crop(int position, int barrel, int center, int radius)
     InterlockedExchange(&g_repaint, 1);
 }
 
+int wl_display_show_frame(void)
+{
+    return g_showFrame != 0;
+}
+
+void wl_display_set_show_frame(int on)
+{
+    InterlockedExchange(&g_showFrame, on != 0);
+}
+
 static int g_internalSupported;
+
+void wl_display_keep_active(void)
+{
+    g_keepActive = 1;
+}
 
 void wl_display_set_internal_supported(int supported)
 {
@@ -884,6 +908,16 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     LRESULT result;
     log_window_event(h, msg, wp, lp);
+    // A game that pauses when its window loses the activation (Sega Rally 3: its threads stopped, a
+    // race's loading or the race itself frozen while another program's window is in front, until the
+    // game's is clicked): a cabinet's game runs on, the loss not passed on
+    if (msg == WM_ACTIVATEAPP && !wp && g_keepActive)
+    {
+        static volatile LONG logged;
+        if (InterlockedIncrement(&logged) <= 5)
+            wl_log("display: WM_ACTIVATEAPP (inactive) not passed on: the game runs on");
+        return 0;
+    }
     if (msg == g_focusMsg && g_focusMsg)
     {
         take_focus(h);
@@ -1115,13 +1149,16 @@ void wl_display_gl_window(HWND wnd, int width, int height)
 // The game's name between brackets, the frames per second and the build in the window's title, once
 // a second: "<the game's title> [segarally3] - 59.9 fps - windowsloader 0.1.0-20261025-njz3 FFB
 // Edition" (the brackets let BackForceFeeder find the game). Timed by the performance counter (ours,
-// not the game's that the pause stops): GetTickCount's 16 ms steps would make the tenth a guess
+// not the game's that the pause stops): GetTickCount's 16 ms steps would make the tenth a guess.
+// [Display] SHOW_FRAME: the number of the frame presented too ("frame 1234", the agent's count, from
+// the start), the title then written 4 times a second: a game that stops presenting keeps its last one
 static void title_fps(HWND wnd)
 {
     static wchar_t title[128];
     static int got;
     static unsigned frames;
-    static LONGLONG since, freq;
+    static double fps = -1;
+    static LONGLONG since, written, freq;
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
     if (!freq)
@@ -1132,10 +1169,18 @@ static void title_fps(HWND wnd)
     }
     frames++;
     if (!since)
-        since = now.QuadPart;
+        since = written = now.QuadPart;
     double seconds = (double)(now.QuadPart - since) / (double)freq;
-    if (seconds < 1)
+    int showFrame = g_showFrame != 0;
+    if (seconds >= 1)
+    {
+        fps = frames / seconds;
+        frames = 0;
+        since = now.QuadPart;
+    }
+    else if (!showFrame || fps < 0 || (double)(now.QuadPart - written) / (double)freq < 0.25)
         return;
+    written = now.QuadPart;
     if (!got)
     {
         got = 1;
@@ -1145,12 +1190,12 @@ static void title_fps(HWND wnd)
     int n = swprintf(text, 320, L"%s", title);
     if (strcmp(wl_game_name(), "unknown"))
         n += swprintf(text + n, 320 - n, L"%s[%S]", n ? L" " : L"", wl_game_name());
-    swprintf(text + n, 320 - n, L"%s%.1f fps - windowsloader %S %S", n ? L" - " : L"", frames / seconds, WL_BUILD_VERSION, WL_EDITION);
+    if (showFrame)
+        n += swprintf(text + n, 320 - n, L"%sframe %u", n ? L" - " : L"", wl_d3d9_frames());
+    swprintf(text + n, 320 - n, L"%s%.1f fps - windowsloader %S %S", n ? L" - " : L"", fps, WL_BUILD_VERSION, WL_EDITION);
     // The window's own thread may be another one: never wait long for it
     DWORD_PTR result;
     SendMessageTimeoutW(wnd, WM_SETTEXT, 0, (LPARAM)text, SMTO_ABORTIFHUNG, 50, &result);
-    frames = 0;
-    since = now.QuadPart;
 }
 
 void wl_display_title(HWND wnd)

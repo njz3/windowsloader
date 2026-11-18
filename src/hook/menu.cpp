@@ -1223,6 +1223,12 @@ static void page_display(void)
     ImGui::TextDisabled("%s", wl_tr("Plein écran : l'écran passe à la taille de l'image du jeu. Plein écran fenêtré : une fenêtre sans "
                                     "bordure couvre l'écran, à la résolution du bureau. F11 ou Alt+Entrée : fenêtre / plein écran."));
     ImGui::PopTextWrapPos();
+    bool showFrame = wl_display_show_frame() != 0;
+    if (ImGui::Checkbox(wl_tr("Numéro de l'image dans la barre de titre"), &showFrame))
+        wl_display_set_show_frame(showFrame);
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("%s", wl_tr("À côté des images par seconde : un jeu bloqué n'affiche plus d'images, son numéro ne change plus."));
+    ImGui::PopTextWrapPos();
     ImGui::Spacing();
 
     int w, h, sw, sh, current = -1;

@@ -85,12 +85,20 @@ void wl_display_set(int aspect, int mode); // applied at the next frame, not sav
 void wl_display_crop(int *position, int *barrel, int *center, int *radius);
 void wl_display_set_crop(int position, int barrel, int center, int radius);
 
+// SHOW_FRAME: the number of the frame presented in the window's title (read when the title is written)
+int wl_display_show_frame(void);
+void wl_display_set_show_frame(int on);
+
 // WIDTH x HEIGHT, 0 x 0 for AUTO: the one the game started with, and the one to save (used at the
 // next start)
 void wl_display_internal(int *width, int *height);
 void wl_display_internal_next(int *width, int *height);
 void wl_display_set_internal(int width, int height);
 void wl_display_set_internal_supported(int supported); // by the game's module
+
+// By the game's module: the game's window never told it lost the activation (WM_ACTIVATEAPP with
+// FALSE not passed on), for a game that pauses then (Sega Rally 3)
+void wl_display_keep_active(void);
 int wl_display_internal_supported(void);
 
 // From the Direct3D 9 hooks

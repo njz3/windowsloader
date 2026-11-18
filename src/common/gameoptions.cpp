@@ -196,6 +196,11 @@ static const WlGameOption g_segarally3Options[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, 4, "0", 1, NULL},
+    {"REVO_DIR", WL_N("Dossier de Sega Rally Revo"),
+     WL_N("Le dossier de Sega Rally Revo (PC) complet, avec Main_release\\tracks : ses circuits s'ajoutent à la course rapide, choisis par "
+          "environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. "
+          "Pas en link."),
+     WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL},
 };
 
 // stormracer.cpp's

@@ -12,49 +12,51 @@ its hardware ([MinHook](https://github.com/TsudaKageyu/minhook)).
 The games it plays, one line per version told apart (the picker's table, `src/launcher/gamelist.cpp`;
 `windowsloader.exe --list-games` prints it with each program's CRC-32; game by game:
 [BILAN.md](BILAN.md)). Version "—": the copies do not tell it, the one played is the Racecab
-cabinets'. Status "plays": checked in agent mode; "with reservations": something is left
+cabinets'. CRC32: that of the program the Racecab cabinets launch, the one known to play (named
+when the game has several); "—": not on the cabinets. For information: windowsloader does not
+check it. Status "plays": checked in agent mode; "with reservations": something is left
 (BILAN.md); "in progress": does not play yet. Force feedback and link: "partly" when not all of it
 is checked. Another version of a game whose versions are told apart is listed by the picker as
 "version not supported".
 
-| Game | Version | Platform | Program | Status | Force feedback | Link |
-|---|---|---|---|---|---|---|
-| Sega Rally 3 | — | Sega Europa-R, 2008 | `Rally.exe` | plays | yes | yes |
-| Daytona Championship USA | 171221 | Sega (PC), 2017 | `Daytona.exe` | plays | yes | yes |
-| Daytona Championship USA New Season Edition | 190306 | Sega (PC), 2019 | `Daytona.exe` | plays | yes | yes |
-| Ford Racing Full Blown | — | Sega (PC), 2006 | `fordracing.exe` | plays | yes | yes |
-| Initial D Arcade Stage 6 AA | — | Sega RingEdge, 2011 | `id6_dump_.exe`, `InitialD6_GLW_RE_SBUU.exe` | plays | partly | no |
-| Initial D Arcade Stage 7 AAX | — | Sega RingEdge, 2012 | `InitialD7_GLW_RE_SBYD_dumped_.exe`, `InitialD7_GLW_RE_SBYD.exe` | plays | partly | no |
-| Initial D Arcade Stage 8 Infinity | — | Sega RingEdge, 2014 | `InitialD8_GLW_RE_SBZZ_redumped_.exe`, `InitialD8_GLW_RE_SBZZ_redumped4k_.exe` | plays | partly | no |
-| GRID | 1.1 | Sega Europa-R, 2008 | `GRID.exe` | plays | yes | yes |
-| DiRT Showdown | 1.2 | Sega Amusements (PC), 2015 | `Showdown.exe` | plays | partly | yes |
-| K.O. Drive | — | Sega RingWide, 2013 | `M-DriveR_RingWide.exe`, `M-DriveR_RingWide 1080P.exe`, `M-DriveR_RingWide original.exe` | plays | partly | yes |
-| Sonic & Sega All-Stars Racing | — | Sega RingWide, 2011 | `game.exe` | plays | partly | yes |
-| Sega Racing Classic | — | Sega RingEdge, 2009 | `d1a.exe` | plays | partly | yes |
-| Let's Go Safari | — | Sega RingWide, 2014 | `GameSampR_RingWide.exe` | plays | partly | no |
-| Battle Gear 4 Tuned | 2.8 | Taito Type X+, 2007 | `game.exe`, `game4.exe` | plays | partly | yes |
-| Battle Gear 4 | — | Taito Type X+, 2006 | `game.exe`, `game4.exe` | plays | partly | yes |
-| Chase H.Q. 2 | — | Taito Type X2, 2007 | `game.exe` | plays | partly | yes |
-| D1GP Arcade | — | Taito Type X2, 2009 | `game.exe` | plays | partly | yes |
-| Valve Limit R | — | Taito Type X, 2005 | `launcher.exe` | plays | partly | yes |
-| Wacky Races | — | Taito Type X2 | `launcher.exe` | plays, with reservations | partly | yes |
-| GTI Club: Supermini Festa! | — | Konami PC, 2008 | `gti3.exe`, `gti3japkey.exe` | plays | partly | yes |
-| Wasteland Racers 2071 | 1.6 | Trio Tech PC, 2006 | `Arcade.exe` | plays | yes | yes |
-| Mario Kart Arcade GP DX 1.18 | 1.18 | Namco System ES3 | `MK_AGP3_FINAL.exe` | plays | partly | yes |
-| Mario Kart Arcade GP DX 1.05 | 1.05 | Namco System ES3 | `MK_AGP3_FINAL.exe` | plays, with reservations | partly | partly |
-| Mario Kart Arcade GP DX 1.06.35 | 1.06.35 | Namco System ES3 | `MK_AGP3_FINAL.exe` | plays, with reservations | partly | partly |
-| Mario Kart Arcade GP DX 1.06 (USA) | 1.06 | Namco System ES3, 2016 | `MK_AGP3_FINAL.exe` | plays, with reservations | partly | partly |
-| Mario Kart Arcade GP DX 1.10 | 1.10 | Namco System ES3 | `MK_AGP3_FINAL.exe` | plays | partly | yes |
-| Crazy Ride | 1.9.0 | UNIS PC (64 bits) | `CrazyTaxiGame-Win64-Shipping.exe` | plays | partly | yes |
-| Storm Racer G | — | Sega (PC) | `racing.exe` | plays, with reservations | partly | yes |
-| Storm Rider | 1.2.6 | Wahlap (PC), 2013 | `motobike.exe` | in progress | no | yes |
-| Initial D Arcade Stage Zero Ver.1.31 | 1.31 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | plays, with reservations | yes | no |
-| Initial D Arcade Stage Zero Ver.2 | 2.30 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | plays, with reservations | yes | no |
-| Frenzy Express | — | Uniana (PC), 2001 | `xwin.exe` | plays | yes | no |
-| Sega World Drivers Championship | — | Sega ALLS (64 bits) | `Todoroki-Win64-Shipping.exe` | plays, with reservations | partly | no |
-| Wangan Midnight Maximum Tune 6 | — | Namco System ES3X (64 bits), 2018 | `wmn6r.exe` | plays, with reservations | yes | yes |
-| Wangan Midnight Maximum Tune 5 DX+ | — | Namco System ES3X (64 bits), 2016 | `wmn5r.exe` | plays, with reservations | yes | yes |
-| Wangan Midnight Maximum Tune 5 | — | Namco System ES3X (64 bits), 2014 | `wmn5r.exe` | plays, with reservations | yes | yes |
+| Game | Version | Platform | Program | CRC32 | Status | Force feedback | Link |
+|---|---|---|---|---|---|---|---|
+| Sega Rally 3 | — | Sega Europa-R, 2008 | `Rally.exe` | `9228B72E` | plays | yes | yes |
+| Daytona Championship USA | 171221 | Sega (PC), 2017 | `Daytona.exe` | `08823BEF` | plays | yes | yes |
+| Daytona Championship USA New Season Edition | 190306 | Sega (PC), 2019 | `Daytona.exe` | `9650CBB4` | plays | yes | yes |
+| Ford Racing Full Blown | — | Sega (PC), 2006 | `fordracing.exe` | `EB788677` | plays | yes | yes |
+| Initial D Arcade Stage 6 AA | — | Sega RingEdge, 2011 | `id6_dump_.exe`, `InitialD6_GLW_RE_SBUU.exe` | `0C422DA1` (`id6_dump_.exe`) | plays | partly | no |
+| Initial D Arcade Stage 7 AAX | — | Sega RingEdge, 2012 | `InitialD7_GLW_RE_SBYD_dumped_.exe`, `InitialD7_GLW_RE_SBYD.exe` | `2B7DF1BC` (`InitialD7_GLW_RE_SBYD_dumped_.exe`) | plays | partly | no |
+| Initial D Arcade Stage 8 Infinity | — | Sega RingEdge, 2014 | `InitialD8_GLW_RE_SBZZ_redumped_.exe`, `InitialD8_GLW_RE_SBZZ_redumped4k_.exe` | `56544E57` (`InitialD8_GLW_RE_SBZZ_redumped_.exe`) | plays | partly | no |
+| GRID | 1.1 | Sega Europa-R, 2008 | `GRID.exe` | `264E2CCF` | plays | yes | yes |
+| DiRT Showdown | 1.2 | Sega Amusements (PC), 2015 | `Showdown.exe` | `879BB2CD` | plays | partly | yes |
+| K.O. Drive | — | Sega RingWide, 2013 | `M-DriveR_RingWide.exe`, `M-DriveR_RingWide 1080P.exe`, `M-DriveR_RingWide original.exe` | `0C2B0515` (`M-DriveR_RingWide.exe`) | plays | partly | yes |
+| Sonic & Sega All-Stars Racing | — | Sega RingWide, 2011 | `game.exe` | `CEDBD852` | plays | partly | yes |
+| Sega Racing Classic | — | Sega RingEdge, 2009 | `d1a.exe` | `FC87F309` | plays | partly | yes |
+| Let's Go Safari | — | Sega RingWide, 2014 | `GameSampR_RingWide.exe` | `02E0DDB6` | plays | partly | no |
+| Battle Gear 4 Tuned | 2.8 | Taito Type X+, 2007 | `game.exe`, `game4.exe` | `D379A14B` (`game.exe`); English translation BG4Tuned_Translation_v5: `74F40C60` (`game.exe`, km/h) | plays | partly | yes |
+| Battle Gear 4 | — | Taito Type X+, 2006 | `game.exe`, `game4.exe` | `282C6BB7` (`game.exe`) | plays | partly | yes |
+| Chase H.Q. 2 | — | Taito Type X2, 2007 | `game.exe` | `BE64D00F` | plays | partly | yes |
+| D1GP Arcade | — | Taito Type X2, 2009 | `game.exe` | `55A0BD9D` | plays | partly | yes |
+| Valve Limit R | — | Taito Type X, 2005 | `launcher.exe` | `919C4D69` | plays | partly | yes |
+| Wacky Races | — | Taito Type X2 | `launcher.exe` | `52FD5DFD` | plays, with reservations | partly | yes |
+| GTI Club: Supermini Festa! | — | Konami PC, 2008 | `gti3.exe`, `gti3japkey.exe` | `C0F782AF` (`gti3.exe`) | plays | partly | yes |
+| Wasteland Racers 2071 | 1.6 | Trio Tech PC, 2006 | `Arcade.exe` | `A6CD1034` | plays | yes | yes |
+| Mario Kart Arcade GP DX 1.18 | 1.18 | Namco System ES3 | `MK_AGP3_FINAL.exe` | `280295A6` | plays | partly | yes |
+| Mario Kart Arcade GP DX 1.05 | 1.05 | Namco System ES3 | `MK_AGP3_FINAL.exe` | — | plays, with reservations | partly | partly |
+| Mario Kart Arcade GP DX 1.06.35 | 1.06.35 | Namco System ES3 | `MK_AGP3_FINAL.exe` | `81D94584` | plays, with reservations | partly | partly |
+| Mario Kart Arcade GP DX 1.06 (USA) | 1.06 | Namco System ES3, 2016 | `MK_AGP3_FINAL.exe` | — | plays, with reservations | partly | partly |
+| Mario Kart Arcade GP DX 1.10 | 1.10 | Namco System ES3 | `MK_AGP3_FINAL.exe` | `4D386327` | plays | partly | yes |
+| Crazy Ride | 1.9.0 | UNIS PC (64 bits) | `CrazyTaxiGame-Win64-Shipping.exe` | `0C97E693` | plays | partly | yes |
+| Storm Racer G | — | Sega (PC) | `racing.exe` | `E5A27313` | plays, with reservations | partly | yes |
+| Storm Rider | 1.2.6 | Wahlap (PC), 2013 | `motobike.exe` | `ED34CEB0` | in progress | no | yes |
+| Initial D Arcade Stage Zero Ver.1.31 | 1.31 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | `CF32AFCE` | plays, with reservations | yes | no |
+| Initial D Arcade Stage Zero Ver.2 | 2.30 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | `C7F92CFF` | plays, with reservations | yes | no |
+| Frenzy Express | — | Uniana (PC), 2001 | `xwin.exe` | `DBAF1475` | plays | yes | no |
+| Sega World Drivers Championship | — | Sega ALLS (64 bits) | `Todoroki-Win64-Shipping.exe` | `3A971F3C` | plays, with reservations | partly | no |
+| Wangan Midnight Maximum Tune 6 | — | Namco System ES3X (64 bits), 2018 | `wmn6r.exe` | `C4B9C773` | plays, with reservations | yes | yes |
+| Wangan Midnight Maximum Tune 5 DX+ | — | Namco System ES3X (64 bits), 2016 | `wmn5r.exe` | `32E089BC` | plays, with reservations | yes | yes |
+| Wangan Midnight Maximum Tune 5 | — | Namco System ES3X (64 bits), 2014 | `wmn5r.exe` | `51060B63` | plays, with reservations | yes | yes |
 
 On a PC with two GPUs (a laptop), a Direct3D 11 game asking for the default adapter gets the one
 with the most video memory (`WINDOWSLOADER_GPU=default` keeps Windows' choice): a 32-bit game runs
@@ -183,7 +185,9 @@ that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deforme
 `BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `PRESENT` (`DIRECT`, the default since
 28/10/2026: the game presents its own picture; `GDI`: windowsloader reads each frame back and draws it
 into the window, much slower, for a PC that shows nothing of `DIRECT`, such as a laptop whose screen
-is on another graphics chip than the game's), `DISPLAY_MODE` (`WINDOW`,
+is on another graphics chip than the game's), `SHOW_FRAME` (`true`: the number of the frame
+presented in the window's title, beside the frames per second, 4 times a second; a game that stops
+presenting keeps its last number; also on the menu's display page), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`; `FULLSCREEN`, `FULLSCREEN_STRETCH`: the screen switched to its smallest mode holding the game's picture;
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or
@@ -298,6 +302,32 @@ settings); the game shows ALL.Net, Aime and the user database online and plays a
 login screen: Start, Left for はい, Start). `LANGUAGE = ENGLISH` (the default), `JAPANESE` or
 `CHINESE`: the language of amdaemon's own messages (its errors and warnings); the game's texts are
 Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no network battles).
+
+Sega Rally 3 pauses when its window loses the activation (another program's window in front: a
+race's loading or the race itself frozen until its window was clicked): windowsloader does not pass
+that loss on, the game runs on as on a cabinet.
+
+Sega Rally 3 can also race Sega Rally Revo's tracks (the PC game, same engine): `[Game.segarally3]
+REVO_DIR` names the folder of a full Revo (with `Main_release\tracks`), relative to the game's `Rally`
+folder or a full path. The Revo tracks found there (up to 24: tropical, canyon, alpine, lakeside,
+safari, arctic) are added to Quick Race, read from that folder (nothing copied); its track select then
+lists the environments first, then, the environment chosen, its tracks (Sega Rally 3's own first, then
+Revo's). A Revo track's time limits are those of the Sega Rally 3 track of its environment (Desert for
+safari, Alpine for arctic), its audio events too. For `Rally.exe` 9228B72E (the cabinets' editions)
+only; not in a link (each cabinet would vote its own track). The championship keeps its four stages,
+and Revo championships of four stages are added, one per environment with four Revo tracks (two with
+five: A its first four, B its last four; none for Lakeside, with one): after the gearbox, a page lists
+Sega Rally 3's own championship first, then the Revo ones. Their races keep the championship's 22
+places (5 cars on the track, the others met as the player overtakes): a Revo track has none of the
+start points Sega Rally 3's tracks give those 5 cars, which windowsloader then places 150 segments
+apart, as the game does when a track has fewer than five (its own completion writes nothing when it has
+none). The Revo tracks are named after their environment and their route's number (Alpine 6 for
+alpine6; Revo's own names are in its encoded language files), the environment's name in the game's
+language, Arctic and Safari in English; in the race, the environment's name. Their cards are Revo's
+(its frontend track cards, the same file in Sega Rally 3's folder, which the game never loads: loaded
+while Quick Race's track select is shown only, the game's resources holding 16 libraries at most). Sega
+Rally 3's own tracks stay: Tropical, Canyon and Alpine first in their environment's list, Lakeside as
+the championship's last stage (never in Quick Race, as in the game), Desert.
 
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,

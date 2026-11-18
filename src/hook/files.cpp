@@ -216,7 +216,7 @@ static struct
     int prefix; // the text replaced as it is, no separator added (wl_files_redirect_prefix)
     wchar_t keep[MAX_PATH]; // the game's folder, not redirected
     volatile LONG told;
-} g_redirs[8];
+} g_redirs[48]; // Sega Rally 3's Revo tracks: one each (segarally3.cpp)
 static int g_redirCount;
 
 static void own_dir(void);
