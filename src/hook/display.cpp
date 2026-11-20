@@ -26,6 +26,7 @@
 
 #include "agent.h"
 #include "display.h"
+#include "vscreen.h"
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
@@ -277,10 +278,75 @@ static BOOL WINAPI game_GetClientRect(HWND wnd, LPRECT r)
     return oGetClientRect(wnd, r);
 }
 
+// With the virtual screen (vscreen.h), its window's other sizes too (GetWindowRect, GetWindowInfo,
+// GetWindowPlacement), its frame kept: Crazy Ride (Unreal Engine 4) drew its 3D view at 4:3 in the
+// left three quarters of its 16:9 picture when its window, at a small screen's size, was not 16:9
+static int told_window(HWND wnd, int *dw, int *dh)
+{
+    RECT c;
+    if (!wnd || wnd != g_wnd || g_bbW <= 0 || g_bbH <= 0 || !placed() || !wl_vscreen_size(NULL, NULL) || !GetClientRect(wnd, &c))
+        return 0;
+    *dw = g_bbW - c.right;
+    *dh = g_bbH - c.bottom;
+    return 1;
+}
+
+static BOOL(WINAPI *oGetWindowRect)(HWND, LPRECT);
+static BOOL WINAPI game_GetWindowRect(HWND wnd, LPRECT r)
+{
+    BOOL ok = oGetWindowRect(wnd, r);
+    int dw, dh;
+    if (ok && r && told_window(wnd, &dw, &dh))
+    {
+        r->right += dw;
+        r->bottom += dh;
+    }
+    return ok;
+}
+
+static BOOL(WINAPI *oGetWindowInfo)(HWND, PWINDOWINFO);
+static BOOL WINAPI game_GetWindowInfo(HWND wnd, PWINDOWINFO wi)
+{
+    BOOL ok = oGetWindowInfo(wnd, wi);
+    int dw, dh;
+    if (ok && wi && told_window(wnd, &dw, &dh))
+    {
+        wi->rcWindow.right += dw;
+        wi->rcWindow.bottom += dh;
+        wi->rcClient.right += dw;
+        wi->rcClient.bottom += dh;
+    }
+    return ok;
+}
+
+static BOOL(WINAPI *oGetWindowPlacement)(HWND, WINDOWPLACEMENT *);
+static BOOL WINAPI game_GetWindowPlacement(HWND wnd, WINDOWPLACEMENT *wp)
+{
+    BOOL ok = oGetWindowPlacement(wnd, wp);
+    int dw, dh;
+    if (ok && wp && told_window(wnd, &dw, &dh))
+    {
+        wp->rcNormalPosition.right += dw;
+        wp->rcNormalPosition.bottom += dh;
+    }
+    return ok;
+}
+
 void wl_display_load(void)
 {
     if (g_wl.windowed && wl_patch_iat(GetModuleHandleW(NULL), "user32.dll", "GetClientRect", (void *)game_GetClientRect, (void **)&oGetClientRect))
         wl_log("display: the game's GetClientRect gives its window at its picture's size");
+    if (g_wl.windowed && wl_vscreen_size(NULL, NULL))
+    {
+        HMODULE exe = GetModuleHandleW(NULL);
+        int n = wl_patch_iat(exe, "user32.dll", "GetWindowRect", (void *)game_GetWindowRect, (void **)&oGetWindowRect);
+        n += wl_patch_iat(exe, "user32.dll", "GetWindowInfo", (void *)game_GetWindowInfo, (void **)&oGetWindowInfo);
+        n += wl_patch_iat(exe, "user32.dll", "GetWindowPlacement", (void *)game_GetWindowPlacement, (void **)&oGetWindowPlacement);
+        if (n)
+            wl_log("display: the virtual screen: the game's GetWindowRect, GetWindowInfo and GetWindowPlacement give its window at its picture's "
+                   "size (%d of them imported)",
+                   n);
+    }
     // Written with the defaults when missing; else the settings and comments it lacks added
     wl_settings_merge(g_defaults);
     char v[64];
