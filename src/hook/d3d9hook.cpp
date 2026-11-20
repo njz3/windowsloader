@@ -520,6 +520,25 @@ static void after_device(const D3DPRESENT_PARAMETERS *pp, HWND focus, int forced
         wl_display_device(pp->hDeviceWindow ? pp->hDeviceWindow : focus, pp);
 }
 
+// A windowed device of 0x0 takes its window's client area: the one the game asked for when Windows
+// made the window smaller (larger than the screen: Battle Gear 4's 800x600 shrunk to 800x231 on a
+// 1920x240 screen, the game then crashed reading what it had not made for that size)
+static void asked_size(D3DPRESENT_PARAMETERS *pp, HWND focus)
+{
+    if (!pp || !pp->Windowed || (pp->BackBufferWidth && pp->BackBufferHeight))
+        return;
+    HWND wnd = pp->hDeviceWindow ? pp->hDeviceWindow : focus;
+    int w, h;
+    RECT r;
+    if (!wl_window_asked_client(wnd, &w, &h) || !GetClientRect(wnd, &r) || (r.right >= w && r.bottom >= h))
+        return;
+    wl_log("  back buffer at the window's asked client area, %dx%d (Windows made the window smaller: %ldx%ld)", w, h, r.right, r.bottom);
+    if (!pp->BackBufferWidth)
+        pp->BackBufferWidth = (UINT)w;
+    if (!pp->BackBufferHeight)
+        pp->BackBufferHeight = (UINT)h;
+}
+
 static HRESULT(STDMETHODCALLTYPE *oReset)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *);
 static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp)
 {
@@ -551,6 +570,11 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     wl_menu_device_reset();
     gdi_release(); // its render target, in the default pool, would make the Reset fail
     int forced = make_windowed(pp);
+    {
+        D3DDEVICE_CREATION_PARAMETERS cp = {};
+        dev->GetCreationParameters(&cp);
+        asked_size(pp, cp.hFocusWindow);
+    }
     if (forced)
         wl_log("  kept in a window");
     wl_display_prepare(pp);
@@ -901,6 +925,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");
+    asked_size(pp, focus);
     wl_display_prepare(pp);
     HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
     if (SUCCEEDED(hr) && out)
@@ -947,6 +972,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         mode = NULL; // a windowed device takes no display mode
         wl_log("  kept in a window");
     }
+    asked_size(pp, focus);
     wl_display_prepare(pp);
     HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
     if (SUCCEEDED(hr) && out)

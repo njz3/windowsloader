@@ -201,6 +201,10 @@ void wl_system_hooks(void);
 void wl_game_exe_hooks(void); // a copy of the game's program runs: shown as the one in the game's folder
 void wl_netenv_hooks(void);
 void wl_window_hooks(void);
+// The client area a game's top window was asked at (CreateWindowEx's size less its frame): Windows
+// shrinks a window larger than the screen (Battle Gear 4's 806x649 on a 1920x240 screen: 800x231),
+// a Direct3D 9 back buffer of 0x0 then that small. 1 and the size when known
+int wl_window_asked_client(HWND wnd, int *width, int *height);
 void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
 // A game's pixel shader (its instructions, comments left out, the end token included) made from

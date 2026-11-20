@@ -43,6 +43,41 @@ static DWORD fix_ex_style(DWORD ex, HWND parent)
     return ex;
 }
 
+// The game's top windows and the client area each was asked at
+static struct
+{
+    HWND wnd;
+    int w, h;
+} g_asked[8];
+static int g_askedNext;
+
+static void remember_asked(HWND wnd, HWND parent, DWORD style, DWORD ex, int w, int h, HMENU menu)
+{
+    if (!wnd || parent || (style & WS_CHILD) || w <= 0 || h <= 0 || w == CW_USEDEFAULT || h == CW_USEDEFAULT)
+        return;
+    RECT frame = {0, 0, 0, 0};
+    AdjustWindowRectEx(&frame, style, menu != NULL, ex);
+    int cw = w - (frame.right - frame.left), ch = h - (frame.bottom - frame.top);
+    if (cw <= 0 || ch <= 0)
+        return;
+    int i = g_askedNext++ % 8;
+    g_asked[i].wnd = wnd;
+    g_asked[i].w = cw;
+    g_asked[i].h = ch;
+}
+
+int wl_window_asked_client(HWND wnd, int *width, int *height)
+{
+    for (int i = 0; wnd && i < 8; i++)
+        if (g_asked[i].wnd == wnd)
+        {
+            *width = g_asked[i].w;
+            *height = g_asked[i].h;
+            return 1;
+        }
+    return 0;
+}
+
 static void log_window(const char *cls, const char *title, DWORD ex, DWORD style, int x, int y, int w, int h, HWND parent, HWND r, const void *caller)
 {
     char where[128];
@@ -64,6 +99,7 @@ static HWND WINAPI hCreateWindowExA(DWORD ex, LPCSTR cls, LPCSTR title, DWORD st
     char c[128];
     class_name(cls, c, sizeof c);
     log_window(c, title ? title : "", ex, style, x, y, w, h, parent, r, WL_CALLER);
+    remember_asked(r, parent, style, ex2, w, h, menu);
     if (ex2 != ex)
         wl_log("  always-on-top removed (windowed mode)");
     SetLastError(err);
@@ -84,6 +120,7 @@ static HWND WINAPI hCreateWindowExW(DWORD ex, LPCWSTR cls, LPCWSTR title, DWORD 
     char c[128], t[256];
     class_nameW(cls, c, sizeof c);
     log_window(c, title ? wl_u8(title, t, sizeof t) : "", ex, style, x, y, w, h, parent, r, WL_CALLER);
+    remember_asked(r, parent, style, ex2, w, h, menu);
     if (ex2 != ex)
         wl_log("  always-on-top removed (windowed mode)");
     SetLastError(err);
