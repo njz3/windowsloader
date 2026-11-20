@@ -315,16 +315,18 @@ Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no netwo
 A game that refuses a screen smaller than it needs (a cabinet's CRT at 512x384 or 1024x384: Crazy Ride
 and Sega World Drivers Championship "The current resolution is too low to run this game", Sonic & Sega
 All-Stars Racing "Résolution de jeu non supportée") is told a larger one: `VIRTUAL_DISPLAY` in its
-`[Game.crazyride]`, `[Game.swdc]`, `[Game.ssasr]` section, `AUTO` by default (its minimum, 1280x720, only
-when the real screen is smaller), a size (`1280x720`, always) or `OFF`. The game then sees that screen
+`[Game.crazyride]`, `[Game.swdc]`, `[Game.ssasr]` section, `AUTO` by default (its minimum, 1280x720 or
+1920x1080 for Crazy Ride, only when the real screen is smaller; on a larger screen that lacks it, that
+size only added to the modes' lists), a size (`1280x720`, always) or `OFF`. The game then sees that screen
 wherever it asks (GetSystemMetrics, EnumDisplaySettings(Ex) and their modes' list, GetMonitorInfo,
 GetDeviceCaps, Direct3D 9's adapter modes, DXGI's output and its modes) and draws at that size; its
 picture is put on the real screen by `DISPLAY_MODE` and `ASPECT_RATIO` (on a super resolution CRT,
 `BORDERLESS_STRETCH` with `ASPECT_RATIO = 4:3`). windowsloader's own calls and Windows' still get the
 real screen. Crazy Ride and SWDC (Unreal Engine 4) refuse a screen under 640x480 and draw at the screen's
-size: told 1280x720, their 16:9 picture. Sonic & Sega All-Stars Racing looks for its `Settings.ini`
-size (1280x720) at 60 Hz among Direct3D 9's modes: the mode is added at 60 Hz and at the screen's rate.
-Not yet tried on those three games.
+size: SWDC told 1280x720, its 16:9 picture; Crazy Ride told 1920x1080 (under that size it draws its 3D
+view at 4:3 in the left three quarters of its picture). Sonic & Sega All-Stars Racing looks for its
+`Settings.ini` size (1280x720) at 60 Hz among Direct3D 9's modes: the mode is added at 60 Hz and at the
+screen's rate. Tried on the cabinets at 512x384, 640x480, 1024x384, 1280x240 and 1920x1080.
 A size larger than the real screen is taken too (`VIRTUAL_DISPLAY = 2560x1440` on a 1920x1080 screen,
 or 1920x1080 on a CRT): a game that draws at the screen's size then draws at that one, its picture
 reduced on the real screen (a sharper picture, at the cost of the graphics card); written by hand in

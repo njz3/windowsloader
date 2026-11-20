@@ -571,8 +571,10 @@ int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
     wl_game_use_options("crazyride");
     // Unreal Engine 4's launch refuses a screen under 640x480 (GetSystemMetrics, +0x3b45ef: "The
     // current resolution is too low to run this game"); in its full screen window it draws at the
-    // screen's size (640x480: its 16:9 picture cut on the right): told 1280x720 (vscreen.h)
-    wl_vscreen_minimum(1280, 720);
+    // screen's size (640x480: its 16:9 picture cut on the right). Under 1920x1080 it draws its 3D view
+    // at 4:3 in the left three quarters of its 16:9 picture (its interface across the whole of it):
+    // told 1920x1080 (vscreen.h; checked on a cabinet at 1024x384, the view whole at 61 frames/s)
+    wl_vscreen_minimum(1920, 1080);
     wl_game_on_settings(settings);
     return 1;
 }
