@@ -166,7 +166,19 @@ int wl_write_dir_file(const wchar_t *root, const wchar_t *name, wchar_t *path, s
     swprintf(there, MAX_PATH, L"%s\\%s", root, name);
     int older = 0;
     WIN32_FILE_ATTRIBUTE_DATA first, copy;
-    if (GetFileAttributesW(there) == INVALID_FILE_ATTRIBUTES && path[0] && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
+    // An empty copy (left by a script, a disk full): it holds nothing, the first file copied over it,
+    // not its defaults read in place of the first file's settings
+    int empty = path[0] && _wcsicmp(path, there) && GetFileAttributesExW(there, GetFileExInfoStandard, &copy) && !copy.nFileSizeLow &&
+                !copy.nFileSizeHigh && GetFileAttributesExW(path, GetFileExInfoStandard, &first) && (first.nFileSizeLow || first.nFileSizeHigh);
+    if (empty)
+    {
+        if (!CopyFileW(path, there, FALSE))
+        {
+            g_error = GetLastError();
+            return -1;
+        }
+    }
+    else if (GetFileAttributesW(there) == INVALID_FILE_ATTRIBUTES && path[0] && GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES)
     {
         if (!CopyFileW(path, there, TRUE))
         {

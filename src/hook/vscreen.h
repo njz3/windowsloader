@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include <windows.h>
+
 // The virtual screen ([Game.<name>] VIRTUAL_DISPLAY = AUTO | OFF | <width>x<height>): a game that
 // refuses a screen smaller than it needs (a cabinet's CRT at 512x384 or 1024x384: "The current
 // resolution is too low to run this game") is told the screen is that size, everywhere it asks
@@ -38,6 +40,15 @@ int wl_vscreen_size(int *width, int *height);
 
 // From system.cpp's GetSystemMetrics hook: 1 and the value told to that caller (the screen's size)
 int wl_vscreen_metric(int index, const void *caller, int *value);
+
+// From system.cpp's SystemParametersInfo hook: SPI_GETWORKAREA's rectangle, the virtual screen's
+void wl_vscreen_work_area(const void *caller, RECT *r);
+
+// A module that hooks EnumDisplaySettingsA itself (Codemasters'): told while it finds its game, then
+// its hook asks here first (1: answered, its result in ok), real its original
+void wl_vscreen_hooked_elsewhere_a(void);
+int wl_vscreen_display_settings_a(LPCSTR device, DWORD mode, DEVMODEA *dm, const void *caller, BOOL(WINAPI *real)(LPCSTR, DWORD, DEVMODEA *),
+                                  BOOL *ok);
 
 // From the Direct3D hooks: an IDirect3D9 and a DXGI factory the game made (their modes and
 // outputs then answer the virtual screen)

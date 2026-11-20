@@ -1069,6 +1069,8 @@ static BOOL WINAPI hSystemParametersInfoA(UINT action, UINT param, PVOID pv, UIN
     wl_busy_enter();
     BOOL ok = oSystemParametersInfoA(action, param, pv, winIni);
     wl_busy_leave();
+    if (ok && action == SPI_GETWORKAREA && pv)
+        wl_vscreen_work_area(WL_CALLER, (RECT *)pv); // the virtual screen's (vscreen.h)
     wl_log("SystemParametersInfo(0x%04x, %u, flags 0x%x) -> %s [%s]", action, param, winIni, ok ? "ok" : "failed", where_of(WL_CALLER, where, sizeof where));
     return ok;
 }
@@ -1087,6 +1089,8 @@ static BOOL WINAPI hSystemParametersInfoW(UINT action, UINT param, PVOID pv, UIN
     wl_busy_enter();
     BOOL ok = oSystemParametersInfoW(action, param, pv, winIni);
     wl_busy_leave();
+    if (ok && action == SPI_GETWORKAREA && pv)
+        wl_vscreen_work_area(WL_CALLER, (RECT *)pv); // the virtual screen's (vscreen.h)
     wl_log("SystemParametersInfo(0x%04x, %u, flags 0x%x) -> %s [%s]", action, param, winIni, ok ? "ok" : "failed", where_of(WL_CALLER, where, sizeof where));
     return ok;
 }

@@ -113,6 +113,10 @@ const RECT *wl_display_source(void);                         // and the part of 
 // with the black bars painted around it; then the game's window set for the mode once the swap
 // chain exists. wl_display_dest is still called each Present (placing, F11, Alt+Enter).
 HWND wl_display_child(HWND parent);
+// 1 once a DXGI swap chain shows the game's picture (wl_display_child's window made): a Direct3D 9
+// device the game makes afterwards is a helper of its (Mario Kart DX's Direct3D 9Ex, its window's
+// size, 0x0), not its picture
+int wl_display_dxgi_shown(void);
 void wl_display_window(HWND wnd, int width, int height);
 // A program of the cabinet's that shows nothing but has a window (Initial D Zero's server box): its
 // window hidden once its swap chain exists, left alone after (no child, no copy, no mode)

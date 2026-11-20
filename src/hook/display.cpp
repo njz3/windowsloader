@@ -452,6 +452,11 @@ void wl_display_set_internal(int width, int height)
 
 // Shape of the frame the picture is shown in
 // The picture is placed by windowsloader (else it fills the window whatever the layout)
+int wl_display_dxgi_shown(void)
+{
+    return g_child != NULL;
+}
+
 static int placed(void)
 {
     return g_copy || g_child || g_gdi;

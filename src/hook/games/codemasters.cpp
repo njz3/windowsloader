@@ -55,6 +55,7 @@
 #include "log.h"
 #include "segashell.h"
 #include "vdinput.h"
+#include "vscreen.h"
 
 enum
 {
@@ -272,7 +273,10 @@ static WlSegaShell g_shell = {
 static BOOL(WINAPI *oEnumDisplaySettingsA)(LPCSTR, DWORD, DEVMODEA *);
 static BOOL WINAPI hEnumDisplaySettingsA(LPCSTR device, DWORD mode, DEVMODEA *dm)
 {
-    BOOL ok = oEnumDisplaySettingsA(device, mode, dm);
+    BOOL ok;
+    if (wl_vscreen_display_settings_a(device, mode, dm, WL_CALLER, oEnumDisplaySettingsA, &ok)) // VIRTUAL_DISPLAY's (vscreen.h)
+        return ok;
+    ok = oEnumDisplaySettingsA(device, mode, dm);
     if (!ok || wl_busy() || mode != ENUM_CURRENT_SETTINGS || !dm)
         return ok;
     int w, h;
@@ -353,6 +357,7 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
     wl_files_set_ini_override(ini_override);
     wl_display_set_internal_supported(1);
     wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+    wl_vscreen_hooked_elsewhere_a(); // its hook answers VIRTUAL_DISPLAY too
 
     if (showdown)
     {

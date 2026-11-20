@@ -165,6 +165,31 @@ static BOOL realW(DWORD mode, DEVMODEW *dm)
     return oEnumDisplaySettingsW(NULL, mode, dm);
 }
 
+// From system.cpp's SystemParametersInfo hook: SPI_GETWORKAREA, the whole virtual screen (Unreal
+// Engine 4's display metrics read it with the screen's size)
+void wl_vscreen_work_area(const void *caller, RECT *r)
+{
+    if (game_asks(caller))
+        SetRect(r, 0, 0, g_w, g_h);
+}
+
+// A module that hooks EnumDisplaySettingsA itself (one hook per function: Codemasters' games) asks
+// here first, with its original; vscreen's own hook on it then not made
+static int g_claimedA;
+
+void wl_vscreen_hooked_elsewhere_a(void)
+{
+    g_claimedA = 1;
+}
+
+int wl_vscreen_display_settings_a(LPCSTR device, DWORD mode, DEVMODEA *dm, const void *caller, BOOL(WINAPI *real)(LPCSTR, DWORD, DEVMODEA *),
+                                  BOOL *ok)
+{
+    if (!oEnumDisplaySettingsA)
+        oEnumDisplaySettingsA = real;
+    return dm && game_lists(caller) && primary_device(device, NULL) && mode_answer(mode, dm, realA, ok);
+}
+
 static BOOL WINAPI hEnumDisplaySettingsExA(LPCSTR device, DWORD mode, DEVMODEA *dm, DWORD flags)
 {
     BOOL ok;
@@ -242,6 +267,18 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"gdi32.dll", GetDeviceCaps),
 };
 
+// Its hooks, but those another module made already (wl_vscreen_hooked_elsewhere_a)
+static WlHook g_active[sizeof g_hooks / sizeof g_hooks[0]];
+
+static void add_hooks(void)
+{
+    int n = 0;
+    for (int i = 0; i < (int)(sizeof g_hooks / sizeof g_hooks[0]); i++)
+        if (!(g_claimedA && !strcmp(g_hooks[i].name, "EnumDisplaySettingsA")))
+            g_active[n++] = g_hooks[i];
+    wl_hooks_add(g_active, n);
+}
+
 void wl_vscreen_settings(const char *value)
 {
     static int done; // once: the settings may be read again (the menu's saving)
@@ -270,7 +307,7 @@ void wl_vscreen_settings(const char *value)
         {
             InterlockedExchange(&g_modeW, g_minW);
             InterlockedExchange(&g_modeH, g_minH);
-            wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+            add_hooks();
             wl_log("vscreen: VIRTUAL_DISPLAY %s: the real screen, %dx%d; the game's %dx%d added to the modes' lists when they lack it", value,
                    g_realW, g_realH, g_minW, g_minH);
             return;
@@ -282,7 +319,7 @@ void wl_vscreen_settings(const char *value)
     InterlockedExchange(&g_h, h);
     InterlockedExchange(&g_modeW, w);
     InterlockedExchange(&g_modeH, h);
-    wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+    add_hooks();
     wl_log("vscreen: VIRTUAL_DISPLAY %s: the game is told a %dx%d screen (it is %dx%d; the game's minimum %dx%d); its picture put on the "
            "real one by [Display]",
            value, w, h, g_realW, g_realH, g_minW, g_minH);

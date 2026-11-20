@@ -886,6 +886,15 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
         return hr;
     }
     log_pp("  asked", pp);
+    if (wl_display_dxgi_shown())
+    {
+        // A helper device of a game that shows its picture by DXGI (Mario Kart DX's Direct3D 9Ex at
+        // its window's size): its picture's size and place left as the swap chain set them
+        int forced = make_windowed(pp);
+        HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
+        wl_log("CreateDevice -> 0x%08lx, a helper of the game's (its picture is the DXGI swap chain's): left alone%s", hr, forced ? ", kept in a window" : "");
+        return hr;
+    }
     D3DADAPTER_IDENTIFIER9 id;
     if (SUCCEEDED(d3d->GetAdapterIdentifier(adapter, 0, &id)))
         wl_log("  on %s", id.Description);
@@ -918,6 +927,17 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         return hr;
     }
     log_pp("  asked", pp);
+    if (wl_display_dxgi_shown())
+    {
+        // A helper device of a game that shows its picture by DXGI (Mario Kart DX's Direct3D 9Ex at
+        // its window's size): its picture's size and place left as the swap chain set them
+        int forced = make_windowed(pp);
+        if (forced)
+            mode = NULL;
+        HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
+        wl_log("CreateDeviceEx -> 0x%08lx, a helper of the game's (its picture is the DXGI swap chain's): left alone%s", hr, forced ? ", kept in a window" : "");
+        return hr;
+    }
     D3DADAPTER_IDENTIFIER9 id;
     if (SUCCEEDED(d3d->GetAdapterIdentifier(adapter, 0, &id)))
         wl_log("  on %s", id.Description);
