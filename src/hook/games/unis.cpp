@@ -42,6 +42,7 @@
 #include "lang.h"
 #include "link.h"
 #include "log.h"
+#include "vscreen.h"
 #include "outputs.h"
 
 enum
@@ -568,6 +569,10 @@ int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
     if (wl_patch_iat(GetModuleHandleW(NULL), "KERNEL32.dll", "GetProcAddress", (void *)game_GetProcAddress, (void **)&oGetProcAddress))
         wl_log("game: UsbPluginsDll_R.dll's board, wheel, coins and key functions given by windowsloader");
     wl_game_use_options("crazyride");
+    // Unreal Engine 4's launch refuses a screen under 640x480 (GetSystemMetrics, +0x3b45ef: "The
+    // current resolution is too low to run this game"); in its full screen window it draws at the
+    // screen's size (640x480: its 16:9 picture cut on the right): told 1280x720 (vscreen.h)
+    wl_vscreen_minimum(1280, 720);
     wl_game_on_settings(settings);
     return 1;
 }

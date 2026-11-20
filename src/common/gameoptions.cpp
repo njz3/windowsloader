@@ -42,6 +42,14 @@ const WlOptionChoice g_wlCameraChoicesBase[] = {
         "CAMERA_PICTURE", g_wlCameraPictureLabel, g_wlCameraPictureHelp, WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL                              \
     }
 
+// The screen told to a game that refuses a small one (src/hook/vscreen.cpp, vscreen.h)
+static const char g_vscreenLabel[] = WL_N("Écran annoncé au jeu");
+static const char g_vscreenHelp[] =
+    WL_N("La taille d'écran que le jeu croit avoir, pour un écran plus petit qu'il ne l'accepte (un CRT en 512x384 ou 1024x384 : « The current "
+         "resolution is too low »). AUTO : sa taille minimale, seulement quand l'écran est plus petit ; une taille (1280x720) : toujours "
+         "elle ; OFF : l'écran réel. Son image est mise ensuite sur l'écran réel selon les réglages d'affichage.");
+#define VSCREEN_OPTION {"VIRTUAL_DISPLAY", g_vscreenLabel, g_vscreenHelp, WL_OPTION_TEXT, NULL, 0, 0, "AUTO", 1, NULL}
+
 // alls.cpp's
 static const WlOptionChoice g_allsLanguages[] = {
     {"ENGLISH", WL_N("English")},
@@ -62,6 +70,7 @@ static const WlGameOption g_swdcOptions[] = {
     {"LANGUAGE", WL_N("Langue des messages d'amdaemon"),
      WL_N("Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."),
      WL_OPTION_CHOICE, g_allsLanguages, 0, 0, "ENGLISH", 1, NULL},
+    VSCREEN_OPTION,
 };
 static const WlGameOption g_idzOptions[] = {
     {"LANGUAGE", WL_N("Langue des messages d'amdaemon"), WL_N("Les écrans d'erreur et d'avertissement de la plateforme."), WL_OPTION_CHOICE,
@@ -164,6 +173,7 @@ static const WlGameOption g_ssasrOptions[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."),
      WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+    VSCREEN_OPTION,
 };
 static const WlGameOption g_srcOptions[] = {
     {"DRIVE_DIP", WL_N("Puissance de la carte (interrupteurs)"),
@@ -199,7 +209,7 @@ static const WlGameOption g_segarally3Options[] = {
     {"REVO_DIR", WL_N("Dossier de Sega Rally Revo"),
      WL_N("Le dossier de Sega Rally Revo (PC) complet, avec Main_release\\tracks : ses circuits s'ajoutent à la course rapide, choisis par "
           "environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. "
-          "Pas en link."),
+          "En link, toutes les bornes doivent avoir les mêmes circuits."),
      WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL},
 };
 
@@ -217,6 +227,7 @@ static const WlGameOption g_crazyrideOptions[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+    VSCREEN_OPTION,
 };
 
 // wahlap.cpp's

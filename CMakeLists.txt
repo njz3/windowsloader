@@ -122,6 +122,7 @@ add_library(wl_hook SHARED
     src/hook/system.cpp
     src/hook/netenv.cpp
     src/hook/window.cpp
+    src/hook/vscreen.cpp
     src/hook/d3d9hook.cpp
     src/hook/dinputhook.cpp
     src/hook/vdinput.cpp

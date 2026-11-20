@@ -34,192 +34,200 @@ msgstr ""
 msgid "Image fixe"
 msgstr ""
 
-#: src/common/gameoptions.cpp:47
-msgid "English"
+#: src/common/gameoptions.cpp:46
+msgid "Écran annoncé au jeu"
 msgstr ""
 
 #: src/common/gameoptions.cpp:48
+msgid "La taille d'écran que le jeu croit avoir, pour un écran plus petit qu'il ne l'accepte (un CRT en 512x384 ou 1024x384 : « The current resolution is too low »). AUTO : sa taille minimale, seulement quand l'écran est plus petit ; une taille (1280x720) : toujours elle ; OFF : l'écran réel. Son image est mise ensuite sur l'écran réel selon les réglages d'affichage."
+msgstr ""
+
+#: src/common/gameoptions.cpp:55
+msgid "English"
+msgstr ""
+
+#: src/common/gameoptions.cpp:56
 msgid "Japanese"
 msgstr ""
 
-#: src/common/gameoptions.cpp:49
+#: src/common/gameoptions.cpp:57
 msgid "Chinese"
 msgstr ""
 
-#: src/common/gameoptions.cpp:53
+#: src/common/gameoptions.cpp:61
 msgid "Cabinet"
 msgstr ""
 
-#: src/common/gameoptions.cpp:54
+#: src/common/gameoptions.cpp:62
 msgid "MiniCabinet"
 msgstr ""
 
-#: src/common/gameoptions.cpp:58
+#: src/common/gameoptions.cpp:66
 msgid "Type de borne"
 msgstr ""
 
-#: src/common/gameoptions.cpp:59
+#: src/common/gameoptions.cpp:67
 msgid "Cabinet : la borne complète, avec son tableau de bord (les boutons du volant, la vitesse) et sa carte LED, et leurs sorties réseau. MiniCabinet : la petite borne, comme sous TeknoParrot, sans eux. Pris au prochain lancement du jeu."
 msgstr ""
 
-#: src/common/gameoptions.cpp:62 src/common/gameoptions.cpp:67
+#: src/common/gameoptions.cpp:70 src/common/gameoptions.cpp:76
 msgid "Langue des messages d'amdaemon"
 msgstr ""
 
-#: src/common/gameoptions.cpp:63
+#: src/common/gameoptions.cpp:71
 msgid "Les écrans d'erreur et d'avertissement de la plateforme (Error 4103...). Les textes du jeu restent en japonais."
 msgstr ""
 
-#: src/common/gameoptions.cpp:67
+#: src/common/gameoptions.cpp:76
 msgid "Les écrans d'erreur et d'avertissement de la plateforme."
 msgstr ""
 
-#: src/common/gameoptions.cpp:73 src/common/gameoptions.cpp:79 src/common/gameoptions.cpp:103 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:120 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:163 src/common/gameoptions.cpp:176 src/common/gameoptions.cpp:187 src/common/gameoptions.cpp:195 src/common/gameoptions.cpp:208 src/common/gameoptions.cpp:216 src/common/gameoptions.cpp:224
+#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:205 src/common/gameoptions.cpp:218 src/common/gameoptions.cpp:226 src/common/gameoptions.cpp:235
 msgid "Numéro de la borne (link)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:74 src/common/gameoptions.cpp:80 src/common/gameoptions.cpp:104 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:131 src/common/gameoptions.cpp:196 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:217 src/common/gameoptions.cpp:225
+#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:206 src/common/gameoptions.cpp:219 src/common/gameoptions.cpp:227 src/common/gameoptions.cpp:236
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr ""
 
-#: src/common/gameoptions.cpp:87
+#: src/common/gameoptions.cpp:96
 msgid "Carte moteur de la borne"
 msgstr ""
 
-#: src/common/gameoptions.cpp:88
+#: src/common/gameoptions.cpp:97
 msgid "Octet du port parallèle"
 msgstr ""
 
-#: src/common/gameoptions.cpp:92 src/hook/menu.cpp:1728 src/launcher/picker.cpp:882
+#: src/common/gameoptions.cpp:101 src/hook/menu.cpp:1728 src/launcher/picker.cpp:882
 msgid "Retour de force"
 msgstr ""
 
-#: src/common/gameoptions.cpp:93
+#: src/common/gameoptions.cpp:102
 msgid "Carte moteur de la borne : la carte de Daytona USA jouée d'après les commandes du jeu et la position du volant, avec le ressort du panneau (comme sm2-emu). Octet du port parallèle : la force que le jeu envoie au moteur, son centrage fait de forces constantes d'une image à l'autre, qui peut faire osciller un volant puissant."
 msgstr ""
 
-#: src/common/gameoptions.cpp:97 src/common/gameoptions.cpp:169
+#: src/common/gameoptions.cpp:106 src/common/gameoptions.cpp:179
 msgid "Puissance de la carte (interrupteurs)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:98
+#: src/common/gameoptions.cpp:107
 msgid "Les interrupteurs de la carte moteur : chaque cran ajoute 4 à la puissance des effets."
 msgstr ""
 
-#: src/common/gameoptions.cpp:100 src/common/gameoptions.cpp:173
+#: src/common/gameoptions.cpp:109 src/common/gameoptions.cpp:183
 #, c-format
 msgid "Ressort du panneau (%)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:101 src/common/gameoptions.cpp:174
+#: src/common/gameoptions.cpp:110 src/common/gameoptions.cpp:184
 msgid "Le ressort mécanique du volant de la borne, qui le ramène au centre sans le moteur."
 msgstr ""
 
-#: src/common/gameoptions.cpp:128
+#: src/common/gameoptions.cpp:137
 msgid "Garder le rapport"
 msgstr ""
 
-#: src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:247
+#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:258
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr ""
 
-#: src/common/gameoptions.cpp:146
+#: src/common/gameoptions.cpp:155
 msgid "Caméra et retour de force activés"
 msgstr ""
 
-#: src/common/gameoptions.cpp:147
+#: src/common/gameoptions.cpp:156
 msgid "Coché : NAMCAM et STEERING WHEEL REACTION (GAME OPTIONS du menu de test) mis à ON à chaque démarrage, sans changer le fichier des réglages du jeu. Décoché : les réglages du jeu tels qu'ils sont."
 msgstr ""
 
-#: src/common/gameoptions.cpp:155 src/common/gameoptions.cpp:160
+#: src/common/gameoptions.cpp:164 src/common/gameoptions.cpp:169
 msgid "Jeu gratuit"
 msgstr ""
 
-#: src/common/gameoptions.cpp:156 src/common/gameoptions.cpp:161
+#: src/common/gameoptions.cpp:165 src/common/gameoptions.cpp:170
 msgid "Décoché : une partie par pièce. Le menu de test du jeu n'a pas ce réglage (c'est celui du système de la borne qui l'a)."
 msgstr ""
 
-#: src/common/gameoptions.cpp:164
+#: src/common/gameoptions.cpp:173
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Le CABINET ID du menu de test du jeu doit être le même."
 msgstr ""
 
-#: src/common/gameoptions.cpp:170
+#: src/common/gameoptions.cpp:180
 msgid "Les interrupteurs 1 à 3 de la carte moteur (celle de Sega Rally) : chaque cran ajoute 1 à la puissance de chaque couple (32 le maximum du volant)."
 msgstr ""
 
-#: src/common/gameoptions.cpp:177
+#: src/common/gameoptions.cpp:187
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). Menu de test du jeu, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la borne k en SUB, CAR NUMBER k."
 msgstr ""
 
-#: src/common/gameoptions.cpp:181
+#: src/common/gameoptions.cpp:191
 msgid "Palette lue au milieu de ses texels"
 msgstr ""
 
-#: src/common/gameoptions.cpp:182
+#: src/common/gameoptions.cpp:192
 msgid "Le shader du jeu lit sa palette (la colour RAM) au bord d'un texel, qu'une carte autre qu'ATI arrondit autrement : windowsloader le remplace par le même, lisant au milieu du texel."
 msgstr ""
 
-#: src/common/gameoptions.cpp:188
+#: src/common/gameoptions.cpp:198
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
 msgstr ""
 
-#: src/common/gameoptions.cpp:199
+#: src/common/gameoptions.cpp:209
 msgid "Dossier de Sega Rally Revo"
 msgstr ""
 
-#: src/common/gameoptions.cpp:200
-msgid "Le dossier de Sega Rally Revo (PC) complet, avec Main_release\\tracks : ses circuits s'ajoutent à la course rapide, choisis par environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. Pas en link."
-msgstr ""
-
-#: src/common/gameoptions.cpp:232
-msgid "Standard"
-msgstr ""
-
-#: src/common/gameoptions.cpp:233
-msgid "Pro"
-msgstr ""
-
-#: src/common/gameoptions.cpp:237
-msgid "Comme la borne (7.1)"
-msgstr ""
-
-#: src/common/gameoptions.cpp:238
-msgid "Stéréo"
-msgstr ""
-
-#: src/common/gameoptions.cpp:242
-msgid "Borne"
+#: src/common/gameoptions.cpp:210
+msgid "Le dossier de Sega Rally Revo (PC) complet, avec Main_release\\tracks : ses circuits s'ajoutent à la course rapide, choisis par environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. En link, toutes les bornes doivent avoir les mêmes circuits."
 msgstr ""
 
 #: src/common/gameoptions.cpp:243
-msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
+msgid "Standard"
 msgstr ""
 
-#: src/common/gameoptions.cpp:246
-msgid "Garder le rapport (borne Pro)"
+#: src/common/gameoptions.cpp:244
+msgid "Pro"
 msgstr ""
 
 #: src/common/gameoptions.cpp:248
-msgid "Haut-parleurs"
+msgid "Comme la borne (7.1)"
 msgstr ""
 
 #: src/common/gameoptions.cpp:249
-msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
-msgstr ""
-
-#: src/common/gameoptions.cpp:252
-msgid "Serveur NESYS"
+msgid "Stéréo"
 msgstr ""
 
 #: src/common/gameoptions.cpp:253
-msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
+msgid "Borne"
+msgstr ""
+
+#: src/common/gameoptions.cpp:254
+msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr ""
 
 #: src/common/gameoptions.cpp:257
+msgid "Garder le rapport (borne Pro)"
+msgstr ""
+
+#: src/common/gameoptions.cpp:259
+msgid "Haut-parleurs"
+msgstr ""
+
+#: src/common/gameoptions.cpp:260
+msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
+msgstr ""
+
+#: src/common/gameoptions.cpp:263
+msgid "Serveur NESYS"
+msgstr ""
+
+#: src/common/gameoptions.cpp:264
+msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
+msgstr ""
+
+#: src/common/gameoptions.cpp:268
 msgid "Identifiant de la clé NESYS"
 msgstr ""
 
-#: src/common/gameoptions.cpp:258
+#: src/common/gameoptions.cpp:269
 msgid "Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action « EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par windowsloader."
 msgstr ""
 
@@ -232,7 +240,7 @@ msgstr ""
 msgid "Automatique (langue de Windows)"
 msgstr ""
 
-#: src/hook/game.cpp:26
+#: src/hook/game.cpp:27
 msgid "jeu inconnu"
 msgstr ""
 
@@ -1066,46 +1074,46 @@ msgstr ""
 msgid "la carte JVS"
 msgstr ""
 
-#: src/hook/outputs.cpp:644
+#: src/hook/outputs.cpp:651
 msgid "texte"
 msgstr ""
 
-#: src/hook/outputs.cpp:644
+#: src/hook/outputs.cpp:651
 msgid "Au début du jeu, et à chaque client qui se connecte : le nom court du jeu"
 msgstr ""
 
-#: src/hook/outputs.cpp:652
+#: src/hook/outputs.cpp:659
 #, c-format
 msgid "Lampes %d à %d de %s, la première sur le bit 7"
 msgstr ""
 
-#: src/hook/outputs.cpp:653
+#: src/hook/outputs.cpp:660
 msgid "octet (0-255)"
 msgstr ""
 
-#: src/hook/outputs.cpp:660
+#: src/hook/outputs.cpp:667
 #, c-format
 msgid "%s : sortie %d de %s"
 msgstr ""
 
-#: src/hook/outputs.cpp:662
+#: src/hook/outputs.cpp:669
 #, c-format
 msgid "Sortie %d de %s (une lampe)"
 msgstr ""
 
-#: src/hook/outputs.cpp:667 src/hook/outputs.cpp:670
+#: src/hook/outputs.cpp:674 src/hook/outputs.cpp:677
 msgid "octets (0-255), un par ligne"
 msgstr ""
 
-#: src/hook/outputs.cpp:668
+#: src/hook/outputs.cpp:675
 msgid "Ce que le jeu envoie à la carte moteur Sega, tel quel (mode Raw, pour une servoboard)"
 msgstr ""
 
-#: src/hook/outputs.cpp:671
+#: src/hook/outputs.cpp:678
 msgid "Trames de servoboard Sega faites de la force du jeu : 80, 81, 83 une fois, puis 84 et le couple"
 msgstr ""
 
-#: src/hook/outputs.cpp:675
+#: src/hook/outputs.cpp:682
 msgid "Quand le jeu se termine"
 msgstr ""
 
@@ -1117,78 +1125,78 @@ msgstr ""
 msgid "Carte série"
 msgstr ""
 
-#: src/hook/games/alls.cpp:340
+#: src/hook/games/alls.cpp:341
 msgid "Start (semble-t-il)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1001 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:435
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
 msgid "rouge"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1001 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:435
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
 msgid "vert"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1001 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:435
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
 msgid "bleu"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1007
+#: src/hook/games/alls.cpp:1008
 #, c-format
 msgid "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1008 src/hook/games/alls.cpp:1017 src/hook/games/stormracer.cpp:654
+#: src/hook/games/alls.cpp:1009 src/hook/games/alls.cpp:1018 src/hook/games/stormracer.cpp:654
 msgid "intensité (0-255)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1016
+#: src/hook/games/alls.cpp:1017
 #, c-format
 msgid "Carte LED 837-15070 (mode Cabinet) : sortie de puissance %d (commande 39), 0 à 255"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1173
+#: src/hook/games/alls.cpp:1174
 msgid "nombre (0-999)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1173
+#: src/hook/games/alls.cpp:1174
 msgid "Tableau de bord (mode Cabinet) : la vitesse affichée, km/h"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1174 src/hook/games/alls.cpp:1175 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:449
+#: src/hook/games/alls.cpp:1175 src/hook/games/alls.cpp:1176 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:450
 msgid "nombre"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1174
+#: src/hook/games/alls.cpp:1175
 msgid "Tableau de bord (mode Cabinet) : le rapport affiché"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1175
+#: src/hook/games/alls.cpp:1176
 msgid "Tableau de bord (mode Cabinet) : le régime affiché (vide en course : 0)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1181
+#: src/hook/games/alls.cpp:1182
 #, c-format
 msgid "Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1523 src/hook/games/alls.cpp:1607
+#: src/hook/games/alls.cpp:1524 src/hook/games/alls.cpp:1609
 msgid "Lecteur de cartes Aime"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1539 src/hook/games/alls.cpp:1616
+#: src/hook/games/alls.cpp:1540 src/hook/games/alls.cpp:1618
 msgid "Carte des lampes (837-15070)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1604
+#: src/hook/games/alls.cpp:1606
 msgid "Afficheur du lecteur de paiement (VFD)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1619
+#: src/hook/games/alls.cpp:1621
 msgid "Tableau de bord (838-15415)"
 msgstr ""
 
-#: src/hook/games/alls.cpp:1631
+#: src/hook/games/alls.cpp:1633
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr ""
 
@@ -1271,20 +1279,20 @@ msgstr ""
 msgid "Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant"
 msgstr ""
 
-#: src/hook/games/unis.cpp:441
+#: src/hook/games/unis.cpp:442
 #, c-format
 msgid "Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)"
 msgstr ""
 
-#: src/hook/games/unis.cpp:448
+#: src/hook/games/unis.cpp:449
 msgid ", deux bits"
 msgstr ""
 
-#: src/hook/games/unis.cpp:449
+#: src/hook/games/unis.cpp:450
 msgid "0 à 3"
 msgstr ""
 
-#: src/hook/games/unis.cpp:451
+#: src/hook/games/unis.cpp:452
 msgid "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)"
 msgstr ""
 

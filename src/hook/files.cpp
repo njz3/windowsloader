@@ -752,6 +752,36 @@ static int make_parents(const wchar_t *path)
     return is_dir(attributes(dir)) || make_dirs(dir);
 }
 
+// A file created in a redirected folder (a Taito Type X's D:\bk_info in the game's folder) without a
+// write folder: the folders it lacks made first, as the cabinet's drive has them. D1GP never makes
+// its bk_info nor its card_backup: its bookkeeping's files failed (error 3, a user's PC 19/11/2026);
+// with a write folder they are made there (ov_create)
+static void redirected_parents(const wchar_t *path, DWORD disp)
+{
+    if (g_writeGame[0] || (disp != CREATE_NEW && disp != CREATE_ALWAYS && disp != OPEN_ALWAYS))
+        return;
+    wchar_t dir[WL_PATH];
+    wcscpy_s(dir, WL_PATH, path);
+    wchar_t *slash = wcsrchr(dir, L'\\');
+    if (!slash)
+        return;
+    *slash = 0;
+    if (is_dir(attributes(dir)))
+        return;
+    int made = make_dirs(dir);
+    char u[WL_PATH * 3];
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 8)
+        wl_log("files: %s %s (a redirected folder the game writes in)", wl_u8(dir, u, sizeof u), made ? "made" : "could not be made");
+}
+
+static void redirected_parentsA(const char *path, DWORD disp)
+{
+    wchar_t w[WL_PATH];
+    if (MultiByteToWideChar(CP_ACP, 0, path, -1, w, WL_PATH))
+        redirected_parents(w, disp);
+}
+
 // For reading: the write folder's file when it is there, else path
 static const wchar_t *ov_read(const wchar_t *path, wchar_t *buf)
 {
@@ -1213,6 +1243,8 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
     if (!nested)
     {
         name = redir(name, rbuf, sizeof rbuf);
+        if (name == rbuf)
+            redirected_parentsA(name, disp);
         name = ov_createA(name, &access, &disp, obuf, sizeof obuf);
     }
     wchar_t wname[WL_PATH];
@@ -1254,6 +1286,8 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
     if (!nested)
     {
         name = redirW(name, rbuf, MAX_PATH * 2);
+        if (name == rbuf)
+            redirected_parents(name, disp);
         if (g_writeGame[0])
             name = ov_create(name, &access, &disp, obuf);
     }

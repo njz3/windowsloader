@@ -40,6 +40,7 @@
 #include "jvs.h"
 #include "lang.h"
 #include "log.h"
+#include "vscreen.h"
 #include "outputs.h"
 #include "vdev.h"
 #include "vhid.h"
@@ -1570,6 +1571,10 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     g_tableCount = IN_COUNT;
     wl_game_set_boards("Controls on USB I/O board, Sega 837-15257 \"IO4\" (amdaemon)", "Motor board: (COM1, the game)");
     wl_game_use_options("swdc");
+    // Unreal Engine 4's launch refuses a screen under 640x480 (GetSystemMetrics, +0x7fe61f: "The
+    // current resolution is too low to run this game"); in its full screen window it draws at the
+    // screen's size: told 1280x720, its 16:9 picture (vscreen.h)
+    wl_vscreen_minimum(1280, 720);
     if (daemon)
         wl_game_on_settings(amdaemon_settings);
     drive("D:", L"D");

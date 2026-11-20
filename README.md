@@ -312,6 +312,31 @@ login screen: Start, Left for はい, Start). `LANGUAGE = ENGLISH` (the default)
 `CHINESE`: the language of amdaemon's own messages (its errors and warnings); the game's texts are
 Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no network battles).
 
+A game that refuses a screen smaller than it needs (a cabinet's CRT at 512x384 or 1024x384: Crazy Ride
+and Sega World Drivers Championship "The current resolution is too low to run this game", Sonic & Sega
+All-Stars Racing "Résolution de jeu non supportée") is told a larger one: `VIRTUAL_DISPLAY` in its
+`[Game.crazyride]`, `[Game.swdc]`, `[Game.ssasr]` section, `AUTO` by default (its minimum, 1280x720, only
+when the real screen is smaller), a size (`1280x720`, always) or `OFF`. The game then sees that screen
+wherever it asks (GetSystemMetrics, EnumDisplaySettings(Ex) and their modes' list, GetMonitorInfo,
+GetDeviceCaps, Direct3D 9's adapter modes, DXGI's output and its modes) and draws at that size; its
+picture is put on the real screen by `DISPLAY_MODE` and `ASPECT_RATIO` (on a super resolution CRT,
+`BORDERLESS_STRETCH` with `ASPECT_RATIO = 4:3`). windowsloader's own calls and Windows' still get the
+real screen. Crazy Ride and SWDC (Unreal Engine 4) refuse a screen under 640x480 and draw at the screen's
+size: told 1280x720, their 16:9 picture. Sonic & Sega All-Stars Racing looks for its `Settings.ini`
+size (1280x720) at 60 Hz among Direct3D 9's modes: the mode is added at 60 Hz and at the screen's rate.
+Not yet tried on those three games.
+A size larger than the real screen is taken too (`VIRTUAL_DISPLAY = 2560x1440` on a 1920x1080 screen,
+or 1920x1080 on a CRT): a game that draws at the screen's size then draws at that one, its picture
+reduced on the real screen (a sharper picture, at the cost of the graphics card); written by hand in
+the `[Game.<name>]` section of any other game, it is taken the same way (`AUTO` there: the real screen).
+A game that fixes its own resolution (its settings file, Sega Rally 3's `[Display] WIDTH`/`HEIGHT`) draws
+at that one whatever it is told; one with a 2D interface drawn for a size may misplace it.
+
+The Taito Type X games' `D:\` and `E:\` are their own folder (nothing written on the PC's real D: or
+E:). A folder there that the game writes in without making it (D1GP's `bk_info` and `card_backup`, which
+a cabinet's drive has) is made in the game's folder when the game creates a file in it, or in the
+write folder (`WRITE_DIR`) when there is one.
+
 Sega Rally 3 pauses when its window loses the activation (another program's window in front: a
 race's loading or the race itself frozen until its window was clicked): windowsloader does not pass
 that loss on (`[Display] KEEP_ACTIVE`, for all the games), the game runs on as on a cabinet.

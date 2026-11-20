@@ -40,6 +40,7 @@
 #include "lang.h"
 #include "link.h"
 #include "log.h"
+#include "vscreen.h"
 #include "outputs.h"
 #include "pcp.h"
 #include "vdev.h"
@@ -1405,6 +1406,9 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
     if (!strcmp(g_game->name, "ssasr"))
     {
         wl_game_use_options("ssasr");
+        // Settings.ini's SCREEN_WIDTH x SCREEN_HEIGHT (1280x720) at SCREEN_REFRESH looked for among
+        // Direct3D 9's X8R8G8B8 modes (+0x2ec4): "Invalid Game Resolution" without it (vscreen.h)
+        wl_vscreen_minimum(1280, 720);
         wl_game_on_settings(ssr_settings);
     }
     else if (!strcmp(g_game->name, "src"))

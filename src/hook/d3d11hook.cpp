@@ -31,6 +31,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
+#include "vscreen.h"
 
 enum
 {
@@ -668,6 +669,7 @@ static void hook_factory(IDXGIFactory *f)
     static int done, done2;
     if (!f)
         return;
+    wl_vscreen_dxgi(f); // its output and its modes, when the game is told another screen
     if (!done)
     {
         done = 1;

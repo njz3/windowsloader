@@ -27,6 +27,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
+#include "vscreen.h"
 
 // vtable slots (d3d9.h declaration order)
 enum
@@ -952,6 +953,7 @@ static IDirect3D9 *WINAPI hDirect3DCreate9(UINT sdk)
         hooked = 1;
         wl_hook_code(vtable_of(d3d)[SLOT_D3D9_CREATEDEVICE], (void *)hCreateDevice, (void **)&oCreateDevice, "IDirect3D9::CreateDevice");
     }
+    wl_vscreen_d3d9(d3d); // its modes, when the game is told another screen
     return d3d;
 }
 

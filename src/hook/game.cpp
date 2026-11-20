@@ -20,6 +20,7 @@
 #include "lang.h"
 #include "log.h"
 #include "settings.h"
+#include "vscreen.h"
 #include "wlshared.h"
 
 static const char *g_name = "unknown";
@@ -227,6 +228,17 @@ void wl_game_settings(void)
             wl_game_option(o->key, g_started[i], WL_OPTION_VALUE_SIZE);
         memcpy(g_edited[i], g_started[i], WL_OPTION_VALUE_SIZE);
         wl_log("game: option [%s] %s = %s", wl_game_option_section(), o->key, g_started[i]);
+        if (!strcmp(o->key, "VIRTUAL_DISPLAY"))
+            wl_vscreen_settings(g_started[i]); // the screen the game is told (vscreen.h)
+    }
+    // Any other game: VIRTUAL_DISPLAY written by hand in its section (a larger screen, for a game that
+    // draws at the screen's size: its picture drawn larger, put on the real screen)
+    if (!find_option("VIRTUAL_DISPLAY"))
+    {
+        char v[WL_OPTION_VALUE_SIZE];
+        wl_game_option("VIRTUAL_DISPLAY", v, sizeof v);
+        if (v[0])
+            wl_vscreen_settings(v);
     }
     if (g_onSettings)
         g_onSettings();
