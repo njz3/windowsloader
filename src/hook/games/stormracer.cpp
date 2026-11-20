@@ -49,6 +49,7 @@
 #include "link.h"
 #include "log.h"
 #include "outputs.h"
+#include "vscreen.h"
 
 enum
 {
@@ -681,6 +682,10 @@ int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **t
     wl_patch_code(code + 0xA7448, msaa, none, 4, "no multisampling (depth buffer)");
     wl_log("storm racer: %d of %d functions of usb_io.dll, usb_cam.dll, NetDbSync.dll and the console given by windowsloader", n, (int)(sizeof g_io / sizeof g_io[0]));
     wl_game_use_options("srg");
+    // On a screen of 1920x240 (a cabinet's CRT in super resolution) its race ran at 8 to 12 frames/s,
+    // a track texture loaded each frame; told 1360x768 (its own size), 60 (vscreen.h; checked on a
+    // cabinet with VIRTUAL_DISPLAY = 1360x768 by hand)
+    wl_vscreen_minimum(1360, 768);
     wl_game_on_settings(settings);
     return 1;
 }

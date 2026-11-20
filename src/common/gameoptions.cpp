@@ -232,6 +232,7 @@ static const WlGameOption g_srgOptions[] = {
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
           "dans le fichier)."),
      WL_OPTION_INT, NULL, 0, 8, "0", 1, NULL},
+    VSCREEN_OPTION,
 };
 
 // unis.cpp's

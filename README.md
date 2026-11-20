@@ -315,8 +315,9 @@ Japanese. Not yet: the matching server ("GAME SERVER BAD" at the start, no netwo
 A game that refuses a screen smaller than it needs (a cabinet's CRT at 512x384 or 1024x384: Crazy Ride
 and Sega World Drivers Championship "The current resolution is too low to run this game", Sonic & Sega
 All-Stars Racing "Résolution de jeu non supportée") is told a larger one: `VIRTUAL_DISPLAY` in its
-`[Game.crazyride]`, `[Game.swdc]`, `[Game.ssasr]` section, `AUTO` by default (its minimum, 1280x720 or
-1920x1080 for Crazy Ride, only when the real screen is smaller; on a larger screen that lacks it, that
+`[Game.crazyride]`, `[Game.swdc]`, `[Game.ssasr]`, `[Game.srg]` section, `AUTO` by default (its minimum,
+1280x720, 1920x1080 for Crazy Ride, 1360x768 for Storm Racer G (its race at 8 to 12 frames/s on a 1920x240
+screen otherwise), only when the real screen is smaller; on a larger screen that lacks it, that
 size only added to the modes' lists), a size (`1280x720`, always) or `OFF`. The game then sees that screen
 wherever it asks (GetSystemMetrics, EnumDisplaySettings(Ex) and their modes' list, GetMonitorInfo,
 GetDeviceCaps, Direct3D 9's adapter modes, DXGI's output and its modes) and draws at that size; its

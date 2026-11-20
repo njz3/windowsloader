@@ -274,7 +274,14 @@ static BOOL WINAPI game_GetClientRect(HWND wnd, LPRECT r)
         SetRect(r, 0, 0, g_bbW, g_bbH);
         return TRUE;
     }
-    return oGetClientRect(wnd, r);
+    // Before that, a window Windows made smaller than asked (larger than the screen): the size asked,
+    // that of its back buffer (d3d9hook.cpp's asked_size). Chase H.Q. 2 (RenderWare) reads it before
+    // making its device and drew in 800x231 at the top of its 800x600 on a 1920x240 screen
+    BOOL ok = oGetClientRect(wnd, r);
+    int w, h;
+    if (ok && r && !placed() && wl_window_asked_client(wnd, &w, &h) && (r->right < w || r->bottom < h))
+        SetRect(r, 0, 0, w, h);
+    return ok;
 }
 
 void wl_display_load(void)
