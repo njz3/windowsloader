@@ -32,6 +32,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 #include "log.h"
 #include "outputs.h"
 #include "settings.h"
+#include "vscreen.h"
 
 static const char *where_of(const void *caller, char *buf, size_t size)
 {
@@ -1238,10 +1239,14 @@ static BOOL WINAPI hIsDebuggerPresent(void)
 
 // Games refuse to run in a Remote Desktop session ("Remote Sessions not supported" for
 // Sega Rally 3); a cabinet never is one.
+// The virtual screen's size too (vscreen.h)
 static int(WINAPI *oGetSystemMetrics)(int);
 static int WINAPI hGetSystemMetrics(int index)
 {
     static volatile LONG logged;
+    int told;
+    if (wl_vscreen_metric(index, WL_CALLER, &told))
+        return told;
     int r = oGetSystemMetrics(index);
     if ((index == SM_REMOTESESSION || index == SM_REMOTECONTROL) && r && !wl_busy() && !wl_is_system_caller(WL_CALLER))
     {

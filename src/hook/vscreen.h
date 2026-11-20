@@ -35,6 +35,9 @@ void wl_vscreen_settings(const char *value);
 // 1 and the size when the game is told another screen
 int wl_vscreen_size(int *width, int *height);
 
+// From system.cpp's GetSystemMetrics hook: 1 and the value told to that caller (the screen's size)
+int wl_vscreen_metric(int index, const void *caller, int *value);
+
 // From the Direct3D hooks: an IDirect3D9 and a DXGI factory the game made (their modes and
 // outputs then answer the virtual screen)
 void wl_vscreen_d3d9(void *direct3d9);

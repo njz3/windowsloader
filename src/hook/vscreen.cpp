@@ -70,22 +70,26 @@ static int primary_device(const char *a, const wchar_t *w)
 // Windows' answers
 // ------------------------------------------------------------------------------
 
-static int(WINAPI *oGetSystemMetrics)(int);
-static int WINAPI hGetSystemMetrics(int index)
+// GetSystemMetrics is system.cpp's hook (one hook per function: a second one on it is never made),
+// which asks here
+int wl_vscreen_metric(int index, const void *caller, int *value)
 {
-    if (game_asks(WL_CALLER))
-        switch (index)
-        {
-        case SM_CXSCREEN:
-        case SM_CXVIRTUALSCREEN:
-        case SM_CXFULLSCREEN:
-            return g_w;
-        case SM_CYSCREEN:
-        case SM_CYVIRTUALSCREEN:
-        case SM_CYFULLSCREEN:
-            return g_h;
-        }
-    return oGetSystemMetrics(index);
+    if (!game_asks(caller))
+        return 0;
+    switch (index)
+    {
+    case SM_CXSCREEN:
+    case SM_CXVIRTUALSCREEN:
+    case SM_CXFULLSCREEN:
+        *value = g_w;
+        return 1;
+    case SM_CYSCREEN:
+    case SM_CYVIRTUALSCREEN:
+    case SM_CYFULLSCREEN:
+        *value = g_h;
+        return 1;
+    }
+    return 0;
 }
 
 // The modes of the primary screen: the real ones, then ours when they lack it
@@ -213,7 +217,6 @@ static int WINAPI hGetDeviceCaps(HDC dc, int index)
 }
 
 static WlHook g_hooks[] = {
-    WL_HOOK(L"user32.dll", GetSystemMetrics),
     WL_HOOK(L"user32.dll", EnumDisplaySettingsA),
     WL_HOOK(L"user32.dll", EnumDisplaySettingsW),
     WL_HOOK(L"user32.dll", EnumDisplaySettingsExA),
