@@ -81,11 +81,11 @@ msgstr "The platform's error and warning screens (Error 4103...). The game's tex
 msgid "Les écrans d'erreur et d'avertissement de la plateforme."
 msgstr "The platform's error and warning screens."
 
-#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:205 src/common/gameoptions.cpp:218 src/common/gameoptions.cpp:226 src/common/gameoptions.cpp:235
+#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:239 src/common/gameoptions.cpp:248
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:206 src/common/gameoptions.cpp:219 src/common/gameoptions.cpp:227 src/common/gameoptions.cpp:236
+#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:240 src/common/gameoptions.cpp:249
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
@@ -126,7 +126,7 @@ msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre wi
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:258
+#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:271
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
@@ -170,63 +170,99 @@ msgstr "The game's shader reads its palette (the colour RAM) at a texel's edge, 
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier). La borne 1 mène la course."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file). Cabinet 1 leads the race."
 
-#: src/common/gameoptions.cpp:209
+#: src/common/gameoptions.cpp:205
+msgid "Celle du jeu"
+msgstr "The game's"
+
+#: src/common/gameoptions.cpp:205
+msgid "Daytona"
+msgstr "Daytona"
+
+#: src/common/gameoptions.cpp:205
+msgid "Poursuite"
+msgstr "Chase"
+
+#: src/common/gameoptions.cpp:206
+msgid "Poursuite éloignée"
+msgstr "Far chase"
+
+#: src/common/gameoptions.cpp:206
+msgid "Drone"
+msgstr "Drone"
+
+#: src/common/gameoptions.cpp:213
 msgid "Dossier de Sega Rally Revo"
 msgstr "Sega Rally Revo folder"
 
-#: src/common/gameoptions.cpp:210
+#: src/common/gameoptions.cpp:214
 msgid "Le dossier de Sega Rally Revo (PC) complet, avec Main_release\\tracks : ses circuits s'ajoutent à la course rapide, choisis par environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. En link, toutes les bornes doivent avoir les mêmes circuits."
 msgstr "The complete Sega Rally Revo (PC) folder, with Main_release\\tracks: its tracks are added to Quick Race, chosen by environment then by track. Relative to the game's folder (Rally), or complete. Empty: Sega Rally 3's tracks only. Linked, every cabinet must have the same tracks."
 
-#: src/common/gameoptions.cpp:243
+#: src/common/gameoptions.cpp:218
+msgid "Caméra de poursuite"
+msgstr "Chase camera"
+
+#: src/common/gameoptions.cpp:219
+msgid "Les réglages de la caméra derrière la voiture (d'après SR3CamLab, de Ninja Dynamics) : elle suit la trajectoire de la voiture plutôt que son capot, avec sa distance, sa hauteur et son champ de vision. Celle du jeu : inchangée. La caméra éloignée prend les mêmes réglages, plus loin et plus haut."
+msgstr "The settings of the camera behind the car (from SR3CamLab, by Ninja Dynamics): it follows the car's path rather than its nose, with its distance, height and field of view. The game's: unchanged. The far camera takes the same settings, farther and higher."
+
+#: src/common/gameoptions.cpp:223
+msgid "Caméras cachées"
+msgstr "Hidden cameras"
+
+#: src/common/gameoptions.cpp:224
+msgid "Le bouton de changement de vue passe aussi par les caméras du jeu absentes de la version arcade : poursuite éloignée, cockpit (côté passager, comme le jeu la place), place du pilote, roue. Leur nom s'affiche à chaque changement."
+msgstr "The View Change button also goes through the game's cameras absent from the arcade version: far chase, cockpit (on the passenger's side, as the game places it), driver's seat, wheel. Their name is shown at each change."
+
+#: src/common/gameoptions.cpp:256
 msgid "Standard"
 msgstr "Standard"
 
-#: src/common/gameoptions.cpp:244
+#: src/common/gameoptions.cpp:257
 msgid "Pro"
 msgstr "Pro"
 
-#: src/common/gameoptions.cpp:248
+#: src/common/gameoptions.cpp:261
 msgid "Comme la borne (7.1)"
 msgstr "As the cabinet (7.1)"
 
-#: src/common/gameoptions.cpp:249
+#: src/common/gameoptions.cpp:262
 msgid "Stéréo"
 msgstr "Stereo"
 
-#: src/common/gameoptions.cpp:253
+#: src/common/gameoptions.cpp:266
 msgid "Borne"
 msgstr "Cabinet"
 
-#: src/common/gameoptions.cpp:254
+#: src/common/gameoptions.cpp:267
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and H-shifter (a second I/O board). The game changes its own settings at the next start and closes once: start it again."
 
-#: src/common/gameoptions.cpp:257
+#: src/common/gameoptions.cpp:270
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/common/gameoptions.cpp:259
+#: src/common/gameoptions.cpp:272
 msgid "Haut-parleurs"
 msgstr "Speakers"
 
-#: src/common/gameoptions.cpp:260
+#: src/common/gameoptions.cpp:273
 msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
 msgstr "As the cabinet: the game plays in 7.1, Windows brings the sound down to the PC's speakers; its music depends on it. Stereo: the former setting, without the music."
 
-#: src/common/gameoptions.cpp:263
+#: src/common/gameoptions.cpp:276
 msgid "Serveur NESYS"
 msgstr "NESYS server"
 
-#: src/common/gameoptions.cpp:264
+#: src/common/gameoptions.cpp:277
 msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
 msgstr "Address[:port] of the NESYS server (the online game), port 80 by default; 124.146.156.106 by default. OFF: the game stays on the PC, NESYS offline."
 
-#: src/common/gameoptions.cpp:268
+#: src/common/gameoptions.cpp:281
 msgid "Identifiant de la clé NESYS"
 msgstr "NESYS key ID"
 
-#: src/common/gameoptions.cpp:269
+#: src/common/gameoptions.cpp:282
 msgid "Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action « EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par windowsloader."
 msgstr "The key's 7 letters or digits (for example AAT1234), read by the game each time it reads the key; the \"EntryKey\" action (K by default) puts the key in or takes it out. Empty: those of OpenParrot\\KeyId.txt in the game's folder (the file NESYS Revival's KeyManager keeps), else a key made by windowsloader."
 
@@ -849,11 +885,11 @@ msgstr "%s is paused."
 msgid "Redirection d'écriture active, dossier : %s"
 msgstr "Write redirection on, folder: %s"
 
-#: src/hook/menu.cpp:1372 src/hook/menu.cpp:1796
+#: src/hook/menu.cpp:1372 src/hook/menu.cpp:1844
 msgid "Impossible d'écrire dans le dossier d'écriture"
 msgstr "Cannot write to the write folder"
 
-#: src/hook/menu.cpp:1374 src/hook/menu.cpp:1799
+#: src/hook/menu.cpp:1374 src/hook/menu.cpp:1847
 msgid "Rien n'est sauvegardé : les réglages et les sauvegardes des jeux sont lus dans les dossiers habituels et ne sont pas écrits."
 msgstr "Nothing is saved: the settings and the game saves are read from the usual folders and not written."
 
@@ -1181,23 +1217,23 @@ msgstr "Dashboard (Cabinet mode): the rpm shown (none in a race: 0)"
 msgid "Tableau de bord (mode Cabinet) : lampe %d de la barre (allumée de gauche à droite avec le régime, semble-t-il)"
 msgstr "Dashboard (Cabinet mode): lamp %d of the bar (lit from left to right with the rpm, it seems)"
 
-#: src/hook/games/alls.cpp:1524 src/hook/games/alls.cpp:1609
+#: src/hook/games/alls.cpp:1524 src/hook/games/alls.cpp:1612
 msgid "Lecteur de cartes Aime"
 msgstr "Aime card reader"
 
-#: src/hook/games/alls.cpp:1540 src/hook/games/alls.cpp:1618
+#: src/hook/games/alls.cpp:1540 src/hook/games/alls.cpp:1621
 msgid "Carte des lampes (837-15070)"
 msgstr "Lamp board (837-15070)"
 
-#: src/hook/games/alls.cpp:1606
+#: src/hook/games/alls.cpp:1609
 msgid "Afficheur du lecteur de paiement (VFD)"
 msgstr "Payment reader's display (VFD)"
 
-#: src/hook/games/alls.cpp:1621
+#: src/hook/games/alls.cpp:1624
 msgid "Tableau de bord (838-15415)"
 msgstr "Dashboard (838-15415)"
 
-#: src/hook/games/alls.cpp:1633
+#: src/hook/games/alls.cpp:1636
 msgid "la carte d'E/S IO4 837-15257, via amdaemon"
 msgstr "the IO4 I/O board 837-15257, through amdaemon"
 

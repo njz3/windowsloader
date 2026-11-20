@@ -1757,7 +1757,7 @@ static void draw_menu(void)
 
 static ULONGLONG g_noticeStart;
 
-static int notice_due(void)
+static int write_notice_due(void)
 {
     const wchar_t *folder;
     if (wl_files_write_state(&folder) >= 0)
@@ -1771,6 +1771,29 @@ static int notice_due(void)
     return now - g_noticeStart < 20000;
 }
 
+// A short line over the game (wl_menu_flash: a camera's name), at 14 % of its height
+static char g_flash[96];
+static unsigned g_flashColor;
+static volatile ULONGLONG g_flashUntil;
+
+void wl_menu_flash(const char *text, unsigned rgb, int ms)
+{
+    snprintf(g_flash, sizeof g_flash, "%s", text ? text : "");
+    g_flashColor = rgb;
+    g_flashUntil = GetTickCount64() + (ULONGLONG)(ms > 0 ? ms : 0);
+}
+
+static int flash_due(void)
+{
+    return g_flash[0] && GetTickCount64() < g_flashUntil;
+}
+
+static int notice_due(void)
+{
+    int write = write_notice_due();
+    return write || flash_due();
+}
+
 // Its ImGui frame, nothing taken from the game (no mouse, no cursor drawn)
 static void draw_notice(void)
 {
@@ -1779,6 +1802,31 @@ static void draw_notice(void)
     io.MouseDrawCursor = false;
     io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
     ImGui::NewFrame();
+    if (flash_due())
+    {
+        // Large, outlined by a dark half-transparent box, centred
+        float scale = io.DisplaySize.y / 360.0f;
+        if (scale < 1.5f)
+            scale = 1.5f;
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.14f), ImGuiCond_Always, ImVec2(0.5f, 0));
+        ImGui::SetNextWindowBgAlpha(0.55f);
+        if (ImGui::Begin("##flash", NULL,
+                         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing))
+        {
+            ImGui::SetWindowFontScale(scale);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(((g_flashColor >> 16) & 0xFF) / 255.0f, ((g_flashColor >> 8) & 0xFF) / 255.0f,
+                                                        (g_flashColor & 0xFF) / 255.0f, 1.0f));
+            ImGui::TextUnformatted(g_flash);
+            ImGui::PopStyleColor();
+        }
+        ImGui::End();
+    }
+    if (!write_notice_due())
+    {
+        ImGui::Render();
+        return;
+    }
     const wchar_t *folder;
     wl_files_write_state(&folder);
     char where[MAX_PATH * 2];

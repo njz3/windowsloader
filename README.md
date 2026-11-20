@@ -369,6 +369,18 @@ holding 16 libraries at most). Sega Rally 3's own tracks stay: Tropical, Canyon 
 their environment's list, Lakeside as the championship's last stage (never in Quick Race, as in the
 game), Desert.
 
+Sega Rally 3's cameras (from SR3CamLab's findings and profiles, by Ninja Dynamics, MIT license:
+https://github.com/ninjadynamics/SR3CamLab), both in its "Options du jeu" page and changed there at
+once: `[Game.segarally3] CHASE_CAM` gives the camera behind the car other settings (`DAYTONA`,
+`CHASE`, `CHASE_FAR`, `DRONE`; `OFF`, the default: the game's own), the camera turning toward the
+car's path rather than its nose, its distance, height and field of view (the far chase camera the same,
+farther and higher); `HIDDEN_CAMERAS = true` adds the game's cameras absent from the arcade's View
+Change cycle (Chase, Bumper, Bonnet): Far chase, Cockpit (from the passenger's seat, as the game
+places it), Driver's seat (the same mirrored), Wheel; each camera's name is shown at each change, and
+the camera chosen is kept from one stage to the next. The car's spin and free cameras (they stop the
+race's clock or need a mouse) are left out. The game's code is only changed once one of them is
+wanted.
+
 A real board can replace an emulated one on a serial port (passthrough, linuxloader's keys):
 `[Emulation] EMULATE_JVS = false` with `[Paths] JVS_PATH = COM5` for the JVS board,
 `EMULATE_DRIVEBOARD = false` with `SERIAL_<n>_PATH` for the game's other emulated ports (its
@@ -601,4 +613,5 @@ MinHook (`src/minhook`) is under the BSD 2-clause license of its author, Tsuda K
 Direct3D 11 and Win32 backends) is under the MIT license of Omar Cornut. d3d8to9 (`src/d3d8to9`, from
 https://github.com/crosire/d3d8to9 at commit 255338f, its entry point changed for windowsloader) is
 under the BSD 2-clause license of Patrick Mours (`src/d3d8to9/LICENSE.md`): Direct3D 8 games are
-played on Direct3D 9.
+played on Direct3D 9. Sega Rally 3's cameras are reimplemented from SR3CamLab's findings and profiles (MIT
+license, Copyright (c) 2026 Ninja Dynamics).

@@ -31,6 +31,7 @@
 // windowsloader never loads inpout32 (ioports.cpp): the writes come here.
 
 #include <windows.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -44,6 +45,7 @@
 #include "lang.h"
 #include "link.h"
 #include "log.h"
+#include "menu.h"
 #include "outputs.h"
 #include "vhid.h"
 
@@ -1137,8 +1139,502 @@ static void revo_setup(const wchar_t *gameDir)
     wl_patch_code(VA(0x7246ec), &o9, &s9, 4, "Sega Rally 3's menu state 9 (Revo's environments)");
     wl_patch_code(VA(0x7246f0), &o10, &s10, 4, "Sega Rally 3's menu state 10 (Revo's tracks)");
 }
+
+// ------------------------------------------------------------------------------
+// The cameras: [Game.segarally3] CHASE_CAM (the chase camera's settings) and HIDDEN_CAMERAS (the
+// game's unused cameras in the View Change button's cycle). Reimplemented from SR3CamLab (MIT,
+// Copyright (c) 2026 Ninja Dynamics, https://github.com/ninjadynamics/SR3CamLab): its findings
+// (the addresses, the camera manager, the chase camera's aim and eye), its profiles and their
+// formulas; their code here is windowsloader's own. Both are changed from the menu at once: the
+// game's code is changed the first time one is wanted, never before.
+// ------------------------------------------------------------------------------
+
+// The chase camera (Rally.exe's update +0x1f7xxx, its two kinds: vtable 0x6eb808 the chase,
+// 0x6eb8b8 the far chase): its spring's stiffness from two getters (vtable +0xa0 the largest,
+// +0xa4 the smallest, the game's from its settings) times 7.5 (0x6effe4), its damping -15
+// (0x6f0550); its aim the car's heading made 2D (normalized by +0x1e00 at +0x1f72dd, the car's
+// velocity at the caller's esp+0x2c); its eye placed by +0x1f2600 (angle, distance, height on the
+// stack, the camera in ecx; its field of view at +0x3b0, degrees; its base distance at +0x30)
+struct ChaseProfile
+{
+    const char *value, *name;
+    float strength;            // 0..1: how much the camera turns to the car's path rather than its nose
+    float fadeStart, fadeFull; // km/h: from no turn to all of it
+    float kmin, kmax;          // the spring's stiffness
+    float damping;
+    float maxAngle; // degrees: how far the camera may swing from behind the car (180: no limit)
+    float cap;      // 0..1: where the soft limit starts, of maxAngle
+    float distance, height, fov;
+};
+
+// profiles.yaml's (SR3CamLab)
+static const ChaseProfile g_chaseProfiles[] = {
+    {"DAYTONA", "Daytona", 0.7f, 14, 43, 65, 92, 11.5f, 35, 0.25f, 3.8f, 1.9f, 72},
+    {"CHASE", "Chase", 0.7f, 14, 43, 30, 50, 11.5f, 35, 0.25f, 5.1f, 1.6f, 60},
+    {"CHASE_FAR", "Chase Far", 0.7f, 14, 43, 30, 50, 11.5f, 35, 0.25f, 6.4f, 1.8f, 60},
+    {"DRONE", "Drone", 0.7f, 14, 43, 30, 50, 11.5f, 35, 0.25f, 6.0f, 4.6f, 87},
+};
+
+static struct
+{
+    volatile LONG on; // a profile (else the game's camera: everything handed on)
+    const char *name;
+    float strength, vmin, vinv, slip, knee, range, invRange, distance, height, fov;
+} g_chase;
+static __declspec(align(16)) float g_chaseMult[4] = {7.5f, 11.0f, 14.25f, 9.0f}; // read as 16 bytes (movups), the first one used
+static float g_chaseDamp = -15.0f, g_chaseKmin, g_chaseKmax, g_chaseDelta;
+static void *g_normalize, *g_eyeOriginal, *g_kmaxOriginal, *g_kminOriginal;
+static struct
+{
+    unsigned char *cam;
+    float fov;
+} g_fovSaved[2]; // the game's field of view of the cameras changed, back with the game's camera
+
+static float clamp01(float x)
+{
+    return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+
+// After the aim's normalization: turned toward the car's path, the turn kept for the eye
+static void __cdecl chase_aim(unsigned char *sp)
+{
+    if (!g_chase.on || g_chase.strength <= 0)
+    {
+        g_chaseDelta = 0;
+        return;
+    }
+    float *v = *(float **)(sp + 4);
+    float tax = v[0], taz = v[2];
+    float vx = *(float *)(sp + 0x30), vz = *(float *)(sp + 0x38);
+    float speed = sqrtf(vx * vx + vz * vz);
+    if (speed > 0.5f)
+    {
+        float fade = clamp01((speed - g_chase.vmin) * g_chase.vinv);
+        float nx = vx / speed, nz = vz / speed;
+        float t = fade * clamp01((v[0] * nx + v[2] * nz) * g_chase.slip) * g_chase.strength;
+        float x = v[0] + (nx - v[0]) * t, z = v[2] + (nz - v[2]) * t;
+        float len = sqrtf(x * x + z * z);
+        if (len > 1e-4f)
+        {
+            v[0] = x / len;
+            v[2] = z / len;
+        }
+    }
+    g_chaseDelta = atan2f(v[0] * taz - v[2] * tax, v[0] * tax + v[2] * taz);
+}
+
+__declspec(naked) static void chase_aim_hook(void)
+{
+    __asm {
+        push dword ptr [esp + 8] // the game's call: normalize(dst, src)
+        push dword ptr [esp + 8]
+        call dword ptr [g_normalize]
+        add esp, 8
+        push eax
+        lea ecx, [esp + 4] // the stack as at the call
+        push ecx
+        call chase_aim
+        add esp, 4
+        pop eax
+        ret
+    }
+}
+
+static void fov_restore(void)
+{
+    for (int i = 0; i < 2; i++)
+        if (g_fovSaved[i].cam)
+        {
+            if (*(unsigned *)g_fovSaved[i].cam == 0x6eb808 || *(unsigned *)g_fovSaved[i].cam == 0x6eb8b8)
+                *(float *)(g_fovSaved[i].cam + 0x3b0) = g_fovSaved[i].fov;
+            g_fovSaved[i].cam = NULL;
+        }
+}
+
+// The eye's angle, distance and height (the far chase farther and higher), its field of view
+static void __cdecl chase_eye(unsigned char *sp, unsigned char *cam)
+{
+    if (!g_chase.on)
+    {
+        if (g_fovSaved[0].cam)
+            fov_restore();
+        return;
+    }
+    float *angle = (float *)(sp + 4), *distance = (float *)(sp + 8), *height = (float *)(sp + 12);
+    int isFar = *(unsigned *)cam == 0x6eb8b8;
+    *distance = g_chase.distance * (isFar ? 1.25f : 1.0f) + *(float *)(cam + 0x30);
+    *height = g_chase.height * (isFar ? 1.15f : 1.0f);
+    int k = 0;
+    while (k < 2 && g_fovSaved[k].cam && g_fovSaved[k].cam != cam)
+        k++;
+    if (k < 2 && !g_fovSaved[k].cam)
+    {
+        g_fovSaved[k].cam = cam;
+        g_fovSaved[k].fov = *(float *)(cam + 0x3b0);
+    }
+    *(float *)(cam + 0x3b0) = g_chase.fov;
+    float delta = g_chaseDelta == g_chaseDelta ? g_chaseDelta : 0; // NaN: none
+    float a = *angle + delta, m = fabsf(a);
+    if (m > g_chase.knee)
+    {
+        float t = (m - g_chase.knee) * g_chase.invRange;
+        m = g_chase.knee + g_chase.range * t / sqrtf(1 + t * t); // a soft limit
+        a = a < 0 ? -m : m;
+    }
+    *angle = a;
+}
+
+__declspec(naked) static void chase_eye_hook(void)
+{
+    __asm {
+        pushad
+        lea eax, [esp + 32] // the stack as at the call
+        push ecx            // the camera
+        push eax
+        call chase_eye
+        add esp, 8
+        popad
+        jmp dword ptr [g_eyeOriginal]
+    }
+}
+
+__declspec(naked) static void chase_kmax_hook(void)
+{
+    __asm {
+        cmp g_chase.on, 0
+        je game
+        fld g_chaseKmax
+        ret
+    game:
+        jmp dword ptr [g_kmaxOriginal]
+    }
+}
+
+__declspec(naked) static void chase_kmin_hook(void)
+{
+    __asm {
+        cmp g_chase.on, 0
+        je game
+        fld g_chaseKmin
+        ret
+    game:
+        jmp dword ptr [g_kminOriginal]
+    }
+}
+
+static int g_chaseHooked; // 0 not yet, 1 done, -1 not this Rally.exe
+
+static int chase_hooks(void)
+{
+    if (g_chaseHooked)
+        return g_chaseHooked > 0;
+    g_chaseHooked = -1;
+    static const unsigned char aim[] = {0xE8, 0x1E, 0xAB, 0xE0, 0xFF}, eye[] = {0xE8, 0xD2, 0xA7, 0xFF, 0xFF};
+    if (memcmp(VA(0x5f72dd), aim, 5) || memcmp(VA(0x5f7e29), eye, 5) || *(unsigned *)VA(0x5f724d) != 0x6effe4 ||
+        *(unsigned *)VA(0x5f76b0) != 0x6f0550 || *(unsigned *)VA(0x6eb8a8) != 0x5ec4c0 || *(unsigned *)VA(0x6eb8ac) != 0x5ec4b0 ||
+        *(unsigned *)VA(0x6eb958) != 0x5ec4c0 || *(unsigned *)VA(0x6eb95c) != 0x5ec4b0)
+    {
+        wl_log("segarally3: cameras: not the Rally.exe this was made for (9228B72E): CHASE_CAM left out");
+        return 0;
+    }
+    g_normalize = VA(0x401e00);
+    g_eyeOriginal = VA(0x5f2600);
+    g_kmaxOriginal = VA(0x5ec4c0);
+    g_kminOriginal = VA(0x5ec4b0);
+    unsigned mult = (unsigned)g_chaseMult, damp = (unsigned)&g_chaseDamp, kmax = (unsigned)chase_kmax_hook, kmin = (unsigned)chase_kmin_hook;
+    unsigned multWas = 0x6effe4, dampWas = 0x6f0550, kmaxWas = 0x5ec4c0, kminWas = 0x5ec4b0;
+    int ok = wl_patch_code(VA(0x5f724d), &multWas, &mult, 4, "Sega Rally 3's chase camera stiffness (CHASE_CAM)") &&
+             wl_patch_code(VA(0x5f76b0), &dampWas, &damp, 4, "Sega Rally 3's chase camera damping (CHASE_CAM)") &&
+             wl_patch_code(VA(0x6eb8a8), &kmaxWas, &kmax, 4, "Sega Rally 3's chase camera spring (CHASE_CAM)") &&
+             wl_patch_code(VA(0x6eb8ac), &kminWas, &kmin, 4, "Sega Rally 3's chase camera spring (CHASE_CAM)") &&
+             wl_patch_code(VA(0x6eb958), &kmaxWas, &kmax, 4, "Sega Rally 3's far chase camera spring (CHASE_CAM)") &&
+             wl_patch_code(VA(0x6eb95c), &kminWas, &kmin, 4, "Sega Rally 3's far chase camera spring (CHASE_CAM)") &&
+             call_patch(0x5f72dd, 0x401e00, (void *)chase_aim_hook, 0, "Sega Rally 3's chase camera aim (CHASE_CAM)") &&
+             call_patch(0x5f7e29, 0x5f2600, (void *)chase_eye_hook, 0, "Sega Rally 3's chase camera eye (CHASE_CAM)");
+    g_chaseHooked = ok ? 1 : -1;
+    return ok;
+}
+
+// The option's value: a profile's constants, or the game's camera
+static void chase_apply(const char *value)
+{
+    const ChaseProfile *p = NULL;
+    for (int i = 0; i < (int)(sizeof g_chaseProfiles / sizeof g_chaseProfiles[0]); i++)
+        if (value && !_stricmp(value, g_chaseProfiles[i].value))
+            p = &g_chaseProfiles[i];
+    if (!p)
+    {
+        if (g_chase.on)
+            wl_log("segarally3: cameras: the game's chase camera");
+        InterlockedExchange(&g_chase.on, 0);
+        g_chaseMult[0] = 7.5f;
+        g_chaseDamp = -15.0f;
+        return;
+    }
+    if (!chase_hooks())
+        return;
+    InterlockedExchange(&g_chase.on, 0); // the constants changed while the hooks pass
+    g_chase.name = p->name;
+    g_chase.strength = p->strength;
+    g_chase.vmin = p->fadeStart / 3.6f;
+    g_chase.vinv = 3.6f / (p->fadeFull - p->fadeStart);
+    g_chase.slip = 2.0f;
+    if (p->maxAngle >= 180)
+    {
+        g_chase.knee = 3.14159265f;
+        g_chase.range = 1e-4f;
+    }
+    else
+    {
+        float m = p->maxAngle * 3.14159265f / 180;
+        g_chase.knee = p->cap * m;
+        g_chase.range = m - g_chase.knee > 1e-4f ? m - g_chase.knee : 1e-4f;
+    }
+    g_chase.invRange = 1 / g_chase.range;
+    g_chase.distance = p->distance;
+    g_chase.height = p->height;
+    g_chase.fov = p->fov;
+    g_chaseKmin = p->kmin;
+    g_chaseKmax = p->kmax;
+    g_chaseMult[0] = 1.0f;
+    g_chaseDamp = -p->damping;
+    InterlockedExchange(&g_chase.on, 1);
+    wl_log("segarally3: cameras: chase camera %s (stiffness %.0f..%.0f, damping %.1f, path %.2f, swing %.0f deg, %.1f m, %.1f m high, fov %.0f)",
+           p->name, p->kmin, p->kmax, p->damping, p->strength, p->maxAngle, p->distance, p->height, p->fov);
+}
+
+// The cameras of the race's list, the View Change button's cycle: the camera manager
+// [0x9eb4ec]+0x18 (its frame's time at +0), its cameras inside it (the chase +0x510), the one
+// in use at +0x190, the list's count at +0x22c, the index chosen at +0x230 (View Change: + 1,
+// modulo the count), its cameras from +0x234 (21 at most). The game's other cameras, made but
+// never in the arcade's list, appended to it; the car's spin and the free cameras left out (the
+// spin stops the race's clock, the free ones need a mouse). [0xa65794]: the scenery all drawn
+// (the PVS built for eyes near the road leaves holes around the higher or farther ones)
+#define CAM_MAX 21
+#define CAM_SEAT 0x80000000u // the cockpit's camera from the driver's seat (its eye mirrored)
+
+static const struct
+{
+    unsigned off;
+    const char *name;
+} g_camNames[] = {
+    {0x510, "Chase"},          {0x8c4, "Far chase"}, {0x1700, "Bumper"}, {0x189c, "Bonnet"},
+    {0x1a38, "Cockpit"},       {CAM_SEAT | 0x1a38, "Driver's seat"},     {0x1bd0, "Wheel"},
+};
+static const unsigned g_camExtras[] = {0x8c4, 0x1700, 0x189c, 0x1a38, CAM_SEAT | 0x1a38, 0x1bd0};
+
+static volatile LONG g_hiddenOn;
+static int g_framesHooked; // 0 not yet, 1 done, -1 not this Rally.exe
+static struct
+{
+    unsigned char *mgr;
+    int base, total, last, keep, quiet;
+    unsigned char *cams[CAM_MAX];
+    unsigned offs[CAM_MAX];
+} g_list;
+static float g_seatEye[6];
+static float *g_seatSaved;
+
+static const char *cam_name(unsigned off)
+{
+    for (int i = 0; i < (int)(sizeof g_camNames / sizeof g_camNames[0]); i++)
+        if (g_camNames[i].off == off)
+            return g_camNames[i].name;
+    return "Camera";
+}
+
+// The cockpit's camera: from the driver's seat (its eye and look points, car space, x sideways,
+// [cam+0x194], a mirrored copy) while that entry is chosen, its own otherwise
+static void cam_seat(unsigned char *mgr, int seat)
+{
+    unsigned char *cockpit = mgr + 0x1a38;
+    if (*(unsigned *)cockpit != 0x6ebdf0)
+        return;
+    float **eye = (float **)(cockpit + 0x194);
+    if (seat)
+    {
+        if (*eye != g_seatEye && *eye)
+        {
+            g_seatSaved = *eye;
+            for (int i = 0; i < 6; i++)
+                g_seatEye[i] = g_seatSaved[i];
+            g_seatEye[0] = -g_seatEye[0];
+            g_seatEye[3] = -g_seatEye[3];
+            *eye = g_seatEye;
+        }
+    }
+    else if (*eye == g_seatEye)
+        *eye = g_seatSaved;
+}
+
+static void cam_shown(int i)
+{
+    unsigned off = g_list.offs[i];
+    const char *name = cam_name(off);
+    char text[64];
+    if (off == 0x510 && g_chase.on)
+        snprintf(text, sizeof text, "%s (%s)", name, g_chase.name);
+    else
+        snprintf(text, sizeof text, "%s", name);
+    wl_menu_flash(text, i >= g_list.base ? 0xFFD040 : 0xFFFFFF, 2000);
+}
+
+// Each frame, before the picture is presented
+static void __cdecl cams_frame(void)
+{
+    unsigned char *m = *(unsigned char **)VA(0x9eb4ec);
+    if (!m)
+    {
+        g_list.mgr = NULL;
+        return;
+    }
+    m += 0x18;
+    unsigned char *chase = m + 0x510;
+    int *count = (int *)(m + 0x22c), *index = (int *)(m + 0x230);
+    unsigned char **list = (unsigned char **)(m + 0x234), **inUse = (unsigned char **)(m + 0x190);
+    if (*(unsigned *)chase != 0x6eb808 || *count < 1 || *count > CAM_MAX || list[0] != chase)
+        return; // no race's list
+    int ours = g_list.mgr == m && *count == g_list.total;
+    for (int i = g_list.base; ours && i < g_list.total; i++)
+        ours = list[i] == g_list.cams[i];
+    if (!g_hiddenOn)
+    {
+        if (ours && g_list.total > g_list.base) // turned off from the menu: the game's list back
+        {
+            cam_seat(m, 0);
+            if (*index >= g_list.base)
+            {
+                if (*inUse == list[*index])
+                    *inUse = list[0];
+                *index = 0;
+            }
+            *count = g_list.base;
+            *(int *)VA(0xa65794) = 0;
+            wl_log("segarally3: cameras: the game's %d cameras", g_list.base);
+        }
+        g_list.mgr = NULL;
+        return;
+    }
+    if (!ours)
+    {
+        // The game's list (a race, a stage): its cameras' names, the others appended
+        int n = *count;
+        for (int i = 0; i < n; i++)
+        {
+            g_list.cams[i] = list[i];
+            g_list.offs[i] = (unsigned)(list[i] - m);
+        }
+        g_list.base = n;
+        char text[256];
+        int t = snprintf(text, sizeof text, "segarally3: cameras: the game's");
+        for (int i = 0; i < n && t < (int)sizeof text; i++)
+            t += snprintf(text + t, sizeof text - t, " %s (+0x%X)", cam_name(g_list.offs[i]), g_list.offs[i]);
+        for (int e = 0; e < (int)(sizeof g_camExtras / sizeof g_camExtras[0]) && n < CAM_MAX; e++)
+        {
+            unsigned off = g_camExtras[e];
+            unsigned char *cam = m + (off & ~CAM_SEAT);
+            if (!*(unsigned *)cam)
+                continue; // not made
+            int there = 0;
+            for (int i = 0; i < n && !(off & CAM_SEAT); i++)
+                there |= g_list.cams[i] == cam;
+            if (there)
+                continue;
+            g_list.cams[n] = list[n] = cam;
+            g_list.offs[n] = off;
+            n++;
+        }
+        *count = n;
+        g_list.mgr = m;
+        g_list.total = n;
+        g_list.last = -1;
+        g_list.quiet = 1;
+        // The camera chosen before (the previous stage's): the game chose its own
+        if (g_list.keep > 0 && g_list.keep - 1 < n)
+            *index = g_list.keep - 1;
+        if (t < (int)sizeof text)
+            snprintf(text + t, sizeof text - t, "; %d added", n - g_list.base);
+        wl_log("%s", text);
+    }
+    int i = *index;
+    cam_seat(m, i >= 0 && i < g_list.total && g_list.offs[i] == (CAM_SEAT | 0x1a38));
+    if (i == g_list.last)
+        return;
+    if (g_list.last >= 0 && i != (g_list.last + 1) % g_list.total)
+    {
+        // Not View Change (a step forward): the game's reset of its camera (a stage's start, a
+        // continue), the camera chosen kept
+        if (*inUse == list[i])
+            *inUse = list[g_list.last];
+        *index = g_list.last;
+        return;
+    }
+    if (i < 0 || i >= g_list.total)
+        return;
+    g_list.last = i;
+    g_list.keep = i + 1;
+    *(int *)VA(0xa65794) = i >= g_list.base;
+    if (g_list.quiet)
+        g_list.quiet = 0;
+    else
+        cam_shown(i);
+}
+
+static void *g_devAddr; // 0x7ed10c: the game's IDirect3DDevice9
+
+__declspec(naked) static void cams_frame_hook(void)
+{
+    __asm {
+        pushfd
+        pushad
+        call cams_frame
+        popad
+        popfd
+        mov eax, g_devAddr // the instruction replaced: mov eax, [0x7ed10c]
+        mov eax, [eax]
+        ret
+    }
+}
+
+static void hidden_apply(const char *value)
+{
+    int on = value && (!_stricmp(value, "true") || !strcmp(value, "1"));
+    if (on && !g_framesHooked)
+    {
+        g_framesHooked = -1;
+        static const unsigned char was[] = {0xA1, 0x0C, 0xD1, 0x7E, 0x00};
+        unsigned char bytes[5] = {0xE8};
+        *(int *)(bytes + 1) = (int)((unsigned)cams_frame_hook - ((unsigned)VA(0x591c4d) + 5));
+        g_devAddr = VA(0x7ed10c);
+        if (wl_patch_code(VA(0x591c4d), was, bytes, 5, "Sega Rally 3's frame (HIDDEN_CAMERAS)"))
+            g_framesHooked = 1;
+        else
+            wl_log("segarally3: cameras: not the Rally.exe this was made for (9228B72E): HIDDEN_CAMERAS left out");
+    }
+    if (g_framesHooked > 0 && on != (int)g_hiddenOn)
+        wl_log("segarally3: cameras: hidden cameras %s", on ? "in the View Change button's cycle" : "left out");
+    InterlockedExchange(&g_hiddenOn, on && g_framesHooked > 0);
+}
+
+static void cams_setup(void)
+{
+    g_image = (unsigned char *)GetModuleHandleW(NULL);
+    char value[WL_OPTION_VALUE_SIZE];
+    wl_game_option("CHASE_CAM", value, sizeof value);
+    chase_apply(value);
+    hidden_apply(wl_game_option_bool("HIDDEN_CAMERAS") ? "true" : "false");
+}
 #else
 static void revo_setup(const wchar_t *) // the game is 32 bits
+{
+}
+static void cams_setup(void)
+{
+}
+static void chase_apply(const char *)
+{
+}
+static void hidden_apply(const char *)
 {
 }
 #endif
@@ -1152,6 +1648,7 @@ static void sr3_settings(void)
 {
     wl_link_settings(GetModuleHandleW(NULL));
     revo_setup(g_gameDir);
+    cams_setup();
 }
 
 int wl_game_segarally3(const wchar_t *exePath)
@@ -1198,6 +1695,8 @@ int wl_game_segarally3(const wchar_t *exePath)
     // window in front (another emulator's, the desktop's) froze a race or its loading until the game's
     // was clicked; [Display] KEEP_ACTIVE (true by default, display.cpp) keeps that message from it
     wl_game_use_options("segarally3");
+    wl_game_option_hooks("CHASE_CAM", chase_apply, NULL);
+    wl_game_option_hooks("HIDDEN_CAMERAS", hidden_apply, NULL);
     wl_game_on_settings(sr3_settings);
     return 1;
 }

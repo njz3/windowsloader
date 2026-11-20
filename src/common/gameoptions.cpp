@@ -201,6 +201,10 @@ static const WlGameOption g_kodriveOptions[] = {
 };
 
 // segarally3.cpp's
+static const WlOptionChoice g_sr3ChaseCams[] = {
+    {"OFF", WL_N("Celle du jeu")}, {"DAYTONA", WL_N("Daytona")}, {"CHASE", WL_N("Poursuite")},
+    {"CHASE_FAR", WL_N("Poursuite éloignée")}, {"DRONE", WL_N("Drone")}, {NULL, NULL},
+};
 static const WlGameOption g_segarally3Options[] = {
     {"CABINET", WL_N("Numéro de la borne (link)"),
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
@@ -211,6 +215,15 @@ static const WlGameOption g_segarally3Options[] = {
           "environnement puis par circuit. Relatif au dossier du jeu (Rally), ou complet. Vide : les circuits de Sega Rally 3 seulement. "
           "En link, toutes les bornes doivent avoir les mêmes circuits."),
      WL_OPTION_TEXT, NULL, 0, 0, "", 1, NULL},
+    {"CHASE_CAM", WL_N("Caméra de poursuite"),
+     WL_N("Les réglages de la caméra derrière la voiture (d'après SR3CamLab, de Ninja Dynamics) : elle suit la trajectoire de la voiture "
+          "plutôt que son capot, avec sa distance, sa hauteur et son champ de vision. Celle du jeu : inchangée. La caméra éloignée "
+          "prend les mêmes réglages, plus loin et plus haut."),
+     WL_OPTION_CHOICE, g_sr3ChaseCams, 0, 0, "OFF", 0, NULL},
+    {"HIDDEN_CAMERAS", WL_N("Caméras cachées"),
+     WL_N("Le bouton de changement de vue passe aussi par les caméras du jeu absentes de la version arcade : poursuite éloignée, cockpit (côté passager, "
+          "comme le jeu la place), place du pilote, roue. Leur nom s'affiche à chaque changement."),
+     WL_OPTION_BOOL, NULL, 0, 0, "false", 0, NULL},
 };
 
 // stormracer.cpp's

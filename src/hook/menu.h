@@ -42,6 +42,10 @@ void wl_menu_notice_gl(HDC dc);
 // Before IDirect3DDevice9::Reset: the menu's device objects are released
 void wl_menu_device_reset(void);
 
+// A short line over the game's picture for ms milliseconds (a camera's name), its colour 0xRRGGBB;
+// drawn when the menu is closed, by the same path as the write folder's notice
+void wl_menu_flash(const char *text, unsigned rgb, int ms);
+
 // From the game window's procedure (display.cpp): 1 when the menu took the message
 int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result);
 
