@@ -20,7 +20,8 @@
 // modes, DXGI's output and its modes); it draws at that size in its window, and windowsloader puts
 // its picture on the real screen as for any game ([Display] DISPLAY_MODE, ASPECT_RATIO). AUTO (the
 // default): the game's own minimum (wl_vscreen_minimum), only when the real screen is smaller in a
-// direction; a size: always that one, larger than the real screen too (a game drawing at the
+// direction (on a larger one, only that size added to the modes' lists that lack it: SSASR looks
+// for its 1280x720 there); a size: always that one, larger than the real screen too (a game drawing at the
 // screen's size then draws more pixels, its picture reduced on the real screen); OFF: never. In the
 // option list of Crazy Ride, SWDC and Sonic & Sega All-Stars Racing (with their minimum); any other
 // game reads it from its section when it is written there by hand (AUTO then the real screen).

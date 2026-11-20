@@ -29,12 +29,26 @@
 
 static int g_minW, g_minH;             // the game's minimum (wl_vscreen_minimum), 0: none known (AUTO then the real screen)
 static volatile LONG g_w, g_h;          // the screen told, 0 when the real one
+static volatile LONG g_modeW, g_modeH;  // the mode added to the modes' lists: the screen told, or AUTO's
+                                        // minimum on a larger screen that lacks it (0: none)
 static int g_realW, g_realH;
 static wchar_t g_primary[CCHDEVICENAME]; // the primary screen's device name (\\.\DISPLAY1)
 
+static int game_caller(const void *caller)
+{
+    return !wl_busy() && !wl_is_system_caller(caller);
+}
+
+// The game told the screen's size
 static int game_asks(const void *caller)
 {
-    return g_w && !wl_busy() && !wl_is_system_caller(caller);
+    return g_w && game_caller(caller);
+}
+
+// The game given the modes' lists with ours
+static int game_lists(const void *caller)
+{
+    return g_modeW && game_caller(caller);
 }
 
 void wl_vscreen_minimum(int width, int height)
@@ -104,7 +118,7 @@ static void count_modes(void)
     int n = 0;
     while (EnumDisplaySettingsExW(NULL, n, &dm, 0)) // windowsloader's own call: the real list
     {
-        if ((int)dm.dmPelsWidth == g_w && (int)dm.dmPelsHeight == g_h)
+        if ((int)dm.dmPelsWidth == g_modeW && (int)dm.dmPelsHeight == g_modeH)
             g_modeThere = 1;
         n++;
     }
@@ -116,6 +130,8 @@ template <typename DM> static int mode_answer(DWORD mode, DM *dm, BOOL (*real)(D
 {
     if (mode == ENUM_CURRENT_SETTINGS || mode == ENUM_REGISTRY_SETTINGS)
     {
+        if (!g_w)
+            return 0; // the real screen's
         *ok = real(mode, dm);
         if (*ok)
         {
@@ -130,8 +146,8 @@ template <typename DM> static int mode_answer(DWORD mode, DM *dm, BOOL (*real)(D
     *ok = real(ENUM_CURRENT_SETTINGS, dm);
     if (*ok)
     {
-        dm->dmPelsWidth = (DWORD)g_w;
-        dm->dmPelsHeight = (DWORD)g_h;
+        dm->dmPelsWidth = (DWORD)g_modeW;
+        dm->dmPelsHeight = (DWORD)g_modeH;
     }
     return 1;
 }
@@ -152,7 +168,7 @@ static BOOL realW(DWORD mode, DEVMODEW *dm)
 static BOOL WINAPI hEnumDisplaySettingsExA(LPCSTR device, DWORD mode, DEVMODEA *dm, DWORD flags)
 {
     BOOL ok;
-    if (dm && game_asks(WL_CALLER) && primary_device(device, NULL) && mode_answer(mode, dm, realA, &ok))
+    if (dm && game_lists(WL_CALLER) && primary_device(device, NULL) && mode_answer(mode, dm, realA, &ok))
         return ok;
     return oEnumDisplaySettingsExA(device, mode, dm, flags);
 }
@@ -160,7 +176,7 @@ static BOOL WINAPI hEnumDisplaySettingsExA(LPCSTR device, DWORD mode, DEVMODEA *
 static BOOL WINAPI hEnumDisplaySettingsExW(LPCWSTR device, DWORD mode, DEVMODEW *dm, DWORD flags)
 {
     BOOL ok;
-    if (dm && game_asks(WL_CALLER) && primary_device(NULL, device) && mode_answer(mode, dm, realW, &ok))
+    if (dm && game_lists(WL_CALLER) && primary_device(NULL, device) && mode_answer(mode, dm, realW, &ok))
         return ok;
     return oEnumDisplaySettingsExW(device, mode, dm, flags);
 }
@@ -168,7 +184,7 @@ static BOOL WINAPI hEnumDisplaySettingsExW(LPCWSTR device, DWORD mode, DEVMODEW 
 static BOOL WINAPI hEnumDisplaySettingsA(LPCSTR device, DWORD mode, DEVMODEA *dm)
 {
     BOOL ok;
-    if (dm && game_asks(WL_CALLER) && primary_device(device, NULL) && mode_answer(mode, dm, realA, &ok))
+    if (dm && game_lists(WL_CALLER) && primary_device(device, NULL) && mode_answer(mode, dm, realA, &ok))
         return ok;
     return oEnumDisplaySettingsA(device, mode, dm);
 }
@@ -176,7 +192,7 @@ static BOOL WINAPI hEnumDisplaySettingsA(LPCSTR device, DWORD mode, DEVMODEA *dm
 static BOOL WINAPI hEnumDisplaySettingsW(LPCWSTR device, DWORD mode, DEVMODEW *dm)
 {
     BOOL ok;
-    if (dm && game_asks(WL_CALLER) && primary_device(NULL, device) && mode_answer(mode, dm, realW, &ok))
+    if (dm && game_lists(WL_CALLER) && primary_device(NULL, device) && mode_answer(mode, dm, realW, &ok))
         return ok;
     return oEnumDisplaySettingsW(device, mode, dm);
 }
@@ -247,11 +263,25 @@ void wl_vscreen_settings(const char *value)
         w = g_minW, h = g_minH;
     if (!w || (w == g_realW && h == g_realH))
     {
+        // AUTO on a screen large enough: the game's size added to the modes' lists, for a game that
+        // looks for it there (Sonic & Sega All-Stars Racing's 1280x720 at 60 Hz, missing from a
+        // cabinet's virtual screen at 1920x1080), the screen's own size told
+        if (!w && _stricmp(value, "OFF") && g_minW && !(g_minW == g_realW && g_minH == g_realH))
+        {
+            InterlockedExchange(&g_modeW, g_minW);
+            InterlockedExchange(&g_modeH, g_minH);
+            wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
+            wl_log("vscreen: VIRTUAL_DISPLAY %s: the real screen, %dx%d; the game's %dx%d added to the modes' lists when they lack it", value,
+                   g_realW, g_realH, g_minW, g_minH);
+            return;
+        }
         wl_log("vscreen: VIRTUAL_DISPLAY %s: the real screen, %dx%d (the game's minimum %dx%d)", value, g_realW, g_realH, g_minW, g_minH);
         return;
     }
     InterlockedExchange(&g_w, w);
     InterlockedExchange(&g_h, h);
+    InterlockedExchange(&g_modeW, w);
+    InterlockedExchange(&g_modeH, h);
     wl_hooks_add(g_hooks, sizeof g_hooks / sizeof g_hooks[0]);
     wl_log("vscreen: VIRTUAL_DISPLAY %s: the game is told a %dx%d screen (it is %dx%d; the game's minimum %dx%d); its picture put on the "
            "real one by [Display]",
@@ -291,7 +321,7 @@ static int d3d9_ours(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT *n, U
         for (UINT i = 0; i < *n && !there; i++)
         {
             D3DDISPLAYMODE m;
-            there = SUCCEEDED(oEnumAdapterModes(d3d, adapter, format, i, &m)) && (int)m.Width == g_w && (int)m.Height == g_h &&
+            there = SUCCEEDED(oEnumAdapterModes(d3d, adapter, format, i, &m)) && (int)m.Width == g_modeW && (int)m.Height == g_modeH &&
                     m.RefreshRate == want[k];
         }
         if (!there)
@@ -302,7 +332,7 @@ static int d3d9_ours(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT *n, U
 
 static UINT STDMETHODCALLTYPE hGetAdapterModeCount(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format)
 {
-    if (adapter != D3DADAPTER_DEFAULT || !game_asks(WL_CALLER))
+    if (adapter != D3DADAPTER_DEFAULT || !game_lists(WL_CALLER))
         return oGetAdapterModeCount(d3d, adapter, format);
     UINT n, rates[2];
     int ours = d3d9_ours(d3d, adapter, format, &n, rates);
@@ -311,7 +341,7 @@ static UINT STDMETHODCALLTYPE hGetAdapterModeCount(IDirect3D9 *d3d, UINT adapter
 
 static HRESULT STDMETHODCALLTYPE hEnumAdapterModes(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT index, D3DDISPLAYMODE *mode)
 {
-    if (adapter != D3DADAPTER_DEFAULT || !mode || !game_asks(WL_CALLER))
+    if (adapter != D3DADAPTER_DEFAULT || !mode || !game_lists(WL_CALLER))
         return oEnumAdapterModes(d3d, adapter, format, index, mode);
     UINT n, rates[2];
     int ours = d3d9_ours(d3d, adapter, format, &n, rates);
@@ -320,12 +350,12 @@ static HRESULT STDMETHODCALLTYPE hEnumAdapterModes(IDirect3D9 *d3d, UINT adapter
     HRESULT hr = oEnumAdapterModes(d3d, adapter, format, 0, mode); // its format, our size and rate
     if (SUCCEEDED(hr))
     {
-        mode->Width = (UINT)g_w;
-        mode->Height = (UINT)g_h;
+        mode->Width = (UINT)g_modeW;
+        mode->Height = (UINT)g_modeH;
         mode->RefreshRate = rates[index - n];
         static volatile LONG logged;
         if (InterlockedIncrement(&logged) <= 2)
-            wl_log("vscreen: Direct3D 9's modes: %dx%d at %u Hz added (format %d)", g_w, g_h, mode->RefreshRate, (int)format);
+            wl_log("vscreen: Direct3D 9's modes: %dx%d at %u Hz added (format %d)", (int)g_modeW, (int)g_modeH, mode->RefreshRate, (int)format);
     }
     return hr;
 }
@@ -344,7 +374,7 @@ static HRESULT STDMETHODCALLTYPE hGetAdapterDisplayMode(IDirect3D9 *d3d, UINT ad
 void wl_vscreen_d3d9(void *direct3d9)
 {
     static int done;
-    if (!g_w || !direct3d9 || done++)
+    if (!g_modeW || !direct3d9 || done++)
         return;
     void **vt = vtable_of(direct3d9);
     wl_hook_code(vt[6], (void *)hGetAdapterModeCount, (void **)&oGetAdapterModeCount, "IDirect3D9::GetAdapterModeCount (VIRTUAL_DISPLAY)");
@@ -391,15 +421,15 @@ template <typename D, typename Out, typename Fn> static HRESULT modes_with_ours(
     hr = real(out, format, flags, &got, all);
     int there = 0;
     for (UINT i = 0; SUCCEEDED(hr) && i < got && !there; i++)
-        there = (int)all[i].Width == g_w && (int)all[i].Height == g_h;
+        there = (int)all[i].Width == g_modeW && (int)all[i].Height == g_modeH;
     if (FAILED(hr) || there)
     {
         free(all);
         return real(out, format, flags, num, desc);
     }
     all[got] = all[0];
-    all[got].Width = (UINT)g_w;
-    all[got].Height = (UINT)g_h;
+    all[got].Width = (UINT)g_modeW;
+    all[got].Height = (UINT)g_modeH;
     got++;
     if (!desc)
         *num = got;
@@ -420,21 +450,21 @@ template <typename D, typename Out, typename Fn> static HRESULT modes_with_ours(
 
 static HRESULT STDMETHODCALLTYPE hGetDisplayModeList(IDXGIOutput *out, DXGI_FORMAT format, UINT flags, UINT *num, DXGI_MODE_DESC *desc)
 {
-    if (!num || !game_asks(WL_CALLER) || !primary_output(out))
+    if (!num || !game_lists(WL_CALLER) || !primary_output(out))
         return oGetDisplayModeList(out, format, flags, num, desc);
     return modes_with_ours(out, format, flags, num, desc, oGetDisplayModeList);
 }
 
 static HRESULT STDMETHODCALLTYPE hGetDisplayModeList1(IDXGIOutput1 *out, DXGI_FORMAT format, UINT flags, UINT *num, DXGI_MODE_DESC1 *desc)
 {
-    if (!num || !game_asks(WL_CALLER) || !primary_output(out))
+    if (!num || !game_lists(WL_CALLER) || !primary_output(out))
         return oGetDisplayModeList1(out, format, flags, num, desc);
     return modes_with_ours(out, format, flags, num, desc, oGetDisplayModeList1);
 }
 
 static HRESULT STDMETHODCALLTYPE hFindClosestMatchingMode(IDXGIOutput *out, const DXGI_MODE_DESC *want, DXGI_MODE_DESC *closest, IUnknown *device)
 {
-    if (want && closest && (int)want->Width == g_w && (int)want->Height == g_h && game_asks(WL_CALLER) && primary_output(out))
+    if (want && closest && (int)want->Width == g_modeW && (int)want->Height == g_modeH && game_lists(WL_CALLER) && primary_output(out))
     {
         *closest = *want;
         if (!closest->RefreshRate.Numerator || !closest->RefreshRate.Denominator)
@@ -449,7 +479,7 @@ static HRESULT STDMETHODCALLTYPE hFindClosestMatchingMode(IDXGIOutput *out, cons
 void wl_vscreen_dxgi(void *dxgiFactory)
 {
     static int done;
-    if (!g_w || !dxgiFactory || done)
+    if (!g_modeW || !dxgiFactory || done)
         return;
     IDXGIFactory *f = (IDXGIFactory *)dxgiFactory;
     IDXGIAdapter *ad = NULL;
