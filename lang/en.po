@@ -81,11 +81,11 @@ msgstr "The platform's error and warning screens (Error 4103...). The game's tex
 msgid "Les écrans d'erreur et d'avertissement de la plateforme."
 msgstr "The platform's error and warning screens."
 
-#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:239 src/common/gameoptions.cpp:248
+#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:243 src/common/gameoptions.cpp:252
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:240 src/common/gameoptions.cpp:249
+#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:244 src/common/gameoptions.cpp:253
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
@@ -126,7 +126,7 @@ msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre wi
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:271
+#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:275
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
@@ -214,55 +214,55 @@ msgstr "Hidden cameras"
 msgid "Le bouton de changement de vue passe aussi par les caméras du jeu absentes de la version arcade : poursuite éloignée, cockpit (côté passager, comme le jeu la place), place du pilote, roue. Leur nom s'affiche à chaque changement."
 msgstr "The View Change button also goes through the game's cameras absent from the arcade version: far chase, cockpit (on the passenger's side, as the game places it), driver's seat, wheel. Their name is shown at each change."
 
-#: src/common/gameoptions.cpp:256
+#: src/common/gameoptions.cpp:260
 msgid "Standard"
 msgstr "Standard"
 
-#: src/common/gameoptions.cpp:257
+#: src/common/gameoptions.cpp:261
 msgid "Pro"
 msgstr "Pro"
 
-#: src/common/gameoptions.cpp:261
+#: src/common/gameoptions.cpp:265
 msgid "Comme la borne (7.1)"
 msgstr "As the cabinet (7.1)"
 
-#: src/common/gameoptions.cpp:262
+#: src/common/gameoptions.cpp:266
 msgid "Stéréo"
 msgstr "Stereo"
 
-#: src/common/gameoptions.cpp:266
+#: src/common/gameoptions.cpp:270
 msgid "Borne"
 msgstr "Cabinet"
 
-#: src/common/gameoptions.cpp:267
+#: src/common/gameoptions.cpp:271
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and H-shifter (a second I/O board). The game changes its own settings at the next start and closes once: start it again."
 
-#: src/common/gameoptions.cpp:270
+#: src/common/gameoptions.cpp:274
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/common/gameoptions.cpp:272
+#: src/common/gameoptions.cpp:276
 msgid "Haut-parleurs"
 msgstr "Speakers"
 
-#: src/common/gameoptions.cpp:273
+#: src/common/gameoptions.cpp:277
 msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
 msgstr "As the cabinet: the game plays in 7.1, Windows brings the sound down to the PC's speakers; its music depends on it. Stereo: the former setting, without the music."
 
-#: src/common/gameoptions.cpp:276
+#: src/common/gameoptions.cpp:280
 msgid "Serveur NESYS"
 msgstr "NESYS server"
 
-#: src/common/gameoptions.cpp:277
+#: src/common/gameoptions.cpp:281
 msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
 msgstr "Address[:port] of the NESYS server (the online game), port 80 by default; 124.146.156.106 by default. OFF: the game stays on the PC, NESYS offline."
 
-#: src/common/gameoptions.cpp:281
+#: src/common/gameoptions.cpp:285
 msgid "Identifiant de la clé NESYS"
 msgstr "NESYS key ID"
 
-#: src/common/gameoptions.cpp:282
+#: src/common/gameoptions.cpp:286
 msgid "Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action « EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par windowsloader."
 msgstr "The key's 7 letters or digits (for example AAT1234), read by the game each time it reads the key; the \"EntryKey\" action (K by default) puts the key in or takes it out. Empty: those of OpenParrot\\KeyId.txt in the game's folder (the file NESYS Revival's KeyManager keeps), else a key made by windowsloader."
 
@@ -1166,15 +1166,15 @@ msgstr "Serial board"
 msgid "Start (semble-t-il)"
 msgstr "Start (it seems)"
 
-#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:438
 msgid "rouge"
 msgstr "red"
 
-#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:438
 msgid "vert"
 msgstr "green"
 
-#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:436
+#: src/hook/games/alls.cpp:1002 src/hook/games/namco.cpp:177 src/hook/games/unis.cpp:438
 msgid "bleu"
 msgstr "blue"
 
@@ -1183,7 +1183,7 @@ msgstr "blue"
 msgid "Carte LED 837-15070 (mode Cabinet) : LED %d, %s, 0 éteinte à 255"
 msgstr "LED board 837-15070 (Cabinet mode): LED %d, %s, 0 off to 255"
 
-#: src/hook/games/alls.cpp:1009 src/hook/games/alls.cpp:1018 src/hook/games/stormracer.cpp:654
+#: src/hook/games/alls.cpp:1009 src/hook/games/alls.cpp:1018 src/hook/games/stormracer.cpp:655
 msgid "intensité (0-255)"
 msgstr "intensity (0-255)"
 
@@ -1200,7 +1200,7 @@ msgstr "number (0-999)"
 msgid "Tableau de bord (mode Cabinet) : la vitesse affichée, km/h"
 msgstr "Dashboard (Cabinet mode): the speed shown, km/h"
 
-#: src/hook/games/alls.cpp:1175 src/hook/games/alls.cpp:1176 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:450
+#: src/hook/games/alls.cpp:1175 src/hook/games/alls.cpp:1176 src/hook/games/uniana.cpp:276 src/hook/games/unis.cpp:452
 msgid "nombre"
 msgstr "number"
 
@@ -1271,11 +1271,11 @@ msgstr "Wheel's motor board"
 msgid "Lecteur de cartes"
 msgstr "Card reader"
 
-#: src/hook/games/stormracer.cpp:648
+#: src/hook/games/stormracer.cpp:649
 msgid "la carte USB d'E/S, UsbIO_SetLedLightStatu (usb_io.dll)"
 msgstr "the USB I/O board, UsbIO_SetLedLightStatu (usb_io.dll)"
 
-#: src/hook/games/stormracer.cpp:653
+#: src/hook/games/stormracer.cpp:654
 #, c-format
 msgid "Lumière PWM %d de la carte USB d'E/S, UsbIO_SetPWMLightStatu (usb_io.dll), 0 éteinte à 255"
 msgstr "PWM light %d of the USB I/O board, UsbIO_SetPWMLightStatu (usb_io.dll), 0 off to 255"
@@ -1316,22 +1316,26 @@ msgstr "number (0, 10-23)"
 msgid "Moteur du guidon : 0 aucun, impair guidon à droite, pair à gauche, plus fort en montant"
 msgstr "Handlebar's motor: 0 none, odd handlebar to the right, even to the left, stronger as it goes up"
 
-#: src/hook/games/unis.cpp:442
+#: src/hook/games/unis.cpp:444
 #, c-format
 msgid "Set%s, %s (ordre supposé), allumé ou non (UsbPluginsDll_R.dll)"
 msgstr "Set%s, %s (order assumed), on or off (UsbPluginsDll_R.dll)"
 
-#: src/hook/games/unis.cpp:449
+#: src/hook/games/unis.cpp:451
 msgid ", deux bits"
 msgstr ", two bits"
 
-#: src/hook/games/unis.cpp:450
+#: src/hook/games/unis.cpp:452
 msgid "0 à 3"
 msgstr "0 to 3"
 
-#: src/hook/games/unis.cpp:452
+#: src/hook/games/unis.cpp:454
 msgid "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)"
 msgstr "SetStartLightState, the Start lamp (UsbPluginsDll_R.dll)"
+
+#: src/hook/games/unis.cpp:769
+msgid "Carte d'E/S"
+msgstr "I/O board"
 
 #: src/launcher/gamelist.cpp:26
 msgid "Carte d'E/S USB émulée ; moteur du volant par le port d'E/S 0x1020."
@@ -1417,47 +1421,55 @@ msgstr "UNIS PC (64-bit)"
 msgid "E/S et volant UNIS, clé de la borne."
 msgstr "UNIS I/O and wheel, cabinet's key."
 
+#: src/launcher/gamelist.cpp:87
+msgid "UNIS PC"
+msgstr "UNIS PC"
+
 #: src/launcher/gamelist.cpp:88
+msgid "Carte d'E/S UNIS game232 (COM1) ; hors ligne. D'après windowsarcadeloader, pas encore essayé."
+msgstr "UNIS game232 I/O board (COM1); offline. From windowsarcadeloader, not tried yet."
+
+#: src/launcher/gamelist.cpp:91
 msgid "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."
 msgstr "USB board through usb_io.dll; black videos without the WMV decoder."
 
-#: src/launcher/gamelist.cpp:90
+#: src/launcher/gamelist.cpp:93
 msgid "Moto. Carte par motobikeio.dll, clé HASP par Lock.dll."
 msgstr "Motorbike. Board through motobikeio.dll, HASP key through Lock.dll."
 
-#: src/launcher/gamelist.cpp:92 src/launcher/gamelist.cpp:96
+#: src/launcher/gamelist.cpp:95 src/launcher/gamelist.cpp:99
 msgid "Sega Nu (64 bits)"
 msgstr "Sega Nu (64-bit)"
 
-#: src/launcher/gamelist.cpp:94 src/launcher/gamelist.cpp:97
+#: src/launcher/gamelist.cpp:97 src/launcher/gamelist.cpp:100
 msgid "Plateforme Nu (amdaemon, carte AMEX), carte JVS, levier en H, moteur du volant (COM1), lampes (COM11), server box du magasin : partie invité ; les cartes Aime attendent le serveur en ligne du jeu."
 msgstr "Nu platform (amdaemon, AMEX board), JVS board, H-shifter, wheel's motor (COM1), lamps (COM11), the shop's server box: guest play; the Aime cards wait for the game's online server."
 
-#: src/launcher/gamelist.cpp:100
+#: src/launcher/gamelist.cpp:103
 msgid "Trottinette. Carte par xio.dll : guidon, poussées gauche et droite (l'accélérateur les alterne), frein, moteur du guidon."
 msgstr "Kick scooter. Board through xio.dll: handlebar, left and right kicks (the accelerator alternates them), brake, handlebar's motor."
 
-#: src/launcher/gamelist.cpp:102
+#: src/launcher/gamelist.cpp:105
 msgid "Sega ALLS (64 bits)"
 msgstr "Sega ALLS (64-bit)"
 
-#: src/launcher/gamelist.cpp:103
+#: src/launcher/gamelist.cpp:106
 msgid "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini (option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Reste le serveur de matching (GAME SERVER BAD, pas de course en réseau)."
 msgstr "ALLS platform (amdaemon), single cabinet, full (dashboard: wheel's buttons, speed; LED board) or mini (CABINET option); ALL.Net, Aime and the title server played on this PC: guest play (race, results, game over), force feedback through the wheel's board on COM1. The matching server remains (GAME SERVER BAD, no network race)."
 
-#: src/launcher/gamelist.cpp:107 src/launcher/gamelist.cpp:111 src/launcher/gamelist.cpp:116
+#: src/launcher/gamelist.cpp:110 src/launcher/gamelist.cpp:114 src/launcher/gamelist.cpp:119
 msgid "Namco System ES3X (64 bits)"
 msgstr "Namco System ES3X (64-bit)"
 
-#: src/launcher/gamelist.cpp:108
+#: src/launcher/gamelist.cpp:111
 msgid "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent les cartes et la caméra."
 msgstr "HASP key (ID 2808), Namco JVS board, arcade terminal played, Banapass reader without a card, offline (no ALL.Net): race in Story mode. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The cards and the camera remain."
 
-#: src/launcher/gamelist.cpp:113
+#: src/launcher/gamelist.cpp:116
 msgid "Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key (ID 2783), Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The card reader and the camera remain."
 
-#: src/launcher/gamelist.cpp:117
+#: src/launcher/gamelist.cpp:120
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key, Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once \"ステアリング反力の使用\" is set to ON in the test menu. The card reader and the camera remain."
 

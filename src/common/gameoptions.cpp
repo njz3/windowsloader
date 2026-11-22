@@ -236,6 +236,9 @@ static const WlGameOption g_srgOptions[] = {
 };
 
 // unis.cpp's
+static const WlGameOption g_crazyspeedOptions[] = {
+    VSCREEN_OPTION,
+};
 static const WlGameOption g_crazyrideOptions[] = {
     {"CABINET", WL_N("Numéro de la borne (link)"),
      WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "
@@ -318,6 +321,7 @@ static const struct
     TABLE(segarally3),
     TABLE(srg),
     TABLE(crazyride),
+    TABLE(crazyspeed),
     TABLE(stormrider),
     TABLE(bg4),
     TABLE(link4),

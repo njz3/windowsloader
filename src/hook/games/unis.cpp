@@ -30,6 +30,7 @@
 //   the copy, made with TeknoParrot); the same range here, 1 at the left end (the car selection
 //   moves with it as the wheel goes).
 
+#include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,6 +45,7 @@
 #include "log.h"
 #include "vscreen.h"
 #include "outputs.h"
+#include "vdev.h"
 
 enum
 {
@@ -553,10 +555,235 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
     return oGetProcAddress(mod, name);
 }
 
+// ------------------------------------------------------------------------------
+// Crazy Speed Arcade (release\Client_r.exe, 32 bits, Ogre, 2010): UNIS's "game232" driving
+// cabinet. Reimplemented from windowsarcadeloader's findings (aderumier, GPL v3,
+// https://github.com/aderumier/windowsarcadeloader, crates/payload-unis/src/game232.rs and its
+// docs/IMPLEMENTATION.md): the board's protocol, the game's places, what each one needs.
+//
+// - The board (configure\ApplicationCfg.ini UseGame232 = 1): COM1, 19200 bauds 8N1, read a byte at
+//   a time (overlapped). It sends its frames on its own: AA AA, 10 bytes, their CRC-16/Modbus (low
+//   byte first). Bytes 0..5: the wheel, the accelerator, the brake (16 bits, 0..1024, the game
+//   takes 1 - raw / 1024); bytes 6..8: 20 buttons (bit n of the 24), byte 8 bit 7 a coin (counted
+//   at each frame it is set: one frame per press). Through configure\js_game232_map.dat: button 5
+//   START/NOS (confirms, the nitro), 4 VIEW (the camera; the game card's renewal on the title), 0
+//   and 1 the vertical menus' up and down, 9 the operator's (it quits the game: not given). The
+//   PC's frames (AA AA, a length: two settings at the start, the lamps) need no answer; no force.
+// - Its actions (64-byte blocks) are RSA-encrypted by the game and decrypted by its dongle
+//   (dic32u.dll): both functions return at once (+0x7f1d0, +0x7f2e0), the actions in clear.
+// - Its licence bound to the cabinet ("UNIDENTIFIED SYSTEM ID", +0xf7640): answered valid.
+// - WMI: the memory size (Win32_LogicalMemoryConfiguration, gone since Windows Vista) and the video
+//   card read at the start; an empty enumeration passed its check and the game read a null
+//   object: the checks after Next made jne (+0x102c06, +0x102ccc).
+// - Offline: the network engine's connection thread (to a server on the internet, every 30 s)
+//   crashed on its queue: it ends at once (+0x347dc0), its shutdown skips the queue's release
+//   (+0x3473c5), and its connect to an address outside the PC and its LAN is refused. The game
+//   shows OFFLINE and plays Tournament and Time Attack.
+// - Its picture: a 1360x768 full screen mode (in its code), which Ogre refuses on a screen without
+//   it: VIRTUAL_DISPLAY (its minimum 1360x768) adds it to Direct3D 9's modes.
+// ------------------------------------------------------------------------------
+
+enum
+{
+    CS_STEERING,
+    CS_GAS,
+    CS_BRAKE,
+    CS_COIN,
+    CS_START, // button 5: START/NOS
+    CS_VIEW,  // button 4
+    CS_UP,    // button 0: the vertical menus
+    CS_DOWN,  // button 1
+    CS_COUNT
+};
+
+static WlInput g_speedInputs[CS_COUNT] = {
+    {"Steering", "P1_Steer", WL_INPUT_AXIS, 1024, 0, 512},
+    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 1024, 0, 1024},
+    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1024, 0, 1024},
+    {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"MenuUp", "SelectUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"MenuDown", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
+};
+
+static CRITICAL_SECTION g_speedLock;
+static unsigned char g_speedOut[64];
+static int g_speedCount, g_speedCoinHeld;
+static ULONGLONG g_speedLast;
+static LONG g_speedFrames;
+
+static unsigned short crc16_modbus(const unsigned char *d, int n)
+{
+    unsigned short crc = 0xFFFF;
+    for (int i = 0; i < n; i++)
+    {
+        crc ^= d[i];
+        for (int b = 0; b < 8; b++)
+            crc = (crc & 1) ? (unsigned short)((crc >> 1) ^ 0xA001) : (unsigned short)(crc >> 1);
+    }
+    return crc;
+}
+
+// The board's next frame, at most one each 8 ms (the read waits for it)
+static void speed_frame(void)
+{
+    ULONGLONG now = GetTickCount64();
+    if (now - g_speedLast < 8)
+    {
+        Sleep((DWORD)(8 - (now - g_speedLast)));
+        now = GetTickCount64();
+    }
+    g_speedLast = now;
+    unsigned char f[14] = {0xAA, 0xAA};
+    unsigned char *data = f + 2;
+    int axes[3] = {wl_input_get(&g_speedInputs[CS_STEERING]), wl_input_get(&g_speedInputs[CS_GAS]), wl_input_get(&g_speedInputs[CS_BRAKE])};
+    for (int a = 0; a < 3; a++)
+    {
+        data[2 * a] = (unsigned char)(axes[a] & 0xFF);
+        data[2 * a + 1] = (unsigned char)(axes[a] >> 8);
+    }
+    unsigned buttons = 0;
+    if (wl_input_get(&g_speedInputs[CS_UP]))
+        buttons |= 1u << 0;
+    if (wl_input_get(&g_speedInputs[CS_DOWN]))
+        buttons |= 1u << 1;
+    if (wl_input_get(&g_speedInputs[CS_VIEW]))
+        buttons |= 1u << 4;
+    if (wl_input_get(&g_speedInputs[CS_START]))
+        buttons |= 1u << 5;
+    data[6] = (unsigned char)buttons;
+    data[7] = (unsigned char)(buttons >> 8);
+    data[8] = (unsigned char)(buttons >> 16);
+    int coin = wl_input_get(&g_speedInputs[CS_COIN]) != 0;
+    if (coin && !g_speedCoinHeld)
+        data[8] |= 0x80; // one frame per press
+    g_speedCoinHeld = coin;
+    unsigned short crc = crc16_modbus(data, 10);
+    f[12] = (unsigned char)(crc & 0xFF);
+    f[13] = (unsigned char)(crc >> 8);
+    memcpy(g_speedOut, f, sizeof f);
+    g_speedCount = (int)sizeof f;
+    if (InterlockedIncrement(&g_speedFrames) == 1)
+        wl_log("unis: Crazy Speed's board, first frame to the game");
+}
+
+static BOOL speed_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
+{
+    EnterCriticalSection(&g_speedLock);
+    if (!g_speedCount)
+        speed_frame();
+    DWORD n = size < (DWORD)g_speedCount ? size : (DWORD)g_speedCount;
+    memcpy(buffer, g_speedOut, n);
+    memmove(g_speedOut, g_speedOut + n, g_speedCount - n);
+    g_speedCount -= n;
+    LeaveCriticalSection(&g_speedLock);
+    *read = n;
+    return TRUE;
+}
+
+static BOOL speed_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
+{
+    *written = size; // its settings and lamps: nothing to answer
+    static int logged;
+    if (logged++ < 10)
+        wl_log_hex("unis: Crazy Speed's board, from the game", buffer, size);
+    return TRUE;
+}
+
+static DWORD speed_modem(void)
+{
+    return MS_CTS_ON | MS_DSR_ON;
+}
+
+static DWORD speed_waiting(void)
+{
+    return g_speedCount ? (DWORD)g_speedCount : 14;
+}
+
+static WlVirtualDevice g_speedBoard = {"COM1", NULL, speed_read, speed_write, speed_modem, speed_waiting};
+
+// connect (ws2_32 #4): an address outside the PC and its LAN refused (the game offline)
+static int(WINAPI *oSpeedConnect)(SOCKET, const struct sockaddr *, int);
+static int WINAPI speed_connect(SOCKET s, const struct sockaddr *addr, int len)
+{
+    if (addr && len >= 8 && addr->sa_family == AF_INET)
+    {
+        const unsigned char *ip = (const unsigned char *)&((const struct sockaddr_in *)addr)->sin_addr;
+        int local = ip[0] == 127 || ip[0] == 10 || (ip[0] == 192 && ip[1] == 168) || (ip[0] == 169 && ip[1] == 254) ||
+                    (ip[0] == 172 && ip[1] >= 16 && ip[1] < 32);
+        if (!local)
+        {
+            static int logged;
+            if (!logged++)
+                wl_log("unis: Crazy Speed: its connection to %u.%u.%u.%u refused (offline)", ip[0], ip[1], ip[2], ip[3]);
+            WSASetLastError(WSAECONNREFUSED);
+            return SOCKET_ERROR;
+        }
+    }
+    return oSpeedConnect(s, addr, len);
+}
+
+static void speed_patches(unsigned char *exe)
+{
+    // The checks after WMI's Next: jl made jne (short and near)
+    static const unsigned char wmi1[] = {0x85, 0xC0, 0x7C, 0x4D}, wmi1New[] = {0x85, 0xC0, 0x75, 0x4D};
+    static const unsigned char wmi2[] = {0x85, 0xC0, 0x0F, 0x8C}, wmi2New[] = {0x85, 0xC0, 0x0F, 0x85};
+    wl_patch_code(exe + 0x102C06, wmi1, wmi1New, sizeof wmi1, "Crazy Speed's memory size check (WMI)");
+    wl_patch_code(exe + 0x102CCC, wmi2, wmi2New, sizeof wmi2, "Crazy Speed's video card check (WMI)");
+    // The licence bound to the cabinet: mov al, 1; ret
+    static const unsigned char id[] = {0x6A, 0xFF, 0x68}, idNew[] = {0xB0, 0x01, 0xC3};
+    wl_patch_code(exe + 0xF7640, id, idNew, sizeof id, "Crazy Speed's cabinet licence check");
+    // The connection thread ends at once: xor eax, eax; ret 4
+    static const unsigned char thread[] = {0x53, 0x8B, 0x1D, 0x08, 0x8A}, threadNew[] = {0x31, 0xC0, 0xC2, 0x04, 0x00};
+    wl_patch_code(exe + 0x347DC0, thread, threadNew, sizeof thread, "Crazy Speed's connection thread (offline)");
+    // Its shutdown jumps over the queue's release
+    static const unsigned char shutdown[] = {0x8B, 0x0D}, shutdownNew[] = {0xEB, 0x2E};
+    if (!memcmp(exe + 0x3473C5, "\x8B\x0D\x6C\x9D\x8C\x00", 6))
+        wl_patch_code(exe + 0x3473C5, shutdown, shutdownNew, 2, "Crazy Speed's network shutdown (its queue left)");
+    // The actions' encryption and the dongle's decryption: ret
+    static const unsigned char enc[] = {0x81, 0xEC, 0x04, 0x01, 0x00, 0x00}, dec[] = {0x81, 0xEC, 0x08, 0x06, 0x00, 0x00}, ret[] = {0xC3};
+    if (!memcmp(exe + 0x7F1D0, enc, sizeof enc))
+        wl_patch_code(exe + 0x7F1D0, enc, ret, 1, "Crazy Speed's actions encryption (in clear)");
+    if (!memcmp(exe + 0x7F2E0, dec, sizeof dec))
+        wl_patch_code(exe + 0x7F2E0, dec, ret, 1, "Crazy Speed's dongle decryption (in clear)");
+}
+
+static int crazy_speed(const wchar_t *exePath, const wchar_t *base, const char **name, const char **title)
+{
+    if (_wcsicmp(base, L"Client_r.exe"))
+        return 0;
+    wchar_t marker[MAX_PATH];
+    swprintf(marker, MAX_PATH, L"%.*sReferenceAppLayer.dll", (int)(base - exePath), exePath);
+    if (GetFileAttributesW(marker) == INVALID_FILE_ATTRIBUTES)
+        return 0;
+    *name = "crazyspeed";
+    *title = "Crazy Speed Arcade";
+    unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew);
+    wl_log("game: %s (UNIS PC, Ogre, program built 0x%08lX)", *title, nt->FileHeader.TimeDateStamp);
+    wl_game_set_boards("Controls on UNIS game232 board (COM1, 19200 bauds, frames AA AA, 10 bytes, CRC-16/Modbus)", NULL);
+    wl_inputs_set_table(g_speedInputs, CS_COUNT);
+    InitializeCriticalSection(&g_speedLock);
+    wl_vdev_register(&g_speedBoard);
+    wl_vdev_label("COM1", WL_N("Carte d'E/S"));
+    if (nt->FileHeader.TimeDateStamp == 0x4C0F0B89)
+        speed_patches(exe);
+    else
+        wl_log("game: %s, not the program this was made for (built 0x4C0F0B89): its dongle, licence and network left as they are", *title);
+    if (wl_patch_iat((HMODULE)exe, "WS2_32.dll", MAKEINTRESOURCEA(4), (void *)speed_connect, (void **)&oSpeedConnect))
+        wl_log("game: %s: connections outside the PC and its LAN refused (offline)", *title);
+    wl_game_use_options("crazyspeed");
+    wl_vscreen_minimum(1360, 768);
+    return 1;
+}
+
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
     base = base ? base + 1 : exePath;
+    if (crazy_speed(exePath, base, name, title))
+        return 1;
     if (_wcsicmp(base, L"CrazyTaxiGame-Win64-Shipping.exe"))
         return 0;
     *name = "crazyride";
