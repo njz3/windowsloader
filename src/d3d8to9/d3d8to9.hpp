@@ -183,6 +183,23 @@ private:
 
 	// Store shader handles and state block tokens so they can be destroyed later to mirror D3D8 behavior
 	std::unordered_set<DWORD> PixelShaderHandles, VertexShaderHandles, StateBlockTokens;
+	// windowsloader: the pixel shaders' handles are small numbers (slot + 1), as Direct3D 8's, not
+	// the Direct3D 9 interfaces' addresses: a game may keep them in 16 bits (The Fast and the Furious,
+	// Raw Thrills, read them back from a word: 0xfc00 of an address, then a crash in SetPixelShader)
+	std::vector<IDirect3DPixelShader9 *> PixelShaderSlots;
+	// The same for the vertex shaders: ((slot + 1) << 1) | 1, bit 0 set (never in an FVF code: its
+	// reserved bit), in place of 0x80000000 | address >> 1, whose top bit a 16-bit copy loses (the
+	// handle then taken for an FVF: The Fast and the Furious' cars black and twisted)
+	std::vector<struct VertexShaderInfo *> VertexShaderSlots;
+	struct VertexShaderInfo *VertexShaderOf(DWORD Handle) const
+	{
+		const DWORD Slot = Handle >> 1;
+		return (Handle & 1) && Slot && Slot <= VertexShaderSlots.size() ? VertexShaderSlots[Slot - 1] : nullptr;
+	}
+	IDirect3DPixelShader9 *PixelShaderOf(DWORD Handle) const
+	{
+		return Handle && Handle <= PixelShaderSlots.size() ? PixelShaderSlots[Handle - 1] : nullptr;
+	}
 	unsigned int VertexShaderAndDeclarationCount = 0;
 };
 

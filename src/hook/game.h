@@ -23,6 +23,7 @@ int wl_game_codemasters(const wchar_t *exePath, const char **name, const char **
 int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **title); // Sega RingEdge and RingWide games
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title);    // Taito Type X+ (Battle Gear 4)
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
+int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char **title); // Konami PC (Road Fighters 3D: jgt.dll in wl_avsboot.exe)
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX), ES3X (Wangan Midnight 5, x64)
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)
@@ -32,6 +33,9 @@ void wl_allnet_game(void);              // allnet.cpp, in the game: its title se
 int wl_game_stormracer(const wchar_t *exePath, const char **name, const char **title); // Storm Racer G (usb_io.dll)
 int wl_game_cardrw(const wchar_t *exePath, const char **name, const char **title);     // Initial D 7 and 8's card unit (picodaemon.exe)
 int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title);     // Storm Rider (motobikeio.dll)
+// The running program's CRC-32 (zlib's), read once: how a module tells a build (filecrc.h)
+unsigned long wl_game_exe_crc32(void);
+int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **title); // Raw Thrills PC (sdaemon.exe: Fast and Furious...)
 int wl_game_uniana(const wchar_t *exePath, const char **name, const char **title);     // Frenzy Express (xio.dll)
 
 // The game recognized by wl_game_init, "unknown" when none: only the observer then runs

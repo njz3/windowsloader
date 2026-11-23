@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include "game.h"
+#include "filecrc.h"
 #include "lang.h"
 #include "log.h"
 #include "settings.h"
@@ -27,6 +28,20 @@ static const char *g_name = "unknown";
 static const char *g_title = WL_N("jeu inconnu"); // translated where it is shown (menu.cpp)
 static const char *g_controls, *g_motor;
 static void (*g_onSettings)(void);
+
+unsigned long wl_game_exe_crc32(void)
+{
+    static DWORD crc;
+    static int read;
+    if (!read)
+    {
+        read = 1;
+        wchar_t exe[MAX_PATH];
+        GetModuleFileNameW(NULL, exe, MAX_PATH);
+        crc = wl_file_crc32(exe);
+    }
+    return crc;
+}
 
 const char *wl_game_name(void)
 {
@@ -101,11 +116,12 @@ void wl_game_init(void)
         g_name = "fordracing";
     else if (!wl_game_daytona(exe, &g_name, &g_title) && !wl_game_codemasters(exe, &g_name, &g_title) &&
              !wl_game_ringedge(exe, &g_name, &g_title) && !wl_game_taito(exe, &g_name, &g_title) &&
-             !wl_game_konami(exe, &g_name, &g_title) && !wl_game_triotech(exe, &g_name, &g_title) &&
+             !wl_game_konami(exe, &g_name, &g_title) && !wl_game_roadfighters3d(exe, &g_name, &g_title) &&
+             !wl_game_triotech(exe, &g_name, &g_title) &&
              !wl_game_namco(exe, &g_name, &g_title) && !wl_game_unis(exe, &g_name, &g_title) &&
              !wl_game_alls(exe, &g_name, &g_title) && !wl_game_stormracer(exe, &g_name, &g_title) &&
              !wl_game_cardrw(exe, &g_name, &g_title) && !wl_game_wahlap(exe, &g_name, &g_title) &&
-             !wl_game_uniana(exe, &g_name, &g_title))
+             !wl_game_uniana(exe, &g_name, &g_title) && !wl_game_rawthrills(exe, &g_name, &g_title))
         wl_log("game not recognized: observing only");
 }
 

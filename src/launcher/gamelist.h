@@ -39,7 +39,7 @@ struct WlKnownGame
     const char *title;
     const char *name;          // its short name: the DLL module's ([Game.<name>], WRITE_DIR\<name>)
     const char *version;       // "" when the copies do not tell it
-    const wchar_t *exes[3];    // the program's names
+    const wchar_t *exes[3];    // the program's names (a .dll: a Konami AVS game's, run in the launcher's wl_avsboot.exe)
     DWORD crc32[3];            // each one's CRC-32 in the cabinets' copies (zip's), 0 when not known: shown
                                // by --list-games only, never checked (another program is played the same)
     const wchar_t *markers[3]; // files that must be there, from the program's folder
@@ -51,6 +51,8 @@ struct WlKnownGame
     const char *note; // what windowsloader plays for it (WL_N, translated in the picker: lang.h)
     int ffb;          // the force feedback: the game's motor sent to the wheel (WL_FEATURE_...)
     int link;         // the link between cabinets
+    int byCrc;        // 1: told by its program's CRC-32 (crc32[]), the time stamp not looked at (a
+                      // program of the same name in every build: Raw Thrills' sdaemon.exe)
 };
 
 extern const WlKnownGame g_wlKnownGames[];

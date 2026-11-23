@@ -16,6 +16,7 @@
 
 #include "gamelist.h"
 #include "lang.h"
+#include "filecrc.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -70,6 +71,13 @@ const WlKnownGame g_wlKnownGames[] = {
      WL_N("Carte JVS ; le moteur par les sorties de la carte JVS. Les fonds des menus restent en 800×600."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"GTI Club: Supermini Festa!", "gticlub3", "", {L"gti3.exe", L"gti3japkey.exe"}, {0xC0F782AF, 0xE41F76BE}, {L"libacio.dll"}, 0, NULL, "Konami PC", "2008", WL_GAME_PLAYS,
      WL_N("Carte ACIO de Konami, son volant."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
+    // Its program is a DLL, run in wl_avsboot.exe (the launcher's); cabinet 2's build of it (jgt_link_cab2.dll) too
+    {"Road Fighters 3D", "rf3d", "", {L"jgt.dll", L"jgt_link_cab2.dll"}, {0x68306E6F, 0x94023423}, {L"libavs-win32.dll"}, 0, NULL, "Konami PC", "2010",
+     WL_GAME_WORK,
+     WL_N("Programme jgt.dll lancé par wl_avsboot.exe (AVS, e-Amusement hors ligne). Cartes ACIO de Konami : HBHI (boutons, "
+          "levier de vitesses, monnayeur) et HGTH (volant, pédales, moteur du volant), lecteur de cartes. D'après "
+          "windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
     {"Wasteland Racers 2071", "wasteland", "1.6", {L"Arcade.exe"}, {0xA6CD1034}, {L"SDC2.dll", L"Inputs.xml"}, 0, NULL, "Trio Tech PC", "2006", WL_GAME_PLAYS,
      WL_N("Carte SDC2 de Trio Tech : commandes et volant en servo de position."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0x5FB222AA, NULL, "Namco System ES3", "", WL_GAME_PLAYS,
@@ -84,9 +92,40 @@ const WlKnownGame g_wlKnownGames[] = {
      WL_N("Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
      WL_N("E/S et volant UNIS, clé de la borne."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
-    {"Crazy Speed Arcade", "crazyspeed", "", {L"Client_r.exe"}, {0x42B6AC2D}, {L"ReferenceAppLayer.dll"}, 0x4C0F0B89, NULL, WL_N("UNIS PC"), "2010",
+    {"Crazy Speed Arcade", "crazyspeed", "", {L"Client_r.exe"}, {0x42B6AC2D}, {L"ReferenceAppLayer.dll"}, 0, NULL, WL_N("UNIS PC"), "2010",
      WL_GAME_WORK, WL_N("Carte d'E/S UNIS game232 (COM1) ; hors ligne. D'après windowsarcadeloader, pas encore essayé."), WL_FEATURE_NO,
-     WL_FEATURE_NO},
+     WL_FEATURE_NO, 1},
+    {"The Fast and the Furious", "fnf", "", {L"sdaemon.exe"}, {0x9AEBF60F}, {NULL}, 0, NULL, "Raw Thrills PC", "2004", WL_GAME_PARTLY,
+     WL_N("Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle. Joue jusqu'en course en mode agent ; bandes noires sur l'herbe et la route."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"The Fast and the Furious Drift", "fnfdrift", "", {L"sdaemon.exe"}, {0x8467C744}, {NULL}, 0, NULL, "Raw Thrills PC", "2007", WL_GAME_WORK,
+     WL_N("Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle. D'après windowsarcadeloader, pas encore essayé."), WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"The Fast and the Furious Super Bikes", "fnfsb", "", {L"sdaemon.exe"}, {0x25ED956B}, {NULL}, 0, NULL, "Raw Thrills PC", "2006", WL_GAME_WORK,
+     WL_N("Carte JAMMA USB de Raw Thrills. D'après windowsarcadeloader, pas encore essayé."), WL_FEATURE_NO, WL_FEATURE_NO, 1},
+    {"The Fast and the Furious Super Bikes 2", "fnfsb2", "", {L"sdaemon.exe"}, {0x66E8AD40}, {NULL}, 0, NULL, "Raw Thrills PC", "2010", WL_GAME_WORK,
+     WL_N("Carte H2O USB de Raw Thrills, écrite dans les tables d'entrées du jeu. D'après windowsarcadeloader, pas encore essayé."), WL_FEATURE_NO,
+     WL_FEATURE_NO, 1},
+    {"The Fast and the Furious SuperCars", "fnfsc", "", {L"sdaemon.exe"}, {0xB01B9D7D}, {NULL}, 0, NULL, "Raw Thrills PC", "2010", WL_GAME_WORK,
+     WL_N("Carte H2O USB de Raw Thrills, par le SetControl du jeu ; son moteur du volant par le port parallèle. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"Nicktoons Nitro Racing", "nicktoons", "", {L"sdaemon.exe"}, {0xEC2F7B39}, {NULL}, 0, NULL, "Raw Thrills PC", "2009", WL_GAME_WORK,
+     WL_N("Carte JAMMA USB de Raw Thrills, son moteur du volant ; ses calculs 3DNow! joués en SSE2. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"H2Overdrive", "h2overdrive", "", {L"sdaemon.exe"}, {0x30E58AB0}, {NULL}, 0, NULL, "Raw Thrills PC", "2009", WL_GAME_WORK,
+     WL_N("Carte JAMMA USB de Raw Thrills ; force et ressort du volant lus dans le jeu. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"Dirty Drivin'", "dirtydrivin", "1.14", {L"sdaemon.exe"}, {0xA933D4E5}, {NULL}, 0, L"-WinPC -Windowed -r 1360x768", "Raw Thrills PC", "2011", WL_GAME_WORK,
+     WL_N("Clavier de développement et monnayeur du jeu ; force du volant lue dans le jeu. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"Cars", "cars", "", {L"sdaemon.exe"}, {0xE0444E25}, {NULL}, 0, NULL, "Raw Thrills PC", "2012", WL_GAME_WORK,
+     WL_N("Carte RIO de Raw Thrills derrière libusb0, clé HASP ; force du volant lue dans le jeu. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"Batman", "batman", "", {L"sdaemon.exe"}, {0x0F66E24E}, {NULL}, 0, NULL, "Raw Thrills PC", "2013", WL_GAME_WORK,
+     WL_N("Carte RIO de Raw Thrills derrière libusb0, contrôle de la clé de la borne ; force du volant lue dans le jeu. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
+    {"Winter X Games SnoCross", "snocross", "1.58", {L"sdaemon.exe"}, {0x873E033B}, {NULL}, 0, NULL, "Raw Thrills PC", "2022", WL_GAME_WORK,
+     WL_N("Motoneige. Sans carte USB : commandes par la fonction SetControl du jeu, pièges de la protection retirés ; force du guidon lue dans le jeu. D'après windowsarcadeloader, pas encore essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO, 1},
     {"Storm Racer G", "srg", "", {L"racing.exe"}, {0xE5A27313}, {L"usb_io.dll"}, 0, NULL, "Sega (PC)", "", WL_GAME_PARTLY,
      WL_N("Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Storm Rider", "stormrider", "1.2.6", {L"motobike.exe"}, {0xED34CEB0}, {L"motobikeio.dll"}, 0, NULL, "Wahlap (PC)", "2013", WL_GAME_WORK,
@@ -175,6 +214,14 @@ const WlKnownGame *wl_known_game(const wchar_t *exePath, int *otherVersion)
             wchar_t marker[MAX_PATH];
             swprintf(marker, MAX_PATH, L"%s%s", dir, g->markers[k]);
             all = GetFileAttributesW(marker) != INVALID_FILE_ATTRIBUTES;
+        }
+        if (all && g->byCrc)
+        {
+            DWORD crc = wl_file_crc32(exePath);
+            for (int k = 0; k < 3 && g->crc32[k]; k++)
+                if (crc == g->crc32[k])
+                    return g;
+            continue; // another program of that name: not this game
         }
         if (all && (!g->stamp || pe_stamp(exePath) == g->stamp))
             return g;

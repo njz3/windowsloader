@@ -8,6 +8,26 @@
 #include <regex>
 #include <assert.h>
 
+void wl_log(const char *fmt, ...); // windowsloader's log (src/hook/log.h)
+
+// windowsloader: each texture format the game asks for, once, and each failure (a format Direct3D
+// 9 refuses here draws nothing where the game expects it)
+static void log_texture(const char *what, D3DFORMAT Format, UINT Width, UINT Height, DWORD Usage, D3DPOOL Pool, HRESULT hr)
+{
+	static DWORD seen[64];
+	static int seenCount, failures;
+	int known = 0;
+	for (int i = 0; i < seenCount; i++)
+		known |= seen[i] == (DWORD)Format;
+	if (!known && seenCount < 64)
+	{
+		seen[seenCount++] = (DWORD)Format;
+		wl_log("d3d8to9: %s format %u (%ux%u, usage 0x%lx, pool %d) -> 0x%08lx", what, (unsigned)Format, Width, Height, Usage, (int)Pool, hr);
+	}
+	else if (FAILED(hr) && failures++ < 20)
+		wl_log("d3d8to9: %s format %u (%ux%u, usage 0x%lx, pool %d) failed 0x%08lx", what, (unsigned)Format, Width, Height, Usage, (int)Pool, hr);
+}
+
 struct VertexShaderInfo
 {
 	IDirect3DVertexShader9 *Shader = nullptr;
@@ -292,6 +312,7 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::CreateTexture(UINT Width, UINT Height
 	IDirect3DTexture9 *TextureInterface = nullptr;
 
 	const HRESULT hr = ProxyInterface->CreateTexture(Width, Height, Levels, Usage, Format, Pool, &TextureInterface, nullptr);
+	log_texture("CreateTexture", Format, Width, Height, Usage, Pool, hr);
 	if (FAILED(hr))
 		return hr;
 
@@ -1595,11 +1616,14 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::CreateVertexShader(const DWORD *pDecl
 
 		if (SUCCEEDED(hr))
 		{
-			// Since 'Shader' is at least 8 byte aligned, we can safely shift it to right and end up not overwriting the top bit
-			assert((reinterpret_cast<DWORD>(ShaderInfo) & 1) == 0);
-			const DWORD ShaderMagic = reinterpret_cast<DWORD>(ShaderInfo) >> 1;
-
-			*pHandle = ShaderMagic | 0x80000000;
+			// A small handle, bit 0 set (windowsloader: see VertexShaderSlots)
+			size_t Slot = 0;
+			while (Slot < VertexShaderSlots.size() && VertexShaderSlots[Slot] != nullptr)
+				Slot++;
+			if (Slot == VertexShaderSlots.size())
+				VertexShaderSlots.push_back(nullptr);
+			VertexShaderSlots[Slot] = ShaderInfo;
+			*pHandle = (static_cast<DWORD>(Slot + 1) << 1) | 1;
 
 			VertexShaderHandles.insert(*pHandle);
 			VertexShaderAndDeclarationCount++;
@@ -1637,7 +1661,7 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::SetVertexShader(DWORD Handle)
 {
 	HRESULT hr;
 
-	if ((Handle & 0x80000000) == 0)
+	if ((Handle & 1) == 0)
 	{
 		ProxyInterface->SetVertexShader(nullptr);
 		ProxyInterface->SetVertexDeclaration(nullptr);
@@ -1647,8 +1671,9 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::SetVertexShader(DWORD Handle)
 	}
 	else
 	{
-		const DWORD handleMagic = Handle << 1;
-		VertexShaderInfo *const ShaderInfo = reinterpret_cast<VertexShaderInfo *>(handleMagic);
+		VertexShaderInfo *const ShaderInfo = VertexShaderOf(Handle);
+		if (ShaderInfo == nullptr)
+			return D3DERR_INVALIDCALL;
 
 		hr = ProxyInterface->SetVertexShader(ShaderInfo->Shader);
 		ProxyInterface->SetVertexDeclaration(ShaderInfo->Declaration);
@@ -1676,7 +1701,8 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::GetVertexShader(DWORD *pHandle)
 }
 HRESULT STDMETHODCALLTYPE Direct3DDevice8::DeleteVertexShader(DWORD Handle)
 {
-	if ((Handle & 0x80000000) == 0)
+	VertexShaderInfo *const ShaderInfo = VertexShaderOf(Handle);
+	if (ShaderInfo == nullptr)
 		return D3DERR_INVALIDCALL;
 
 	if (VertexShaderHandles.erase(Handle) == 0)
@@ -1689,8 +1715,7 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::DeleteVertexShader(DWORD Handle)
 		CurrentVertexShaderHandle = 0;
 	}
 
-	const DWORD HandleMagic = Handle << 1;
-	VertexShaderInfo *const ShaderInfo = reinterpret_cast<VertexShaderInfo *>(HandleMagic);
+	VertexShaderSlots[(Handle >> 1) - 1] = nullptr;
 
 	if (ShaderInfo->Shader != nullptr) 
 	{
@@ -1734,11 +1759,11 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::GetVertexShaderFunction(DWORD Handle,
 	LOG << "Redirecting '" << "IDirect3DDevice8::GetVertexShaderFunction" << "(" << this << ", " << Handle << ", " << pData << ", " << pSizeOfData << ")' ..." << std::endl;
 #endif
 
-	if ((Handle & 0x80000000) == 0)
+	VertexShaderInfo *const ShaderInfo = VertexShaderOf(Handle);
+	if (ShaderInfo == nullptr)
 		return D3DERR_INVALIDCALL;
 
-	const DWORD HandleMagic = Handle << 1;
-	IDirect3DVertexShader9 *VertexShaderInterface = reinterpret_cast<VertexShaderInfo *>(HandleMagic)->Shader;
+	IDirect3DVertexShader9 *VertexShaderInterface = ShaderInfo->Shader;
 
 	if (VertexShaderInterface == nullptr)
 		return D3DERR_INVALIDCALL;
@@ -2274,7 +2299,8 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::CreatePixelShader(const DWORD *pFunct
 		return hr;
 	}
 
-	hr = ProxyInterface->CreatePixelShader(static_cast<const DWORD *>(Assembly->GetBufferPointer()), reinterpret_cast<IDirect3DPixelShader9 **>(pHandle));
+	IDirect3DPixelShader9 *Shader = nullptr;
+	hr = ProxyInterface->CreatePixelShader(static_cast<const DWORD *>(Assembly->GetBufferPointer()), &Shader);
 
 	Assembly->Release();
 
@@ -2286,6 +2312,14 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::CreatePixelShader(const DWORD *pFunct
 	}
 	else
 	{
+		// A small handle: the first free slot + 1 (windowsloader)
+		size_t Slot = 0;
+		while (Slot < PixelShaderSlots.size() && PixelShaderSlots[Slot] != nullptr)
+			Slot++;
+		if (Slot == PixelShaderSlots.size())
+			PixelShaderSlots.push_back(nullptr);
+		PixelShaderSlots[Slot] = Shader;
+		*pHandle = static_cast<DWORD>(Slot + 1);
 		PixelShaderHandles.insert(*pHandle);
 	}
 
@@ -2293,7 +2327,10 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::CreatePixelShader(const DWORD *pFunct
 }
 HRESULT STDMETHODCALLTYPE Direct3DDevice8::SetPixelShader(DWORD Handle)
 {
-	const HRESULT hr = ProxyInterface->SetPixelShader(reinterpret_cast<IDirect3DPixelShader9 *>(Handle));
+	IDirect3DPixelShader9 *const Shader = PixelShaderOf(Handle);
+	if (Handle != 0 && Shader == nullptr)
+		return D3DERR_INVALIDCALL;
+	const HRESULT hr = ProxyInterface->SetPixelShader(Shader);
 	if (FAILED(hr))
 		return hr;
 
@@ -2321,7 +2358,12 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::DeletePixelShader(DWORD Handle)
 	if (CurrentPixelShaderHandle == Handle)
 		SetPixelShader(0);
 
-	reinterpret_cast<IDirect3DPixelShader9 *>(Handle)->Release();
+	IDirect3DPixelShader9 *const Shader = PixelShaderOf(Handle);
+	if (Shader != nullptr)
+	{
+		Shader->Release();
+		PixelShaderSlots[Handle - 1] = nullptr;
+	}
 
 	return D3D_OK;
 }
@@ -2342,7 +2384,9 @@ HRESULT STDMETHODCALLTYPE Direct3DDevice8::GetPixelShaderFunction(DWORD Handle, 
 	if (Handle == 0)
 		return D3DERR_INVALIDCALL;
 
-	IDirect3DPixelShader9 *const PixelShaderInterface = reinterpret_cast<IDirect3DPixelShader9 *>(Handle);
+	IDirect3DPixelShader9 *const PixelShaderInterface = PixelShaderOf(Handle);
+	if (PixelShaderInterface == nullptr)
+		return D3DERR_INVALIDCALL;
 
 #ifndef D3D8TO9NOLOG
 	LOG << "> Returning translated shader byte code." << std::endl;

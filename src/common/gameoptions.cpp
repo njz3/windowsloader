@@ -247,6 +247,11 @@ static const WlGameOption g_crazyrideOptions[] = {
     VSCREEN_OPTION,
 };
 
+// rawthrills.cpp's
+static const WlGameOption g_dirtydrivinOptions[] = {
+    VSCREEN_OPTION,
+};
+
 // wahlap.cpp's
 static const WlGameOption g_stormriderOptions[] = {
     {"CABINET", WL_N("Numéro de la borne (link)"),
@@ -322,6 +327,7 @@ static const struct
     TABLE(srg),
     TABLE(crazyride),
     TABLE(crazyspeed),
+    TABLE(dirtydrivin),
     TABLE(stormrider),
     TABLE(bg4),
     TABLE(link4),

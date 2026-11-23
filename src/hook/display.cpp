@@ -1209,7 +1209,10 @@ static void title_fps(HWND wnd)
     if (!got)
     {
         got = 1;
-        GetWindowTextW(wnd, title, 128);
+        // Read without a message: GetWindowText sends WM_GETTEXT to the window's thread and waits
+        // for it (Crazy Speed's loading thread presents while its main thread waits on a lock the
+        // loading thread holds: both stopped for good)
+        InternalGetWindowText(wnd, title, 128);
     }
     wchar_t text[320]; // the title (128 at most) and the rest fit
     int n = swprintf(text, 320, L"%s", title);

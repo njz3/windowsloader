@@ -36,6 +36,8 @@ enum
     SLOT_DI_ENUMDEVICES = 4,
     SLOT_DI_GETDEVICESTATUS = 5,
     SLOT_DEV_ACQUIRE = 7,
+    SLOT_DEV_GETDEVICESTATE = 9,
+    SLOT_DEV_GETDEVICEDATA = 10,
     SLOT_DEV_SETCOOPERATIVELEVEL = 13,
     SLOT_DEV_CREATEEFFECT = 18,
     SLOT_DEV_SENDFFCOMMAND = 22,
@@ -509,6 +511,91 @@ static HRESULT STDMETHODCALLTYPE hEnumDevicesW(IDirectInput8W *di, DWORD type, L
     return oEnumDevicesW(di, type, cb ? enum_cb_w : NULL, cb ? &w : ref, flags);
 }
 
+// A game that reads the PC's keyboard through DirectInput as well as its boards (Road Fighters 3D):
+// its keyboard devices made and acquired as usual, but no key ever down for it (GetDeviceState all
+// zeros, GetDeviceData no events), windowsloader's keys being its controls
+static int g_quietKeyboard;
+static void *g_keyboards[8];
+static int g_keyboardCount;
+static SRWLOCK g_keyboardLock = SRWLOCK_INIT;
+
+void wl_dinput_quiet_keyboard(void)
+{
+    g_quietKeyboard = 1;
+    wl_log("dinput: the PC's keyboard quiet for the game (no key down)");
+}
+
+static int is_quiet_keyboard(void *dev)
+{
+    int found = 0;
+    AcquireSRWLockShared(&g_keyboardLock);
+    for (int i = 0; i < g_keyboardCount && !found; i++)
+        found = g_keyboards[i] == dev;
+    ReleaseSRWLockShared(&g_keyboardLock);
+    return found;
+}
+
+typedef HRESULT(STDMETHODCALLTYPE *GetDeviceStateFn)(void *, DWORD, LPVOID);
+typedef HRESULT(STDMETHODCALLTYPE *GetDeviceDataFn)(void *, DWORD, LPDIDEVICEOBJECTDATA, LPDWORD, DWORD);
+static GetDeviceStateFn oGetDeviceStateA, oGetDeviceStateW;
+static GetDeviceDataFn oGetDeviceDataA, oGetDeviceDataW;
+
+static HRESULT device_state(GetDeviceStateFn orig, void *dev, DWORD size, LPVOID data)
+{
+    HRESULT hr = orig(dev, size, data);
+    if (SUCCEEDED(hr) && data && is_quiet_keyboard(dev))
+        memset(data, 0, size);
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceStateA(void *dev, DWORD size, LPVOID data)
+{
+    return device_state(oGetDeviceStateA, dev, size, data);
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceStateW(void *dev, DWORD size, LPVOID data)
+{
+    return device_state(oGetDeviceStateW, dev, size, data);
+}
+
+static HRESULT device_data(GetDeviceDataFn orig, void *dev, DWORD objSize, LPDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
+{
+    HRESULT hr = orig(dev, objSize, data, count, flags);
+    if (SUCCEEDED(hr) && count && is_quiet_keyboard(dev))
+        *count = 0; // the events read are dropped
+    return hr;
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceDataA(void *dev, DWORD objSize, LPDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
+{
+    return device_data(oGetDeviceDataA, dev, objSize, data, count, flags);
+}
+static HRESULT STDMETHODCALLTYPE hGetDeviceDataW(void *dev, DWORD objSize, LPDIDEVICEOBJECTDATA data, LPDWORD count, DWORD flags)
+{
+    return device_data(oGetDeviceDataW, dev, objSize, data, count, flags);
+}
+
+static void quiet_keyboard(void *dev, int unicode)
+{
+    static int doneA, doneW;
+    AcquireSRWLockExclusive(&g_keyboardLock);
+    if (g_keyboardCount < (int)(sizeof g_keyboards / sizeof g_keyboards[0]))
+        g_keyboards[g_keyboardCount++] = dev;
+    ReleaseSRWLockExclusive(&g_keyboardLock);
+    int *done = unicode ? &doneW : &doneA;
+    if (*done)
+        return;
+    *done = 1;
+    void **vt = vtable_of(dev);
+    if (unicode)
+    {
+        wl_hook_code(vt[SLOT_DEV_GETDEVICESTATE], (void *)hGetDeviceStateW, (void **)&oGetDeviceStateW, "IDirectInputDevice8W::GetDeviceState");
+        wl_hook_code(vt[SLOT_DEV_GETDEVICEDATA], (void *)hGetDeviceDataW, (void **)&oGetDeviceDataW, "IDirectInputDevice8W::GetDeviceData");
+    }
+    else
+    {
+        wl_hook_code(vt[SLOT_DEV_GETDEVICESTATE], (void *)hGetDeviceStateA, (void **)&oGetDeviceStateA, "IDirectInputDevice8A::GetDeviceState");
+        wl_hook_code(vt[SLOT_DEV_GETDEVICEDATA], (void *)hGetDeviceDataA, (void **)&oGetDeviceDataA, "IDirectInputDevice8A::GetDeviceData");
+    }
+}
+
 static HRESULT create_device(CreateDeviceFn orig, void *di, REFGUID g, void **out, LPUNKNOWN outer, int unicode)
 {
     if (wl_vdinput_is_ours(g))
@@ -532,6 +619,8 @@ static HRESULT create_device(CreateDeviceFn orig, void *di, REFGUID g, void **ou
     {
         remember_device(*out, n);
         hook_device(*out, unicode);
+        if (g_quietKeyboard && IsEqualGUID(g, GUID_SysKeyboard))
+            quiet_keyboard(*out, unicode);
     }
     return hr;
 }

@@ -88,6 +88,7 @@ add_executable(wl_launcher
     src/launcher/launcher.rc
     src/common/lang.cpp
     src/common/gameoptions.cpp
+    src/common/filecrc.cpp
     src/imgui/imgui.cpp
     src/imgui/imgui_draw.cpp
     src/imgui/imgui_tables.cpp
@@ -107,6 +108,26 @@ add_custom_command(TARGET wl_launcher POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/lang ${WL_OUTPUT_DIR}/lang)
 
 # ------------------------------------------------------------------------------
+# wl_avsboot.exe (32-bit only): the program of Konami's AVS games, whose code is a DLL (Road
+# Fighters 3D's jgt.dll); the launcher starts it with the DLL as the game (src/avsboot/avsboot.cpp)
+# ------------------------------------------------------------------------------
+if(WL_BITS EQUAL 32)
+    add_executable(wl_avsboot WIN32 src/avsboot/avsboot.cpp)
+    set_target_properties(wl_avsboot PROPERTIES
+        OUTPUT_NAME wl_avsboot
+        RUNTIME_OUTPUT_DIRECTORY ${WL_OUTPUT_DIR})
+    target_compile_definitions(wl_avsboot PRIVATE ${WL_C_DEFINES} UNICODE _UNICODE)
+    target_compile_options(wl_avsboot PRIVATE ${WL_C_FLAGS})
+    target_link_libraries(wl_avsboot PRIVATE user32)
+    # The game's memory as on the cabinet (spice2x's program is large address aware too)
+    if(MSVC)
+        target_link_options(wl_avsboot PRIVATE /LARGEADDRESSAWARE)
+    endif()
+    # Built with the launcher, which starts it
+    add_dependencies(wl_launcher wl_avsboot)
+endif()
+
+# ------------------------------------------------------------------------------
 # windowsloader32.dll / windowsloader64.dll: runs inside the game process
 # ------------------------------------------------------------------------------
 add_library(wl_hook SHARED
@@ -114,6 +135,7 @@ add_library(wl_hook SHARED
     src/hook/wlhook.def
     src/common/lang.cpp
     src/common/gameoptions.cpp
+    src/common/filecrc.cpp
     src/hook/log.cpp
     src/hook/hooks.cpp
     src/hook/crash.cpp
@@ -152,12 +174,14 @@ add_library(wl_hook SHARED
     src/hook/games/ringedge.cpp
     src/hook/games/taito.cpp
     src/hook/games/konami.cpp
+    src/hook/games/roadfighters3d.cpp
     src/hook/games/triotech.cpp
     src/hook/games/namco.cpp
     src/hook/games/unis.cpp
     src/hook/games/alls.cpp
     src/hook/games/allnet.cpp
     src/hook/games/stormracer.cpp
+    src/hook/games/rawthrills.cpp
     src/hook/games/wahlap.cpp
     src/hook/games/uniana.cpp
     src/hook/games/cardrw.cpp

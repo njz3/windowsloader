@@ -760,17 +760,17 @@ static int crazy_speed(const wchar_t *exePath, const wchar_t *base, const char *
     *name = "crazyspeed";
     *title = "Crazy Speed Arcade";
     unsigned char *exe = (unsigned char *)GetModuleHandleW(NULL);
-    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew);
-    wl_log("game: %s (UNIS PC, Ogre, program built 0x%08lX)", *title, nt->FileHeader.TimeDateStamp);
+    DWORD crc = wl_game_exe_crc32();
+    wl_log("game: %s (UNIS PC, Ogre, Client_r.exe CRC32 %08lX)", *title, crc);
     wl_game_set_boards("Controls on UNIS game232 board (COM1, 19200 bauds, frames AA AA, 10 bytes, CRC-16/Modbus)", NULL);
     wl_inputs_set_table(g_speedInputs, CS_COUNT);
     InitializeCriticalSection(&g_speedLock);
     wl_vdev_register(&g_speedBoard);
     wl_vdev_label("COM1", WL_N("Carte d'E/S"));
-    if (nt->FileHeader.TimeDateStamp == 0x4C0F0B89)
+    if (crc == 0x42B6AC2D)
         speed_patches(exe);
     else
-        wl_log("game: %s, not the program this was made for (built 0x4C0F0B89): its dongle, licence and network left as they are", *title);
+        wl_log("game: %s, not the program this was made for (CRC32 %08lX, not 42B6AC2D): its dongle, licence and network left as they are", *title, crc);
     if (wl_patch_iat((HMODULE)exe, "WS2_32.dll", MAKEINTRESOURCEA(4), (void *)speed_connect, (void **)&oSpeedConnect))
         wl_log("game: %s: connections outside the PC and its LAN refused (offline)", *title);
     wl_game_use_options("crazyspeed");

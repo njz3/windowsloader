@@ -97,6 +97,8 @@ static void usage(void)
         "\n"
         "Usage: %s [options] <game.exe> [game arguments...]\n"
         "       %s alone opens the game picker (the games of the games folder, see README.md)\n"
+        "The game may be given by its folder (the program of a game windowsloader knows there). A Konami AVS\n"
+        "game is its DLL (Road Fighters 3D: jgt.dll), run in wl_avsboot.exe from this launcher's folder.\n"
         "\n"
         "Options:\n"
         "  --log <file>     log written by the game side (default: windowsloader.log beside this launcher, or at the\n"
@@ -119,7 +121,9 @@ static void usage(void)
         "  --list-games     the games windowsloader knows, one line per program: the game, its short name,\n"
         "                   its version, its force feedback and link between cabinets (yes, partly, no),\n"
         "                   the program, the program's CRC32 in the cabinets' copies (for\n"
-        "                   information: a program with another CRC32 is played all the same)\n"
+        "                   information: a program with another CRC32 is played all the same, but for the\n"
+        "                   games told by it: Raw Thrills' sdaemon.exe, Crazy Speed Arcade's Client_r.exe,\n"
+        "                   Road Fighters 3D's jgt.dll)\n"
         "  -h, --help       this help\n"
         "\n"
         "A 32-bit game needs windowsloader.exe + windowsloader32.dll, a 64-bit game windowsloader64.exe +\n"
@@ -198,6 +202,41 @@ static int pe_bits(const wchar_t *path)
     }
     CloseHandle(f);
     return bits;
+}
+
+// A DLL (IMAGE_FILE_DLL): the game of a Konami AVS cabinet, run in wl_avsboot.exe (src/avsboot)
+static int pe_dll(const wchar_t *path)
+{
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        return 0;
+    IMAGE_DOS_HEADER dos;
+    IMAGE_FILE_HEADER fh;
+    DWORD sig, rd;
+    int dll = ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
+              SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, &sig, sizeof sig, &rd, NULL) &&
+              rd == sizeof sig && sig == IMAGE_NT_SIGNATURE && ReadFile(f, &fh, sizeof fh, &rd, NULL) && rd == sizeof fh &&
+              (fh.Characteristics & IMAGE_FILE_DLL);
+    CloseHandle(f);
+    return dll;
+}
+
+// A folder given as the game: the program of a game of the table there (gamelist.cpp), in path
+// (MAX_PATH). 0 when the folder has none
+static int game_in_folder(wchar_t *path)
+{
+    for (int i = 0; i < g_wlKnownGameCount; i++)
+        for (int k = 0; k < 3 && g_wlKnownGames[i].exes[k]; k++)
+        {
+            wchar_t program[MAX_PATH];
+            swprintf(program, MAX_PATH, L"%s\\%s", path, g_wlKnownGames[i].exes[k]);
+            if (GetFileAttributesW(program) != INVALID_FILE_ATTRIBUTES && wl_known_game(program, NULL))
+            {
+                wcscpy_s(path, MAX_PATH, program);
+                return 1;
+            }
+        }
+    return 0;
 }
 
 // A console program (the PE's subsystem 3, IMAGE_SUBSYSTEM_WINDOWS_CUI): Storm Racer G's racing.exe
@@ -986,6 +1025,21 @@ int wmain(int argc, wchar_t **argv)
     if (!logGiven)
         swprintf(logPath, MAX_PATH, L"%s\\windowsloader.log", selfDir);
 
+    // A folder: the program of a game windowsloader knows there
+    DWORD gameAttributes = GetFileAttributesW(gamePath);
+    if (gameAttributes != INVALID_FILE_ATTRIBUTES && (gameAttributes & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        wchar_t folder[MAX_PATH];
+        wcscpy_s(folder, MAX_PATH, gamePath);
+        if (!game_in_folder(gamePath))
+        {
+            say("windowsloader: %s holds no program of a game windowsloader knows (see --list-games).\n", u8(folder));
+            return 1;
+        }
+        wcscpy_s(gameDir, MAX_PATH, gamePath);
+        parent_dir(gameDir);
+    }
+
     int bits = pe_bits(gamePath);
     if (bits < 0)
     {
@@ -999,6 +1053,20 @@ int wmain(int argc, wchar_t **argv)
     }
     if (bits != WL_SELF_BITS)
         return run_sibling(selfDir, bits);
+
+    // A Konami AVS game's DLL: started in wl_avsboot.exe, its program (src/avsboot), beside this
+    // launcher; shown to the game as <the DLL's folder>\wl_avsboot.exe (WL_ENV_GAME_EXE)
+    wchar_t avsHost[MAX_PATH] = L"";
+    if (pe_dll(gamePath))
+    {
+        swprintf(avsHost, MAX_PATH, L"%s\\wl_avsboot.exe", selfDir);
+        if (WL_SELF_BITS != 32 || GetFileAttributesW(avsHost) == INVALID_FILE_ATTRIBUTES)
+        {
+            say("windowsloader: %s is a game's DLL, and wl_avsboot.exe (32-bit), its program, is missing next to this launcher.\n",
+                u8(gamePath));
+            return 1;
+        }
+    }
 
     swprintf(dllPath, MAX_PATH, L"%s\\%s", selfDir, WL_SELF_DLL);
     if (GetFileAttributesW(dllPath) == INVALID_FILE_ATTRIBUTES)
@@ -1102,6 +1170,8 @@ int wmain(int argc, wchar_t **argv)
 
     static wchar_t cmd[CMDLINE_MAX];
     cmd[0] = 0;
+    if (avsHost[0])
+        append_arg(cmd, CMDLINE_MAX, avsHost);
     append_arg(cmd, CMDLINE_MAX, gamePath);
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
@@ -1112,6 +1182,8 @@ int wmain(int argc, wchar_t **argv)
     say("  folder: %s\n  log:    %s\n  mode:   %s\n", u8(gameDir),
         logPath[0] ? u8(logPath) : logOff ? "none ([Launcher] LOG = false)" : "none (the write folder cannot be written)",
         windowed ? "windowed" : "full screen allowed");
+    if (avsHost[0])
+        say("  host:   %s (the game's program)\n", u8(avsHost));
     if (write > 0)
         say("  writes: %s\\<game> (the game's folder only read)\n", u8(writeDir));
     else if (write < 0)
@@ -1221,7 +1293,7 @@ int wmain(int argc, wchar_t **argv)
         sie.lpAttributeList = attrs;
         flags |= EXTENDED_STARTUPINFO_PRESENT;
     }
-    if (pe_console(gamePath))
+    if (pe_console(avsHost[0] ? avsHost : gamePath))
         flags |= CREATE_NO_WINDOW;
     // A copy of the program started from the write folder, or beside the launcher without one; in
     // the game's folder, and shown to it as its own (the DLL's WL_ENV_GAME_EXE). Nothing written when
@@ -1229,6 +1301,13 @@ int wmain(int argc, wchar_t **argv)
     static wchar_t startedPath[MAX_PATH];
     wcscpy_s(startedPath, MAX_PATH, gamePath);
     SetEnvironmentVariableW(WL_ENV_GAME_EXE, NULL);
+    if (avsHost[0])
+    {
+        wcscpy_s(startedPath, MAX_PATH, avsHost);
+        wchar_t shown[MAX_PATH];
+        swprintf(shown, MAX_PATH, L"%s\\wl_avsboot.exe", gameDir);
+        SetEnvironmentVariableW(WL_ENV_GAME_EXE, shown);
+    }
     if (needs_large_address(gamePath))
     {
         wchar_t copy[MAX_PATH];
