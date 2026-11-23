@@ -247,6 +247,19 @@ static const WlGameOption g_crazyrideOptions[] = {
     VSCREEN_OPTION,
 };
 
+// roadfighters3d.cpp's
+static const WlOptionChoice g_rf3dViews[] = {
+    {"2D", WL_N("2D")},
+    {"3D", WL_N("3D (écran polarisé)")},
+    {NULL, NULL},
+};
+static const WlGameOption g_rf3dOptions[] = {
+    {"VIEW", WL_N("Vue au lancement"),
+     WL_N("2D : l'image nette d'un écran ordinaire. 3D : les deux vues entrelacées ligne par ligne, pour l'écran polarisé de la borne "
+          "et ses lunettes. Le bouton 2D/3D change la vue pendant la partie, jusqu'au lancement suivant."),
+     WL_OPTION_CHOICE, g_rf3dViews, 0, 0, "2D", 1, NULL},
+};
+
 // rawthrills.cpp's
 static const WlGameOption g_dirtydrivinOptions[] = {
     VSCREEN_OPTION,
@@ -328,6 +341,7 @@ static const struct
     TABLE(crazyride),
     TABLE(crazyspeed),
     TABLE(dirtydrivin),
+    TABLE(rf3d),
     TABLE(stormrider),
     TABLE(bg4),
     TABLE(link4),

@@ -81,11 +81,11 @@ msgstr "The platform's error and warning screens (Error 4103...). The game's tex
 msgid "Les écrans d'erreur et d'avertissement de la plateforme."
 msgstr "The platform's error and warning screens."
 
-#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:243 src/common/gameoptions.cpp:252
+#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:243 src/common/gameoptions.cpp:270
 msgid "Numéro de la borne (link)"
 msgstr "Cabinet number (link)"
 
-#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:244 src/common/gameoptions.cpp:253
+#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:244 src/common/gameoptions.cpp:271
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr "Its place in the link, each cabinet its own; 0: found from the PC's address in LINK (the list of the cabinets' addresses, in the file)."
 
@@ -126,7 +126,7 @@ msgstr "The cabinet wheel's mechanical spring, bringing it back to the centre wi
 msgid "Garder le rapport"
 msgstr "Hold the gear"
 
-#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:275
+#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:293
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr "The gear stays engaged when the H-shifter is let go, for a shifter whose positions do not hold."
 
@@ -214,55 +214,71 @@ msgstr "Hidden cameras"
 msgid "Le bouton de changement de vue passe aussi par les caméras du jeu absentes de la version arcade : poursuite éloignée, cockpit (côté passager, comme le jeu la place), place du pilote, roue. Leur nom s'affiche à chaque changement."
 msgstr "The View Change button also goes through the game's cameras absent from the arcade version: far chase, cockpit (on the passenger's side, as the game places it), driver's seat, wheel. Their name is shown at each change."
 
-#: src/common/gameoptions.cpp:260
+#: src/common/gameoptions.cpp:252
+msgid "2D"
+msgstr "2D"
+
+#: src/common/gameoptions.cpp:253
+msgid "3D (écran polarisé)"
+msgstr "3D (polarized screen)"
+
+#: src/common/gameoptions.cpp:257
+msgid "Vue au lancement"
+msgstr "View at the start"
+
+#: src/common/gameoptions.cpp:258
+msgid "2D : l'image nette d'un écran ordinaire. 3D : les deux vues entrelacées ligne par ligne, pour l'écran polarisé de la borne et ses lunettes. Le bouton 2D/3D change la vue pendant la partie, jusqu'au lancement suivant."
+msgstr "2D: the sharp picture of an ordinary screen. 3D: the two views interlaced line by line, for the cabinet's polarized screen and its glasses. The 2D/3D button changes the view during the game, until the next start."
+
+#: src/common/gameoptions.cpp:278
 msgid "Standard"
 msgstr "Standard"
 
-#: src/common/gameoptions.cpp:261
+#: src/common/gameoptions.cpp:279
 msgid "Pro"
 msgstr "Pro"
 
-#: src/common/gameoptions.cpp:265
+#: src/common/gameoptions.cpp:283
 msgid "Comme la borne (7.1)"
 msgstr "As the cabinet (7.1)"
 
-#: src/common/gameoptions.cpp:266
+#: src/common/gameoptions.cpp:284
 msgid "Stéréo"
 msgstr "Stereo"
 
-#: src/common/gameoptions.cpp:270
+#: src/common/gameoptions.cpp:288
 msgid "Borne"
 msgstr "Cabinet"
 
-#: src/common/gameoptions.cpp:271
+#: src/common/gameoptions.cpp:289
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr "Standard: 4:3, AT or sequential MT gearbox. Pro: widescreen, clutch and H-shifter (a second I/O board). The game changes its own settings at the next start and closes once: start it again."
 
-#: src/common/gameoptions.cpp:274
+#: src/common/gameoptions.cpp:292
 msgid "Garder le rapport (borne Pro)"
 msgstr "Hold the gear (Pro cabinet)"
 
-#: src/common/gameoptions.cpp:276
+#: src/common/gameoptions.cpp:294
 msgid "Haut-parleurs"
 msgstr "Speakers"
 
-#: src/common/gameoptions.cpp:277
+#: src/common/gameoptions.cpp:295
 msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
 msgstr "As the cabinet: the game plays in 7.1, Windows brings the sound down to the PC's speakers; its music depends on it. Stereo: the former setting, without the music."
 
-#: src/common/gameoptions.cpp:280
+#: src/common/gameoptions.cpp:298
 msgid "Serveur NESYS"
 msgstr "NESYS server"
 
-#: src/common/gameoptions.cpp:281
+#: src/common/gameoptions.cpp:299
 msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
 msgstr "Address[:port] of the NESYS server (the online game), port 80 by default; 124.146.156.106 by default. OFF: the game stays on the PC, NESYS offline."
 
-#: src/common/gameoptions.cpp:285
+#: src/common/gameoptions.cpp:303
 msgid "Identifiant de la clé NESYS"
 msgstr "NESYS key ID"
 
-#: src/common/gameoptions.cpp:286
+#: src/common/gameoptions.cpp:304
 msgid "Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action « EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par windowsloader."
 msgstr "The key's 7 letters or digits (for example AAT1234), read by the game each time it reads the key; the \"EntryKey\" action (K by default) puts the key in or takes it out. Empty: those of OpenParrot\\KeyId.txt in the game's folder (the file NESYS Revival's KeyManager keeps), else a key made by windowsloader."
 
@@ -1241,7 +1257,7 @@ msgstr "the IO4 I/O board 837-15257, through amdaemon"
 msgid "la borne Model 2 (lampes)"
 msgstr "the Model 2 cabinet (lamps)"
 
-#: src/hook/games/konami.cpp:258 src/hook/games/roadfighters3d.cpp:890
+#: src/hook/games/konami.cpp:258 src/hook/games/roadfighters3d.cpp:904
 msgid "la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"
 msgstr "the HBHI board, ac_io_hbhi_control_lamp_on and _off (libacio.dll)"
 

@@ -40,6 +40,7 @@ enum
     SLOT_FACTORY2_CREATESWAPCHAINFORHWND = 15,
     SLOT_SWAPCHAIN_PRESENT = 8,
     SLOT_SWAPCHAIN_SETFULLSCREENSTATE = 10,
+    SLOT_SWAPCHAIN_RESIZEBUFFERS = 13,
     SLOT_ADAPTER_ENUMOUTPUTS = 7,
     SLOT_DEVICE_CREATEBUFFER = 3,
     SLOT_DEVICE_CREATETEXTURE2D = 5,
@@ -519,6 +520,16 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDXGISwapChain *sc, UINT sync, UINT fl
             wl_frame_size((int)d.BufferDesc.Width, (int)d.BufferDesc.Height);
         wl_log("DXGI Present: first frame (hr=0x%08lx)", hr);
     }
+    // Where DXGI shows the buffers: their size against the window's (stretched between the two)
+    if (frames == 1 || frames == 600)
+    {
+        DXGI_SWAP_CHAIN_DESC d;
+        RECT c, w;
+        if (SUCCEEDED(sc->GetDesc(&d)) && GetClientRect(d.OutputWindow, &c) && GetWindowRect(d.OutputWindow, &w))
+            wl_log("DXGI Present: buffers %ux%u (swap %d, scaling %d, flags 0x%x) shown in window %p, client %ldx%ld, on the screen %ld,%ld-%ld,%ld%s",
+                   d.BufferDesc.Width, d.BufferDesc.Height, (int)d.SwapEffect, (int)d.BufferDesc.Scaling, d.Flags, d.OutputWindow, c.right,
+                   c.bottom, w.left, w.top, w.right, w.bottom, IsWindowVisible(d.OutputWindow) ? "" : " (hidden)");
+    }
     else if (now - lastTick >= 10000)
     {
         // A 32-bit game short of address space fails its allocations: what holds it, by kind
@@ -554,6 +565,31 @@ static HRESULT STDMETHODCALLTYPE hSetFullscreenState(IDXGISwapChain *sc, BOOL fu
     return oSetFullscreenState(sc, full, out);
 }
 
+// ResizeBuffers(0, 0): the window's size. With the picture shown in windowsloader's child window,
+// that is the child's (the picture's place on the screen), not the game's resolution: the game
+// kept drawing its own size in a corner of the larger buffer (Batman: 1360x768 in 1920x813). The
+// buffers keep their size: DXGI stretches them into the child
+static HRESULT(STDMETHODCALLTYPE *oResizeBuffers)(IDXGISwapChain *, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+static HRESULT STDMETHODCALLTYPE hResizeBuffers(IDXGISwapChain *sc, UINT count, UINT w, UINT h, DXGI_FORMAT format, UINT flags)
+{
+    DXGI_SWAP_CHAIN_DESC d;
+    static int calls;
+    if (calls++ < 8)
+        wl_log("DXGI ResizeBuffers(%u, %ux%u, format %d, flags 0x%x)", count, w, h, (int)format, flags);
+    if ((!w || !h) && wl_display_dxgi_shown() && SUCCEEDED(sc->GetDesc(&d)))
+    {
+        static int logged;
+        if (!logged++)
+            wl_log("  the window's size asked: the buffers kept at %ux%u (the picture stretched into its place)", d.BufferDesc.Width,
+                   d.BufferDesc.Height);
+        if (!w)
+            w = d.BufferDesc.Width;
+        if (!h)
+            h = d.BufferDesc.Height;
+    }
+    return oResizeBuffers(sc, count, w, h, format, flags);
+}
+
 static void hook_swapchain(IDXGISwapChain *sc)
 {
     static int done;
@@ -563,6 +599,7 @@ static void hook_swapchain(IDXGISwapChain *sc)
     void **vt = vtable_of(sc);
     wl_hook_code(vt[SLOT_SWAPCHAIN_PRESENT], (void *)hPresent, (void **)&oPresent, "IDXGISwapChain::Present");
     wl_hook_code(vt[SLOT_SWAPCHAIN_SETFULLSCREENSTATE], (void *)hSetFullscreenState, (void **)&oSetFullscreenState, "IDXGISwapChain::SetFullscreenState");
+    wl_hook_code(vt[SLOT_SWAPCHAIN_RESIZEBUFFERS], (void *)hResizeBuffers, (void **)&oResizeBuffers, "IDXGISwapChain::ResizeBuffers");
 }
 
 // A full-screen swap chain asked for: a windowed one instead

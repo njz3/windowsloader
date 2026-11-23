@@ -1073,6 +1073,30 @@ static LRESULT CALLBACK child_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         return HTTRANSPARENT;
     if (msg == WM_ERASEBKGND)
         return 1;
+    // Its place is windowsloader's: another size (Batman's: DXGI's at its buffers' 1360x768, the
+    // picture then in a corner, not stretched) put back to the picture's
+    if (msg == WM_WINDOWPOSCHANGING && lp && h == g_child)
+    {
+        WINDOWPOS *p = (WINDOWPOS *)lp;
+        RECT r = g_childRect;
+        int rw = r.right - r.left, rh = r.bottom - r.top;
+        if (rw > 0 && rh > 0)
+        {
+            int moved = !(p->flags & SWP_NOMOVE) && (p->x != r.left || p->y != r.top);
+            int sized = !(p->flags & SWP_NOSIZE) && (p->cx != rw || p->cy != rh);
+            if (moved || sized)
+            {
+                static int logged;
+                if (logged++ < 4)
+                    wl_log("display: the picture's window asked %dx%d at %d,%d: kept at %dx%d at %ld,%ld", p->cx, p->cy, p->x, p->y, rw, rh, r.left,
+                           r.top);
+                p->x = r.left;
+                p->y = r.top;
+                p->cx = rw;
+                p->cy = rh;
+            }
+        }
+    }
     return DefWindowProcW(h, msg, wp, lp);
 }
 

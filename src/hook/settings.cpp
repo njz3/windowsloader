@@ -93,10 +93,17 @@ static void parse_overrides(void)
         for (size_t s = 0; s < sizeof sections / sizeof sections[0]; s++)
             if (!_stricmp(line, sections[s]))
                 snprintf(g_set[g_setCount].section, sizeof g_set[0].section, "%s", sections[s]);
-        // Game.KEY: the game launched's own section, [Game.<short name>] (as linuxloader's)
+        // Game.KEY: the game launched's own section, [Game.<short name>] (as linuxloader's); also
+        // Game.<short name>.KEY, the section written out
+        const char *key = dot + 1;
         if (!_stricmp(line, "Game"))
+        {
             snprintf(g_set[g_setCount].section, sizeof g_set[0].section, "Game.%s", wl_game_name());
-        snprintf(g_set[g_setCount].key, sizeof g_set[0].key, "%s", dot + 1);
+            size_t nameLen = strlen(wl_game_name());
+            if (!_strnicmp(key, wl_game_name(), nameLen) && key[nameLen] == '.')
+                key += nameLen + 1;
+        }
+        snprintf(g_set[g_setCount].key, sizeof g_set[0].key, "%s", key);
         for (char *c = g_set[g_setCount].key; *c; c++)
             *c = (char)toupper((unsigned char)*c);
         snprintf(g_set[g_setCount].value, sizeof g_set[0].value, "%s", equals + 1);

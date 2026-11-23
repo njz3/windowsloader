@@ -820,6 +820,55 @@ static SHORT WINAPI rf_GetKeyState(int key)
 
 static wchar_t g_dllName[MAX_PATH]; // the game DLL's file name ("jgt.dll")
 
+// [Game.rf3d] VIEW = 2D. jgt.dll's view object (its labels "VIEW:2D", "VIEW:3D", "VIEW:3D
+// Dynamic!", made at RVA 0x4640) keeps the stereo state in its byte +0x54 (1 3D, made so at its
+// creation; the 2D/3D button toggles it). Its update (RVA 0x4770, thiscall, every frame) turns
+// that into a label index (+0x48: 0 2D, 1 3D, 2 3D Dynamic) and, when the index differs from the
+// last one (+0x4C, never set at the creation: 0, the 2D's index), sets the stereo renderer (its
+// pointer at RVA 0x94709C, null before it exists), +0x4C written even when the renderer is not
+// there yet. Each view object, as the game makes them (the attract's, the car choice's, the
+// race's...), so made 2D at its creation: its byte 0 (RVA 0x465D). Its update hooked: before its
+// first one (the label index still the creation's -1) and while the renderer is missing, the last
+// index made -1, so that the 2D is sent. Both builds the same. (Making only the first object 2D
+// later, the 20261123 essai 10, left the others in 3D and the game crashed on a second game.)
+static const unsigned RF_VIEW_CREATE_STEREO = 0x465D;
+static const unsigned RF_VIEW_UPDATE = 0x4770, RF_RENDERER = 0x94709C;
+static unsigned char *g_game;
+static void(__fastcall *oViewUpdate)(unsigned char *view, void *edx);
+static void __fastcall view_update(unsigned char *view, void *edx)
+{
+    if (view && *(volatile int *)(view + 0x48) == -1)
+        *(volatile int *)(view + 0x4C) = -1; // its first update: the 2D sent
+    oViewUpdate(view, edx);
+    if (view && !*(void *volatile *)(g_game + RF_RENDERER))
+        *(volatile int *)(view + 0x4C) = -1; // sent again once the renderer exists
+}
+
+static void view_2d(HMODULE game)
+{
+    char view[8];
+    wl_game_option("VIEW", view, sizeof view);
+    if (_stricmp(view, "2D"))
+        return;
+    g_game = (unsigned char *)game;
+    static const unsigned char start[6] = {0x80, 0x79, 0x55, 0x00, 0x75, 0x1C}; // cmp byte [ecx+55h], 0; jne
+    static const unsigned char reads[5] = {0xA1, 0x9C, 0x70, 0x94, 0x10}; // mov eax, [renderer] (at the build's own base)
+    unsigned char *update = g_game + RF_VIEW_UPDATE;
+    unsigned char want[5];
+    memcpy(want, reads, 5);
+    *(unsigned *)(want + 1) = (unsigned)(size_t)(g_game + RF_RENDERER);
+    static const unsigned char stereoWas[4] = {0xC6, 0x45, 0x54, 0x01}, stereoNow[4] = {0xC6, 0x45, 0x54, 0x00};     // mov byte [ebp+54h], 1 -> 0
+    static const unsigned char labelUnset[7] = {0xC7, 0x45, 0x48, 0xFF, 0xFF, 0xFF, 0xFF}; // mov dword [ebp+48h], -1 at the creation
+    if (memcmp(update, start, 6) || memcmp(update + 0x111, want, 5) || memcmp(g_game + RF_VIEW_CREATE_STEREO, stereoWas, 4) ||
+        memcmp(g_game + 0x470D, labelUnset, 7))
+    {
+        wl_log("road fighters 3d: unexpected code for its view: it starts in 3D");
+        return;
+    }
+    wl_patch_code(g_game + RF_VIEW_CREATE_STEREO, stereoWas, stereoNow, 4, "Road Fighters 3D's view made 2D at its creation");
+    wl_hook_code(update, (void *)view_update, (void **)&oViewUpdate, "Road Fighters 3D's view update (sent once the renderer exists)");
+}
+
 static bool(__cdecl *odll_entry_init)(char *, void *);
 static bool __cdecl hdll_entry_init(char *code, void *param)
 {
@@ -842,6 +891,7 @@ static bool __cdecl hdll_entry_init(char *code, void *param)
             wl_log("road fighters 3d: %d of GetModuleHandleA, GetModuleHandleW and GetProcAddress found: kbt.dll and kld.dll not answered", k);
         if (!wl_patch_iat(game, "user32.dll", "GetKeyState", (void *)rf_GetKeyState, NULL))
             wl_log("road fighters 3d: GetKeyState not imported");
+        view_2d(game);
     }
     else
         wl_log("road fighters 3d: the game's DLL is not loaded: its boards not answered");
@@ -889,6 +939,7 @@ int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char
     wl_game_set_boards("Controls on Konami ACIO boards \"HBHI\" (libacio.dll) and \"HGTH\" (libacioEx.dll: wheel, pedals)",
                        "Motor board: Konami ACIO board \"HGTH\" (libacioEx.dll, the torque the game sends)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
+    wl_game_use_options("rf3d");
     wl_outputs_name_lamps(WL_N("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"), NULL, RF3D_LAMPS);
     wl_system_virtual_dll("libacioEx.dll", g_acioEx, (int)(sizeof g_acioEx / sizeof g_acioEx[0]));
     wl_dinput_quiet_keyboard();

@@ -1202,12 +1202,38 @@ static void exit_step(void)
     was = down;
 }
 
+// XInput DLLs left in the game's folder by another tool (x360kb, x360ce: keyboard or pad
+// emulators): SDL loads XInput by its name alone, which finds them first (F&F Drift: two
+// "Xbox 360 Wireless Controller" before the wheel, a brake stuck). Windows' own loaded first by
+// their full path, so that the name gives them, to SDL and to the game
+static void system_xinput(void)
+{
+    static const wchar_t *names[] = {L"xinput1_4.dll", L"xinput1_3.dll", L"xinput9_1_0.dll"};
+    wchar_t exe[MAX_PATH], sys[MAX_PATH], path[MAX_PATH];
+    if (!GetModuleFileNameW(NULL, exe, MAX_PATH) || !GetSystemDirectoryW(sys, MAX_PATH))
+        return;
+    wchar_t *slash = wcsrchr(exe, L'\\');
+    if (!slash)
+        return;
+    slash[1] = 0;
+    for (int i = 0; i < 3; i++)
+    {
+        swprintf(path, MAX_PATH, L"%s%s", exe, names[i]);
+        if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES)
+            continue;
+        swprintf(path, MAX_PATH, L"%s\\%s", sys, names[i]);
+        HMODULE m = LoadLibraryW(path);
+        wl_log("controls: %S in the game's folder (another tool's): Windows' own %s", names[i], m ? "used" : "missing, the folder's used");
+    }
+}
+
 static DWORD WINAPI controls_thread(LPVOID)
 {
     g_controlsThread = GetCurrentThreadId();
     InterlockedExchange(&g_running, 1);
     wl_busy_enter(); // SDL's own file and device calls go through the hooks untouched
 
+    system_xinput();
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (!SDL_Init(SDL_INIT_JOYSTICK | SDL_INIT_GAMEPAD | SDL_INIT_HAPTIC))
     {
