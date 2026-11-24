@@ -15,10 +15,12 @@
 and log): pictures of both every 10 s, a coin and START on both after the boot, then the
 accelerator held. The waits are in seconds.
 
-    python scripts/agent/rt_link.py GAME_EXE NAME [--boot S] [--race S] [--calib h2o] [--game-args "..."] [--solo] [--stagger S] [--join | --join2] [--steer] [--gas NAME] [--set SECTION.KEY=VALUE ...]
+    python scripts/agent/rt_link.py GAME_EXE NAME [--boot S] [--race S] [--calib h2o] [--game-args "..."] [--solo] [--stagger S] [--join | --join2] [--steer] [--gas NAME] [--cabinets N] [--set SECTION.KEY=VALUE ...]
 
 --calib h2o: H2Overdrive's throttle calibration first (a new write folder opens on it): SERVICE on its
 welcome, the throttle forward, back and in the middle (BOOST each time), then its full range.
+
+--cabinets N: N cabinets linked on this PC (2 by default; 127.0.0.2 to 127.0.0.(N+1)).
 
 NAME: the folder under logs/link-<NAME> (the pictures, the logs, the write folders).
 """
@@ -33,7 +35,7 @@ from wlagent import AgentError, WLAgent  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 LAUNCHER = os.path.join(ROOT, "bin", "Release", "windowsloader.exe")
 args = sys.argv[1:]
-sets, opts = [], {"--boot": 60, "--race": 60, "--stagger": 0}
+sets, opts = [], {"--boot": 60, "--race": 60, "--stagger": 0, "--cabinets": 2}
 for flag in list(opts):
     if flag in args:
         i = args.index(flag)
@@ -84,7 +86,8 @@ def start(k):
     os.makedirs(write, exist_ok=True)
     extra = ["--timeout", "1200", "--write-dir", write] + sets
     if not solo:
-        extra += ["--set", "Game.LINK=127.0.0.2,127.0.0.3", "--set", "Game.CABINET=%d" % k]
+        link = ",".join("127.0.0.%d" % (c + 1) for c in range(1, opts["--cabinets"] + 1))
+        extra += ["--set", "Game.LINK=" + link, "--set", "Game.CABINET=%d" % k]
     return WLAgent(LAUNCHER, GAME, log=os.path.join(OUT, "cab%d.log" % k), extra_args=extra, game_args=game_args)
 
 
@@ -153,8 +156,9 @@ games = []
 try:
     games.append(start(1))
     if not solo:
-        time.sleep(8)  # the second once the first runs
-        games.append(start(2))
+        for k in range(2, opts["--cabinets"] + 1):
+            time.sleep(8)  # the next once the previous runs
+            games.append(start(k))
     print("ready", games[0].game, flush=True)
     if calib == "h2o":
         h2o_calibration(games)
@@ -190,7 +194,7 @@ try:
         tap("Start")(games[0])
         time.sleep(opts["--stagger"])
         shots(games, "joined")
-        tap("Coin")(games[1])
+        both(games[1:], tap("Coin"))  # the others' coins while the first's game waits for them
         time.sleep(2)
     else:
         both(games, tap("Coin"))
