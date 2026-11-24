@@ -216,6 +216,9 @@ void wl_d3d9_keep_same_reset(void);
 // The game's Direct3D 9 device made D3DCREATE_MULTITHREADED (its textures loaded on another thread)
 void wl_d3d9_multithreaded(void);
 
+// The game's dynamic L8 textures made managed (Bink's frame buffers, read back each frame: Cars)
+void wl_d3d9_video_textures_managed(void);
+
 // QueryPerformanceCounter's value as the game's last Present began (on its own device), 0 before the
 // first: Road Fighters 3D's frame timer started there rather than after the Present
 LONGLONG wl_d3d9_present_began(void);

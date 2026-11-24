@@ -1948,6 +1948,8 @@ static int install_cars(void)
     // its wheel's motor (+0x8222e0) on the parallel port through the PortTalk driver: without it
     // open, the wheel's object is dropped, its thread never runs and the force stays 0
     wl_vdev_register(&g_portTalk);
+    // its Bink videos decoded into its own L8 textures, read back each frame (green blocks otherwise)
+    wl_d3d9_video_textures_managed();
     return 1;
 }
 

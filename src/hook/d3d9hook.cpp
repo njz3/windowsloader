@@ -951,6 +951,122 @@ static void create_failed(const char *what, UINT w, UINT h, int format, DWORD ex
     if (g_createFails++ < 16)
         wl_log("%s %ux%u format=%d (0x%lx) -> 0x%08lx [%s]", what, w, h, format, extra, hr, wl_where(caller, where, sizeof where));
 }
+// A game whose Bink videos decode into its own textures (BinkRegisterFrameBuffers): Bink builds
+// each frame from the previous one, read back from them. Made in video memory and dynamic (L8, one
+// per plane), their locks gave back zeros on today's drivers: the blocks a frame left as they were
+// came out green (Cars' Disney and Pixar logos, 24/11/2026; its device a Direct3D 9Ex one, where
+// managed textures do not exist). Each such texture gets a copy in memory (its private data,
+// released with it): the game's locks are given that copy, which keeps the last frame, and the
+// unlock sends it to the texture (wl_d3d9_video_textures_managed)
+static int g_videoManaged;
+
+void wl_d3d9_video_textures_managed(void)
+{
+    g_videoManaged = 1;
+}
+
+static const GUID WL_SHADOW_GUID = {0x7c1d3a52, 0x5b0e, 0x4d8a, {0x9a, 0x61, 0x2f, 0x43, 0x8e, 0x15, 0xc7, 0x09}};
+
+struct Shadow : IUnknown
+{
+    LONG refs;
+    UINT w, h;
+    int locked;
+    unsigned char *data;
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID id, void **out) override
+    {
+        if (id == IID_IUnknown)
+        {
+            *out = this;
+            AddRef();
+            return S_OK;
+        }
+        *out = NULL;
+        return E_NOINTERFACE;
+    }
+    ULONG STDMETHODCALLTYPE AddRef(void) override
+    {
+        return (ULONG)InterlockedIncrement(&refs);
+    }
+    ULONG STDMETHODCALLTYPE Release(void) override
+    {
+        LONG n = InterlockedDecrement(&refs);
+        if (!n)
+        {
+            free(data);
+            delete this;
+        }
+        return (ULONG)n;
+    }
+};
+
+static Shadow *shadow_of(IDirect3DTexture9 *t)
+{
+    IUnknown *u = NULL;
+    DWORD size = sizeof u;
+    if (FAILED(t->GetPrivateData(WL_SHADOW_GUID, &u, &size)) || !u)
+        return NULL;
+    u->Release(); // the texture keeps its own reference
+    return (Shadow *)u;
+}
+
+static HRESULT(STDMETHODCALLTYPE *oTexLockRect)(IDirect3DTexture9 *, UINT, D3DLOCKED_RECT *, const RECT *, DWORD);
+static HRESULT(STDMETHODCALLTYPE *oTexUnlockRect)(IDirect3DTexture9 *, UINT);
+
+static HRESULT STDMETHODCALLTYPE hTexLockRect(IDirect3DTexture9 *t, UINT level, D3DLOCKED_RECT *lr, const RECT *r, DWORD flags)
+{
+    Shadow *sh = level == 0 && lr ? shadow_of(t) : NULL;
+    if (!sh)
+        return oTexLockRect(t, level, lr, r, flags);
+    sh->locked = 1;
+    lr->Pitch = (INT)sh->w;
+    lr->pBits = sh->data + (r ? (size_t)r->top * sh->w + r->left : 0);
+    return D3D_OK;
+}
+
+static HRESULT STDMETHODCALLTYPE hTexUnlockRect(IDirect3DTexture9 *t, UINT level)
+{
+    Shadow *sh = level == 0 ? shadow_of(t) : NULL;
+    if (!sh)
+        return oTexUnlockRect(t, level);
+    if (!sh->locked)
+        return D3DERR_INVALIDCALL;
+    sh->locked = 0;
+    D3DLOCKED_RECT lr;
+    HRESULT hr = oTexLockRect(t, 0, &lr, NULL, D3DLOCK_DISCARD);
+    if (FAILED(hr))
+        return D3D_OK; // the copy kept: sent at the next unlock
+    for (UINT y = 0; y < sh->h; y++)
+        memcpy((unsigned char *)lr.pBits + (size_t)y * lr.Pitch, sh->data + (size_t)y * sh->w, sh->w);
+    return oTexUnlockRect(t, 0);
+}
+
+static void video_shadow(IDirect3DTexture9 *t, UINT w, UINT h)
+{
+    Shadow *sh = new Shadow();
+    sh->refs = 1;
+    sh->w = w;
+    sh->h = h;
+    sh->locked = 0;
+    sh->data = (unsigned char *)calloc((size_t)w * h, 1);
+    IUnknown *u = sh;
+    if (!sh->data || FAILED(t->SetPrivateData(WL_SHADOW_GUID, u, sizeof u, D3DSPD_IUNKNOWN)))
+    {
+        sh->Release();
+        return;
+    }
+    sh->Release(); // the texture holds it now
+    static int hooked, told;
+    if (!hooked++)
+    {
+        void **vt = *(void ***)t;
+        wl_hook_code(vt[19], (void *)hTexLockRect, (void **)&oTexLockRect, "IDirect3DTexture9::LockRect (video planes)");
+        wl_hook_code(vt[20], (void *)hTexUnlockRect, (void **)&oTexUnlockRect, "IDirect3DTexture9::UnlockRect (video planes)");
+    }
+    if (told++ < 4)
+        wl_log("CreateTexture %ux%u L8 dynamic: a copy in memory for its locks (its video's planes, read back by Bink)", w, h);
+}
+
 static HRESULT(STDMETHODCALLTYPE *oCreateTexture)(IDirect3DDevice9 *, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9 **, HANDLE *);
 static HRESULT STDMETHODCALLTYPE hCreateTexture(IDirect3DDevice9 *dev, UINT w, UINT h, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool,
                                                 IDirect3DTexture9 **out, HANDLE *shared)
@@ -958,6 +1074,8 @@ static HRESULT STDMETHODCALLTYPE hCreateTexture(IDirect3DDevice9 *dev, UINT w, U
     HRESULT hr = oCreateTexture(dev, w, h, levels, usage, format, pool, out, shared);
     if (FAILED(hr))
         create_failed("CreateTexture", w, h, (int)format, usage | (DWORD)pool << 24, hr, WL_CALLER);
+    else if (g_videoManaged && format == D3DFMT_L8 && (usage & D3DUSAGE_DYNAMIC) && pool == D3DPOOL_DEFAULT && levels == 1 && out && *out)
+        video_shadow(*out, w, h);
     return hr;
 }
 static HRESULT(STDMETHODCALLTYPE *oCreateRenderTarget)(IDirect3DDevice9 *, UINT, UINT, D3DFORMAT, D3DMULTISAMPLE_TYPE, DWORD, BOOL, IDirect3DSurface9 **,
