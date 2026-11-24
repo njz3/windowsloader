@@ -87,6 +87,7 @@ void wl_display_set_crop(int position, int barrel, int center, int radius);
 
 // SHOW_FRAME: the number of the frame presented in the window's title (read when the title is written)
 int wl_display_show_frame(void);
+int wl_display_window_vsync(void); // [Display] WINDOW_VSYNC
 void wl_display_set_show_frame(int on);
 
 // WIDTH x HEIGHT, 0 x 0 for AUTO: the one the game started with, and the one to save (used at the

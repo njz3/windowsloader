@@ -78,6 +78,45 @@ static RECT g_src;                 // the back buffer's part shown (Direct3D 9's
 static int g_full = 1;             // the picture is the whole client area
 static int g_glPicture;            // an OpenGL game whose picture windowsloader copies into its window (glhook.cpp)
 static int g_hidden;               // a program of the cabinet's that shows nothing (wl_display_hidden)
+static int g_monitor;              // [Display] MONITOR: Windows' display n, 0 the window's own
+
+struct MonitorFind
+{
+    const wchar_t *name;
+    HMONITOR found;
+};
+
+static BOOL CALLBACK monitor_find(HMONITOR m, HDC, LPRECT, LPARAM p)
+{
+    MonitorFind *f = (MonitorFind *)p;
+    MONITORINFOEXW mi;
+    mi.cbSize = sizeof mi;
+    if (GetMonitorInfoW(m, &mi) && !_wcsicmp(mi.szDevice, f->name))
+    {
+        f->found = m;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+// The screen the window goes on: [Display] MONITOR's (Windows' \\.\DISPLAYn), or the one it is on
+static HMONITOR chosen_monitor(void)
+{
+    if (g_monitor)
+    {
+        wchar_t name[32];
+        swprintf(name, 32, L"\\\\.\\DISPLAY%d", g_monitor);
+        MonitorFind f = {name, NULL};
+        EnumDisplayMonitors(NULL, NULL, monitor_find, (LPARAM)&f);
+        if (f.found)
+            return f.found;
+        static int told;
+        if (!told++)
+            wl_log("display: MONITOR %d: no such screen, the window's own", g_monitor);
+    }
+    return MonitorFromWindow(g_wnd, MONITOR_DEFAULTTOPRIMARY);
+}
+static int g_windowVsync = 1;      // [Display] WINDOW_VSYNC: a game in a window waits for the screen in its Present
 static volatile LONG g_showFrame;  // [Display] SHOW_FRAME: the frame's number in the window's title
 static volatile LONG g_keepActive = 1; // [Display] KEEP_ACTIVE: the game never told it lost the activation
 
@@ -146,6 +185,19 @@ static const char *g_defaults =
     "# runs on as on a cabinet; the games that pause then (Sega Rally 3, Battle Gear 4) froze until their\r\n"
     "# window was clicked. false: the game told, as Windows does. Default: true\r\n"
     "KEEP_ACTIVE = true\r\n"
+    "\r\n"
+    "# The screen the game is shown on: AUTO, the one its window opens on (the main one, mostly); 1, 2...:\r\n"
+    "# Windows' display n (\\\\.\\DISPLAYn, its number in Windows' display settings). Default: AUTO\r\n"
+    "MONITOR = AUTO\r\n"
+    "\r\n"
+    "# Set to true to log every 10 s where the game's time between two frames goes (Present, its Sleep and\r\n"
+    "# waits and who calls them, its CPU, the rest), to find what holds a game under 60 fps. Default: false\r\n"
+    "FRAME_STATS = false\r\n"
+    "\r\n"
+    "# false: a Direct3D 9 game kept in a window (WINDOW, BORDERLESS) presents without waiting for the\r\n"
+    "# screen's refresh (its interval IMMEDIATE); Windows' compositor still shows whole frames, at the\r\n"
+    "# screen's rate. For a game held under 60 fps by its Present's wait. Default: true\r\n"
+    "WINDOW_VSYNC = true\r\n"
     "\r\n"
     "[Input]\r\n"
     "# The settings menu's controls page numbers a joystick's buttons from 1, as Windows and vJoy do (true),\r\n"
@@ -305,6 +357,14 @@ void wl_display_load(void)
     g_gdiSetting = !_stricmp(v, "GDI");
     g_showFrame = wl_settings_get_bool("Display", "SHOW_FRAME", 0);
     g_keepActive = wl_settings_get_bool("Display", "KEEP_ACTIVE", 1);
+    g_windowVsync = wl_settings_get_bool("Display", "WINDOW_VSYNC", 1);
+    if (!g_windowVsync)
+        wl_log("display: WINDOW_VSYNC false: a game in a window presents without waiting for the screen");
+    char mon[16];
+    wl_settings_get("Display", "MONITOR", "AUTO", mon, sizeof mon);
+    g_monitor = atoi(mon) > 0 ? atoi(mon) : 0;
+    if (g_monitor)
+        wl_log("display: MONITOR %d (\\\\.\\DISPLAY%d)", g_monitor, g_monitor);
     g_width = wl_settings_get_int("Display", "WIDTH", 0);
     g_height = wl_settings_get_int("Display", "HEIGHT", 0);
     if (g_width <= 0 || g_height <= 0)
@@ -400,6 +460,11 @@ void wl_display_set_crop(int position, int barrel, int center, int radius)
     InterlockedExchange(&g_barrelCenter, clamp(center, 0, 100));
     InterlockedExchange(&g_barrelRadius, clamp(radius, 1, 1000));
     InterlockedExchange(&g_repaint, 1);
+}
+
+int wl_display_window_vsync(void)
+{
+    return g_windowVsync;
 }
 
 int wl_display_show_frame(void)
@@ -627,7 +692,7 @@ static void screen_resolution(int full)
         return;
     MONITORINFOEXW mi;
     mi.cbSize = sizeof mi;
-    if (!GetMonitorInfoW(MonitorFromWindow(g_wnd, MONITOR_DEFAULTTOPRIMARY), &mi))
+    if (!GetMonitorInfoW(chosen_monitor(), &mi))
         return;
     // The screen's smallest mode holding the picture (its own size when the screen has it), as SDL
     // chooses for linuxloader
@@ -670,7 +735,7 @@ static void apply_mode(void)
     int mode = g_mode;
     screen_resolution(mode == WL_MODE_FULLSCREEN || mode == WL_MODE_FULLSCREEN_STRETCH);
     MONITORINFO mi = {sizeof mi};
-    GetMonitorInfoW(MonitorFromWindow(g_wnd, MONITOR_DEFAULTTOPRIMARY), &mi);
+    GetMonitorInfoW(chosen_monitor(), &mi);
     DWORD ex = (DWORD)GetWindowLongW(g_wnd, GWL_EXSTYLE) & ~(WS_EX_TOPMOST | WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME);
     int x, y, w, h;
     DWORD style;
@@ -1055,6 +1120,26 @@ void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
 {
     if (!g_wl.windowed || !pp || !pp->Windowed)
         return;
+    // FULLSCREEN: the screen's mode changed before the device is made, not after (its device then
+    // lost for good: SuperCars' Present failed at once, 20000 times a second, the screen not drawn)
+    if ((g_mode == WL_MODE_FULLSCREEN || g_mode == WL_MODE_FULLSCREEN_STRETCH) && !g_screen[0] && pp->BackBufferWidth &&
+        pp->BackBufferHeight)
+    {
+        g_bbW = (int)pp->BackBufferWidth;
+        g_bbH = (int)pp->BackBufferHeight;
+        screen_resolution(1);
+        if (g_screen[0])
+        {
+            // the change told to the windows (WM_DISPLAYCHANGE) before the device is made
+            MSG msg;
+            for (int i = 0; i < 20; i++, Sleep(50))
+                while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE))
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+        }
+    }
     if (g_noMultisample && pp->MultiSampleType != D3DMULTISAMPLE_NONE && !g_gdiSetting)
     {
         wl_log("display: the game's multisampled back buffer (%d) made a plain one, to be placed", (int)pp->MultiSampleType);

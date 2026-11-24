@@ -212,6 +212,13 @@ void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
 // A Reset with the device's own settings, the device not lost, not made (d3d9hook.cpp)
 void wl_d3d9_keep_same_reset(void);
+
+// The game's Direct3D 9 device made D3DCREATE_MULTITHREADED (its textures loaded on another thread)
+void wl_d3d9_multithreaded(void);
+
+// QueryPerformanceCounter's value as the game's last Present began (on its own device), 0 before the
+// first: Road Fighters 3D's frame timer started there rather than after the Present
+LONGLONG wl_d3d9_present_began(void);
 // A game's pixel shader (its instructions, comments left out, the end token included) made from
 // the assembly given instead; before the device is made. The arguments are kept
 void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why);

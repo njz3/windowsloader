@@ -24,6 +24,7 @@
 
 #include "agent.h"
 #include "display.h"
+#include "framestats.h"
 #include "hooks.h"
 #include "log.h"
 #include "menu.h"
@@ -72,11 +73,14 @@ static UINT g_interval = D3DPRESENT_INTERVAL_ONE;
 // window's size or the real screen's: the screen told (its full-screen mode one of Direct3D's,
 // vscreen.cpp). Crazy Speed's Ogre resets at its window's client area (its plug-in's own
 // GetClientRect, past the game's), Dirty Drivin' asks the screen's mode (its -r 1360x768 aside):
-// both drew their 1360x768 menus in a corner of 1920x1080
+// both drew their 1360x768 menus in a corner of 1920x1080. Only when larger both ways: a window
+// narrower than the screen told is kept at its size, as a smaller one is (Crazy Speed on a 1280x960
+// screen, reset at 1280x960: made 1360x768, its 3D view stopped 80 pixels before the right edge,
+// Racecab2, 24/11/2026; at 640x480 kept, whole)
 static void told_size(D3DPRESENT_PARAMETERS *pp)
 {
     int vw, vh;
-    if (pp && wl_vscreen_size(&vw, &vh) && ((int)pp->BackBufferWidth > vw || (int)pp->BackBufferHeight > vh))
+    if (pp && wl_vscreen_size(&vw, &vh) && (int)pp->BackBufferWidth > vw && (int)pp->BackBufferHeight > vh)
     {
         wl_log("  %ux%u, larger than the screen the game is told: %dx%d", pp->BackBufferWidth, pp->BackBufferHeight, vw, vh);
         pp->BackBufferWidth = (UINT)vw;
@@ -97,6 +101,12 @@ static int make_windowed(D3DPRESENT_PARAMETERS *pp)
 {
     if (pp)
         g_interval = pp->PresentationInterval;
+    // [Display] WINDOW_VSYNC false: in a window, no wait for the screen (the compositor shows whole frames)
+    if (pp && !wl_display_window_vsync() && (pp->Windowed || g_wl.windowed) && pp->PresentationInterval != D3DPRESENT_INTERVAL_IMMEDIATE)
+    {
+        wl_log("  interval 0x%x: IMMEDIATE in the window (WINDOW_VSYNC false)", pp->PresentationInterval);
+        pp->PresentationInterval = D3DPRESENT_INTERVAL_IMMEDIATE;
+    }
     if (!g_wl.windowed || !pp || pp->Windowed)
         return 0;
     pp->Windowed = TRUE;
@@ -459,6 +469,13 @@ static int made_by_windows(const void *caller)
     return mod != g_wlModule && wl_is_system_caller(caller);
 }
 
+static volatile LONGLONG g_presentBegan; // QueryPerformanceCounter as the game's last Present began
+
+LONGLONG wl_d3d9_present_began(void)
+{
+    return g_presentBegan;
+}
+
 static volatile LONG g_presentThread; // the thread in hPresent: its swap chain's Present is d3d9's own
 
 static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
@@ -481,7 +498,12 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     wl_menu_present(dev, present_out); // Tab: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
+    LARGE_INTEGER began;
+    QueryPerformanceCounter(&began);
+    g_presentBegan = began.QuadPart;
+    wl_framestats_present_begin();
     HRESULT hr = present_out(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty);
+    wl_framestats_present_end();
     InterlockedIncrement(&g_frames);
 
     // A lost device (screen locked, remote desktop minimized) draws nothing until the game resets it
@@ -997,6 +1019,27 @@ static void hook_device(IDirect3DDevice9 *dev)
 // IDirect3D9 / IDirect3D9Ex
 // ------------------------------------------------------------------------------
 
+// A game drawing on one thread and loading its textures on another, its device not made
+// D3DCREATE_MULTITHREADED: Direct3D then serialises their calls (wl_d3d9_multithreaded). Storm
+// Rider's loader (d3dx9's CreateTexture) and its frames met in the graphics driver, which waited
+// for good: 2 of its 5 games on Racecab1 stopped on the bike's loading (24/11/2026)
+static int g_multithreaded;
+
+void wl_d3d9_multithreaded(void)
+{
+    g_multithreaded = 1;
+}
+
+static DWORD behavior_flags(DWORD behavior)
+{
+    if (g_multithreaded && !(behavior & D3DCREATE_MULTITHREADED))
+    {
+        wl_log("  behavior 0x%lx: D3DCREATE_MULTITHREADED added (its textures loaded on another thread)", behavior);
+        behavior |= D3DCREATE_MULTITHREADED;
+    }
+    return behavior;
+}
+
 static HRESULT(STDMETHODCALLTYPE *oCreateDevice)(IDirect3D9 *, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS *, IDirect3DDevice9 **);
 static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3DDEVTYPE type, HWND focus, DWORD behavior, D3DPRESENT_PARAMETERS *pp,
                                                IDirect3DDevice9 **out)
@@ -1009,6 +1052,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
         wl_log("CreateDevice -> 0x%08lx, Windows' own device (a video's): left alone", hr);
         return hr;
     }
+    behavior = behavior_flags(behavior);
     log_pp("  asked", pp);
     if (wl_display_dxgi_shown())
     {
@@ -1052,6 +1096,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         wl_log("CreateDeviceEx -> 0x%08lx, Windows' own device (a video's): left alone", hr);
         return hr;
     }
+    behavior = behavior_flags(behavior);
     log_pp("  asked", pp);
     if (wl_display_dxgi_shown())
     {

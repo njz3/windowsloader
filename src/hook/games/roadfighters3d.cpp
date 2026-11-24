@@ -58,9 +58,11 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <mmsystem.h>
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
+#include <intrin.h>
 
 #include "ffb.h"
 #include "filecrc.h"
@@ -951,6 +953,107 @@ static DWORD WINAPI cabinet_keeper(void *p)
             }
 }
 
+// The game watches its own frame rate (+0x49370, every 16 frames in a race): with more than 40
+// readings and more than one in ten under 53 frames a second, it asks for its device to be made
+// again when the scene ends (+0x4935e: [+0x970347] = 1; +0xfa2c9, then the framework's Reset,
+// +0x183480): its effects and declarations released, Reset, then made again. The cabinets run it at
+// 47-49 frames a second: at each end of a game, and at the second one its effects could no longer
+// be made (D3DXCreateEffect: E_OUTOFMEMORY), then the crash (+0x1d3804). That request is not made;
+// a device really lost is still reset (TestCooperativeLevel, +0x183fa0). Checked here with its
+// 53 made 1000 (every reading slow): the Reset at the end of a game without this, none with it
+static void perf_reset_off(HMODULE game)
+{
+    unsigned char *at = (unsigned char *)game + 0x4935e;
+    static const unsigned char was[7] = {0xC6, 0x05, 0x47, 0x03, 0x97, 0x10, 0x01}; // mov byte [+0x970347], 1
+    unsigned char now[7];
+    memcpy(now, was, 7);
+    now[6] = 0;
+    // its absolute address is relocated with the DLL: checked and written at its place
+    unsigned va = (unsigned)(size_t)game + 0x970347;
+    memcpy((unsigned char *)now + 2, &va, 4);
+    unsigned char expect[7];
+    memcpy(expect, was, 7);
+    memcpy(expect + 2, &va, 4);
+    if (!wl_patch_code(at, expect, now, 7, "Road Fighters 3D's device made again when slow (not asked)"))
+        wl_log("road fighters 3d: unexpected code at +0x4935e: its slow frame rate may still reset its device");
+}
+
+// The game's frame (+0x191f90): its Present (+0x1920f2), its frame timer started again
+// (+0x192113, QueryPerformanceCounter), the scene drawn, then Sleep for 16.64 ms less the time
+// since and 3 ms (+0x1920c8), and a wait until 16.667 ms have passed or the screen is in its
+// vertical blank (+0x192510), then the next Present. Present's own time is outside that timer:
+// a frame lasts 16.67 ms plus Present's, 4 ms on the cabinets (48 fps; 7 ms on a laptop, 42 fps;
+// [Display] FRAME_STATS, 24/11/2026). The timer starts as the Present began instead: 60 fps
+// while the frame's work and its Present fit in 16.67 ms
+static HMODULE g_jgt;
+static BOOL(WINAPI *oQueryPerformanceCounter)(LARGE_INTEGER *);
+
+static BOOL WINAPI rf_QueryPerformanceCounter(LARGE_INTEGER *t)
+{
+    BOOL ok = oQueryPerformanceCounter(t);
+    if (ok && _ReturnAddress() == (unsigned char *)g_jgt + 0x192115)
+    {
+        LONGLONG began = wl_d3d9_present_began();
+        if (began && began <= t->QuadPart)
+            t->QuadPart = began;
+    }
+    return ok;
+}
+
+static void frame_pace(HMODULE game)
+{
+    static const unsigned char code[19] = {0x8D, 0x4C, 0x24, 0x40, 0x51, 0x89, 0x5C, 0x24, 0x54, 0x89,
+                                           0x5C, 0x24, 0x58, 0x88, 0x5C, 0x24, 0x5C, 0xFF, 0xD6}; // its timer's QueryPerformanceCounter
+    if (memcmp((unsigned char *)game + 0x192102, code, sizeof code))
+    {
+        wl_log("road fighters 3d: unexpected code at +0x192102: its frames keep Present's time beyond 16.67 ms");
+        return;
+    }
+    g_jgt = game;
+    if (wl_patch_iat(game, "kernel32.dll", "QueryPerformanceCounter", (void *)rf_QueryPerformanceCounter, (void **)&oQueryPerformanceCounter) &&
+        oQueryPerformanceCounter)
+        wl_log("road fighters 3d: its frame timer starts as its Present begins (60 fps, not 16.67 ms plus Present's time)");
+    else
+        wl_log("road fighters 3d: QueryPerformanceCounter not imported: its frames keep Present's time beyond 16.67 ms");
+}
+
+// dev/nvram/rfs.dat, the game's saved settings: 0xB3C bytes, at +4 the CRC-32 of +0x10..0xB3C, then
+// blocks of 0x104 bytes from +0x114, each its CRC-32 first. Block 1 (+0x118..0x218) is the I/O's
+// calibration: the wheel's and the pedals' (16 bits at +0x11C, +0x120, +0x128, +0x134) and three
+// "done" bytes (+0x13C..0x13E). Racecab2's copy (22/02/2024, another loader's) had every block's
+// CRC at 0 and that block not done: ERROR 5-1550 "do the I/O's calibration" at the start of a
+// new write folder (24/11/2026). Such a block is read as the one of the cabinets' other copy,
+// calibrated for the boards windowsloader answers for; the file itself is left as it is
+static DWORD crc32_of(const unsigned char *p, DWORD n)
+{
+    DWORD c = 0xFFFFFFFF;
+    while (n--)
+    {
+        c ^= *p++;
+        for (int k = 0; k < 8; k++)
+            c = c >> 1 ^ (0xEDB88320 & (0 - (c & 1)));
+    }
+    return ~c;
+}
+
+static void rfs_read(unsigned char *data, DWORD size, unsigned long long offset)
+{
+    if (offset != 0 || size < 0xB3C || *(DWORD *)data != 0xB3C)
+        return;
+    unsigned char *calib = data + 0x118;
+    if (*(DWORD *)(data + 0x114) == crc32_of(calib, 0x100) && calib[0x24] && calib[0x25] && calib[0x26])
+        return;
+    memset(calib, 0, 0x100);
+    *(WORD *)(data + 0x11C) = 0xFFFF;
+    *(WORD *)(data + 0x120) = 0x7FFF;
+    *(WORD *)(data + 0x128) = 0xFFFF;
+    *(WORD *)(data + 0x134) = 0xFFFF;
+    data[0x13C] = data[0x13D] = data[0x13E] = 1;
+    *(DWORD *)(data + 0x114) = crc32_of(calib, 0x100);
+    *(DWORD *)(data + 4) = crc32_of(data + 0x10, 0xB3C - 0x10);
+    wl_log("road fighters 3d: rfs.dat's I/O calibration missing (ERROR 5-1550): read calibrated");
+}
+
 // Linked: the game's sockets the link's, its default CABINET ID and the one in use this cabinet's
 static void link_game(HMODULE game)
 {
@@ -1042,6 +1145,8 @@ static bool __cdecl hdll_entry_init(char *code, void *param)
             wl_log("road fighters 3d: D3DXCreateEffect not imported");
         view_2d(game);
         link_game(game);
+        perf_reset_off(game);
+        frame_pace(game);
     }
     else
         wl_log("road fighters 3d: the game's DLL is not loaded: its boards not answered");
@@ -1093,6 +1198,11 @@ int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char
     // its Reset at the end of a game (the device's own settings), after which its effects failed
     // (D3DXCreateEffect: E_OUTOFMEMORY, the cabinets) and it crashed (+0x1d3804): not made
     wl_d3d9_keep_same_reset();
+    wl_files_read_filter("rfs.dat", rfs_read);
+    // Windows' timer at 1 ms: the game sleeps about 7 ms a frame once its frame timer starts with its
+    // Present (frame_pace); the default 15.6 ms timer would lengthen that Sleep past the frame
+    if (timeBeginPeriod(1) == TIMERR_NOERROR)
+        wl_log("road fighters 3d: Windows' timer at 1 ms (timeBeginPeriod)");
     wl_game_on_settings(rf_settings);
     wl_outputs_name_lamps(WL_N("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"), NULL, RF3D_LAMPS);
     wl_system_virtual_dll("libacioEx.dll", g_acioEx, (int)(sizeof g_acioEx / sizeof g_acioEx[0]));

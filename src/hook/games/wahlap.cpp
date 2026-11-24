@@ -366,6 +366,7 @@ int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title
     memory_load(dir);
     lock();
     wl_hooks_add(g_ioHooks, sizeof g_ioHooks / sizeof g_ioHooks[0]);
+    wl_d3d9_multithreaded(); // its loader thread makes textures while the game draws
     wl_game_use_options("stormrider");
     wl_game_on_settings(settings);
     return 1;

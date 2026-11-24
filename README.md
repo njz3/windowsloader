@@ -210,7 +210,13 @@ presented in the window's title, beside the frames per second, 4 times a second;
 presenting keeps its last number; also on the menu's display page), `KEEP_ACTIVE` (`true` by
 default: the game is never told its window lost the activation, another program's window in front,
 and runs on as on a cabinet; Sega Rally 3 and Battle Gear 4 Tuned paused then; `false`: told, as
-Windows does; also on the menu's display page), `DISPLAY_MODE` (`WINDOW`,
+Windows does; also on the menu's display page), `MONITOR` (`AUTO`, the screen the window opens on;
+`1`, `2`…: Windows' display n, `\\.\DISPLAYn`), `WINDOW_VSYNC` (`true` by default; `false`: a
+Direct3D 9 game kept in a window presents without waiting for the screen, Windows' compositor still
+showing whole frames), `FRAME_STATS` (`true`: every 10 s the log tells where the time between two
+frames goes: Present and its wait, the game's Sleep and waits and their callers, its CPU, the rest)
+and `FRAME_PROFILE` (`true`, with `FRAME_STATS`: the presenting thread sampled every millisecond, the
+modules and the game's code its CPU goes to, and the game's fiber switches), `DISPLAY_MODE` (`WINDOW`,
 `WINDOW_STRETCH`; `FULLSCREEN`, `FULLSCREEN_STRETCH`: the screen switched to its smallest mode holding the game's picture;
 `BORDERLESS`, `BORDERLESS_STRETCH`: a borderless window covering the screen at the desktop's
 resolution) and `WIDTH` / `HEIGHT` (the game's render resolution, `AUTO` by default). F11 or

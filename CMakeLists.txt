@@ -146,6 +146,7 @@ add_library(wl_hook SHARED
     src/hook/window.cpp
     src/hook/vscreen.cpp
     src/hook/d3d9hook.cpp
+    src/hook/framestats.cpp
     src/hook/dinputhook.cpp
     src/hook/vdinput.cpp
     src/hook/d3d11hook.cpp
