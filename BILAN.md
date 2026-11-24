@@ -46,6 +46,19 @@ dans NOTES.md, « Jeux des bornes »).
 | Storm Racer G (Sega Arcade PC) | ✅ | ⚠️ | ⏳ | ⚠️ | ⚠️ | ✅ | ⏳ | ✅ |
 | Wacky Races (Taito Type X2) | ✅ | ✅ | ⏳ | ⚠️ | ⚠️ | ✅ | ✅ | ⚠️ |
 | Let's Go Safari (RingWide) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ✅ | ✅ | ✅ |
+| The Fast and the Furious (Raw Thrills PC) | ✅ | ✅ | ✅ | ⚠️ | ✅ | ⏳ | ✅ | ✅ |
+| The Fast and the Furious Drift (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⏳ | ⏳ | ✅ |
+| The Fast and the Furious Super Bikes (Raw Thrills PC) | ✅ | ⚠️ | ✅ | — | ✅ | ⏳ | ⏳ | ✅ |
+| The Fast and the Furious Super Bikes 2 (Raw Thrills PC) | ✅ | ⚠️ | ✅ | — | ✅ | ⏳ | ⏳ | ✅ |
+| The Fast and the Furious SuperCars (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
+| Nicktoons Nitro Racing (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
+| H2Overdrive (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
+| Dirty Drivin' (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
+| Cars (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
+| Batman (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⏳ | ⏳ | ✅ |
+| Winter X Games SnoCross (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
+| Road Fighters 3D (Konami PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⏳ | ⚠️ | ✅ |
+| Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | — | ✅ | ⏳ | ⏳ | ⚠️ |
 
 Fonctions :
 
@@ -1977,6 +1990,54 @@ des programmes, pas encore de décompilation.
 - Frenzy Express : pas de link. Aucun programme ni DLL du jeu n'importe ou ne nomme de bibliothèque réseau.
 - Let's Go Safari : pas de link entre bornes (deux joueurs sur une borne). Le programme n'a qu'un client TCP (connect,
   send, recv : les services de la plateforme, keychip et PCP, par amLib), ni écoute ni UDP.
+
+## Raw Thrills PC (sdaemon.exe), 11 jeux
+
+Module `rawthrills.cpp`, réimplémenté d'après windowsarcadeloader (aderumier, GPL v3) ; chaque jeu est reconnu par
+le CRC32 de son `sdaemon.exe` (le même nom partout), chacune de ses adresses vérifiée sur la copie des bornes. `D:\`
+(audits, réglages, étalonnage, meilleurs temps) est le dossier du jeu, comme sur les bornes. Essais sur Racecab1
+(23/11, mode agent, banc vJoy, 1024x384 puis 1920x1080 ; détail dans NOTES.md, demandes 428 à 438).
+
+- The Fast and the Furious (2004, Direct3D 8) : carte JAMMA USB donnée au lecteur de rapports du jeu, moteur du
+  volant par le port parallèle. Course ✅, toutes les commandes vues dans le menu de test ✅ (pavé compris), retour de
+  force ⚠️ (paquets reçus, sens pas relevé). Les bandes noires sur l'herbe de ce PC ne se voient pas sur la borne.
+- Drift (2007) : même carte ; son écran ramené à 640x480 (les copies disent 1920x1080, ses menus étaient dans un
+  coin). Course de 76 s ✅, retour de force ✅ (bon sens, ±8 000).
+- Super Bikes (2006) et Super Bikes 2 (2010, tables d'entrées du jeu) : course ✅, pas de moteur.
+- SuperCars (2010, SetControl) : course ✅, retour de force ⚠️ (1 315 paquets, sens pas relevé).
+- Nicktoons Nitro Racing (2009) : ses 105 blocs 3DNow! joués en SSE2 (chacun vérifié). Étalonnage du volant au
+  premier lancement (menu de test) puis attract ✅ ; course ⏳.
+- H2Overdrive (2009) : la carte comme objet du jeu. Étalonnage de la manette des gaz (avant : accélérateur,
+  arrière : frein, Boost valide) gardé à la relance, attract ✅ ; course ⏳.
+- Dirty Drivin' (2011, 1.14) : clavier de développement et monnayeur du jeu ; écran virtuel 1360x768 et arguments
+  `-WinPC -Windowed -r 1360x768` ; attract ✅ (sa recherche de la clé HASP passe seule en 13 s) ; course ⏳.
+- Cars (2012) et Batman (2013) : carte RIO derrière libusb0. Cars : étalonnage, attract ✅, course ⏳. Batman :
+  mission et course ✅, retour de force ✅ (suit le volant), image étirée à sa place ✅ (sa fenêtre d'affichage
+  gardée à la taille voulue).
+- Winter X Games SnoCross (2022, 1.58) : sans carte (SetControl), pièges de la protection retirés ; attract ✅ à
+  28 images par seconde ⚠️ ; course ⏳.
+- Reste : les courses de Nicktoons, H2O, Dirty Drivin', Cars et SnoCross ; le test de toutes les commandes dans le
+  menu de test (en cours, Racecab2) ; le menu Tab.
+
+## Road Fighters 3D (Konami PC, 2010)
+
+`jgt.dll` (et `jgt_link_cab2.dll`, la borne 2), lancé dans `wl_avsboot.exe` (src/avsboot) : AVS, e-Amusement hors
+ligne d'après `prop\`, puis `dll_entry_init` et `dll_entry_main`. Module `roadfighters3d.cpp`, d'après
+windowsarcadeloader : cartes ACIO HBHI (boutons, levier, monnayeur) et HGTH (volant, pédales, moteur), lecteur de
+cartes, kbt/kld.
+
+- Lancement ✅ : l'avertissement réseau 5-2002-0000 (pas d'e-Amusement) se passe par SERVICE.
+- Commandes ✅ : l'accélérateur valide le mode, la voiture et la boîte ; course ✅. Menu de service : ShiftUp/Down
+  naviguent, View exécute.
+- Retour de force ✅ : le couple du jeu (0x708..0x8F8) ramené à toute la force, bon sens.
+- Vue : `[Game.rf3d] VIEW = 2D` par défaut (chaque objet de vue créé en 2D) ⚠️ à confirmer sur borne ; le bouton
+  2D/3D (View1) bascule en partie.
+
+## Crazy Speed Arcade (UNIS PC, 2010)
+
+`release\Client_r.exe` (Ogre), module `unis.cpp` d'après windowsarcadeloader : carte game232 sur COM1, hors ligne,
+chiffrements de la clé. Écran virtuel 1360x768. Attract (OFFLINE), GAME CARD, choix du véhicule ✅ ; course ⏳.
+Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrigé.
 
 ## Direct3D 8 (d3d8to9)
 

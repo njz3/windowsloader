@@ -15,8 +15,9 @@ The games it plays, one line per version told apart (the picker's table, `src/la
 `windowsloader.exe --list-games` prints it with each program's CRC-32; game by game:
 [BILAN.md](BILAN.md)). Version "—": the copies do not tell it, the one played is the Racecab
 cabinets'. CRC32: that of the program the Racecab cabinets launch, the one known to play (named
-when the game has several); "—": not on the cabinets. For information: windowsloader does not
-check it. Status "plays": checked in agent mode; "with reservations": something is left
+when the game has several); "—": not on the cabinets. For information, except for the Raw Thrills
+games (all of them `sdaemon.exe`), Crazy Speed Arcade and Road Fighters 3D, which windowsloader tells
+apart by their program's CRC32. Status "plays": checked in agent mode; "with reservations": something is left
 (BILAN.md); "in progress": does not play yet. Force feedback and link: "partly" when not all of it
 is checked. Another version of a game whose versions are told apart is listed by the picker as
 "version not supported".
@@ -51,7 +52,7 @@ is checked. Another version of a game whose versions are told apart is listed by
 | Mario Kart Arcade GP DX 1.10 | 1.10 | Namco System ES3 | `MK_AGP3_FINAL.exe` | `4D386327` | plays | partly | yes |
 | Crazy Ride | 1.9.0 | UNIS PC (64 bits) | `CrazyTaxiGame-Win64-Shipping.exe` | `0C97E693` | plays | partly | yes |
 | Storm Racer G | — | Sega (PC) | `racing.exe` | `E5A27313` | plays, with reservations | partly | yes |
-| Storm Rider | 1.2.6 | Wahlap (PC), 2013 | `motobike.exe` | `ED34CEB0` | in progress | no | yes |
+| Storm Rider | 1.2.6 | Wahlap (PC), 2013 | `motobike.exe` | `ED34CEB0` | plays | no | yes |
 | Initial D Arcade Stage Zero Ver.1.31 | 1.31 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | `CF32AFCE` | plays, with reservations | yes | no |
 | Initial D Arcade Stage Zero Ver.2 | 2.30 | Sega Nu (64 bits), 2017 | `InitialD0_DX11_Nu.exe` | `C7F92CFF` | plays, with reservations | yes | no |
 | Frenzy Express | — | Uniana (PC), 2001 | `xwin.exe` | `DBAF1475` | plays | yes | no |
@@ -59,6 +60,19 @@ is checked. Another version of a game whose versions are told apart is listed by
 | Wangan Midnight Maximum Tune 6 | — | Namco System ES3X (64 bits), 2018 | `wmn6r.exe` | `C4B9C773` | plays, with reservations | yes | yes |
 | Wangan Midnight Maximum Tune 5 DX+ | — | Namco System ES3X (64 bits), 2016 | `wmn5r.exe` | `32E089BC` | plays, with reservations | yes | yes |
 | Wangan Midnight Maximum Tune 5 | — | Namco System ES3X (64 bits), 2014 | `wmn5r.exe` | `51060B63` | plays, with reservations | yes | yes |
+| Road Fighters 3D | — | Konami PC, 2010 | `jgt.dll` (run in `wl_avsboot.exe`), `jgt_link_cab2.dll` | `68306E6F` (`jgt.dll`), `94023423` (`jgt_link_cab2.dll`) | plays, with reservations | yes | yes |
+| Crazy Speed Arcade | — | UNIS PC, 2010 | `Client_r.exe` | `42B6AC2D` | plays, with reservations | partly | yes |
+| The Fast and the Furious | — | Raw Thrills PC, 2004 | `sdaemon.exe` | `9AEBF60F` | plays | partly | yes |
+| The Fast and the Furious Drift | — | Raw Thrills PC, 2007 | `sdaemon.exe` | `8467C744` | plays | yes | yes |
+| The Fast and the Furious Super Bikes | — | Raw Thrills PC, 2006 | `sdaemon.exe` | `25ED956B` | plays | no | yes |
+| The Fast and the Furious Super Bikes 2 | — | Raw Thrills PC, 2010 | `sdaemon.exe` | `66E8AD40` | plays | no | yes |
+| The Fast and the Furious SuperCars | — | Raw Thrills PC, 2010 | `sdaemon.exe` | `B01B9D7D` | plays | partly | yes |
+| Nicktoons Nitro Racing | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `EC2F7B39` | plays, with reservations | partly | yes |
+| H2Overdrive | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `30E58AB0` | plays, with reservations | partly | yes |
+| Dirty Drivin' | 1.14 | Raw Thrills PC, 2011 | `sdaemon.exe` (`-WinPC -Windowed -r 1360x768`) | `A933D4E5` | plays, with reservations | partly | yes |
+| Cars | — | Raw Thrills PC, 2012 | `sdaemon.exe` | `E0444E25` | plays, with reservations | partly | yes |
+| Batman | — | Raw Thrills PC, 2013 | `sdaemon.exe` | `0F66E24E` | plays | yes | partly |
+| Winter X Games SnoCross | 1.58 | Raw Thrills PC, 2022 | `sdaemon.exe` | `873E033B` | plays, with reservations | partly | yes |
 
 On a PC with two GPUs (a laptop), a Direct3D 11 game asking for the default adapter gets the one
 with the most video memory (`WINDOWSLOADER_GPU=default` keeps Windows' choice): a 32-bit game runs
@@ -230,6 +244,17 @@ write folder (two letters, `T`, four digits; the I/O test's `KEY ID`). Sonic &
 Sega All-Stars Racing (`[Game.ssasr]`): `FREE_PLAY = false` for one game per coin (free play by
 default; the game's test menu has no coin settings, the cabinet's system menu has them).
 
+Road Fighters 3D is a DLL, `jgt.dll`: `windowsloader "<game folder>\jgt.dll" [--avs-log]` runs it in
+`wl_avsboot.exe`, beside the launcher (32-bit), which boots Konami's AVS and e-Amusement offline from
+the game's `prop\` files (`--avs-log`: AVS's own log in windowsloader's; after the game's path, as the
+game's arguments). Without e-Amusement the game stops on a network warning (5-2002-0000): SERVICE goes
+on. `[Game.rf3d]`: `VIEW = 2D` (the default) starts it in 2D, the sharp picture of an ordinary
+screen, `3D` in the cabinet's stereo (two views interlaced line by line, for its polarized screen and
+glasses); the 2D/3D button (action `View1`) changes it during the game. Dirty Drivin'
+(`[Game.dirtydrivin]`) is told a 1360x768 screen at least (`VIRTUAL_DISPLAY`), its loading stopping
+on a lower one, and started with `-WinPC -Windowed -r 1360x768` by the picker, as windowsarcadeloader
+does.
+
 Mario Kart Arcade GP DX (`[Game.mkdx]`, 1.18 and 1.10), cabinets linked over the PC's network:
 `LINK = 192.168.1.21,192.168.1.22` lists the cabinets' PCs (up to 4, cabinet 1 first), the same
 line on each; `CABINET = 0` finds each cabinet's number from its PC's address in that list (or
@@ -290,6 +315,22 @@ menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (ea
 and accept, the first packets with each PC on each port, the traffic every 10 s). The four raced
 two linked cabinets (racecab1 and 2); in Sega Rally 3, once a cabinet picks Quick Race, the other
 presses Start within its countdown (about 15 s) to join.
+The Raw Thrills games (`[Game.<name>]`, up to 8 cabinets), Road Fighters 3D (`[Game.rf3d]`) and
+Crazy Speed Arcade (`[Game.crazyspeed]`, its LAN mode) link the same way, `LINK` and `CABINET` on
+each cabinet. The Fast and the Furious, its Drift, Super Bikes and Nicktoons take their machine ID
+and their networking (DIP switches 1-3 and 8 of their board) from `CABINET`; the other Raw Thrills
+games take theirs from their test menu (SuperCars and Super Bikes 2: "Enable networking and set
+network ID here"), to be set to `CABINET`. A Raw Thrills game reboots its cabinet when those
+settings change: it ends, and the launcher starts it again. H2Overdrive's player number and
+Cars' network ID come from `CABINET` too. Road Fighters 3D's CABINET ID (its NETWORK OPTIONS) is
+`CABINET`, over its test menu's; `jgt.dll` serves each cabinet; its in-store battle (店内対戦) is
+chosen on each cabinet, as Crazy Speed's IN-STORE TOURNAMENT (its GAME MODE, at the wheel).
+Raced linked on one PC (two games, 127.0.0.2 and .3): The Fast and the Furious, its Drift, Super
+Bikes 1 and 2, SuperCars, Nicktoons, Dirty Drivin', Cars, Batman, Road Fighters 3D and Crazy
+Speed, SnoCross (one cabinet starts, the other joins: "JOIN IN NOW!"); H2Overdrive's players
+find each other. On the cabinets (racecab1 and 2): all of them raced linked (Batman linked, its
+rival not seen yet). SuperCars, Super Bikes 2 and SnoCross read their machine ID (their prefs)
+from `CABINET`.
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
 amdaemon (the ALLS platform's service) 5 s before the game, with the game's `config.json` and
 windowsloader's settings for a cabinet alone (written in the temporary folder: ALL.Net's

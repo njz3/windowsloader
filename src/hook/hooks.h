@@ -139,6 +139,9 @@ void wl_system_set_process_handler(WlProcessHandler fn);
 // fails as for a missing file (DiRT Showdown's Rapture3D audio driver, which wants settings in the
 // PC's registry: the game's OpenAL then takes its generic DirectSound driver)
 void wl_system_refuse_dll(const char *name);
+// The game's reboot of its cabinet (ExitWindowsEx with EWX_REBOOT, after a change of its settings):
+// the game ends with WL_EXIT_REBOOT, the launcher starts it again (Raw Thrills); otherwise refused
+void wl_system_reboot_restarts(void);
 
 // A DLL windowsloader plays itself, by its file name (an ALLS's display driver, "$amvideo" in
 // amdaemon's registry): LoadLibrary gives a handle of ours, GetProcAddress these functions, by
@@ -207,6 +210,8 @@ void wl_window_hooks(void);
 int wl_window_asked_client(HWND wnd, int *width, int *height);
 void wl_d3d8_hooks(void);
 void wl_d3d9_hooks(void);
+// A Reset with the device's own settings, the device not lost, not made (d3d9hook.cpp)
+void wl_d3d9_keep_same_reset(void);
 // A game's pixel shader (its instructions, comments left out, the end token included) made from
 // the assembly given instead; before the device is made. The arguments are kept
 void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why);

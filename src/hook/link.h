@@ -29,6 +29,9 @@ int wl_link_settings(HMODULE exe);
 void wl_link_virtual_net(const char *net);
 // The same with cabinet k at net.(first + k - 1) (K.O. Drive: its group's first host)
 void wl_link_virtual_net_from(const char *net, int first);
+// With wl_link_virtual_net: the PC's own name resolves to the cabinet's address of the game's
+// network, not its PC's (H2Overdrive: its player is the last byte of its own address)
+void wl_link_virtual_name(void);
 // A game that tells the others its PC's name to connect to (Wasteland Racers: its DirectPlay host,
 // which Windows' dpnet.dll resolves itself, a VPN's address possibly first): its gethostname gives
 // its address of LINK ("192.168.1.4")

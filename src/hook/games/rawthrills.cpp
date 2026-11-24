@@ -70,14 +70,17 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "display.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "vdev.h"
 #include "vscreen.h"
+#include "wlshared.h"
 
 #if defined(_M_IX86)
 
@@ -186,6 +189,9 @@ static void force(double f)
     f = f < -1 ? -1 : f > 1 ? 1 : f;
     if (f != last)
     {
+        static int told;
+        if (f != 0 && told++ < 5)
+            wl_log("rawthrills: %s: the wheel's force %.3f (> 0 to the left)", g_title, f);
         last = f;
         wl_ffb_set(f);
     }
@@ -242,6 +248,8 @@ enum
     RT_GEARDOWN,
     RT_VOLUP,
     RT_VOLDOWN,
+    RT_BUTTON2, // the panel's buttons 2 and 3 (Drift's switch test "2", "3"; its menus' navigation)
+    RT_BUTTON3,
     RT_COUNT
 };
 
@@ -251,7 +259,7 @@ static WlInput g_inputs[RT_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 255, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"Handbrake", "Handbrake", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
@@ -260,6 +268,8 @@ static WlInput g_inputs[RT_COUNT] = {
     {"GearDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeUp", "VolumeUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeDown", "VolumeDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Button2", "View2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Button3", "View3", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 // Nicktoons, a kart: no handbrake, no gears, no tunes
@@ -269,7 +279,7 @@ static WlInput g_kartInputs[] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 255, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeUp", "VolumeUp", WL_INPUT_SWITCH, 0, 1, 0},
@@ -399,6 +409,10 @@ static void make_reports(unsigned char r[3][4])
         panel |= 0x08;
     if (jamma_pressed(RT_VIEW))
         bike |= 0x01;
+    if (jamma_pressed(RT_BUTTON2))
+        bike |= 0x02;
+    if (jamma_pressed(RT_BUTTON3))
+        bike |= 0x04;
     if (jamma_pressed(RT_TUNES))
         bike |= 0x08;
     int up = jamma_pressed(RT_GEARUP), down = jamma_pressed(RT_GEARDOWN);
@@ -444,9 +458,13 @@ typedef void(__cdecl *ParseFn)(unsigned char *report);
 static DWORD WINAPI board_thread(void *)
 {
     ParseFn parse = (ParseFn)at(g_jamma->parser.va);
+    // the DIP switches (active low): 0x80 the link (networking), 0x07 the machine ID - 1; alone, the
+    // link off and machine 1
+    unsigned char on = wl_link_count() ? (unsigned char)(0x80 | ((wl_link_cabinet() - 1) & 7)) : 0;
+    wl_log("rawthrills: %s: DIP switches 0x%02x (%s, machine ID %d)", g_title, on, on ? "the link on" : "alone", (on & 7) + 1);
     for (;;)
     {
-        unsigned char dips[4] = {4, 0xE0, 0xFF, 1}; // the link off, cabinet 1
+        unsigned char dips[4] = {4, 0xE0, (unsigned char)~on, 1};
         parse(dips);
         unsigned char r[3][4];
         make_reports(r);
@@ -849,7 +867,7 @@ static WlInput g_h2oInputs[H2_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 255, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"View2", "View2", WL_INPUT_SWITCH, 0, 1, 0},
@@ -867,6 +885,17 @@ static const Site H2_PRESSDET = {0x42d590, {0xa1, 0x18, 0xca, 0x6a, 0x00, 0x85, 
 static const Site H2_MOVIE_SOUND = {0x501b70, {0x74, 0x0b, 0x8d, 0x4c, 0x24, 0x0c}, 6};
 static const unsigned H2_PRESENT = 0x74ca94, H2_CRITICAL = 0x74cc98, H2_FRAME_TS = 0x6aca18, H2_INPUT = 0x78b064;
 static const unsigned H2_FORCE = 0x792c58; // the wheel's force (> 0 pushing right), its spring's stiffness before it (0..1.25)
+// Its network card's settings (+0x59c610): read from the registry (the DHCP service, the card's
+// EnableDHCP, IPAddress, SubnetMask); a card on DHCP is made static (the registry written), then the
+// cabinet rebooted at once (+0x4b4135), before the attract. With the link (its address any card's,
+// a PC on DHCP: each start rebooted) it returns 0, nothing to change: the link's addresses are LINK's
+static const Site H2_NETCARD = {0x59c610, {0x81, 0xec, 0x18, 0x03, 0x00, 0x00, 0xa1, 0x38, 0x69, 0x69, 0x00}, 11};
+// Its link: player k's address is 192.168.1.(10 + k), k its position (Settings2.xml m_Network
+// m_uPosition, 1..8, read at +0x5457de, mov eax, [0x78a51c]), which it adds to the PC's card
+// (AddIPAddress, refused); it finds its player from the last byte of its own name's address
+// (gethostbyname(gethostname()), +0x42d190, through a table of the players' bytes). Linked: those
+// addresses are LINK's PCs (wl_link_virtual_net_from), its name its own of them, its position CABINET
+static const Site H2_POSITION = {0x5457de, {0xa1, 0x1c, 0xa5, 0x78, 0x00}, 5};
 
 static volatile unsigned g_h2oDevice;
 static unsigned char g_h2oReport[12];
@@ -1067,6 +1096,8 @@ static int install_h2o(void)
     // the movies: Bink opens its own DirectSound, not FMOD's output handed to it
     static const unsigned char jmpShort = 0xEB;
     put(H2_MOVIE_SOUND.va, &jmpShort, 1, "movies' sound (Bink's own)");
+    if (site_ok(&H2_NETCARD))
+        put(H2_NETCARD.va, RET0, 3, "network card's settings (left as they are, no reboot)");
     wl_vdev_register(&g_portTalk);
     void *gaks = (void *)GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetAsyncKeyState");
     if (gaks)
@@ -1092,8 +1123,8 @@ enum
     SC_TEST,
     SC_BUTTON1, // view
     SC_BUTTON2,
-    SC_MUSIC,
-    SC_BUTTON4,
+    SC_MUSIC,   // the test menu's MUSIC, 0x10004 (also its way out of Switch Test)
+    SC_BUTTON3, // "3", 0x10003
     SC_BRAKESWITCH, // the digital brake
     SC_GEARUP,
     SC_GEARDOWN,
@@ -1108,12 +1139,12 @@ static WlInput g_scInputs[SC_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 4095, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"Button2", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
     {"Music", "MusicUp", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Button4", "Action", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Button3", "View3", WL_INPUT_SWITCH, 0, 1, 0},
     {"Handbrake", "Handbrake", WL_INPUT_SWITCH, 0, 1, 0},
     {"GearUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"GearDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1144,7 +1175,7 @@ static DWORD WINAPI sc_thread(void *)
     {
         int input;
         unsigned code;
-    } switches[] = {{SC_START, 0x10000}, {SC_BUTTON1, 0x10001}, {SC_BUTTON2, 0x10002}, {SC_MUSIC, 0x10003}, {SC_BUTTON4, 0x10004},
+    } switches[] = {{SC_START, 0x10000}, {SC_BUTTON1, 0x10001}, {SC_BUTTON2, 0x10002}, {SC_BUTTON3, 0x10003}, {SC_MUSIC, 0x10004},
                     {SC_COIN, 0x10009}, {SC_TEST, 0x1000b}, {SC_SERVICE, 0x1000c}, {SC_VOLUP, 0x1000e}, {SC_VOLDOWN, 0x1000f},
                     {SC_BRAKESWITCH, 0x10010}};
     static const unsigned keypadCodes[12] = {0x10081, 0x10082, 0x10083, 0x10084, 0x10085, 0x10086, 0x10087, 0x10088, 0x10089, 0x1008a, 0x10080, 0x1008b};
@@ -1232,8 +1263,8 @@ enum
     SX_START,
     SX_SERVICE,
     SX_TEST,
-    SX_VIEW,     // TUNES, 0x10004
-    SX_SNOWBALL, // button 1, 0x10001
+    SX_VIEW,     // 0x10001 (its switch test's VIEW; windowsarcadeloader had it 0x10004)
+    SX_SNOWBALL, // 0x10004 (its switch test's SNOWBALL)
     SX_NITRO,    // START
     SX_BILL,
     SX_VOLUP,
@@ -1247,7 +1278,7 @@ static WlInput g_sxInputs[SX_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 4095, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"Snowballs", "Action", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1292,7 +1323,7 @@ static DWORD WINAPI sx_thread(void *)
     {
         int input;
         unsigned code;
-    } switches[] = {{SX_START, 0x10000}, {SX_NITRO, 0x10000}, {SX_SNOWBALL, 0x10001}, {SX_VIEW, 0x10004},
+    } switches[] = {{SX_START, 0x10000}, {SX_NITRO, 0x10000}, {SX_VIEW, 0x10001}, {SX_SNOWBALL, 0x10004},
                     {SX_COIN, 0x10009}, {SX_TEST, 0x1000b}, {SX_SERVICE, 0x1000c}, {SX_BILL, 0x1000d},
                     {SX_VOLUP, 0x1000e}, {SX_VOLDOWN, 0x1000f}};
     static const unsigned keypadCodes[12] = {0x10081, 0x10082, 0x10083, 0x10084, 0x10085, 0x10086, 0x10087, 0x10088, 0x10089, 0x1008a, 0x10080, 0x1008b};
@@ -1332,6 +1363,23 @@ static DWORD WINAPI sx_thread(void *)
     }
 }
 
+// SnoCross, SuperCars and Super Bikes 2 pause their controls when their window loses the
+// keyboard's focus (their window procedure: SnoCross's +0x414a20, WM_KILLFOCUS sets +0x8f0e08 and
+// shows the cursor, WM_SETFOCUS takes them back): a cabinet of a link on one PC whose window was
+// not in front never started nor joined a game (its attract and its "JOIN IN NOW!" kept their
+// START). WM_KILLFOCUS goes to the default case (index 5 of the messages' table), as KEEP_ACTIVE
+// keeps a game's window active (display.cpp)
+static const Site SX_FOCUS_TABLE = {0x414be8, {0x00, 0x01, 0x05, 0x01, 0x05, 0x02, 0x03, 0x05}, 8};
+static const Site SC_FOCUS_TABLE = {0x473118, {0x00, 0x01, 0x05, 0x01, 0x05, 0x02, 0x03, 0x05}, 8};
+static const Site SB2_FOCUS_TABLE = {0x4115b8, {0x00, 0x01, 0x05, 0x01, 0x05, 0x02, 0x03, 0x05}, 8};
+
+static void focus_kept(const Site *table)
+{
+    static const unsigned char toDefault = 0x05;
+    if (site_ok(table))
+        put(table->va + 6, &toDefault, 1, "pause at the loss of its window's focus (WM_KILLFOCUS: not taken)");
+}
+
 static int install_snocross(void)
 {
     const Site *sites[] = {&SX_SET_CONTROL, &SX_INPUT_INIT, &SX_BASE_PATH};
@@ -1339,6 +1387,7 @@ static int install_snocross(void)
         return 0;
     put(SX_INPUT_INIT.va, NOPS, 5, "input init (DirectInput, the USB board: not called)");
     put(SX_BASE_PATH.va, RET0, 3, "files' base path (left empty)");
+    focus_kept(&SX_FOCUS_TABLE);
     CloseHandle(CreateThread(NULL, 0, sx_thread, NULL, 0, NULL));
     wl_inputs_set_table(g_sxInputs, SX_COUNT);
     wl_game_set_boards("Controls on Raw Thrills H2O USB board (the game's SetControl called, no board found)",
@@ -1375,7 +1424,7 @@ static WlInput g_sb2Inputs[SB_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 1, 255, 1},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"Tunes", "MusicUp", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1482,7 +1531,7 @@ static WlInput g_ddInputs[DD_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 1000, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"Crank", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1524,6 +1573,13 @@ static SHORT WINAPI dd_get_async_key_state(int vk)
             return g_ddKeyState & 1 ? (SHORT)0x8000 : 0;
         if (vk == 'V')
             return g_ddKeyState & 2 ? (SHORT)0x8000 : 0;
+        // the cabinet's keypad is the PC's numeric keypad, as the other Raw Thrills games': its
+        // table (0x7bb334: 1-9, *, 0, #) reads # as the keypad's / (VK_DIVIDE), also given by + and
+        // Enter as for the others; every other key reads up
+        if (vk == VK_DIVIDE)
+            return (SHORT)(oGetAsyncKeyState(VK_DIVIDE) | oGetAsyncKeyState(VK_ADD) | oGetAsyncKeyState(VK_RETURN));
+        if ((vk >= VK_NUMPAD0 && vk <= VK_DIVIDE) || vk == VK_RETURN)
+            return oGetAsyncKeyState(vk);
         return 0;
     }
     return oGetAsyncKeyState(vk);
@@ -1561,6 +1617,9 @@ static int install_dirtydrivin(void)
     // its loading stays on "Loading world". A 1360x768 screen told to it (VIRTUAL_DISPLAY), as
     // windowsarcadeloader's -r 1360x768
     wl_game_use_options("dirtydrivin");
+    // its back buffer multisampled (2x): presented by the game, its picture never reached the screen
+    // (its loading text stayed there, 24/11 on Racecab2); a plain one is placed as the others
+    wl_display_no_multisample();
     wl_vscreen_minimum(1360, 768);
     if (!strstr(GetCommandLineA(), "-Windowed"))
         wl_log("rawthrills: Dirty Drivin' started without -WinPC -Windowed -r 1360x768 (its arguments in the game list)");
@@ -1589,7 +1648,7 @@ enum
     RIO_TEST,
     RIO_VOLUP,
     RIO_VOLDOWN,
-    RIO_B1, // Cars VIEW, Batman FIRE
+    RIO_B1, // Batman FIRE (Cars: none, its switch 8 is the brake pedal)
     RIO_B2, // Cars JUMP, Batman VIEW
     RIO_B3, // Cars FLIP, Batman the brake button
     RIO_B4, // Cars CHATTER
@@ -1602,7 +1661,7 @@ static WlInput g_carsInputs[RIO_COUNT] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 4095, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeUp", "VolumeUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeDown", "VolumeDown", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1618,7 +1677,7 @@ static WlInput g_batmanInputs[RIO_COUNT - 1] = {
     {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 4095, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Service", "Service", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Service", "P1_Service", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeUp", "VolumeUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"VolumeDown", "VolumeDown", WL_INPUT_SWITCH, 0, 1, 0},
@@ -1725,8 +1784,8 @@ static int __cdecl husb_read(void *, int, char *bytes, int size, int)
     for (int i = 0; i < RIO_COUNT - g_rioBatman; i++)
         if (g_rioSwitch[i] >= 0 && wl_input_get(&g_rio[i]))
             down[g_rioSwitch[i]] = 1;
-    if (g_rioBatman && wl_input_get(&g_rio[RIO_BRAKE]) > 4095 / 3)
-        down[0x08] = 1; // Batman's brake pedal is also its brake button
+    if (wl_input_get(&g_rio[RIO_BRAKE]) > 4095 / 3)
+        down[0x08] = 1; // switch 8: Batman's brake button, Cars' brake pedal (its test menu's Brake Pedal, 4000)
     for (int i = 0; i < 0x13; i++)
         if (down[i] != g_rioHeld[i])
         {
@@ -1749,7 +1808,13 @@ static int __cdecl husb_read(void *, int, char *bytes, int size, int)
         p[13 + i] = (unsigned char)analogs[i];
     }
     if (g_rioBatman)
-        p[17] = (unsigned char)((keypad_key() << 4) | 0x0f); // Batman reads two keypad nibbles after them (0xF released)
+    {
+        // Batman reads two keypad nibbles after them (0xF released): its key's own digit 0-9, 10 *,
+        // 11 # (seen in its switch test), not keypad_key()'s order (1-9, *, 0, #)
+        static const unsigned char digit[12] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 0, 11};
+        unsigned char k = keypad_key();
+        p[17] = (unsigned char)(((k == KEYPAD_NONE ? 0x0f : digit[k]) << 4) | 0x0f);
+    }
     int n = size < 0 ? 0 : size > 64 ? 64 : size;
     memcpy(bytes, packet, n);
     return n;
@@ -1788,7 +1853,8 @@ static void rio_install(WlInput *inputs, int count, int batman, float (*forceFn)
     g_rioBatman = batman;
     g_rioForce = forceFn;
     // the switches: 0 coin 1, 1 coin 2, 2 bill, 3 service, 4 test, 5 / 6 volume up / down; Cars 7
-    // START, 8 VIEW, 9 flip, 0xA jump, 0xB chatter; Batman 7 fire, 8 the brake button, 9 START, 0xA VIEW
+    // START, 8 the brake pedal (no VIEW in its switch test), 9 flip, 0xA jump, 0xB chatter; Batman 7 fire,
+    // 8 the brake button, 9 START, 0xA VIEW. Switch 8 also from the brake pedal past a third (husb_read)
     for (int i = 0; i < RIO_COUNT; i++)
         g_rioSwitch[i] = -1;
     g_rioSwitch[RIO_COIN] = 0, g_rioSwitch[RIO_SERVICE] = 3, g_rioSwitch[RIO_TEST] = 4;
@@ -1796,7 +1862,7 @@ static void rio_install(WlInput *inputs, int count, int batman, float (*forceFn)
     if (batman)
         g_rioSwitch[RIO_B1] = 7, g_rioSwitch[RIO_B3] = 8, g_rioSwitch[RIO_START] = 9, g_rioSwitch[RIO_B2] = 10;
     else
-        g_rioSwitch[RIO_START] = 7, g_rioSwitch[RIO_B1] = 8, g_rioSwitch[RIO_B3] = 9, g_rioSwitch[RIO_B2] = 10, g_rioSwitch[RIO_B4] = 11;
+        g_rioSwitch[RIO_START] = 7, g_rioSwitch[RIO_B3] = 9, g_rioSwitch[RIO_B2] = 10, g_rioSwitch[RIO_B4] = 11;
     if (batman)
         wl_hooks_add(g_batmanUsb, (int)(sizeof g_batmanUsb / sizeof g_batmanUsb[0]));
     else
@@ -1859,13 +1925,12 @@ static unsigned __stdcall hasp_crypt(unsigned, void *, unsigned)
     return 0;
 }
 
-// The wheel's force the race (or the test menu) sets: [[0x18AE0D8] + 0x1B4] + 0x258, > 0 pushing left
+// The wheel's force the race (or the test menu) sets: [[0x18AE0D8] + 0x1B4] + 0x258, > 0 pushing left,
+// written by the wheel's thread (+0x8217e0), which runs once its motor's PortTalk is open
 static float cars_force(void)
 {
-    unsigned s = read_u32(0x18ae0d8);
-    if (s)
-        s = read_u32(s + 0x1b4);
-    return s ? read_float(s + 0x258) : 0.0f;
+    unsigned s = read_u32(0x18ae0d8), t = s ? read_u32(s + 0x1b4) : 0;
+    return t ? read_float(t + 0x258) : 0.0f;
 }
 
 static int install_cars(void)
@@ -1880,6 +1945,9 @@ static int install_cars(void)
     for (int i = 0; i < 6; i++)
         redirect(CARS_HASP[i].va, fakes[i], "HASP key (answered)");
     rio_install(g_carsInputs, RIO_COUNT, 0, cars_force);
+    // its wheel's motor (+0x8222e0) on the parallel port through the PortTalk driver: without it
+    // open, the wheel's object is dropped, its thread never runs and the force stays 0
+    wl_vdev_register(&g_portTalk);
     return 1;
 }
 
@@ -1960,6 +2028,219 @@ static const RtKnown g_known[] = {
     {"snocross", "Winter X Games SnoCross", 0x873E033B, 0x400000, FAM_SNOCROSS, NULL},
 };
 
+// Drift linked: its networking's start writes on its boot text (+0x44d290, the object at
+// +0x5998d8), which its start has already destroyed in this copy: nothing written without it
+typedef void(__cdecl *DriftTextFn)(int);
+static DriftTextFn oDriftText;
+
+static void __cdecl drift_text(int arg)
+{
+    if (*(void *volatile *)at(0x5998d8))
+        oDriftText(arg);
+}
+
+// The link (link.h): [Game.<name>] LINK and CABINET, the game's own sockets made the link's
+static int g_family;
+
+// Cars' settings (ArcadeFiles\save_settings.txt): a line "<check>:KEY=VALUE" each, the check Bob
+// Jenkins' lookup2 hash (1996, public domain) of "KEY=VALUE" from 0 (+0x76ce70), in decimal.
+// Its wheel's force always on (STG_ALLOW_WHEEL_EFFECTS: off in the cabinets' copies, no force at
+// all); linked, its networking on and its network ID CABINET - 1 as it reads them, each line's
+// check made again in as many digits (zeros first); the file left as it is
+static unsigned lookup2(const unsigned char *k, unsigned length)
+{
+    unsigned a = 0x9e3779b9, b = 0x9e3779b9, c = 0, len = length;
+#define MIX(a, b, c)                                                                                                                  \
+    {                                                                                                                                 \
+        a -= b, a -= c, a ^= c >> 13;                                                                                                 \
+        b -= c, b -= a, b ^= a << 8;                                                                                                  \
+        c -= a, c -= b, c ^= b >> 13;                                                                                                 \
+        a -= b, a -= c, a ^= c >> 12;                                                                                                 \
+        b -= c, b -= a, b ^= a << 16;                                                                                                 \
+        c -= a, c -= b, c ^= b >> 5;                                                                                                  \
+        a -= b, a -= c, a ^= c >> 3;                                                                                                  \
+        b -= c, b -= a, b ^= a << 10;                                                                                                 \
+        c -= a, c -= b, c ^= b >> 15;                                                                                                 \
+    }
+    for (; len >= 12; k += 12, len -= 12)
+    {
+        a += k[0] + ((unsigned)k[1] << 8) + ((unsigned)k[2] << 16) + ((unsigned)k[3] << 24);
+        b += k[4] + ((unsigned)k[5] << 8) + ((unsigned)k[6] << 16) + ((unsigned)k[7] << 24);
+        c += k[8] + ((unsigned)k[9] << 8) + ((unsigned)k[10] << 16) + ((unsigned)k[11] << 24);
+        MIX(a, b, c);
+    }
+    c += length;
+    switch (len)
+    {
+    case 11: c += (unsigned)k[10] << 24; // fall through
+    case 10: c += (unsigned)k[9] << 16;  // fall through
+    case 9: c += (unsigned)k[8] << 8;    // fall through
+    case 8: b += (unsigned)k[7] << 24;   // fall through
+    case 7: b += (unsigned)k[6] << 16;   // fall through
+    case 6: b += (unsigned)k[5] << 8;    // fall through
+    case 5: b += k[4];                   // fall through
+    case 4: a += (unsigned)k[3] << 24;   // fall through
+    case 3: a += (unsigned)k[2] << 16;   // fall through
+    case 2: a += (unsigned)k[1] << 8;    // fall through
+    case 1: a += k[0];
+    }
+    MIX(a, b, c);
+#undef MIX
+    return c;
+}
+
+static void cars_settings_read(unsigned char *data, DWORD size, unsigned long long)
+{
+    static const struct
+    {
+        const char *key;
+        int cabinet; // the value: CABINET - 1, or 1
+        int linked;  // only when linked
+    } keys[] = {{":STG_NETWORK_ENABLED=", 0, 1}, {":STG_NETWORK_ID=", 1, 1}, {":STG_ALLOW_WHEEL_EFFECTS=", 0, 0}};
+    for (int k = 0; k < 3; k++)
+    {
+        if (keys[k].linked && !wl_link_count())
+            continue;
+        size_t n = strlen(keys[k].key);
+        for (DWORD i = 1; i + n + 1 < size; i++)
+        {
+            if (memcmp(data + i, keys[k].key, n) || data[i + n] < '0' || data[i + n] > '9' || (data[i + n + 1] != '\r' && data[i + n + 1] != '\n'))
+                continue;
+            unsigned char want = (unsigned char)(keys[k].cabinet ? '0' + (wl_link_cabinet() - 1) : '1');
+            if (data[i + n] == want)
+                continue;
+            DWORD start = i; // the check's first digit
+            while (start > 0 && data[start - 1] >= '0' && data[start - 1] <= '9')
+                start--;
+            unsigned char line[64];
+            unsigned len = (unsigned)n; // "KEY=VALUE" without the colon
+            memcpy(line, data + i + 1, n - 1);
+            line[n - 1] = want;
+            char check[16];
+            int digits = (int)(i - start);
+            int made = snprintf(check, sizeof check, "%0*u", digits, lookup2(line, len));
+            if (made != digits)
+            {
+                wl_log("rawthrills: %s: its %.*s not changed (its check would not fit)", g_title, (int)n - 2, keys[k].key + 1);
+                continue;
+            }
+            wl_log("rawthrills: %s: its %.*s read %c, not %c (%s)", g_title, (int)n - 2, keys[k].key + 1, want, data[i + n],
+                   keys[k].linked ? "the link" : "the wheel's force on");
+            memcpy(data + start, check, (size_t)digits);
+            data[i + n] = want;
+        }
+    }
+}
+
+// The machine ID in the game's preferences (its folder's prefs: a 4-byte header, then its entries,
+// each one's value at +0x28), the file left as it is. Linked, read as CABINET - 1, its networking
+// on: two cabinets called themselves machine 0 in their announcements (byte 7) and each raced alone
+// (SuperCars on the cabinets, its "JOIN IN NOW!" shown) or never started a game (SnoCross).
+// SnoCross: 59 entries of 0x84 bytes named STR_PR<n>, its machine ID entry 43. SuperCars and Super
+// Bikes 2: entries of 0x80 bytes, their name at +8: "Current Machine ID", "Network enabled"
+static void prefs_set(unsigned char *data, DWORD size, unsigned long long offset, unsigned long long at, int want, const char *what)
+{
+    if (at < offset || at + 4 > offset + size)
+        return;
+    int *value = (int *)(data + (at - offset));
+    if (*value != want)
+    {
+        wl_log("rawthrills: %s: its %s (prefs) read %d, not %d (the link)", g_title, what, want, *value);
+        *value = want;
+    }
+}
+
+static void rt_prefs_read(unsigned char *data, DWORD size, unsigned long long offset)
+{
+    int machine = wl_link_cabinet() - 1;
+    if (g_family == FAM_SNOCROSS)
+    {
+        prefs_set(data, size, offset, 4 + 0x84ull * 43 + 0x28, machine, "machine ID (entry 43)");
+        return;
+    }
+    static const struct
+    {
+        const char *name;
+        int machine; // the value: CABINET - 1, or 1
+    } keys[] = {{"Current Machine ID", 1}, {"Network enabled", 0}};
+    for (int k = 0; k < 2; k++)
+    {
+        size_t n = strlen(keys[k].name) + 1; // with its 0
+        for (DWORD i = 8; i + n <= size; i++)
+            if ((offset + i - 4) % 0x80 == 8 && !memcmp(data + i, keys[k].name, n))
+                prefs_set(data, size, offset, offset + i + 0x20, keys[k].machine ? machine : 1, keys[k].name);
+    }
+}
+
+static void rt_settings(void)
+{
+    int linked = wl_link_settings(GetModuleHandleW(NULL));
+    if (g_family == FAM_CARS)
+        wl_files_read_filter("save_settings.txt", cars_settings_read);
+    if (!linked)
+        return;
+    if (g_family == FAM_SNOCROSS || g_family == FAM_SUPERCARS || g_family == FAM_SUPERBIKES2)
+        wl_files_read_filter("prefs", rt_prefs_read);
+    // Super Bikes' copy writes its switches' byte itself at its start (+0x44aae6, mov byte ss:[+0x5544b1],
+    // 0: the link off, machine 1), which its reading of them (+0x44e130) then takes: linked, the
+    // byte written is CABINET's (0x80 the link, machine ID - 1), as the board's report gives it
+    static const Site SB_DIPS = {0x44aae6, {0x36, 0xc6, 0x05, 0xb1, 0x44, 0x55, 0x00, 0x00}, 8};
+    if (g_jamma == &g_superbikes && site_ok(&SB_DIPS))
+    {
+        unsigned char dips = (unsigned char)(0x80 | ((wl_link_cabinet() - 1) & 7));
+        put(SB_DIPS.va + 7, &dips, 1, "switches' byte written at its start (CABINET's)");
+    }
+    if (g_family == FAM_H2O && site_ok(&H2_POSITION))
+    {
+        wl_link_virtual_net_from("192.168.1", 11);
+        wl_link_virtual_name();
+        unsigned char code[5] = {0xB8}; // mov eax, CABINET
+        *(unsigned *)(code + 1) = (unsigned)wl_link_cabinet();
+        put(H2_POSITION.va, code, 5, "network position (CABINET)");
+        wl_log("rawthrills: %s: linked as player %d, 192.168.1.%d", g_title, wl_link_cabinet(), 10 + wl_link_cabinet());
+    }
+}
+
+// The cabinet's reboot after a change of the game's settings (the link's DIP switches, its machine
+// ID): ExitWindowsEx ends the game, the launcher starts it again (wl_system_reboot_restarts). The
+// Fast and the Furious's copy has its ExitWindowsEx removed, Super Bikes' and SuperCars' their reboot
+// function made a ret (the function returns, the game then stood still in an endless loop): that
+// function ends the game the same way
+static const Site FNF_REBOOT = {0x477b90, {0x83, 0xec, 0x14, 0x8d, 0x44, 0x24, 0x00, 0x56}, 8};
+static const Site SB_REBOOT = {0x450b10, {0xc3, 0x90, 0x90, 0x56, 0xc7, 0x44, 0x24, 0x04}, 8};
+static const Site SC_REBOOT = {0x460b30, {0xc3, 0x90, 0x90, 0x68, 0xb4, 0xa0, 0x62, 0x00}, 8};
+
+static void __cdecl rt_reboot(void)
+{
+    wl_log("rawthrills: %s: the game reboots its cabinet (its reboot removed in this copy); it ends here, the launcher starts it again",
+           g_title);
+    ExitProcess(WL_EXIT_REBOOT);
+}
+
+// The games look for a window of theirs already open (EnumWindows, The Fast and the Furious's
+// "RawApp" before it makes its own) and leave if they find one: only this process's windows are
+// shown to them, so two cabinets of a link run on one PC
+struct RtEnum
+{
+    WNDENUMPROC fn;
+    LPARAM param;
+};
+
+static BOOL CALLBACK rt_enum_own(HWND w, LPARAM p)
+{
+    const RtEnum *e = (const RtEnum *)p;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(w, &pid);
+    return pid != GetCurrentProcessId() || e->fn(w, e->param);
+}
+
+static BOOL(WINAPI *oEnumWindows)(WNDENUMPROC, LPARAM);
+static BOOL WINAPI rt_enum_windows(WNDENUMPROC fn, LPARAM param)
+{
+    RtEnum e = {fn, param};
+    return fn ? oEnumWindows(rt_enum_own, (LPARAM)&e) : oEnumWindows(fn, param);
+}
+
 int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -1981,6 +2262,7 @@ int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **t
     *title = g_title = k->title;
     g_base = k->base;
     wl_log("game: %s (Raw Thrills PC, sdaemon.exe CRC32 %08lX)", *title, crc);
+    g_family = k->family;
     int ok = 0;
     switch (k->family)
     {
@@ -1989,6 +2271,17 @@ int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **t
         ok = install_jamma(k->jamma, k->family == FAM_NICKTOONS);
         if (ok && k->jamma == &g_drift)
         {
+            // Its reading of the board's switches at the start (+0x459ea0: the networking flag 0x1000
+            // from switch 8, the machine ID from 1-3, waiting for the board's answer) not called in
+            // this copy (its call at +0x4556ea made NOPs): called again, the link possible
+            static const unsigned char nops[5] = {0x90, 0x90, 0x90, 0x90, 0x90}, start[5] = {0x83, 0xec, 0x68, 0x53, 0x56};
+            unsigned char call[5] = {0xE8};
+            *(int *)(call + 1) = (int)(0x459ea0 - (0x4556ea + 5));
+            if (!memcmp(at(0x4556ea), nops, 5) && !memcmp(at(0x459ea0), start, 5))
+                put(0x4556ea, call, 5, "reading of the board's switches at the start (called again)");
+            static const unsigned char text[6] = {0x55, 0x8b, 0xec, 0x8b, 0x45, 0x08};
+            if (!memcmp(at(0x44d290), text, 6))
+                wl_hook_code(at(0x44d290), (void *)drift_text, (void **)&oDriftText, "Drift's boot text (not written once destroyed)");
             // Its screen's size (0x56FC10): the copies' data says 1280x720 or 1920x1080, its menus are
             // drawn for 640x480 in a corner, the 3D over the whole picture; 640x480 as
             // windowsarcadeloader's profile
@@ -2008,9 +2301,13 @@ int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **t
         break;
     case FAM_SUPERCARS:
         ok = install_supercars();
+        if (ok)
+            focus_kept(&SC_FOCUS_TABLE);
         break;
     case FAM_SUPERBIKES2:
         ok = install_superbikes2();
+        if (ok)
+            focus_kept(&SB2_FOCUS_TABLE);
         break;
     case FAM_DIRTYDRIVIN:
         ok = install_dirtydrivin();
@@ -2027,6 +2324,16 @@ int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **t
     }
     if (!ok)
         wl_log("game: %s: its board not emulated (see above)", *title);
+    if (k->family != FAM_DIRTYDRIVIN)
+        wl_game_use_options("link8");
+    wl_game_on_settings(rt_settings);
+    // a change of its settings (the link, the machine ID) taken at a reboot of the cabinet: the game started again
+    wl_system_reboot_restarts();
+    const Site *reboot = k->jamma == &g_fnf ? &FNF_REBOOT : k->jamma == &g_superbikes ? &SB_REBOOT : k->family == FAM_SUPERCARS ? &SC_REBOOT : NULL;
+    if (reboot && site_ok(reboot))
+        redirect(reboot->va, (void *)rt_reboot, "the cabinet's reboot (the game ended, started again)");
+    if (wl_patch_iat(GetModuleHandleW(NULL), "USER32.dll", "EnumWindows", (void *)rt_enum_windows, (void **)&oEnumWindows))
+        wl_log("game: %s: its EnumWindows sees this process's windows only (another cabinet's on this PC not seen)", *title);
     // D:\ (its audits, settings, calibration, best times): the game's folder, where the cabinets'
     // copies keep them (H2Overdrive's Audits.xml and Settings.xml, Nicktoons' audits and prefs,
     // Cars' carscade\version.txt)

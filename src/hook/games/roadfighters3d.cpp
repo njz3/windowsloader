@@ -43,8 +43,18 @@
 // bytes 0-1 a 12-bit torque centred on 0x800 (0 the motor off), 0x8F8 with the wheel at full right
 // and 0x708 at full left at low speed: the force, against the wheel (bytes 2-3 unused).
 //
-// Not played: the link between cabinets (the game's CABINET ID; jgt_link_cab2.dll is cabinet 2's
-// build), the card reader's keypad (offline, the e-Amusement cards are of no use).
+// The card reader's keypad (its TEN KEY) is the PC's numeric keypad.
+//
+// The link (link.h): [Game.rf3d] LINK and CABINET, jgt.dll's sockets made the link's (its local
+// matching: UDP and TCP between the cabinets). Cabinet 2's build (jgt_link_cab2.dll) differs from
+// jgt.dll in one byte, its network options' default CABINET ID (rva 0x5FB998: 0 cabinet 1, 1
+// cabinet 2, copied at its start with the rest of its defaults): linked, that byte is CABINET's,
+// so either DLL serves each cabinet. The options in use (19 dwords at rva 0x95102C, the CABINET ID
+// at +8, minus 1) come from dev\nvram\rfs.dat when it has them: linked, CABINET is written there
+// too, over the test menu's NETWORK OPTIONS, and in the network's copy (rva 0x9470BA, taken as
+// rfs.dat is read): its announcements (UDP 5836, "JGT0") carry it, and a cabinet that hears
+// another one's with its own id (its own announcement told by its address) stops on ERROR 5-1551
+// "CABINET ID IS CONFLICTED".
 
 #include <windows.h>
 #include <shellapi.h>
@@ -58,6 +68,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "lang.h"
+#include "link.h"
 #include "log.h"
 #include "outputs.h"
 
@@ -569,9 +580,50 @@ static int __cdecl icca_workflow(int workflow, DWORD device)
     return state;
 }
 
+// The reader's keypad (its TEN KEY) from the PC's numeric keypad. Its (edge, level) words,
+// spice2x's encoding (windowsarcadeloader's icca.rs): the level the key down's code; the edge,
+// kept after the release with its code cleared, the last press: code << 16, 0x80, a 3-bit serial
+// << 4, the key's number. spice2x's keys (index: 0-9, 10 the decimal point, 11 the 00 key) are a
+// calculator's (7 8 9 on top, 0 00 . at the bottom); this game's TEN KEY is a telephone's (1 2 3
+// on top, * 0 # at the bottom) and takes them by their place (Racecab2's INPUT CHECK, 24/11). Its
+// keys from the PC's: 1-9, 0, * (* or .), # (+ or Enter), each the spice2x key at its place
+static void keypad_words(DWORD *edge, DWORD *level)
+{
+    static const DWORD codes[12] = {0x100, 0x200, 0x2000, 2, 0x400, 0x4000, 4, 0x800, 0x8000, 8, 1, 0x1000};
+    static const DWORD nums[12] = {0, 1, 5, 9, 2, 6, 10, 3, 7, 11, 8, 4};
+    static const struct
+    {
+        int vk, vk2, index; // the PC's keys, the spice2x key at the TEN KEY's place
+    } keys[12] = {{VK_NUMPAD1, 0, 7}, {VK_NUMPAD2, 0, 8}, {VK_NUMPAD3, 0, 9}, {VK_NUMPAD4, 0, 4}, {VK_NUMPAD5, 0, 5},
+                  {VK_NUMPAD6, 0, 6}, {VK_NUMPAD7, 0, 1}, {VK_NUMPAD8, 0, 2}, {VK_NUMPAD9, 0, 3}, {VK_MULTIPLY, VK_DECIMAL, 0},
+                  {VK_NUMPAD0, 0, 11}, {VK_ADD, VK_RETURN, 10}};
+    static DWORD lastEdge, serial;
+    static int was = -1;
+    int key = -1;
+    for (int i = 0; i < 12 && key < 0; i++)
+        if ((GetAsyncKeyState(keys[i].vk) & 0x8000) || (keys[i].vk2 && (GetAsyncKeyState(keys[i].vk2) & 0x8000)))
+            key = keys[i].index;
+    if (key >= 0)
+    {
+        if (key != was)
+        {
+            lastEdge = (codes[key] << 16) | 0x80 | ((serial++ & 7) << 4) | nums[key];
+            wl_log("road fighters 3d: keypad %d", key);
+        }
+        *level = codes[key];
+    }
+    else
+    {
+        lastEdge &= 0xFFFF;
+        *level = 0;
+    }
+    was = key;
+    *edge = lastEdge;
+}
+
 // (out, device); some games pass (device, out): the pointer is the argument that is not a small
 // device number. Byte 0 the state, 2 and 3 the front and rear sensors, 4..11 the card's id, 16..23
-// the keypad's edges and levels (none)
+// the keypad's edge and level
 static int __cdecl icca_get_status(ULONG_PTR a, ULONG_PTR b)
 {
     unsigned char *out = (unsigned char *)(b > 2 ? b : a);
@@ -586,6 +638,10 @@ static int __cdecl icca_get_status(ULONG_PTR a, ULONG_PTR b)
         status[3] = 1;
         memcpy(status + 4, g_cardId, 8);
     }
+    DWORD edge, level;
+    keypad_words(&edge, &level);
+    memcpy(status + 16, &edge, 4);
+    memcpy(status + 20, &level, 4);
     memcpy(out, status, sizeof status);
     return 1;
 }
@@ -866,7 +922,98 @@ static void view_2d(HMODULE game)
         return;
     }
     wl_patch_code(g_game + RF_VIEW_CREATE_STEREO, stereoWas, stereoNow, 4, "Road Fighters 3D's view made 2D at its creation");
+    // The game's view object (its pointer at RVA 0x946DA0, the one the race's view copies, RVA
+    // 0x1391CF) set to 3D again after its creation, in two places (ebx is 0 in both): 0 there
+    static const unsigned char setWas[4] = {0xC6, 0x40, 0x54, 0x01}, setNow[4] = {0xC6, 0x40, 0x54, 0x00}; // mov byte [eax+54h], 1 -> 0
+    static const unsigned char alWas[3] = {0x88, 0x41, 0x54}, blNow[3] = {0x88, 0x59, 0x54};                 // mov [ecx+54h], al -> bl
+    if (!wl_patch_code(g_game + 0x2412C, setWas, setNow, 4, "Road Fighters 3D's view kept 2D (its game's start)") ||
+        !wl_patch_code(g_game + 0x3E6DB, alWas, blNow, 3, "Road Fighters 3D's view kept 2D (its reset)"))
+        wl_log("road fighters 3d: unexpected code where its view is set to 3D: it may come back in 3D");
     wl_hook_code(update, (void *)view_update, (void **)&oViewUpdate, "Road Fighters 3D's view update (sent once the renderer exists)");
+}
+
+// The CABINET ID in use, kept at CABINET's (the options read from rfs.dat after the game's start)
+static DWORD WINAPI cabinet_keeper(void *p)
+{
+    // the options in use, the saved ones (rva 0x9504FC, the test menu's) and the network's own
+    // copy (rva 0x9470BA, taken from the options in use as soon as rfs.dat is read: the id its
+    // announcements carry, each cabinet with the other's id a conflict, 5-1551)
+    static const char *const what[3] = {"in use", "saved", "the network's"};
+    volatile unsigned char *ids[3] = {(unsigned char *)p + 0x951034, (unsigned char *)p + 0x950504, (unsigned char *)p + 0x9470BA};
+    unsigned char want = (unsigned char)(wl_link_cabinet() - 1);
+    for (int said = 0;; Sleep(20))
+        for (int i = 0; i < 3; i++)
+            if (*ids[i] != want)
+            {
+                if (said++ < 9)
+                    wl_log("road fighters 3d: its CABINET ID (%s) was %d: %d (CABINET)", what[i], *ids[i] + 1, want + 1);
+                *ids[i] = want;
+            }
+}
+
+// Linked: the game's sockets the link's, its default CABINET ID and the one in use this cabinet's
+static void link_game(HMODULE game)
+{
+    if (!wl_link_count())
+        return;
+    wl_link_module(game);
+    unsigned char *id = (unsigned char *)game + 0x5FB998;
+    if (id[-8] != 1 || id[0] > 1)
+    {
+        wl_log("road fighters 3d: unexpected network options' defaults at rva 0x5FB990: the default CABINET ID left as it is");
+        return;
+    }
+    unsigned char now = (unsigned char)(wl_link_cabinet() - 1);
+    if (id[0] != now)
+        wl_patch_code(id, id, &now, 1, "Road Fighters 3D's default CABINET ID (CABINET)");
+    CloseHandle(CreateThread(NULL, 0, cabinet_keeper, game, 0, NULL));
+    wl_log("road fighters 3d: link: cabinet %d of %d (CABINET ID, over the test menu's NETWORK OPTIONS)", wl_link_cabinet(), wl_link_count());
+}
+
+static void rf_settings(void)
+{
+    wl_link_settings(GetModuleHandleW(NULL));
+}
+
+// The game's effects (D3DXCreateEffect, d3dx9_41.dll): made again after each Reset of its device
+// (at the end of a game on the cabinets); one that fails is used anyway (jgt.dll+0x1d3804 read 0,
+// Racecab1 24/11). A failure is logged with its compiler's messages and tried again
+typedef HRESULT(WINAPI *CreateEffectFn)(void *dev, const void *src, UINT len, const void *defines, void *include, DWORD flags, void *pool,
+                                        void **effect, void **errors);
+static CreateEffectFn oCreateEffect;
+
+static HRESULT WINAPI rf_CreateEffect(void *dev, const void *src, UINT len, const void *defines, void *include, DWORD flags, void *pool,
+                                      void **effect, void **errors)
+{
+    HRESULT hr = E_FAIL;
+    for (int attempt = 0; attempt < 4; attempt++)
+    {
+        void *local = NULL;
+        void **errs = errors ? errors : &local;
+        hr = oCreateEffect(dev, src, len, defines, include, flags, pool, effect, errs);
+        if (SUCCEEDED(hr))
+        {
+            if (attempt)
+                wl_log("road fighters 3d: D3DXCreateEffect made at attempt %d", attempt + 1);
+            if (local)
+                ((ULONG(STDMETHODCALLTYPE *)(void *))(*(void ***)local)[2])(local);
+            return hr;
+        }
+        static int logged;
+        if (logged++ < 20)
+        {
+            const char *text = NULL;
+            if (*errs)
+                text = ((const char *(STDMETHODCALLTYPE *)(void *))(*(void ***)*errs)[3])(*errs); // ID3DXBuffer::GetBufferPointer
+            char where[128];
+            wl_log("road fighters 3d: D3DXCreateEffect (%u bytes) failed, 0x%08lx%s%.300s [%s]", len, hr, text ? ": " : "", text ? text : "",
+                   wl_where(WL_CALLER, where, sizeof where));
+        }
+        if (local)
+            ((ULONG(STDMETHODCALLTYPE *)(void *))(*(void ***)local)[2])(local);
+        Sleep(100);
+    }
+    return hr;
 }
 
 static bool(__cdecl *odll_entry_init)(char *, void *);
@@ -891,7 +1038,10 @@ static bool __cdecl hdll_entry_init(char *code, void *param)
             wl_log("road fighters 3d: %d of GetModuleHandleA, GetModuleHandleW and GetProcAddress found: kbt.dll and kld.dll not answered", k);
         if (!wl_patch_iat(game, "user32.dll", "GetKeyState", (void *)rf_GetKeyState, NULL))
             wl_log("road fighters 3d: GetKeyState not imported");
+        if (!wl_patch_iat(game, "d3dx9_41.dll", "D3DXCreateEffect", (void *)rf_CreateEffect, (void **)&oCreateEffect))
+            wl_log("road fighters 3d: D3DXCreateEffect not imported");
         view_2d(game);
+        link_game(game);
     }
     else
         wl_log("road fighters 3d: the game's DLL is not loaded: its boards not answered");
@@ -940,6 +1090,10 @@ int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char
                        "Motor board: Konami ACIO board \"HGTH\" (libacioEx.dll, the torque the game sends)");
     wl_inputs_set_table(g_inputs, IN_COUNT);
     wl_game_use_options("rf3d");
+    // its Reset at the end of a game (the device's own settings), after which its effects failed
+    // (D3DXCreateEffect: E_OUTOFMEMORY, the cabinets) and it crashed (+0x1d3804): not made
+    wl_d3d9_keep_same_reset();
+    wl_game_on_settings(rf_settings);
     wl_outputs_name_lamps(WL_N("la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"), NULL, RF3D_LAMPS);
     wl_system_virtual_dll("libacioEx.dll", g_acioEx, (int)(sizeof g_acioEx / sizeof g_acioEx[0]));
     wl_dinput_quiet_keyboard();

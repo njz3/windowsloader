@@ -1044,10 +1044,23 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 // From the Direct3D 9 hooks
 // ------------------------------------------------------------------------------
 
+static int g_noMultisample;
+
+void wl_display_no_multisample(void)
+{
+    g_noMultisample = 1;
+}
+
 void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
 {
     if (!g_wl.windowed || !pp || !pp->Windowed)
         return;
+    if (g_noMultisample && pp->MultiSampleType != D3DMULTISAMPLE_NONE && !g_gdiSetting)
+    {
+        wl_log("display: the game's multisampled back buffer (%d) made a plain one, to be placed", (int)pp->MultiSampleType);
+        pp->MultiSampleType = D3DMULTISAMPLE_NONE;
+        pp->MultiSampleQuality = 0;
+    }
     wchar_t swap[16] = L"";
     GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
     g_gdi = g_gdiSetting;

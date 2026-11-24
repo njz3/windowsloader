@@ -568,7 +568,8 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
 //   at each frame it is set: one frame per press). Through configure\js_game232_map.dat: button 5
 //   START/NOS (confirms, the nitro), 4 VIEW (the camera; the game card's renewal on the title), 0
 //   and 1 the vertical menus' up and down, 9 the operator's (it quits the game: not given). The
-//   PC's frames (AA AA, a length: two settings at the start, the lamps) need no answer; no force.
+//   PC's frames (AA AA, a length: two settings at the start, the lamps, the wheel's force: a
+//   constant force and a vibration, speed_force) need no answer.
 // - Its actions (64-byte blocks) are RSA-encrypted by the game and decrypted by its dongle
 //   (dic32u.dll): both functions return at once (+0x7f1d0, +0x7f2e0), the actions in clear.
 // - Its licence bound to the cabinet ("UNIDENTIFIED SYSTEM ID", +0xf7640): answered valid.
@@ -625,6 +626,8 @@ static unsigned short crc16_modbus(const unsigned char *d, int n)
     return crc;
 }
 
+static void speed_undo_loader(unsigned char *exe);
+
 // The board's next frame, at most one each 8 ms (the read waits for it)
 static void speed_frame(void)
 {
@@ -638,6 +641,14 @@ static void speed_frame(void)
     unsigned char f[14] = {0xAA, 0xAA};
     unsigned char *data = f + 2;
     int axes[3] = {wl_input_get(&g_speedInputs[CS_STEERING]), wl_input_get(&g_speedInputs[CS_GAS]), wl_input_get(&g_speedInputs[CS_BRAKE])};
+    static int lastAxes[3] = {-1, -1, -1}, axesLogged;
+    if (memcmp(axes, lastAxes, sizeof axes) && axesLogged < 40)
+    {
+        axesLogged++;
+        wl_log("unis: Crazy Speed's board: wheel %d, accelerator %d, brake %d (0..1024, the game takes 1 - raw / 1024)", axes[0], axes[1],
+               axes[2]);
+        memcpy(lastAxes, axes, sizeof axes);
+    }
     for (int a = 0; a < 3; a++)
     {
         data[2 * a] = (unsigned char)(axes[a] & 0xFF);
@@ -652,6 +663,14 @@ static void speed_frame(void)
         buttons |= 1u << 4;
     if (wl_input_get(&g_speedInputs[CS_START]))
         buttons |= 1u << 5;
+    static unsigned lastButtons;
+    static int buttonsLogged;
+    if (buttons != lastButtons && buttonsLogged < 60)
+    {
+        buttonsLogged++;
+        wl_log("unis: Crazy Speed's board: buttons 0x%06x (0/1 the menus' up/down, 4 VIEW, 5 START/NOS)", buttons);
+        lastButtons = buttons;
+    }
     data[6] = (unsigned char)buttons;
     data[7] = (unsigned char)(buttons >> 8);
     data[8] = (unsigned char)(buttons >> 16);
@@ -665,7 +684,10 @@ static void speed_frame(void)
     memcpy(g_speedOut, f, sizeof f);
     g_speedCount = (int)sizeof f;
     if (InterlockedIncrement(&g_speedFrames) == 1)
+    {
         wl_log("unis: Crazy Speed's board, first frame to the game");
+        speed_undo_loader((unsigned char *)GetModuleHandleW(NULL)); // its DLLs' starts long done
+    }
 }
 
 static BOOL speed_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
@@ -682,12 +704,63 @@ static BOOL speed_read(void *buffer, DWORD size, DWORD *read, LONGLONG offset)
     return TRUE;
 }
 
+// The wheel's force: GAME232::cFeedbackInterface's frames (the game's CForceFeedbackEffect_Game232,
+// its OIS effects made the board's), after AA AA, their length (the kind, the data, the CRC):
+//   kind 6, a constant force (+0x53dcc0): two durations (u16, 1/900 s: 0.15 s each frame), the
+//          force (s16, -10000..10000, the game's gain applied), resent while it lasts
+//   kind 7, a vibration (+0x53dd10): its duration (u16, 1/900 s, 70 s and more: until stopped),
+//          a second time, its strength (s16, -10000..10000) and its frequency (u16, 1/25 Hz,
+//          0.1..9 Hz)
+// The force > 0 pushes the wheel to the right as the board reads it (the wheel 0 at its left end):
+// made windowsloader's (> 0 to the left)
+static void speed_force(const unsigned char *f)
+{
+    short force;
+    memcpy(&force, f + 6, 2);
+    static int told;
+    if (force && told++ < 5)
+        wl_log("unis: Crazy Speed's wheel force %d (the board's, -10000..10000; wheel %d)", force,
+               wl_input_get(&g_speedInputs[CS_STEERING]));
+    wl_ffb_set(-force / 10000.0);
+}
+
+static void speed_vibration(const unsigned char *f)
+{
+    short strength;
+    unsigned short rate;
+    memcpy(&strength, f + 6, 2);
+    memcpy(&rate, f + 8, 2);
+    double hz = rate / 25.0, v = (strength < 0 ? -strength : strength) / 10000.0;
+    static int told;
+    if (strength && told++ < 5)
+        wl_log("unis: Crazy Speed's wheel vibration %d at %.1f Hz", strength, hz);
+    wl_ffb_set_vibration(v > 1 ? 1 : v, hz > 0.05 ? (int)(1000.0 / hz) : 0);
+}
+
 static BOOL speed_write(const void *buffer, DWORD size, DWORD *written, LONGLONG offset)
 {
-    *written = size; // its settings and lamps: nothing to answer
+    *written = size; // nothing to answer
     static int logged;
     if (logged++ < 10)
         wl_log_hex("unis: Crazy Speed's board, from the game", buffer, size);
+    const unsigned char *b = (const unsigned char *)buffer;
+    for (DWORD at = 0; at + 4 <= size;)
+    {
+        if (b[at] != 0xAA || b[at + 1] != 0xAA)
+        {
+            at++;
+            continue;
+        }
+        DWORD len = b[at + 2]; // the kind, its data, the CRC
+        if (at + 3 + len > size || len < 3 || crc16_modbus(b + at + 2, (int)len - 1) != (unsigned short)(b[at + 1 + len] | b[at + 2 + len] << 8))
+            break;
+        const unsigned char *f = b + at + 2; // its length, its kind, its data
+        if (f[1] == 6 && len >= 9)
+            speed_force(f);
+        else if (f[1] == 7 && len >= 11)
+            speed_vibration(f);
+        at += 3 + len;
+    }
     return TRUE;
 }
 
@@ -722,6 +795,57 @@ static int WINAPI speed_connect(SOCKET s, const struct sockaddr *addr, int len)
         }
     }
     return oSpeedConnect(s, addr, len);
+}
+
+// The link (link.h): [Game.crazyspeed] LINK and CABINET. Its LAN mode (CLANInterface: a host and
+// its guests, found by a broadcast, then TCP) on LINK's PCs; its connections to the internet stay
+// refused (speed_connect, under the link's)
+static void speed_settings(void)
+{
+    int n = wl_link_settings(GetModuleHandleW(NULL));
+    if (n)
+        wl_log("game: Crazy Speed linked: cabinet %d of %d (its LAN mode)", wl_link_cabinet(), n);
+}
+
+// The cabinets' release\dic32u.dll is not the dongle's library but another loader's (its dic32u.ini:
+// the controls from an XInput pad, x360ce started first): its DllMain rewrites the game's input
+// update (+0xa7ff0) so that its own thread writes the controls there, by WriteProcessMemory: the
+// memsets and the copy of the previous state emptied (+0xa8004, +0xa8012, +0xa8032), the stores
+// of the calibrated wheel, accelerator and brake removed (+0xa84fa, +0xa85c7, +0xa8694). The
+// board's accelerator then never reached the car (000 km/h, its NOS charging). Its writes into the
+// game made nothing, and those six places put back as the program has them
+static BOOL WINAPI dic_WriteProcessMemory(HANDLE process, LPVOID address, LPCVOID data, SIZE_T size, SIZE_T *written)
+{
+    if (written)
+        *written = size;
+    return TRUE;
+}
+
+static void speed_undo_loader(unsigned char *exe)
+{
+    static volatile LONG hooked;
+    HMODULE dic = GetModuleHandleW(L"dic32u.dll");
+    if (!dic || GetProcAddress(dic, "TransmitAPDU") == NULL)
+        return; // the real dongle's library, or none
+    if (!InterlockedExchange(&hooked, 1) && wl_patch_iat(dic, "KERNEL32.dll", "WriteProcessMemory", (void *)dic_WriteProcessMemory, NULL))
+        wl_log("game: Crazy Speed: release\\dic32u.dll is another loader's (XInput controls): its writes into the game made nothing");
+    static const struct
+    {
+        unsigned rva;
+        unsigned char loader[6], program[6];
+        int size;
+        const char *what;
+    } undo[] = {
+        {0xA8004, {0x00}, {0x01}, 1, "Crazy Speed's input update, its controls cleared (put back)"},
+        {0xA8012, {0x00}, {0x40}, 1, "Crazy Speed's input update, its previous controls kept (put back)"},
+        {0xA8032, {0x00}, {0x80}, 1, "Crazy Speed's input update, its analog values cleared (put back)"},
+        {0xA84FA, {0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90}, {0xD9, 0x9B, 0x94, 0x02, 0x00, 0x00}, 6, "Crazy Speed's wheel stored (put back)"},
+        {0xA85C7, {0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90}, {0xD9, 0x9B, 0x98, 0x02, 0x00, 0x00}, 6, "Crazy Speed's accelerator stored (put back)"},
+        {0xA8694, {0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90}, {0xD9, 0x9B, 0x9C, 0x02, 0x00, 0x00}, 6, "Crazy Speed's brake stored (put back)"},
+    };
+    for (size_t i = 0; i < sizeof undo / sizeof undo[0]; i++)
+        if (!memcmp(exe + undo[i].rva, undo[i].loader, undo[i].size))
+            wl_patch_code(exe + undo[i].rva, undo[i].loader, undo[i].program, undo[i].size, undo[i].what);
 }
 
 static void speed_patches(unsigned char *exe)
@@ -767,6 +891,9 @@ static int crazy_speed(const wchar_t *exePath, const wchar_t *base, const char *
     InitializeCriticalSection(&g_speedLock);
     wl_vdev_register(&g_speedBoard);
     wl_vdev_label("COM1", WL_N("Carte d'E/S"));
+    // The PC's own joysticks (vJoy on the cabinets) kept from the game's DirectInput (OIS): its
+    // controls are the board's, windowsloader reads them itself
+    wl_dinput_hide_controllers();
     if (crc == 0x42B6AC2D)
         speed_patches(exe);
     else
@@ -774,6 +901,7 @@ static int crazy_speed(const wchar_t *exePath, const wchar_t *base, const char *
     if (wl_patch_iat((HMODULE)exe, "WS2_32.dll", MAKEINTRESOURCEA(4), (void *)speed_connect, (void **)&oSpeedConnect))
         wl_log("game: %s: connections outside the PC and its LAN refused (offline)", *title);
     wl_game_use_options("crazyspeed");
+    wl_game_on_settings(speed_settings);
     wl_vscreen_minimum(1360, 768);
     return 1;
 }

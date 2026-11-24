@@ -140,6 +140,45 @@ static const wchar_t *written_dll(const char *name, wchar_t *w, wchar_t *buf)
     return mapped == w ? NULL : mapped;
 }
 
+// A Windows component named alone (LoadLibrary("d3d9.dll")) whose proxy another loader left in the
+// game's folder (dgVoodoo's or ReShade's d3d9.dll next to Dirty Drivin' and H2Overdrive, which drew
+// its menus in a corner of the screen): Windows' own is loaded, as the launcher does for the static
+// imports. NULL for any other name
+static const wchar_t *system_component(const char *name, wchar_t *buf)
+{
+    static const char *names[] = {"d3d8.dll", "d3d9.dll", "d3d11.dll", "dxgi.dll", "ddraw.dll", "dinput8.dll", "dinput.dll", "opengl32.dll",
+                                  "dsound.dll", "winmm.dll", "version.dll"};
+    if (!name || strchr(name, '\\') || strchr(name, '/'))
+        return NULL;
+    int known = 0;
+    for (size_t i = 0; i < sizeof names / sizeof names[0] && !known; i++)
+        known = !_stricmp(name, names[i]);
+    if (!known)
+        return NULL;
+    wchar_t local[MAX_PATH], wname[64];
+    MultiByteToWideChar(CP_ACP, 0, name, -1, wname, 64);
+    DWORD n = GetModuleFileNameW(NULL, local, MAX_PATH);
+    wchar_t *slash = n && n < MAX_PATH ? wcsrchr(local, L'\\') : NULL;
+    if (!slash)
+        return NULL;
+    wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - local), wname);
+    wchar_t cwd[MAX_PATH];
+    int there = GetFileAttributesW(local) != INVALID_FILE_ATTRIBUTES;
+    if (!there && GetCurrentDirectoryW(MAX_PATH, cwd))
+    {
+        swprintf(local, MAX_PATH, L"%s\\%s", cwd, wname);
+        there = GetFileAttributesW(local) != INVALID_FILE_ATTRIBUTES;
+    }
+    UINT sys = there ? GetSystemDirectoryW(buf, MAX_PATH) : 0;
+    if (!sys || sys >= MAX_PATH - 64)
+        return NULL;
+    swprintf(buf + sys, MAX_PATH - sys, L"\\%s", wname);
+    static volatile LONG said;
+    if (InterlockedIncrement(&said) <= 8)
+        wl_log("LoadLibrary \"%s\": the game's folder has another loader's, Windows' own loaded", name);
+    return buf;
+}
+
 static HMODULE(WINAPI *oLoadLibraryA)(LPCSTR);
 static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
 {
@@ -153,6 +192,8 @@ static HMODULE WINAPI hLoadLibraryA(LPCSTR name)
         return NULL;
     wchar_t w[MAX_PATH * 2], wbuf[MAX_PATH * 2];
     const wchar_t *written = nested ? NULL : written_dll(name, w, wbuf);
+    if (!written && !nested && !wl_is_system_caller(WL_CALLER))
+        written = system_component(name, wbuf);
     wl_busy_enter();
     HMODULE mod = written ? oLoadLibraryExW(written, NULL, 0) : oLoadLibraryA(name);
     wl_busy_leave();
@@ -175,8 +216,11 @@ static HMODULE WINAPI hLoadLibraryW(LPCWSTR name)
         return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
-    wchar_t wbuf[MAX_PATH * 2];
+    wchar_t wbuf[MAX_PATH * 2], sbuf[MAX_PATH];
     const wchar_t *path = nested ? name : wl_files_read_path(name, wbuf, MAX_PATH * 2);
+    const wchar_t *sys = nested || !name || wl_is_system_caller(WL_CALLER) ? NULL : system_component(wl_u8(name, n8, sizeof n8), sbuf);
+    if (sys)
+        path = sys;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryW(path);
     wl_busy_leave();
@@ -203,6 +247,8 @@ static HMODULE WINAPI hLoadLibraryExA(LPCSTR name, HANDLE file, DWORD flags)
         return NULL;
     wchar_t w[MAX_PATH * 2], wbuf[MAX_PATH * 2];
     const wchar_t *written = nested ? NULL : written_dll(name, w, wbuf);
+    if (!written && !nested && !wl_is_system_caller(WL_CALLER))
+        written = system_component(name, wbuf);
     wl_busy_enter();
     HMODULE mod = written ? oLoadLibraryExW(written, file, flags) : oLoadLibraryExA(name, file, flags);
     wl_busy_leave();
@@ -224,8 +270,11 @@ static HMODULE WINAPI hLoadLibraryExW(LPCWSTR name, HANDLE file, DWORD flags)
         return v;
     if (!nested && name && refused_dll(wl_u8(name, n8, sizeof n8), WL_CALLER))
         return NULL;
-    wchar_t wbuf[MAX_PATH * 2];
+    wchar_t wbuf[MAX_PATH * 2], sbuf[MAX_PATH];
     const wchar_t *path = nested ? name : wl_files_read_path(name, wbuf, MAX_PATH * 2);
+    const wchar_t *sys = nested || !name || wl_is_system_caller(WL_CALLER) ? NULL : system_component(wl_u8(name, n8, sizeof n8), sbuf);
+    if (sys)
+        path = sys;
     wl_busy_enter();
     HMODULE mod = oLoadLibraryExW(path, file, flags);
     wl_busy_leave();
@@ -471,10 +520,23 @@ static BOOL WINAPI hShellExecuteExW(SHELLEXECUTEINFOW *info)
     return FALSE;
 }
 
-// Shutdown, restart, sleep: never from a game running on someone's PC
+// Shutdown, restart, sleep: never from a game running on someone's PC. A game that reboots its
+// cabinet to take its new settings (wl_system_reboot_restarts) ends, and the launcher starts it again
+static int g_rebootRestarts;
+
+void wl_system_reboot_restarts(void)
+{
+    g_rebootRestarts = 1;
+}
+
 static BOOL(WINAPI *oExitWindowsEx)(UINT, DWORD);
 static BOOL WINAPI hExitWindowsEx(UINT flags, DWORD reason)
 {
+    if (g_rebootRestarts && (flags & EWX_REBOOT))
+    {
+        wl_log("ExitWindowsEx(0x%x): the game reboots its cabinet; it ends here, the launcher starts it again", flags);
+        ExitProcess(WL_EXIT_REBOOT);
+    }
     wl_log("ExitWindowsEx(0x%x) refused", flags);
     return TRUE;
 }

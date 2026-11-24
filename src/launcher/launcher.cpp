@@ -25,6 +25,7 @@
 #include "debugstart.h"
 #include "gamelist.h"
 #include "picker.h"
+#include "filecrc.h"
 #include "wlshared.h"
 #include "writedir.h"
 
@@ -260,15 +261,20 @@ static int pe_console(const wchar_t *path)
 
 // Mario Kart DX 1.05 needs more than 2 GB here, without saying so in its program's header: with less
 // than 25 MB in one piece left, its title's textures never load, and the title never reads the item
-// button. A process's limit comes from its program's header, when it is made (writedir.h)
-static int needs_large_address(const wchar_t *path)
+// button. Winter X Games SnoCross (2022, its sdaemon.exe told by its CRC-32) the same: its textures
+// failed (D3DERR_OUTOFVIDEOMEMORY) as its race loaded, then a crash (+0xd4c99). A process's limit
+// comes from its program's header, when it is made (writedir.h). The name of its folder in the
+// write folder; NULL when the program does not need it
+static const wchar_t *needs_large_address(const wchar_t *path)
 {
     const wchar_t *base = wcsrchr(path, L'\\');
+    if (!_wcsicmp(base ? base + 1 : path, L"sdaemon.exe"))
+        return wl_file_crc32(path) == 0x873E033B ? L"snocross" : NULL;
     if (_wcsicmp(base ? base + 1 : path, L"MK_AGP3_FINAL.exe"))
-        return 0;
+        return NULL;
     HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (f == INVALID_HANDLE_VALUE)
-        return 0;
+        return NULL;
     IMAGE_DOS_HEADER dos;
     IMAGE_NT_HEADERS32 nt;
     DWORD rd;
@@ -276,7 +282,7 @@ static int needs_large_address(const wchar_t *path)
                 SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, &nt, sizeof nt, &rd, NULL) &&
                 rd == sizeof nt && nt.FileHeader.TimeDateStamp == 0x582179A8 && !(nt.FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE);
     CloseHandle(f);
-    return needs;
+    return needs ? L"mkdx" : NULL;
 }
 
 // The log of the run before kept: x.log renamed x.old.log (the one before it gone), the new one
@@ -1273,6 +1279,8 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_COMPANION_OF, NULL);
     }
 
+    int reboots = 0;
+again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
     // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the
     // agent's protocol, and a console game reading its input would wait for a key on a console
     // nobody sees (Storm Racer G stood still before its first frame). A console game gets no
@@ -1308,13 +1316,14 @@ int wmain(int argc, wchar_t **argv)
         swprintf(shown, MAX_PATH, L"%s\\wl_avsboot.exe", gameDir);
         SetEnvironmentVariableW(WL_ENV_GAME_EXE, shown);
     }
-    if (needs_large_address(gamePath))
+    const wchar_t *largeName = needs_large_address(gamePath);
+    if (largeName)
     {
         wchar_t copy[MAX_PATH];
         if (write < 0)
             say("windowsloader: this version needs a copy of its program with more than 2 GB, and the write folder cannot be written: "
                 "started as it is, it may stop on a black screen after its attract\n");
-        else if (wl_write_dir_large_address(write ? writeDir : selfDir, L"mkdx", gamePath, copy, MAX_PATH))
+        else if (wl_write_dir_large_address(write ? writeDir : selfDir, largeName, gamePath, copy, MAX_PATH))
         {
             wcscpy_s(startedPath, MAX_PATH, copy);
             SetEnvironmentVariableW(WL_ENV_GAME_EXE, gamePath);
@@ -1412,6 +1421,17 @@ int wmain(int argc, wchar_t **argv)
     {
         say("windowsloader: game stopped after %d s (--timeout).\n", timeoutSec);
         code = 0; // the expected end of a timed test
+    }
+    else if (code == WL_EXIT_REBOOT)
+    {
+        // its settings changed (Raw Thrills: the link, its machine ID), taken at the cabinet's reboot
+        if (!agent && ++reboots <= 3)
+        {
+            say("windowsloader: the game rebooted its cabinet to take its new settings: started again.\n");
+            goto again;
+        }
+        say("windowsloader: the game rebooted its cabinet to take its new settings: start it again.\n");
+        code = 0;
     }
     else
         say("windowsloader: game exited with code %lu (0x%08lX).\n", code, code);

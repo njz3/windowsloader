@@ -32,6 +32,9 @@
 #define WL_ENV_GAME_EXE L"WINDOWSLOADER_GAME_EXE" // set when a copy of the game runs (writedir.h): the game's program, shown as its own
 #define WL_ENV_OLDER    L"WINDOWSLOADER_OLDER"    // the write folder's settings files older than their first place's: "COPY|FIRST", one per line
 
+// A game's exit code when it reboots its cabinet (wl_system_reboot_restarts): the launcher starts it again
+#define WL_EXIT_REBOOT 0x57525354u
+
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 
 #define WL_VERSION "0.1.0"

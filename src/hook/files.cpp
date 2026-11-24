@@ -566,6 +566,7 @@ static DWORD probe(const wchar_t *folder)
     return err;
 }
 
+static int make_dirs(const wchar_t *dir);
 void wl_files_write_dir(void)
 {
     wchar_t root[MAX_PATH];
@@ -603,12 +604,12 @@ void wl_files_write_dir(void)
     }
     else
     {
-        wl_busy_enter();
-        int made = SHCreateDirectoryExW(NULL, g_writeGame, NULL);
-        DWORD a = GetFileAttributesW(g_writeGame);
-        wl_busy_leave();
-        int there = a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
-        DWORD err = !there ? (made ? (DWORD)made : ERROR_PATH_NOT_FOUND) : probe(g_writeGame);
+        // made folder by folder (CreateDirectory), not by the shell: this runs as windowsloader's
+        // DLL loads, under Windows' loader lock, where SHCreateDirectoryEx (shell32's) stood still
+        // in a new write folder (Crazy Speed: "the DLL did not load within 60 s")
+        int there = make_dirs(g_writeGame);
+        DWORD made = there ? 0 : GetLastError();
+        DWORD err = !there ? (made ? made : ERROR_PATH_NOT_FOUND) : probe(g_writeGame);
         if (err)
         {
             g_writeDenied = 1;
@@ -829,6 +830,10 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
         {
             wl_busy_enter();
             BOOL ok = CopyFileW(full, buf, TRUE);
+            // the copy is to be written: a read-only file's attribute not kept (The Fast and the
+            // Furious's envmap.stats, read-only on the cabinets: its writes refused, error 5)
+            if (ok && (a & FILE_ATTRIBUTE_READONLY))
+                SetFileAttributesW(buf, a & ~FILE_ATTRIBUTE_READONLY);
             wl_busy_leave();
             static volatile LONG logged;
             if (InterlockedIncrement(&logged) <= 50)
@@ -836,6 +841,16 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
                 char u[WL_PATH * 2];
                 wl_log("files: %s copied to the write folder to be modified%s", wl_u8(full, u, sizeof u), ok ? "" : " (failed)");
             }
+        }
+    }
+    else if (keep)
+    {
+        DWORD a = attributes(buf); // a copy made read-only before (an older windowsloader)
+        if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_READONLY) && !(a & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            wl_busy_enter();
+            SetFileAttributesW(buf, a & ~FILE_ATTRIBUTE_READONLY);
+            wl_busy_leave();
         }
     }
     return buf;
@@ -1226,6 +1241,15 @@ static HANDLE open_real_port(const char *path, const char *real, DWORD access, D
     return h;
 }
 
+// A file the game only reads, opened for itself alone (share 0: Drift's and SuperCars' movies,
+// shared\movies\avi\*.rta): shared for reading, so that two cabinets of a link on one PC (the same
+// game's folder) both open it (error 32 and a crash before); it is not written anyway
+static DWORD read_share(DWORD access, DWORD share, DWORD disp)
+{
+    const DWORD writes = GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE | WRITE_DAC | WRITE_OWNER;
+    return !share && disp == OPEN_EXISTING && (access & (GENERIC_READ | FILE_READ_DATA)) && !(access & writes) ? FILE_SHARE_READ : share;
+}
+
 static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
 {
     int nested = wl_busy();
@@ -1250,6 +1274,8 @@ static HANDLE WINAPI hCreateFileA(LPCSTR name, DWORD access, DWORD share, LPSECU
     wchar_t wname[WL_PATH];
     if (g_writeDenied && name && to_wide(name, wname) && create_writes(wname, access, disp) && refused(wname, "CreateFile"))
         return INVALID_HANDLE_VALUE;
+    if (!nested)
+        share = read_share(access, share, disp);
     wl_busy_enter();
     HANDLE h = oCreateFileA(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
@@ -1294,6 +1320,8 @@ static HANDLE WINAPI hCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSEC
     if (g_writeDenied && name && create_writes(name, access, disp) && refused(name, "CreateFile"))
         return INVALID_HANDLE_VALUE;
     wl_busy_enter();
+    if (!nested)
+        share = read_share(access, share, disp);
     HANDLE h = oCreateFileW(name, access, share, sa, disp, flags, tmpl);
     wl_busy_leave();
     DWORD err = GetLastError();

@@ -104,6 +104,9 @@ int wl_display_internal_supported(void);
 
 // From the Direct3D 9 hooks
 void wl_display_prepare(D3DPRESENT_PARAMETERS *pp);          // before CreateDevice / Reset
+// The game's multisampled back buffer made a plain one (by its module): presented by the game, such
+// a buffer cannot be placed, and Dirty Drivin's never reached the screen
+void wl_display_no_multisample(void);
 void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp); // after: the window set for the mode
 const RECT *wl_display_dest(void);                           // each Present: where the picture goes, NULL for the whole window
 const RECT *wl_display_source(void);                         // and the part of the back buffer shown (a crop), NULL for all

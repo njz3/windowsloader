@@ -36,8 +36,11 @@ unsigned long wl_game_exe_crc32(void)
     if (!read)
     {
         read = 1;
+        // a copy of the program running (writedir.h: more than 2 GB): the game's own program's
         wchar_t exe[MAX_PATH];
-        GetModuleFileNameW(NULL, exe, MAX_PATH);
+        DWORD n = GetEnvironmentVariableW(WL_ENV_GAME_EXE, exe, MAX_PATH);
+        if (!n || n >= MAX_PATH)
+            GetModuleFileNameW(NULL, exe, MAX_PATH);
         crc = wl_file_crc32(exe);
     }
     return crc;

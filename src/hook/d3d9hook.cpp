@@ -35,6 +35,9 @@ enum
     SLOT_D3D9_CREATEDEVICE = 16,
     SLOT_D3D9EX_CREATEDEVICEEX = 20,
     SLOT_DEVICE_RESET = 16,
+    SLOT_DEVICE_CREATETEXTURE = 23,
+    SLOT_DEVICE_CREATERENDERTARGET = 28,
+    SLOT_DEVICE_CREATEDEPTHSTENCILSURFACE = 29,
     SLOT_DEVICE_PRESENT = 17,
     SLOT_DEVICE_SETTEXTURE = 65,
     SLOT_DEVICE_SETSCISSORRECT = 75,
@@ -64,6 +67,31 @@ static void log_pp(const char *what, const D3DPRESENT_PARAMETERS *pp)
 // Full screen -> window, with the presentation settings a window accepts
 // The game's presentation interval: its frames' pace once presented to the hidden window (GDI)
 static UINT g_interval = D3DPRESENT_INTERVAL_ONE;
+
+// A game told a smaller screen (VIRTUAL_DISPLAY) making or resetting its device larger, at its
+// window's size or the real screen's: the screen told (its full-screen mode one of Direct3D's,
+// vscreen.cpp). Crazy Speed's Ogre resets at its window's client area (its plug-in's own
+// GetClientRect, past the game's), Dirty Drivin' asks the screen's mode (its -r 1360x768 aside):
+// both drew their 1360x768 menus in a corner of 1920x1080
+static void told_size(D3DPRESENT_PARAMETERS *pp)
+{
+    int vw, vh;
+    if (pp && wl_vscreen_size(&vw, &vh) && ((int)pp->BackBufferWidth > vw || (int)pp->BackBufferHeight > vh))
+    {
+        wl_log("  %ux%u, larger than the screen the game is told: %dx%d", pp->BackBufferWidth, pp->BackBufferHeight, vw, vh);
+        pp->BackBufferWidth = (UINT)vw;
+        pp->BackBufferHeight = (UINT)vh;
+    }
+    // A window's back buffer at its client area's size (0x0), which in a full-screen window is the
+    // real screen's, not the one told: Dirty Drivin' reset so (BORDERLESS, 1920x1080 told 1360x768)
+    // and its picture stood still on its loading text
+    else if (pp && pp->Windowed && (!pp->BackBufferWidth || !pp->BackBufferHeight) && wl_vscreen_size(&vw, &vh))
+    {
+        wl_log("  %ux%u (its window's size): the screen the game is told, %dx%d", pp->BackBufferWidth, pp->BackBufferHeight, vw, vh);
+        pp->BackBufferWidth = (UINT)vw;
+        pp->BackBufferHeight = (UINT)vh;
+    }
+}
 
 static int make_windowed(D3DPRESENT_PARAMETERS *pp)
 {
@@ -539,6 +567,16 @@ static void asked_size(D3DPRESENT_PARAMETERS *pp, HWND focus)
         pp->BackBufferHeight = (UINT)h;
 }
 
+// A game whose Reset with its device's own settings, the device not lost, is not made (by its
+// module): Road Fighters 3D's at the end of a game on the cabinets, after which its effects could
+// not be made again (D3DXCreateEffect: E_OUTOFMEMORY) and it crashed (jgt.dll+0x1d3804)
+static int g_keepSameReset;
+
+void wl_d3d9_keep_same_reset(void)
+{
+    g_keepSameReset = 1;
+}
+
 static HRESULT(STDMETHODCALLTYPE *oReset)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *);
 static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp)
 {
@@ -567,6 +605,25 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
             return D3D_OK;
         }
     }
+    if (g_keepSameReset && pp && dev->TestCooperativeLevel() == D3D_OK)
+    {
+        IDirect3DSwapChain9 *sc = NULL;
+        D3DPRESENT_PARAMETERS cur;
+        int same = SUCCEEDED(dev->GetSwapChain(0, &sc)) && sc && SUCCEEDED(sc->GetPresentParameters(&cur)) &&
+                   (!pp->BackBufferWidth || pp->BackBufferWidth == cur.BackBufferWidth) &&
+                   (!pp->BackBufferHeight || pp->BackBufferHeight == cur.BackBufferHeight) &&
+                   pp->BackBufferFormat == cur.BackBufferFormat && pp->MultiSampleType == cur.MultiSampleType &&
+                   pp->Windowed == cur.Windowed && pp->EnableAutoDepthStencil == cur.EnableAutoDepthStencil &&
+                   (!pp->EnableAutoDepthStencil || pp->AutoDepthStencilFormat == cur.AutoDepthStencilFormat);
+        if (sc)
+            sc->Release();
+        if (same)
+        {
+            wl_log("  the device's own settings, the device not lost: not reset (its resources made again on the same device)");
+            return D3D_OK;
+        }
+    }
+    told_size(pp);
     wl_menu_device_reset();
     gdi_release(); // its render target, in the default pool, would make the Reset fail
     int forced = make_windowed(pp);
@@ -863,6 +920,45 @@ static HRESULT STDMETHODCALLTYPE hCreatePixelShader(IDirect3DDevice9 *dev, const
     return SUCCEEDED(hr) ? hr : oCreatePixelShader(dev, code, out);
 }
 
+// A resource the game cannot make, logged (its first ones): a game that goes on without it reads
+// a null pointer later (Road Fighters 3D after its end of game's Reset)
+static int g_createFails;
+static void create_failed(const char *what, UINT w, UINT h, int format, DWORD extra, HRESULT hr, void *caller)
+{
+    char where[128];
+    if (g_createFails++ < 16)
+        wl_log("%s %ux%u format=%d (0x%lx) -> 0x%08lx [%s]", what, w, h, format, extra, hr, wl_where(caller, where, sizeof where));
+}
+static HRESULT(STDMETHODCALLTYPE *oCreateTexture)(IDirect3DDevice9 *, UINT, UINT, UINT, DWORD, D3DFORMAT, D3DPOOL, IDirect3DTexture9 **, HANDLE *);
+static HRESULT STDMETHODCALLTYPE hCreateTexture(IDirect3DDevice9 *dev, UINT w, UINT h, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool,
+                                                IDirect3DTexture9 **out, HANDLE *shared)
+{
+    HRESULT hr = oCreateTexture(dev, w, h, levels, usage, format, pool, out, shared);
+    if (FAILED(hr))
+        create_failed("CreateTexture", w, h, (int)format, usage | (DWORD)pool << 24, hr, WL_CALLER);
+    return hr;
+}
+static HRESULT(STDMETHODCALLTYPE *oCreateRenderTarget)(IDirect3DDevice9 *, UINT, UINT, D3DFORMAT, D3DMULTISAMPLE_TYPE, DWORD, BOOL, IDirect3DSurface9 **,
+                                                       HANDLE *);
+static HRESULT STDMETHODCALLTYPE hCreateRenderTarget(IDirect3DDevice9 *dev, UINT w, UINT h, D3DFORMAT format, D3DMULTISAMPLE_TYPE ms, DWORD quality,
+                                                     BOOL lockable, IDirect3DSurface9 **out, HANDLE *shared)
+{
+    HRESULT hr = oCreateRenderTarget(dev, w, h, format, ms, quality, lockable, out, shared);
+    if (FAILED(hr))
+        create_failed("CreateRenderTarget", w, h, (int)format, (DWORD)ms, hr, WL_CALLER);
+    return hr;
+}
+static HRESULT(STDMETHODCALLTYPE *oCreateDepthStencilSurface)(IDirect3DDevice9 *, UINT, UINT, D3DFORMAT, D3DMULTISAMPLE_TYPE, DWORD, BOOL,
+                                                              IDirect3DSurface9 **, HANDLE *);
+static HRESULT STDMETHODCALLTYPE hCreateDepthStencilSurface(IDirect3DDevice9 *dev, UINT w, UINT h, D3DFORMAT format, D3DMULTISAMPLE_TYPE ms,
+                                                            DWORD quality, BOOL discard, IDirect3DSurface9 **out, HANDLE *shared)
+{
+    HRESULT hr = oCreateDepthStencilSurface(dev, w, h, format, ms, quality, discard, out, shared);
+    if (FAILED(hr))
+        create_failed("CreateDepthStencilSurface", w, h, (int)format, (DWORD)ms, hr, WL_CALLER);
+    return hr;
+}
+
 static void hook_device(IDirect3DDevice9 *dev)
 {
     static int done;
@@ -874,6 +970,10 @@ static void hook_device(IDirect3DDevice9 *dev)
         wl_hook_code(vt[SLOT_DEVICE_CREATEPIXELSHADER], (void *)hCreatePixelShader, (void **)&oCreatePixelShader, "IDirect3DDevice9::CreatePixelShader");
     wl_hook_code(vt[SLOT_DEVICE_PRESENT], (void *)hPresent, (void **)&oPresent, "IDirect3DDevice9::Present");
     wl_hook_code(vt[SLOT_DEVICE_RESET], (void *)hReset, (void **)&oReset, "IDirect3DDevice9::Reset");
+    wl_hook_code(vt[SLOT_DEVICE_CREATETEXTURE], (void *)hCreateTexture, (void **)&oCreateTexture, "IDirect3DDevice9::CreateTexture");
+    wl_hook_code(vt[SLOT_DEVICE_CREATERENDERTARGET], (void *)hCreateRenderTarget, (void **)&oCreateRenderTarget, "IDirect3DDevice9::CreateRenderTarget");
+    wl_hook_code(vt[SLOT_DEVICE_CREATEDEPTHSTENCILSURFACE], (void *)hCreateDepthStencilSurface, (void **)&oCreateDepthStencilSurface,
+                 "IDirect3DDevice9::CreateDepthStencilSurface");
     if (g_2dW > 0)
     {
         wl_hook_code(vt[SLOT_DEVICE_SETFVF], (void *)hSetFVF, (void **)&oSetFVF, "IDirect3DDevice9::SetFVF");
@@ -922,6 +1022,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
     D3DADAPTER_IDENTIFIER9 id;
     if (SUCCEEDED(d3d->GetAdapterIdentifier(adapter, 0, &id)))
         wl_log("  on %s", id.Description);
+    told_size(pp);
     int forced = make_windowed(pp);
     if (forced)
         wl_log("  kept in a window");

@@ -235,9 +235,17 @@ static const WlGameOption g_srgOptions[] = {
     VSCREEN_OPTION,
 };
 
+#define LINK_OPTION(most)                                                                                                                                      \
+    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \
+     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "                    \
+          "dans le fichier)."),                                                                                                                                \
+     WL_OPTION_INT, NULL, 0, most, "0", 1, NULL}
 // unis.cpp's
+// Its 2D screens (the game card, the vehicle choice) are drawn for 1360x768: on a larger screen,
+// told as it is, they filled 71% of the picture in a corner (1360/1920). Always 1360x768
 static const WlGameOption g_crazyspeedOptions[] = {
-    VSCREEN_OPTION,
+    {"VIRTUAL_DISPLAY", g_vscreenLabel, g_vscreenHelp, WL_OPTION_TEXT, NULL, 0, 0, "1360x768", 1, NULL},
+    LINK_OPTION(8),
 };
 static const WlGameOption g_crazyrideOptions[] = {
     {"CABINET", WL_N("Numéro de la borne (link)"),
@@ -258,11 +266,15 @@ static const WlGameOption g_rf3dOptions[] = {
      WL_N("2D : l'image nette d'un écran ordinaire. 3D : les deux vues entrelacées ligne par ligne, pour l'écran polarisé de la borne "
           "et ses lunettes. Le bouton 2D/3D change la vue pendant la partie, jusqu'au lancement suivant."),
      WL_OPTION_CHOICE, g_rf3dViews, 0, 0, "2D", 1, NULL},
+    LINK_OPTION(4),
 };
 
 // rawthrills.cpp's
+// Its attract, its menus and its scores are drawn for 1360x768 (its -r 1360x768): on a larger
+// screen, told as it is, they filled a corner (the race the whole picture). Always 1360x768
 static const WlGameOption g_dirtydrivinOptions[] = {
-    VSCREEN_OPTION,
+    {"VIRTUAL_DISPLAY", g_vscreenLabel, g_vscreenHelp, WL_OPTION_TEXT, NULL, 0, 0, "1360x768", 1, NULL},
+    LINK_OPTION(8),
 };
 
 // wahlap.cpp's
@@ -307,13 +319,9 @@ static const WlGameOption g_bg4Options[] = {
           "windowsloader."),
      WL_OPTION_TEXT, NULL, 0, 0, "", 0, NULL},
 };
-#define LINK_OPTION(most)                                                                                                                                      \
-    {"CABINET", WL_N("Numéro de la borne (link)"),                                                                                                             \
-     WL_N("Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, "                    \
-          "dans le fichier)."),                                                                                                                                \
-     WL_OPTION_INT, NULL, 0, most, "0", 1, NULL}
 static const WlGameOption g_link4Options[] = {LINK_OPTION(4)};
 static const WlGameOption g_link2Options[] = {LINK_OPTION(2)};
+static const WlGameOption g_link8Options[] = {LINK_OPTION(8)};
 
 #define TABLE(id) {#id, g_##id##Options, (int)(sizeof g_##id##Options / sizeof g_##id##Options[0])}
 static const struct
@@ -346,6 +354,7 @@ static const struct
     TABLE(bg4),
     TABLE(link4),
     TABLE(link2),
+    TABLE(link8),
 };
 
 const WlGameOption *wl_game_options_table(const char *id, int *count)
@@ -383,6 +392,17 @@ const char *wl_game_options_table_of(const char *name, const char *version)
         {"d1gp", NULL, "link2"},
         {"wacky", NULL, "link4"},
         {"vlimitr", NULL, "link4"},
+        // rawthrills.cpp: the links of 8 cabinets (Dirty Drivin' has its own table)
+        {"fnf", NULL, "link8"},
+        {"fnfdrift", NULL, "link8"},
+        {"fnfsb", NULL, "link8"},
+        {"fnfsb2", NULL, "link8"},
+        {"fnfsc", NULL, "link8"},
+        {"nicktoons", NULL, "link8"},
+        {"h2overdrive", NULL, "link8"},
+        {"cars", NULL, "link8"},
+        {"batman", NULL, "link8"},
+        {"snocross", NULL, "link8"},
     };
     if (!name)
         return NULL;

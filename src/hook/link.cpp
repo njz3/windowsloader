@@ -53,6 +53,7 @@ static ULONG g_address[LINK_MAX]; // network order, cabinet 1's first
 static ULONG g_virtualNet;        // a game's own addresses (wl_link_virtual_net): their first three bytes, network order; 0 none
 static int g_virtualFirst = 1;    // the host of cabinet 1 there (wl_link_virtual_net_from)
 static int g_nameIsAddress;       // wl_link_name_is_address
+static int g_nameVirtual;         // wl_link_virtual_name
 
 int wl_link_count(void)
 {
@@ -250,7 +251,7 @@ static void count(int pc, int sent, int bytes)
 }
 
 // The first packets with each PC, each way and on each local port (a game's later sessions open
-// ports of their own: DiRT Showdown's race on 1000 after its cabinets' 1001): ports, size, first bytes
+// ports of their own: DiRT Showdown's race on 1000 after its cabinets' 1001): ports, size, first 32 bytes
 #define LINK_PORTS 16
 static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, const char *data, int n)
 {
@@ -274,8 +275,8 @@ static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, 
     }
     if (i == LINK_PORTS || InterlockedIncrement(&logged[pc - 1][way][i]) > 25)
         return;
-    char hex[3 * 16 + 1] = "", t[20];
-    for (int i = 0; data && i < n && i < 16; i++)
+    char hex[3 * 32 + 1] = "", t[20];
+    for (int i = 0; data && i < n && i < 32; i++)
         snprintf(hex + 3 * i, sizeof hex - 3 * i, "%02x ", (unsigned char)data[i]);
     // A text (Wasteland Racers' "Host Election:3232235780"): up to its end or 80 characters
     int text = 0;
@@ -432,9 +433,46 @@ static void tcp_end(SOCKET s, int pc, const char *what, DWORD err)
 // ------------------------------------------------------------------------------
 
 static int(WSAAPI *o_bind)(SOCKET, const sockaddr *, int);
+// The cabinets of a link on one PC (a test: LINK's addresses 127.x, each cabinet its own): each
+// game's socket bound to any address (0.0.0.0) is bound to its cabinet's, so that two games have the
+// same port; each named mutex is its cabinet's ("JGT-2"), for a game that runs once per PC
+static int on_this_pc(void)
+{
+    return g_count && (g_address[g_cabinet - 1] & 0xFF) == 127;
+}
+
+static HANDLE(WINAPI *o_CreateMutexA)(LPSECURITY_ATTRIBUTES, BOOL, LPCSTR);
+static HANDLE WINAPI l_CreateMutexA(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPCSTR name)
+{
+    if (!on_this_pc() || !name || !*name)
+        return o_CreateMutexA(sa, owner, name);
+    char own[MAX_PATH];
+    snprintf(own, sizeof own, "%s-cab%d", name, g_cabinet);
+    wl_log("link: on this PC, the game's mutex \"%s\" made \"%s\"", name, own);
+    return o_CreateMutexA(sa, owner, own);
+}
+
+static HANDLE(WINAPI *o_CreateMutexW)(LPSECURITY_ATTRIBUTES, BOOL, LPCWSTR);
+static HANDLE WINAPI l_CreateMutexW(LPSECURITY_ATTRIBUTES sa, BOOL owner, LPCWSTR name)
+{
+    if (!on_this_pc() || !name || !*name)
+        return o_CreateMutexW(sa, owner, name);
+    wchar_t own[MAX_PATH];
+    swprintf(own, MAX_PATH, L"%s-cab%d", name, g_cabinet);
+    wl_log("link: on this PC, the game's mutex \"%S\" made \"%S\"", name, own);
+    return o_CreateMutexW(sa, owner, own);
+}
+
 static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
 {
     sockaddr_in mine;
+    if (on_this_pc() && is_inet(a, len) && ((const sockaddr_in *)a)->sin_addr.s_addr == INADDR_ANY)
+    {
+        memcpy(&mine, a, sizeof mine);
+        mine.sin_addr.s_addr = g_address[g_cabinet - 1];
+        a = (const sockaddr *)&mine;
+        len = sizeof mine;
+    }
     if (g_count && g_virtualNet && is_inet(a, len) && (((const sockaddr_in *)a)->sin_addr.s_addr & 0x00FFFFFF) == g_virtualNet)
     {
         int k = virtual_cabinet(((const sockaddr_in *)a)->sin_addr.s_addr);
@@ -766,7 +804,7 @@ static hostent *WSAAPI l_gethostbyname(const char *name)
     static char *aliases[1] = {NULL};
     static char hostName[256];
     static hostent h;
-    address = own();
+    address = g_nameVirtual && g_virtualNet ? g_virtualNet | (ULONG)(g_virtualFirst + g_cabinet - 1) << 24 : own();
     snprintf(hostName, sizeof hostName, "%s", me);
     h.h_name = hostName;
     h.h_aliases = aliases;
@@ -778,6 +816,11 @@ static hostent *WSAAPI l_gethostbyname(const char *name)
     if (InterlockedIncrement(&logged) <= 3)
         wl_log("link: gethostbyname(\"%s\"), this PC: %s alone", name, ip_text(address, t, sizeof t));
     return &h;
+}
+
+void wl_link_virtual_name(void)
+{
+    g_nameVirtual = 1;
 }
 
 void wl_link_name_is_address(void)
@@ -846,6 +889,20 @@ static DWORD WINAPI l_GetAdaptersInfo(PIP_ADAPTER_INFO info, PULONG size)
         for (PIP_ADDR_STRING ip = &a->IpAddressList; ip && !mine; ip = ip->Next)
             if (!strcmp(ip->IpAddress.String, t))
                 mine = a;
+    if (!mine && on_this_pc() && info->AddressLength >= 6)
+    {
+        // A link on this PC: no card has the cabinet's address (127.x); the first one shown with it,
+        // its MAC address the cabinet's own (its last byte changed), as two cabinets' would be
+        strcpy_s(info->IpAddressList.IpAddress.String, sizeof info->IpAddressList.IpAddress.String, t);
+        strcpy_s(info->IpAddressList.IpMask.String, sizeof info->IpAddressList.IpMask.String, "255.0.0.0");
+        info->IpAddressList.Next = NULL;
+        info->Address[5] = (BYTE)(info->Address[5] ^ g_cabinet);
+        info->Next = NULL;
+        static volatile LONG said;
+        if (InterlockedIncrement(&said) <= 3)
+            wl_log("link: on this PC, the PC's cards (GetAdaptersInfo): one shown, with %s and its MAC's last byte %02x", t, info->Address[5]);
+        return r;
+    }
     if (!mine)
         return r;
     if (mine != info)
@@ -1067,8 +1124,10 @@ static void link_patch(HMODULE exe)
         {"WSOCK32.dll", 57, "gethostname", (void *)l_gethostname, (void **)&o_gethostname},
         {"IPHLPAPI.DLL", 0, "GetAdaptersInfo", (void *)l_GetAdaptersInfo, (void **)&o_GetAdaptersInfo},
         {"IPHLPAPI.DLL", 0, "GetAdaptersAddresses", (void *)l_GetAdaptersAddresses, (void **)&o_GetAdaptersAddresses},
+        {"KERNEL32.dll", 0, "CreateMutexA", (void *)l_CreateMutexA, (void **)&o_CreateMutexA},
+        {"KERNEL32.dll", 0, "CreateMutexW", (void *)l_CreateMutexW, (void **)&o_CreateMutexW},
     };
-    char found[256] = "";
+    char found[320] = "";
     int at = 0;
     for (size_t i = 0; i < sizeof table / sizeof table[0]; i++)
         if (patch(exe, table[i].dll, table[i].ordinal, table[i].name, table[i].fn, table[i].original))
