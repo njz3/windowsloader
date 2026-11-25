@@ -103,6 +103,12 @@ static const struct
     {IN_VIEW2, 1, 0x40},   // 0x040
     {IN_TEST, 0, 0x04},    // 0x100
     {IN_SERVICE, 0, 0x01}, // 0x200
+    // The view buttons in GetIoKeyData too (bits 3 and 4, the game's 0x020 and 0x040 as well):
+    // the test menu (MAIN MENU and its pages) reads only that byte, through moto_coins.dll's
+    // N_GetIoKeyState(0..4) (+0x17b0, each bit kept over 15 reads): its cursor moves on a press of
+    // bit 4 or bit 3 (+0xc9cd1, +0xc9d85), Test (bit 2) enters. Without them its cursor never moved
+    {IN_VIEW1, 0, 0x08}, // 0x020
+    {IN_VIEW2, 0, 0x10}, // 0x040
 };
 
 #define COIN_SLOTS 4
@@ -229,18 +235,25 @@ static int __cdecl hControlLightState(const unsigned char *packet)
     return 1;
 }
 
-// The board's memory, 64 KB, kept in wl_motobikeio.bin beside the game (or in its write folder)
+// The board's memory, 64 KB (moto_coins.dll's settings: coins per credit, free play; its
+// bookkeeping), kept in wl_motobikeio.bin beside the game, or in its write folder when there is
+// one: the game folder's copied there the first time (as a board's EEPROM, wl_files_write_path),
+// never written in place. It was written beside the game even with a write folder: solo, link
+// and a test copy shared it, and a write folder's model could not hold it (racecab2, 25/11)
 #define BOARD_MEMORY 0x10000
 static unsigned char g_memory[BOARD_MEMORY];
-static wchar_t g_memoryFile[MAX_PATH];
+static wchar_t g_memoryFile[MAX_PATH * 2];
 static CRITICAL_SECTION g_memoryLock;
 
 static void memory_load(const wchar_t *dir)
 {
     InitializeCriticalSection(&g_memoryLock);
-    wchar_t path[MAX_PATH], buf[MAX_PATH];
+    wchar_t path[MAX_PATH], buf[MAX_PATH], over[MAX_PATH * 2];
     swprintf(path, MAX_PATH, L"%swl_motobikeio.bin", dir);
-    wcsncpy_s(g_memoryFile, MAX_PATH, wl_files_redirectedW(path, buf, MAX_PATH), _TRUNCATE);
+    const wchar_t *place = wl_files_redirectedW(path, buf, MAX_PATH);
+    wcsncpy_s(g_memoryFile, MAX_PATH * 2, wl_files_write_path(place, over, MAX_PATH * 2), _TRUNCATE);
+    char u[MAX_PATH * 2];
+    wl_log("motobikeio: the board's memory in %s", wl_u8(g_memoryFile, u, sizeof u));
     wl_busy_enter();
     HANDLE f = CreateFileW(g_memoryFile, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
     if (f != INVALID_HANDLE_VALUE)
@@ -343,8 +356,11 @@ static void lock(void)
 // sends in its packets. LINK's PCs and the PC's address of LINK are all it needs (link.cpp)
 // ------------------------------------------------------------------------------
 
+static wchar_t g_dir[MAX_PATH];
+
 static void settings(void)
 {
+    memory_load(g_dir); // here: the write folder is known now (not yet when the game is recognized)
     int n = wl_link_settings(GetModuleHandleW(NULL));
     if (n)
         wl_log("game: Storm Rider linked: cabinet %d of %d; the first to start a race serves it, the others join", wl_link_cabinet(), n);
@@ -363,7 +379,7 @@ int wl_game_wahlap(const wchar_t *exePath, const char **name, const char **title
     wl_log("game: %s (Wahlap PC)", *title);
     wl_game_set_boards("Controls on Wahlap's board (through motobikeio.dll)", "Motor board: none");
     wl_inputs_set_table(g_inputs, IN_COUNT);
-    memory_load(dir);
+    wcsncpy_s(g_dir, MAX_PATH, dir, _TRUNCATE);
     lock();
     wl_hooks_add(g_ioHooks, sizeof g_ioHooks / sizeof g_ioHooks[0]);
     wl_d3d9_multithreaded(); // its loader thread makes textures while the game draws
