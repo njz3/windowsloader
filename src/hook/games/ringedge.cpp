@@ -899,6 +899,7 @@ static const struct
     {"keychip.appboot.region", "4", ""}, // export
     {"keychip.appboot.modeltype", "2", ""},
     {"keychip.appboot.systemflag", "0", ""},
+    {"keychip.appboot.dvdflag", "00", ""}, // Initial D 8 asks it; windowsarcadeloader's pcp.rs answers 00
     {"keychip.appboot.networkaddr", "192.168.1.0", ""},
     {"keychip.billing.keyid", "A72E-01A12345678", ""},
     {"keychip.version", "0104", ""},
@@ -917,6 +918,53 @@ static DWORD g_dsSize;
 #define DS_RECORD 87
 
 static const unsigned char g_dsOrder[20] = {15, 5, 13, 14, 10, 1, 2, 11, 16, 7, 4, 18, 12, 6, 3, 0, 17, 8, 19, 9};
+
+static unsigned char *image_find(unsigned char *from, unsigned char *end, const void *pattern, size_t length);
+static int g_toolmode; // the keychip's toolmode (use_toolmode): no table
+
+// Out of the table, as windowsarcadeloader's pcp.rs answers them (aderumier, GPL v3, rewritten):
+// - amDongle's fixed challenge, the same in every game, in the executable with the MACs of its 4
+//   pages 12 bytes after it. The game checks it as well: answered with made-up bytes, Initial D 8
+//   stopped on "Error 0949 Keychip Not Found" now and then, at its start (racecab2 on 16/11,
+//   racecab1 on 25/11);
+// - the records amDongle keeps in the game's memory (the challenge, then its 4 MACs as they are),
+//   the last one found in the image.
+// 1 and the answer when found
+static const unsigned char g_dsFixed[7] = {0x2C, 0xFE, 0xCB, 0xC7, 0x1C, 0xF1, 0xE4};
+
+static int ds_in_image(const unsigned char *c, int page, char *answer, size_t size)
+{
+    unsigned char *base = (unsigned char *)GetModuleHandleW(NULL);
+    IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+    unsigned char *end = base + nt->OptionalHeader.SizeOfImage;
+    static unsigned char *fixed;
+    static int looked;
+    if (!looked)
+    {
+        looked = 1;
+        fixed = image_find(base, end, g_dsFixed, sizeof g_dsFixed);
+        if (fixed)
+            wl_log("keychip: amDongle's fixed challenge at +0x%x, its MACs after it", (unsigned)(fixed - base));
+    }
+    const unsigned char *mac = NULL;
+    if (fixed && !memcmp(c, g_dsFixed, sizeof g_dsFixed) && fixed + 12 + 80 <= end)
+        mac = fixed + 12 + page * 20;
+    else
+    {
+        unsigned char *last = NULL;
+        for (unsigned char *p = base; (p = image_find(p, end, c, 7)) != NULL; p++)
+            if (p + 7 + 80 <= end)
+                last = p;
+        if (last)
+            mac = last + 7 + page * 20;
+    }
+    if (!mac)
+        return 0;
+    size_t n = 0;
+    for (int k = 0; k < 20 && n + 3 < size; k++)
+        n += snprintf(answer + n, size - n, "%02X", mac[k]);
+    return 1;
+}
 
 static int ds_compute(const char *challenge, int page, char *answer, size_t size)
 {
@@ -957,6 +1005,12 @@ static int ds_compute(const char *challenge, int page, char *answer, size_t size
                 n += snprintf(answer + n, size - n, "%02X", g_dsTable[i + 7 + page * 20 + g_dsOrder[k]]);
             return 1;
         }
+    // In the toolmode (no table), the zeros the games running so want (made_up_answer)
+    if (!g_toolmode && ds_in_image(c, page, answer, size))
+    {
+        wl_log("keychip: challenge %s answered from the game's image", challenge);
+        return 1;
+    }
     return 0;
 }
 
@@ -970,7 +1024,7 @@ static const unsigned char g_ssdOrder[16] = {6, 8, 4, 12, 7, 13, 1, 10, 2, 3, 11
 static int ssd_proof(const char *challenge, char *answer, size_t size)
 {
     unsigned char c[16];
-    if (strlen(challenge) != 32 || !g_dsTable)
+    if (strlen(challenge) != 32)
         return 0;
     for (int i = 0; i < 16; i++)
     {
@@ -979,7 +1033,7 @@ static int ssd_proof(const char *challenge, char *answer, size_t size)
             return 0;
         c[i] = (unsigned char)v;
     }
-    for (DWORD i = SSD_START; i + SSD_RECORD <= g_dsSize; i += SSD_RECORD)
+    for (DWORD i = SSD_START; g_dsTable && i + SSD_RECORD <= g_dsSize; i += SSD_RECORD)
         if (!memcmp(g_dsTable + i, c, 16))
         {
             size_t n = 0;
@@ -987,10 +1041,30 @@ static int ssd_proof(const char *challenge, char *answer, size_t size)
                 n += snprintf(answer + n, size - n, "%02X", g_dsTable[i + 16 + g_ssdOrder[k]]);
             return 1;
         }
+    // Out of the table: amDongle's SSD records kept in the game's memory (the challenge, then its
+    // answer as it is: windowsarcadeloader's pcp.rs), the last one found in the image. Initial D 8
+    // checked those: answered with made-up bytes, it stopped on error 0949 (racecab1, 25/11)
+    if (!g_toolmode)
+    {
+        unsigned char *base = (unsigned char *)GetModuleHandleW(NULL);
+        IMAGE_NT_HEADERS *nt = (IMAGE_NT_HEADERS *)(base + ((IMAGE_DOS_HEADER *)base)->e_lfanew);
+        unsigned char *end = base + nt->OptionalHeader.SizeOfImage, *last = NULL;
+        for (unsigned char *p = base; (p = image_find(p, end, c, 16)) != NULL; p++)
+            if (p + 32 <= end)
+                last = p;
+        if (last)
+        {
+            size_t n = 0;
+            for (int k = 0; k < 16 && n + 3 < size; k++)
+                n += snprintf(answer + n, size - n, "%02X", last[16 + k]);
+            wl_log("keychip: proof %s answered from the game's image", challenge);
+            return 1;
+        }
+    }
     return 0;
 }
 
-static int g_toolmode; // the keychip's toolmode (use_toolmode): no table
+// g_toolmode (above, ds_compute's): the keychip's toolmode (use_toolmode), no table
 
 // An answer to a challenge the table has not: bytes made from it, never all zero (Initial D 8 said
 // "Keychip Not Found", error 0949, once after a random challenge answered with zeros). In the
@@ -1030,7 +1104,7 @@ static int pcp_answer(const char *request, char *response, size_t size)
         wl_pcp_value(request, "page", page, sizeof page);
         if (!ds_compute(value, atoi(page), answer, sizeof answer))
         {
-            wl_log("keychip: challenge %s not in %S (a random one, not checked)", value, g_game->table);
+            wl_log("keychip: challenge %s not in %S nor in the game's image: made-up bytes", value, g_game->table);
             made_up_answer(value, 20, answer, sizeof answer);
         }
         snprintf(response, size, "%s=%s", command, answer);
@@ -1041,7 +1115,7 @@ static int pcp_answer(const char *request, char *response, size_t size)
         char answer[64];
         if (!ssd_proof(value, answer, sizeof answer))
         {
-            wl_log("keychip: proof %s not in %S (a random one, not checked)", value, g_game->table);
+            wl_log("keychip: proof %s not in %S nor in the game's image: made-up bytes", value, g_game->table);
             made_up_answer(value, 16, answer, sizeof answer);
         }
         snprintf(response, size, "%s=%s", command, answer);
