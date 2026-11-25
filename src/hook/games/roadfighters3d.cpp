@@ -1119,6 +1119,31 @@ static HRESULT WINAPI rf_CreateEffect(void *dev, const void *src, UINT len, cons
     return hr;
 }
 
+// e-Amusement's boot check (ea3_get_boot_status, libavs-win32-ea3.dll: 0 while it runs, else done,
+// its code in *code): without Konami's servers it ends on EA3_BOOT_CODE_SERVICES_ERROR (2002), which
+// the game shows at each start as "ERROR MODE 5-2002-0000" (WARNING, "CANNOT CONNECT ROUTER."),
+// waiting for SERVICE: a cabinet without an attendant stood there. That code is read as OK: the
+// boot check passes, e-Amusement stays offline (ea3_get_status not online), the game goes on to its
+// attract in its local mode, as SERVICE made it. Any other code is left as it is
+#define EA3_BOOT_SERVICES_ERROR 2002
+static int(__cdecl *oea3_get_boot_status)(int *, int *);
+static int __cdecl rf_ea3_get_boot_status(int *code, int *sub)
+{
+    int done = oea3_get_boot_status(code, sub);
+    if (done && code && *code == EA3_BOOT_SERVICES_ERROR)
+    {
+        static volatile LONG logged;
+        if (!InterlockedExchange(&logged, 1))
+            wl_log("road fighters 3d: e-Amusement's boot check ended on 5-%04d-%04d (no services: CANNOT CONNECT ROUTER), read as OK: "
+                   "the game starts offline without waiting for SERVICE",
+                   *code, sub ? *sub : 0);
+        *code = 0;
+        if (sub)
+            *sub = 0;
+    }
+    return done;
+}
+
 static bool(__cdecl *odll_entry_init)(char *, void *);
 static bool __cdecl hdll_entry_init(char *code, void *param)
 {
@@ -1143,6 +1168,8 @@ static bool __cdecl hdll_entry_init(char *code, void *param)
             wl_log("road fighters 3d: GetKeyState not imported");
         if (!wl_patch_iat(game, "d3dx9_41.dll", "D3DXCreateEffect", (void *)rf_CreateEffect, (void **)&oCreateEffect))
             wl_log("road fighters 3d: D3DXCreateEffect not imported");
+        if (!wl_patch_iat(game, "libavs-win32-ea3.dll", "ea3_get_boot_status", (void *)rf_ea3_get_boot_status, (void **)&oea3_get_boot_status))
+            wl_log("road fighters 3d: ea3_get_boot_status not imported: the network warning waits for SERVICE");
         view_2d(game);
         link_game(game);
         perf_reset_off(game);

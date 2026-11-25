@@ -2033,7 +2033,10 @@ ligne d'après `prop\`, puis `dll_entry_init` et `dll_entry_main`. Module `roadf
 windowsarcadeloader : cartes ACIO HBHI (boutons, levier, monnayeur) et HGTH (volant, pédales, moteur), lecteur de
 cartes, kbt/kld.
 
-- Lancement ✅ : l'avertissement réseau 5-2002-0000 (pas d'e-Amusement) se passe par SERVICE.
+- Lancement ✅ : sans les serveurs d'e-Amusement, sa vérification de démarrage (ea3_get_boot_status) finit sur
+  EA3_BOOT_CODE_SERVICES_ERROR, que le jeu montrait à chaque démarrage (« ERROR MODE 5-2002-0000 », WARNING,
+  « CANNOT CONNECT ROUTER. ») en attendant SERVICE. Ce code est lu comme OK : le jeu va droit à son attract, hors
+  ligne (25/11, vérifié sur ce PC : partie complète, jgt_link_cab2.dll, link à deux instances).
 - Commandes ✅ : l'accélérateur valide le mode, la voiture et la boîte ; course ✅. Menu de service : ShiftUp/Down
   naviguent, View exécute.
 - Retour de force ✅ : le couple du jeu (0x708..0x8F8) ramené à toute la force, bon sens.
