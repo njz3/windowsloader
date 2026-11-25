@@ -1257,7 +1257,7 @@ msgstr "the IO4 I/O board 837-15257, through amdaemon"
 msgid "la borne Model 2 (lampes)"
 msgstr "the Model 2 cabinet (lamps)"
 
-#: src/hook/games/konami.cpp:258 src/hook/games/roadfighters3d.cpp:1094
+#: src/hook/games/konami.cpp:258 src/hook/games/roadfighters3d.cpp:1207
 msgid "la carte HBHI, ac_io_hbhi_control_lamp_on et _off (libacio.dll)"
 msgstr "the HBHI board, ac_io_hbhi_control_lamp_on and _off (libacio.dll)"
 
@@ -1349,7 +1349,7 @@ msgstr "0 to 3"
 msgid "SetStartLightState, la lampe de Start (UsbPluginsDll_R.dll)"
 msgstr "SetStartLightState, the Start lamp (UsbPluginsDll_R.dll)"
 
-#: src/hook/games/unis.cpp:885
+#: src/hook/games/unis.cpp:893
 msgid "Carte d'E/S"
 msgstr "I/O board"
 
@@ -1418,8 +1418,8 @@ msgid "Carte ACIO de Konami, son volant."
 msgstr "Konami's ACIO board, its wheel."
 
 #: src/launcher/gamelist.cpp:77
-msgid "Programme jgt.dll lancé par wl_avsboot.exe (AVS, e-Amusement hors ligne : SERVICE sur l'avertissement réseau). Cartes ACIO de Konami : HBHI (boutons, levier de vitesses, monnayeur) et HGTH (volant, pédales, moteur du volant), lecteur de cartes. Vue 2D au lancement (option) à confirmer sur borne."
-msgstr "jgt.dll run by wl_avsboot.exe (AVS, e-Amusement offline: SERVICE on the network warning). Konami ACIO boards: HBHI (buttons, gear lever, coin mech) and HGTH (wheel, pedals, wheel motor), card reader. The 2D view at the start (option) to be confirmed on a cabinet."
+msgid "Programme jgt.dll lancé par wl_avsboot.exe (AVS, e-Amusement hors ligne : SERVICE sur l'avertissement réseau). Cartes ACIO de Konami : HBHI (boutons, levier de vitesses, monnayeur) et HGTH (volant, pédales, moteur du volant), lecteur de cartes. Vue 2D au lancement (option)."
+msgstr "jgt.dll run by wl_avsboot.exe (AVS, e-Amusement offline: SERVICE on the network warning). Konami ACIO boards: HBHI (buttons, gear lever, coin mech) and HGTH (wheel, pedals, wheel motor), card reader. The 2D view at the start (option)."
 
 #: src/launcher/gamelist.cpp:82
 msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."

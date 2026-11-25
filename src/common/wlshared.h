@@ -25,6 +25,7 @@
 #define WL_ENV_INI      L"WINDOWSLOADER_INI"      // windowsloader.ini path (absolute), next to the launcher, or -c's file
 #define WL_ENV_SET      L"WINDOWSLOADER_SET"      // --set's SECTION.KEY=VALUE, one per line, over the file's values
 #define WL_ENV_WRITE_DIR L"WINDOWSLOADER_WRITE_DIR" // the write folder's root (absolute): the game writes in <it>\<game>, not in place
+#define WL_ENV_SEED_DIR L"WINDOWSLOADER_SEED_DIR"       // with a usable write folder: <it>\<game> holds the first files of WRITE_DIR\<game>
 #define WL_ENV_WRITE_DENIED L"WINDOWSLOADER_WRITE_DENIED" // "1": that folder cannot be written: nothing is written, anywhere (no log)
 #define WL_ENV_NOSAVE   L"WINDOWSLOADER_NOSAVE"   // then the essential files' working copies: %TEMP%\windowsloader-nosave-<launcher's pid>
 #define WL_ENV_COMPANION_OF L"WINDOWSLOADER_COMPANION_OF" // a companion's only: the program of the game it goes with

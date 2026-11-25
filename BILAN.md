@@ -53,12 +53,12 @@ dans NOTES.md, « Jeux des bornes »).
 | The Fast and the Furious SuperCars (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
 | Nicktoons Nitro Racing (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
 | H2Overdrive (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
-| Dirty Drivin' (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
+| Dirty Drivin' (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
 | Cars (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⚠️ | ✅ |
 | Batman (Raw Thrills PC) | ✅ | ⚠️ | ✅ | ✅ | ✅ | ⏳ | ⏳ | ✅ |
-| Winter X Games SnoCross (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ⚠️ | ⏳ | ⏳ | ✅ |
-| Road Fighters 3D (Konami PC) | ✅ | ✅ | ✅ | ✅ | ⚠️ | ⏳ | ⚠️ | ✅ |
-| Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | — | ✅ | ⏳ | ⏳ | ⚠️ |
+| Winter X Games SnoCross (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
+| Road Fighters 3D (Konami PC) | ✅ | ✅ | ✅ | ✅ | ✅ | ⏳ | ⚠️ | ✅ |
+| Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ⚠️ |
 
 Fonctions :
 
@@ -2006,18 +2006,25 @@ le CRC32 de son `sdaemon.exe` (le même nom partout), chacune de ses adresses v�
 - Super Bikes (2006) et Super Bikes 2 (2010, tables d'entrées du jeu) : course ✅, pas de moteur.
 - SuperCars (2010, SetControl) : course ✅, retour de force ⚠️ (1 315 paquets, sens pas relevé).
 - Nicktoons Nitro Racing (2009) : ses 105 blocs 3DNow! joués en SSE2 (chacun vérifié). Étalonnage du volant au
-  premier lancement (menu de test) puis attract ✅ ; course ⏳.
+  premier lancement (menu de test) puis attract ✅ ; course ✅ (bornes).
 - H2Overdrive (2009) : la carte comme objet du jeu. Étalonnage de la manette des gaz (avant : accélérateur,
-  arrière : frein, Boost valide) gardé à la relance, attract ✅ ; course ⏳.
+  arrière : frein, Boost valide) gardé à la relance, attract ✅ ; course ✅ (bornes).
 - Dirty Drivin' (2011, 1.14) : clavier de développement et monnayeur du jeu ; écran virtuel 1360x768 et arguments
-  `-WinPC -Windowed -r 1360x768` ; attract ✅ (sa recherche de la clé HASP passe seule en 13 s) ; course ⏳.
-- Cars (2012) et Batman (2013) : carte RIO derrière libusb0. Cars : étalonnage, attract ✅, course ⏳. Batman :
+  `-WinPC -Windowed -r 1360x768` ; attract ✅ (sa recherche de la clé HASP passe seule en 13 s) ; course ✅ (bornes).
+- Cars (2012) et Batman (2013) : carte RIO derrière libusb0. Cars : étalonnage, attract ✅, course ✅ (bornes). Batman :
   mission et course ✅, retour de force ✅ (suit le volant), image étirée à sa place ✅ (sa fenêtre d'affichage
   gardée à la taille voulue).
-- Winter X Games SnoCross (2022, 1.58) : sans carte (SetControl), pièges de la protection retirés ; attract ✅ à
-  28 images par seconde ⚠️ ; course ⏳.
-- Reste : les courses de Nicktoons, H2O, Dirty Drivin', Cars et SnoCross ; le test de toutes les commandes dans le
-  menu de test (en cours, Racecab2) ; le menu Tab.
+- Winter X Games SnoCross (2022, 1.58) : sans carte (SetControl), pièges de la protection retirés ; attract à
+  28 images/s sur ce PC ; course ✅ (bornes, 49 images/s en 1920x1080).
+- Sur les bornes (24/11, releases 20261124-1 et -2, lancés par AttractPlus) : les 11 courent ✅, en link à deux ✅
+  (racecab1 et racecab2 ; Batman : YOU / RIVAL croisés et l'étiquette RIVAL sur l'autre Batmobile), et à quatre sur
+  ce PC pour SuperCars ✅. Affichage vérifié en course en 320x240, 512x384, 1024x384, 1280x240, 640x480, 1280x960 et
+  1920x1080 ✅. H2O étalonné dans le menu de test, puis course ✅. Cars : intro vidéo sans blocs verts (20261124-2) ✅.
+  Images par seconde en 1920x1080 (médianes en course, racecab1) : Dirty Drivin' 59, Batman 59, SuperCars 58, F&F
+  56, H2O 56, Drift 53, Super Bikes 53, Nicktoons 53, Super Bikes 2 50, SnoCross 49 ; Cars 60 (racecab2). Super
+  Bikes 2, Drift et SuperCars sont limités par leur propre calcul sur l'i5-4590 (comme sous TeknoParrot).
+- Reste : le test de toutes les commandes dans le menu de test ; le menu Tab ; le sens du retour de force de F&F et
+  SuperCars ; celui de Cars ne vient que quand le joueur conduit.
 
 ## Road Fighters 3D (Konami PC, 2010)
 
@@ -2030,13 +2037,20 @@ cartes, kbt/kld.
 - Commandes ✅ : l'accélérateur valide le mode, la voiture et la boîte ; course ✅. Menu de service : ShiftUp/Down
   naviguent, View exécute.
 - Retour de force ✅ : le couple du jeu (0x708..0x8F8) ramené à toute la force, bon sens.
-- Vue : `[Game.rf3d] VIEW = 2D` par défaut (chaque objet de vue créé en 2D) ⚠️ à confirmer sur borne ; le bouton
+- Vue : `[Game.rf3d] VIEW = 2D` par défaut (chaque objet de vue créé en 2D) ✅ (course en 2D sur racecab1, essai 16) ; le bouton
   2D/3D (View1) bascule en partie.
+- Bornes (24/11) : course et link à deux ✅ (jgt.dll et jgt_link_cab2.dll) ; 60 images/s à toutes les résolutions
+  ✅ (son chronomètre d'image ne compte plus la durée de Present) ; fin de partie sans plantage ✅ ; un rfs.dat au
+  calibrage abîmé (ERROR 5-1550) lu calibré ✅.
 
 ## Crazy Speed Arcade (UNIS PC, 2010)
 
 `release\Client_r.exe` (Ogre), module `unis.cpp` d'après windowsarcadeloader : carte game232 sur COM1, hors ligne,
-chiffrements de la clé. Écran virtuel 1360x768. Attract (OFFLINE), GAME CARD, choix du véhicule ✅ ; course ⏳.
+chiffrements de la clé. Écran virtuel 1360x768. Attract (OFFLINE), GAME CARD, choix du véhicule ✅ ; course ✅ (bornes, 24/11). Link ✅ : IN-STORE
+TOURNAMENT (un seul coup de volant à droite dans GAME MODE), l'hôte choisit le circuit, départ simultané à 15 ms
+près sur racecab1 et racecab2. Retour de force ⚠️ (force constante et vibrations reçues, sens pas relevé sur borne).
+En 1920x1080, 48 à 58 images/s selon la scène : son calcul (Ogre, Direct3D) prend 11 à 14 ms par image sur
+l'i5-4590, windowsloader moins de 2 % (profil du 24/11) ; menus et attract à 60.
 Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrigé.
 
 ## Direct3D 8 (d3d8to9)

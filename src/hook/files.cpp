@@ -567,6 +567,48 @@ static DWORD probe(const wchar_t *folder)
 }
 
 static int make_dirs(const wchar_t *dir);
+
+// The seed folder's files (linuxloader's seedFolder, the same author): from's tree copied into to,
+// each file absent there copied, one already there never replaced. relative: from's place under
+// <seed>\<game>, for the log. The count copied
+static int seed_folder(const wchar_t *from, const wchar_t *to, const wchar_t *relative)
+{
+    wchar_t pattern[MAX_PATH];
+    swprintf(pattern, MAX_PATH, L"%s\\*", from);
+    WIN32_FIND_DATAW e;
+    HANDLE h = FindFirstFileW(pattern, &e);
+    if (h == INVALID_HANDLE_VALUE)
+        return 0;
+    int copied = 0;
+    char u[MAX_PATH * 2];
+    do
+    {
+        if (!wcscmp(e.cFileName, L".") || !wcscmp(e.cFileName, L".."))
+            continue;
+        wchar_t source[MAX_PATH], target[MAX_PATH], name[MAX_PATH];
+        swprintf(source, MAX_PATH, L"%s\\%s", from, e.cFileName);
+        swprintf(target, MAX_PATH, L"%s\\%s", to, e.cFileName);
+        swprintf(name, MAX_PATH, relative[0] ? L"%s\\%s" : L"%s%s", relative, e.cFileName);
+        if (e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            CreateDirectoryW(target, NULL);
+            copied += seed_folder(source, target, name);
+        }
+        else if (GetFileAttributesW(target) == INVALID_FILE_ATTRIBUTES)
+        {
+            if (CopyFileW(source, target, TRUE))
+            {
+                copied++;
+                wl_log("files: %s seeded from the seed folder", wl_u8(name, u, sizeof u));
+            }
+            else
+                wl_log("files: %s could not be seeded from the seed folder (error %lu)", wl_u8(name, u, sizeof u), GetLastError());
+        }
+    } while (FindNextFileW(h, &e));
+    FindClose(h);
+    return copied;
+}
+
 void wl_files_write_dir(void)
 {
     wchar_t root[MAX_PATH];
@@ -618,6 +660,26 @@ void wl_files_write_dir(void)
                    "read in their usual places and not written",
                    wl_u8(g_writeGame, u, sizeof u), there ? "a file cannot be written in it" : "it cannot be made", err);
         }
+    }
+    // The seed folder (the launcher's --seed-dir or [Paths] SEED_DIR, set only with a usable write
+    // folder): <seed>\<game> copied into WRITE_DIR\<game> before the game reads or lists anything, a
+    // file already there never replaced (a cloned cabinet's first start: its free play, calibration,
+    // link ID). Nothing with a write folder that cannot be written (the owner's rule)
+    wchar_t seed[MAX_PATH];
+    if (!g_writeDenied && GetEnvironmentVariableW(WL_ENV_SEED_DIR, seed, MAX_PATH) && seed[0])
+    {
+        wchar_t seedGame[MAX_PATH];
+        swprintf(seedGame, MAX_PATH, L"%s\\%S", seed, name);
+        DWORD a = GetFileAttributesW(seedGame);
+        if (a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            wl_busy_enter(); // windowsloader's own copies, not the game's
+            int n = seed_folder(seedGame, g_writeGame, L"");
+            wl_busy_leave();
+            wl_log("files: seed folder: %d file(s) of %s seeded", n, wl_u8(seedGame, u, sizeof u));
+        }
+        else
+            wl_log("files: seed folder: no %s, nothing to seed", wl_u8(seedGame, u, sizeof u));
     }
     // The system's folders in folders of their own: AppData (the caches of Windows, of the graphics
     // driver, of the libraries, some games' saves) in appdata (Roaming, Local, LocalLow), the

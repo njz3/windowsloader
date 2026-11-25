@@ -86,6 +86,28 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
     return probe(root) ? 1 : -2;
 }
 
+int wl_seed_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *iniPath, wchar_t *root, size_t size)
+{
+    wchar_t v[MAX_PATH] = L"";
+    if (arg && arg[0])
+        wcscpy_s(v, MAX_PATH, arg);
+    else if (iniPath && iniPath[0])
+        GetPrivateProfileStringW(L"Paths", L"SEED_DIR", L"", v, MAX_PATH, iniPath); // the quotes dropped by Windows
+    if (!v[0])
+        return 0;
+    wchar_t joined[MAX_PATH];
+    if ((v[0] && v[1] == L':') || (v[0] == L'\\' && v[1] == L'\\'))
+        wcscpy_s(joined, MAX_PATH, v);
+    else
+        swprintf(joined, MAX_PATH, L"%s\\%s", selfDir, v);
+    if (!GetFullPathNameW(joined, (DWORD)size, root, NULL))
+        return 0;
+    size_t length = wcslen(root);
+    while (length > 3 && (root[length - 1] == L'\\' || root[length - 1] == L'/'))
+        root[--length] = 0;
+    return is_folder(root) ? 1 : -1;
+}
+
 static unsigned char *read_whole(const wchar_t *path, DWORD *length)
 {
     HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);

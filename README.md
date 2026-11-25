@@ -60,19 +60,19 @@ is checked. Another version of a game whose versions are told apart is listed by
 | Wangan Midnight Maximum Tune 6 | — | Namco System ES3X (64 bits), 2018 | `wmn6r.exe` | `C4B9C773` | plays, with reservations | yes | yes |
 | Wangan Midnight Maximum Tune 5 DX+ | — | Namco System ES3X (64 bits), 2016 | `wmn5r.exe` | `32E089BC` | plays, with reservations | yes | yes |
 | Wangan Midnight Maximum Tune 5 | — | Namco System ES3X (64 bits), 2014 | `wmn5r.exe` | `51060B63` | plays, with reservations | yes | yes |
-| Road Fighters 3D | — | Konami PC, 2010 | `jgt.dll` (run in `wl_avsboot.exe`), `jgt_link_cab2.dll` | `68306E6F` (`jgt.dll`), `94023423` (`jgt_link_cab2.dll`) | plays, with reservations | yes | yes |
-| Crazy Speed Arcade | — | UNIS PC, 2010 | `Client_r.exe` | `42B6AC2D` | plays, with reservations | partly | yes |
+| Road Fighters 3D | — | Konami PC, 2010 | `jgt.dll` (run in `wl_avsboot.exe`), `jgt_link_cab2.dll` | `68306E6F` (`jgt.dll`), `94023423` (`jgt_link_cab2.dll`) | plays | yes | yes |
+| Crazy Speed Arcade | — | UNIS PC, 2010 | `Client_r.exe` | `42B6AC2D` | plays | partly | yes |
 | The Fast and the Furious | — | Raw Thrills PC, 2004 | `sdaemon.exe` | `9AEBF60F` | plays | partly | yes |
 | The Fast and the Furious Drift | — | Raw Thrills PC, 2007 | `sdaemon.exe` | `8467C744` | plays | yes | yes |
 | The Fast and the Furious Super Bikes | — | Raw Thrills PC, 2006 | `sdaemon.exe` | `25ED956B` | plays | no | yes |
 | The Fast and the Furious Super Bikes 2 | — | Raw Thrills PC, 2010 | `sdaemon.exe` | `66E8AD40` | plays | no | yes |
 | The Fast and the Furious SuperCars | — | Raw Thrills PC, 2010 | `sdaemon.exe` | `B01B9D7D` | plays | partly | yes |
-| Nicktoons Nitro Racing | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `EC2F7B39` | plays, with reservations | partly | yes |
-| H2Overdrive | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `30E58AB0` | plays, with reservations | partly | yes |
-| Dirty Drivin' | 1.14 | Raw Thrills PC, 2011 | `sdaemon.exe` (`-WinPC -Windowed -r 1360x768`) | `A933D4E5` | plays, with reservations | partly | yes |
-| Cars | — | Raw Thrills PC, 2012 | `sdaemon.exe` | `E0444E25` | plays, with reservations | partly | yes |
-| Batman | — | Raw Thrills PC, 2013 | `sdaemon.exe` | `0F66E24E` | plays | yes | partly |
-| Winter X Games SnoCross | 1.58 | Raw Thrills PC, 2022 | `sdaemon.exe` | `873E033B` | plays, with reservations | partly | yes |
+| Nicktoons Nitro Racing | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `EC2F7B39` | plays | partly | yes |
+| H2Overdrive | — | Raw Thrills PC, 2009 | `sdaemon.exe` | `30E58AB0` | plays | partly | yes |
+| Dirty Drivin' | 1.14 | Raw Thrills PC, 2011 | `sdaemon.exe` (`-WinPC -Windowed -r 1360x768`) | `A933D4E5` | plays | partly | yes |
+| Cars | — | Raw Thrills PC, 2012 | `sdaemon.exe` | `E0444E25` | plays | partly | yes |
+| Batman | — | Raw Thrills PC, 2013 | `sdaemon.exe` | `0F66E24E` | plays | yes | yes |
+| Winter X Games SnoCross | 1.58 | Raw Thrills PC, 2022 | `sdaemon.exe` | `873E033B` | plays | partly | yes |
 
 On a PC with two GPUs (a laptop), a Direct3D 11 game asking for the default adapter gets the one
 with the most video memory (`WINDOWSLOADER_GPU=default` keeps Windows' choice): a 32-bit game runs
@@ -135,6 +135,9 @@ windowsloader               (alone: the game picker)
                            --set Display.ASPECT_RATIO=4:3_CROP
   --write-dir <folder>     everything written goes there, the launcher's and the game's folders
                            only read (default: [Paths] WRITE_DIR of the settings file)
+  --seed-dir <folder>      with a write folder: <folder>\<short name> holds the files
+                           WRITE_DIR\<short name> starts with, each copied when absent, never over a
+                           file already there (default: [Paths] SEED_DIR of the settings file)
   --list-games     the games windowsloader knows, one line per program it takes: the game, its
                    short name, its version, its force feedback and its link between cabinets
                    (yes, partly, no), the program, the program's CRC32 in the cabinets' copies
@@ -324,9 +327,9 @@ presses Start within its countdown (about 15 s) to join.
 The Raw Thrills games (`[Game.<name>]`, up to 8 cabinets), Road Fighters 3D (`[Game.rf3d]`) and
 Crazy Speed Arcade (`[Game.crazyspeed]`, its LAN mode) link the same way, `LINK` and `CABINET` on
 each cabinet. The Fast and the Furious, its Drift, Super Bikes and Nicktoons take their machine ID
-and their networking (DIP switches 1-3 and 8 of their board) from `CABINET`; the other Raw Thrills
-games take theirs from their test menu (SuperCars and Super Bikes 2: "Enable networking and set
-network ID here"), to be set to `CABINET`. A Raw Thrills game reboots its cabinet when those
+and their networking (DIP switches 1-3 and 8 of their board) from `CABINET`; SuperCars, Super
+Bikes 2 and SnoCross keep theirs in their `prefs` (their test menu's "Enable networking and set
+network ID here"), read as `CABINET` when linked, the file left as it is. A Raw Thrills game reboots its cabinet when those
 settings change: it ends, and the launcher starts it again. H2Overdrive's player number and
 Cars' network ID come from `CABINET` too. Road Fighters 3D's CABINET ID (its NETWORK OPTIONS) is
 `CABINET`, over its test menu's; `jgt.dll` serves each cabinet; its in-store battle (店内対戦) is
@@ -597,6 +600,17 @@ only in its first place stays there. A game's companion (Initial D 7 and 8's `pi
 `amdaemon.exe`, which the launcher starts beside it) writes in its game's `WRITE_DIR\<game>`, so the
 files they share stay shared. The picker reads and writes the write folder's `windowsloader.ini`. Without a write folder (`WRITE_DIR` empty), everything is written in its usual
 place.
+The seed folder (`--seed-dir`, or `[Paths] SEED_DIR` of the same settings file as `WRITE_DIR`, the
+`windowsloader.ini` beside the launcher unless `-c` names another; relative to the launcher's folder
+or a full path; linuxloader's key and rule) holds, in `SEED_DIR\<game>`, the files a game's write
+folder starts with, in the write folder's own tree (`C\Racecab\Games\X\...`, `appdata\...`,
+`programdata\...`). At the game's start, before it reads anything, each of them absent from
+`WRITE_DIR\<game>` is copied there; a file already there is never replaced. The log says how many
+were seeded, or that `SEED_DIR\<game>` is not there. It is only used with a write folder that can
+be written. For a cabinet's own copy of a file the test menu writes beside the game (Sega Racing
+Classic's MAIN or SUB, Sonic's and GTI Club's CABINET ID, Mario Kart DX's PCB-ID), in a game folder
+shared by solo and by every cabinet: a launcher folder for the link whose `windowsloader.ini` has
+`SEED_DIR = saves` and `saves\<game>` the cabinet's files.
 Mario Kart DX 1.05's program is limited to 2 GB, too little for its title's textures here (a black
 screen after the attract, the item button not read). The limit comes from the program's header, when
 the process is made: the launcher starts a copy with only that flag changed, in

@@ -29,6 +29,11 @@
 // cannot be written there (root says which; wl_write_dir_error the error)
 int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *iniPath, wchar_t *root, size_t size);
 unsigned long wl_write_dir_error(void);
+// The seed folder, linuxloader's SEED_DIR (--seed-dir, else [Paths] SEED_DIR of the settings file,
+// relative to the launcher's folder selfDir): <it>\<game> holds the files WRITE_DIR\<game> starts
+// with, copied there by the DLL when absent, never over a file already there (src/hook/files.cpp).
+// 1 and root, 0 when there is none, -1 when that folder is not there (root says which)
+int wl_seed_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *iniPath, wchar_t *root, size_t size);
 // A settings file at the root: copied there from *path the first time; path becomes the root's.
 // 1 when the copy kept is older than *path's file: the changes made there since are not read
 // (linuxloader warns the same way); 0 otherwise; -1 when the copy fails (path left as it was)

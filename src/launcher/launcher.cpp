@@ -119,6 +119,10 @@ static void usage(void)
         "                   (repeatable)\n"
         "  --write-dir <folder>  everything written goes there, the launcher's and the game's folders only\n"
         "                   read (default: [Paths] WRITE_DIR of the settings file, none when empty)\n"
+        "  --seed-dir <folder>  with a write folder: <folder>\\<short name> holds the files WRITE_DIR\\<short name>\n"
+        "                   starts with (settings, calibration, free play), each copied there when absent, a\n"
+        "                   file already there never replaced; relative to the launcher's folder (default:\n"
+        "                   [Paths] SEED_DIR of the settings file)\n"
         "  --list-games     the games windowsloader knows, one line per program: the game, its short name,\n"
         "                   its version, its force feedback and link between cabinets (yes, partly, no),\n"
         "                   the program, the program's CRC32 in the cabinets' copies (for\n"
@@ -940,6 +944,7 @@ int wmain(int argc, wchar_t **argv)
     const wchar_t *logArg = L"windowsloader.log";
     int logGiven = 0;
     const wchar_t *writeArg = NULL;
+    const wchar_t *seedArg = NULL;
     int windowed = 1;
     int timeoutSec = 0;
     int ioLimit = 500;
@@ -972,6 +977,8 @@ int wmain(int argc, wchar_t **argv)
         }
         else if (!wcscmp(a, L"--write-dir") && hasValue)
             writeArg = argv[++i];
+        else if (!wcscmp(a, L"--seed-dir") && hasValue)
+            seedArg = argv[++i];
         else if (!wcscmp(a, L"--fullscreen"))
             windowed = 0;
         else if (!wcscmp(a, L"--timeout") && hasValue)
@@ -1096,6 +1103,10 @@ int wmain(int argc, wchar_t **argv)
     // log at its root, the game's writes in WRITE_DIR\<game> (the DLL's)
     wchar_t writeDir[MAX_PATH] = L"";
     int write = wl_write_dir_root(selfDir, writeArg, iniPath, writeDir, MAX_PATH);
+    // The seed folder (--seed-dir, else [Paths] SEED_DIR of the same settings file as WRITE_DIR's,
+    // writedir.h): only with a write folder that can be used; the DLL copies from it
+    wchar_t seedDir[MAX_PATH] = L"";
+    int seed = wl_seed_dir_root(selfDir, seedArg, iniPath, seedDir, MAX_PATH);
     // A file of the launcher's folder changed after its copy was made (a hand edit on a cabinet):
     // the copy is still the one read; said here, in the game's log and in its menu (the DLL's)
     static wchar_t older[4 * MAX_PATH + 8];
@@ -1143,7 +1154,13 @@ int wmain(int argc, wchar_t **argv)
     if (logOff)
         logPath[0] = 0;
     SetEnvironmentVariableW(WL_ENV_OLDER, older[0] ? older : NULL);
+    if (seed && write <= 0)
+        say("windowsloader: the seed folder %s is not used: %s\n", u8(seedDir),
+            write ? "the write folder cannot be used, nothing is written" : "only with a write folder (--write-dir or [Paths] WRITE_DIR)");
+    else if (seed < 0)
+        say("windowsloader: the seed folder %s is not found: nothing is seeded\n", u8(seedDir));
     SetEnvironmentVariableW(WL_ENV_WRITE_DIR, write ? writeDir : NULL);
+    SetEnvironmentVariableW(WL_ENV_SEED_DIR, seed > 0 && write > 0 ? seedDir : NULL);
     SetEnvironmentVariableW(WL_ENV_WRITE_DENIED, write < 0 ? L"1" : NULL);
     // Its essential files' working copies (the DLL's files.cpp): one folder for the game and its
     // companions, named after this launcher, removed at the end
