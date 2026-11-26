@@ -84,13 +84,13 @@ const WlKnownGame g_wlKnownGames[] = {
           "Écrit sans copie du jeu, jamais essayé."),
      WL_FEATURE_PARTLY, WL_FEATURE_NO},
     // Global VR's NASCAR, the race alone (its frontend, the Anark player, not played): the disc's 2.0.2
-    // (build 068), told by its time stamp; any other NASCAR_GVR.exe taken as NASCAR Racing 1.1
+    // (build 068) and NASCAR Racing's 1.1 (disc 050-0136-01), told by their time stamps
     {"NASCAR Team Racing", "nascar", "2.0.2", {L"NASCAR_GVR.exe"}, {0xBEBCEA21}, {NULL}, 0x4C7EC23F, NULL, "Global VR", "2009", WL_GAME_WORK,
      WL_N("La course seule, sans le menu de la borne : son circuit et sa voiture dans les options. GvrIO.dll de Global VR (volant, "
           "pédales, levier à 4 positions, boutons, retour de force), sa clé HASP répondue."),
      WL_FEATURE_PARTLY, WL_FEATURE_NO},
-    {"NASCAR Racing", "nascar", "1.1", {L"NASCAR_GVR.exe"}, {0}, {NULL}, 0, NULL, "Global VR", "2007", WL_GAME_WORK,
-     WL_N("La course seule, comme NASCAR Team Racing ; écrit sans copie du jeu, jamais essayé."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
+    {"NASCAR Racing", "nascar", "1.1", {L"NASCAR_GVR.exe"}, {0x999502FC}, {NULL}, 0x470BC579, NULL, "Global VR", "2007", WL_GAME_WORK,
+     WL_N("La course seule, comme NASCAR Team Racing."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Wasteland Racers 2071", "wasteland", "1.6", {L"Arcade.exe"}, {0xA6CD1034}, {L"SDC2.dll", L"Inputs.xml"}, 0, NULL, "Trio Tech PC", "2006", WL_GAME_PLAYS,
      WL_N("Carte SDC2 de Trio Tech : commandes et volant en servo de position."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0x5FB222AA, NULL, "Namco System ES3", "", WL_GAME_PLAYS,

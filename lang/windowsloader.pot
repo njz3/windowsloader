@@ -1489,7 +1489,7 @@ msgid "La course seule, sans le menu de la borne : son circuit et sa voiture dan
 msgstr ""
 
 #: src/launcher/gamelist.cpp:93
-msgid "La course seule, comme NASCAR Team Racing ; écrit sans copie du jeu, jamais essayé."
+msgid "La course seule, comme NASCAR Team Racing."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:95

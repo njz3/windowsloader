@@ -1490,8 +1490,8 @@ msgid "La course seule, sans le menu de la borne : son circuit et sa voiture dan
 msgstr "The race alone, without the cabinet's menu: its track and car in the options. Global VR's GvrIO.dll (wheel, pedals, 4-position shifter, buttons, force feedback), its HASP dongle answered."
 
 #: src/launcher/gamelist.cpp:93
-msgid "La course seule, comme NASCAR Team Racing ; écrit sans copie du jeu, jamais essayé."
-msgstr "The race alone, as NASCAR Team Racing; written without a copy of the game, never tried."
+msgid "La course seule, comme NASCAR Team Racing."
+msgstr "The race alone, as NASCAR Team Racing."
 
 #: src/launcher/gamelist.cpp:95
 msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."

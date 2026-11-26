@@ -64,7 +64,7 @@ is checked. Another version of a game whose versions are told apart is listed by
 | Crazy Speed Arcade | — | UNIS PC, 2010 | `Client_r.exe` | `42B6AC2D` | plays | partly | yes |
 | Thrill Drive 4: Crazy Streets | — | Konami PC, 2007 | `td4.exe` | — | in progress | partly | no |
 | NASCAR Team Racing | 2.0.2 | Global VR, 2009 | `NASCAR_GVR.exe` | `BEBCEA21` | in progress | partly | no |
-| NASCAR Racing | 1.1 | Global VR, 2007 | `NASCAR_GVR.exe` | — | in progress | partly | no |
+| NASCAR Racing | 1.1 | Global VR, 2007 | `NASCAR_GVR.exe` | `999502FC` | in progress | partly | no |
 | The Fast and the Furious | — | Raw Thrills PC, 2004 | `sdaemon.exe` | `9AEBF60F` | plays | partly | yes |
 | The Fast and the Furious Drift | — | Raw Thrills PC, 2007 | `sdaemon.exe` | `8467C744` | plays | yes | yes |
 | The Fast and the Furious Super Bikes | — | Raw Thrills PC, 2006 | `sdaemon.exe` | `25ED956B` | plays | no | yes |

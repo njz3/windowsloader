@@ -61,7 +61,7 @@ dans NOTES.md, « Jeux des bornes »).
 | Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ⚠️ |
 | Thrill Drive 4 (Konami PC) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
 | NASCAR Team Racing 2.0.2 (Global VR, la course seule) | ✅ | ⏳ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
-| NASCAR Racing 1.1 (Global VR, la course seule) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | — | — |
+| NASCAR Racing 1.1 (Global VR, la course seule) | ✅ | ⏳ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
 
 Fonctions :
 
@@ -2106,8 +2106,11 @@ base SQL, les moniteurs de pièces Hercules) : **pas joué ici**. La course est 
   retour de force : le ressort au centre que donne la course (0x1D, force 0..100, centre -90..90) et les deux sinus
   en vibration. Messages non traités, notés au journal : 0x0C, 0x43 à 0x45, 0x47, 0x48, 0x51, 0x56.
 - Clé HASP liée au programme : son lecteur (+0x275B10) répond une clé NASCAR 2.0 ; modes d'affichage jusqu'à 16384
-  pixels (+0x1079B6). NASCAR Racing 1.1 : ses adresses (+0x272460, +0x107C60), écrites sans copie, posées seulement si
-  son code a les instructions de la 2.0.2.
+  pixels (+0x1079B6). NASCAR Racing 1.1 : ses adresses (+0x272460, +0x107C60), posées seulement si son code a les
+  instructions de la 2.0.2 ; vérifiées sur son disque `games\Nascar_1.1_Game_050-0136-01.iso` (dépaqueté dans
+  `games\nascar-racing`, 4 753 fichiers et 168 liés, MD5 conformes ; NASCAR_GVR.exe CRC-32 999502FC, horodatage
+  470BC579, pas de gvrNetComm.dll). Essai : course de Daytona chargée, plus de 60 s sans exception ; ses images/s
+  ne sont pas limitées (60 à 433).
 - `HKLM\SOFTWARE\GlobalVR\NASCAR` inventée (Registry\NASCAR.reg du disque ; FullScreenWidth et Height à la taille de
   l'écran) ; TsuMotion.dll (le siège mobile) refusée ; `C:\gvrtime.txt` écrit à côté de la course ; gvrNetComm.dll de
   la copie gardée (pas de link). Le lanceur ajoute `..\Shell\bin` et `..\..\WINDOWS\system32` au PATH de la course.

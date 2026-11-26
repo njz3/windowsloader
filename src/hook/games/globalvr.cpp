@@ -42,7 +42,8 @@
 //   display modes kept up to 16384 pixels wide (the engine dropped every mode over 1600).
 //   windowsarcadeloader's patches; here made only where the bytes are the ones found in 2.0.2's
 //   program (the disc's NASCAR_GVR.exe, CRC-32 BEBCEA21). NASCAR Racing 1.1's are at its own
-//   addresses, written without a copy of it: made only where its code has 2.0.2's instructions.
+//   addresses (its disc 050-0136-01's NASCAR_GVR.exe, CRC-32 999502FC): made only where its code
+//   has 2.0.2's instructions. 1.1 has no gvrNetComm.dll.
 // - gvrNetComm.dll (the link between cabinets, the cabinet's C:\WINDOWS\system32): the copy's,
 //   left as it is: no cabinet linked when the race is not started for a link.
 // - HKLM\SOFTWARE\GlobalVR\NASCAR (the race's full screen size, FullScreenWidth and Height, and
