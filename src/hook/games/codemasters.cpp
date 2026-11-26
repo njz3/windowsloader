@@ -88,7 +88,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Replay", "Replay", WL_INPUT_SWITCH, 0, 1, 0},
     {"Pause", "Pause", WL_INPUT_SWITCH, 0, 1, 0},
     {"LookBack", "LookBack", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Boost", "Boost", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Boost", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
     {"MusicUp", "MusicUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"MusicDown", "MusicDown", WL_INPUT_SWITCH, 0, 1, 0},
 };

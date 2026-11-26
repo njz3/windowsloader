@@ -84,9 +84,9 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
     {"Boost", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
     {"View1", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
-    {"View2", "P1_Right", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Up", "P1_Up", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Down", "P1_Down", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View2", "SelectRight", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Up", "SelectUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Down", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 // Each button: 1 in the control panel's byte, 0 in GetIoKeyData's; its bit there (the game's own

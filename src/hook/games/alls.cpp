@@ -293,10 +293,10 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Right", "SelectRight", WL_INPUT_SWITCH, 0, 1, 0},
     {"PaddleLeft", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
     {"PaddleRight", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Blue", "P1_Blue", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Green", "P1_Green", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Red", "P1_Red", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Yellow", "P1_Yellow", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Blue", "View2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Green", "View4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Red", "View1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Yellow", "View3", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 static const struct

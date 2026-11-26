@@ -372,8 +372,18 @@ static const struct
     {"Gear6", WL_N("6e")},
     {"PedalLeft", WL_N("Pédale gauche")},
     {"PedalRight", WL_N("Pédale droite")},
-    {"Boost", WL_N("Boost")},
-    {"MusicChange", WL_N("Changer de musique")},
+    {"ShiftLeft", WL_N("Levier à gauche")},
+    {"ShiftRight", WL_N("Levier à droite")},
+    {"Pause", WL_N("Pause")},
+    {"ResetCar", WL_N("Replacer la voiture")},
+    {"Replay", WL_N("Revoir l'action")},
+    {"LookBack", WL_N("Regarder derrière")},
+    {"MusicUp", WL_N("Musique suivante")},
+    {"MusicDown", WL_N("Musique précédente")},
+    {"VolumeUp", WL_N("Volume +")},
+    {"VolumeDown", WL_N("Volume −")},
+    {"SeatStop", WL_N("Arrêt du siège mobile")},
+    {"Wiper", WL_N("Essuie-glace")},
 };
 
 static const char *action_label(const char *name)

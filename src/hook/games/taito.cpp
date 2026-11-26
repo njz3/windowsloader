@@ -85,7 +85,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
     {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Lever", "Item", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Lever", "Action", WL_INPUT_SWITCH, 0, 1, 0},
     {"EntryKey", "EntryKey", WL_INPUT_SWITCH, 0, 1, 0},
 };
 

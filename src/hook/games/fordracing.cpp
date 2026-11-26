@@ -80,7 +80,7 @@ static const struct
     {2, "Start", "P1_Start"},
     {3, "ViewChange", "ViewChange"},
     {4, "Test", "Test"},
-    {5, "Service", "Service"},
+    {5, "Service", "P1_Service"},
 };
 static char g_bitNames[16][8];
 

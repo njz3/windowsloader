@@ -588,14 +588,14 @@ enum
 
 static WlInput g_lgsInputs[LGS_COUNT] = {
     COMMON_INPUTS,
-    {"Course1", "Course1", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Course2", "Course2", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Course3", "Course3", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Course4", "Course4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course1", "View1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course2", "View2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course3", "View3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Course4", "View4", WL_INPUT_SWITCH, 0, 1, 0},
     {"ViewChange", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
     {"Wiper", "Wiper", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Horn", "Horn", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Firework", "Firework", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Horn", "Overtake", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Firework", "Action", WL_INPUT_SWITCH, 0, 1, 0},
     {"LeverUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"LeverDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
 };
@@ -625,7 +625,7 @@ enum
 
 static WlInput g_ssrInputs[SSR_COUNT] = {
     COMMON_INPUTS,
-    {"Item", "Item", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Item", "Action", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 static const int g_ssrSwitches[][2] = {{IN_START, 15}, {IN_SERVICE, 14}, {SSR_ITEM, 8}};

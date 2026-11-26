@@ -72,7 +72,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"MenuDown", "SelectDown", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
     {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
-    {"SeatPause", "SeatPause", WL_INPUT_SWITCH, 0, 1, 0},
+    {"SeatPause", "SeatStop", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 static volatile LONG g_coins; // coins the game has not taken yet

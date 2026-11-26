@@ -68,7 +68,7 @@ static WlInput g_inputs[IN_COUNT] = {
     {"Gear", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
     {"Coin", "P1_Coin", WL_INPUT_SWITCH, 0, 1, 0},
     {"Test", "Test", WL_INPUT_SWITCH, 0, 1, 0},
-    {"Stop", "Stop", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Stop", "SeatStop", WL_INPUT_SWITCH, 0, 1, 0},
 };
 
 // Button0 BOOST, 1 CAMERA, 2..5 CHEAT1..4, 7 GEAR, 8 COIN, 11 MAINTENANCE, 12 STOP
