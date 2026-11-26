@@ -35,6 +35,11 @@
 
 // A game's exit code when it reboots its cabinet (wl_system_reboot_restarts): the launcher starts it again
 #define WL_EXIT_REBOOT 0x57525354u
+// A RingEdge game handing over to its test mode (mxmaster.foreground.next=3, the cabinet's
+// gametest.bat: the same program with -t) or back to the game (another program number): the
+// launcher starts it again with or without -t
+#define WL_EXIT_TEST_MODE 0x57525355u
+#define WL_EXIT_GAME_MODE 0x57525356u
 
 #define WL_AGENT_PIPE   L"\\\\.\\pipe\\windowsloader-%lu" // with the game's process id
 

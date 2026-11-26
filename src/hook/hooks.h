@@ -142,6 +142,9 @@ void wl_system_refuse_dll(const char *name);
 // The game's reboot of its cabinet (ExitWindowsEx with EWX_REBOOT, after a change of its settings):
 // the game ends with WL_EXIT_REBOOT, the launcher starts it again (Raw Thrills); otherwise refused
 void wl_system_reboot_restarts(void);
+// The game's own exit (ExitProcess) ends with this code instead of its own (0: its own): a
+// RingEdge game handing over to another program of the cabinet's (WL_EXIT_TEST_MODE, _GAME_MODE)
+void wl_system_exit_code(unsigned code);
 
 // A DLL windowsloader plays itself, by its file name (an ALLS's display driver, "$amvideo" in
 // amdaemon's registry): LoadLibrary gives a handle of ours, GetProcAddress these functions, by

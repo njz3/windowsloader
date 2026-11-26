@@ -44,6 +44,7 @@
 #include "outputs.h"
 #include "pcp.h"
 #include "vdev.h"
+#include "wlshared.h"
 
 // What differs from one game to the other
 struct RingGame
@@ -1098,6 +1099,18 @@ static int pcp_answer(const char *request, char *response, size_t size)
     command[n] = 0;
     char value[256];
     wl_pcp_value(request, command, value, sizeof value);
+    // The program the cabinet runs next, the game then ending itself: Initial D 7 sends
+    // "mxmaster.foreground.next=3" both when Test is held in the game and at its test mode's EXIT,
+    // then ExitProcess. The cabinet's gametest.bat runs the same program with -t: when the game has
+    // no test program of its own, it ends with WL_EXIT_TEST_MODE (from the game) or
+    // WL_EXIT_GAME_MODE (from its test mode, -t) and the launcher starts it again with or without
+    // -t. It closed before, its test menu out of reach (free play, the card stocker's cleaning)
+    if (!strcmp(command, "mxmaster.foreground.next") && value[0] >= '0' && value[0] <= '9' && !g_game->testMode)
+    {
+        int inTest = wcsstr(GetCommandLineW(), L" -t") != NULL;
+        wl_system_exit_code(inTest ? WL_EXIT_GAME_MODE : WL_EXIT_TEST_MODE);
+        wl_log("pcp: the cabinet's next program (%s): %s when this one ends", value, inTest ? "the game, started again without -t" : "the test mode, started again with -t");
+    }
     if (!strcmp(command, "keychip.ds.compute"))
     {
         char answer[64], page[8];

@@ -523,10 +523,16 @@ static BOOL WINAPI hShellExecuteExW(SHELLEXECUTEINFOW *info)
 // Shutdown, restart, sleep: never from a game running on someone's PC. A game that reboots its
 // cabinet to take its new settings (wl_system_reboot_restarts) ends, and the launcher starts it again
 static int g_rebootRestarts;
+static volatile LONG g_exitCode;
 
 void wl_system_reboot_restarts(void)
 {
     g_rebootRestarts = 1;
+}
+
+void wl_system_exit_code(unsigned code)
+{
+    InterlockedExchange(&g_exitCode, (LONG)code);
 }
 
 static BOOL(WINAPI *oExitWindowsEx)(UINT, DWORD);
@@ -2133,6 +2139,11 @@ static void WINAPI hExitProcess(UINT code)
 {
     char where[128];
     wl_log("ExitProcess(%u) [%s]", code, where_of(WL_CALLER, where, sizeof where));
+    if (g_exitCode && (code == 0 || code == 1))
+    {
+        wl_log("  its exit code given as 0x%08lx: the launcher starts the program the game handed over to", (unsigned long)g_exitCode);
+        code = (UINT)g_exitCode;
+    }
     wl_controls_ffb_stop(); // the wheel's effects stopped, while the controls thread still runs
     wl_outputs_stop();      // no torque left, then "mame_stop" to BackForceFeeder, while the server's thread still runs
     oExitProcess(code);

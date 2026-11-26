@@ -1228,6 +1228,8 @@ int wmain(int argc, wchar_t **argv)
         }
     }
 
+    int reboots = 0;
+handover: // a RingEdge game handing over to its test mode or back (WL_EXIT_TEST_MODE, _GAME_MODE): its companions too
     // The companions first (companion_of): their own logs, neither controllers nor agent (the game's)
     PROCESS_INFORMATION cpi[COMPANIONS] = {};
     wchar_t compExe[MAX_PATH], compDir[MAX_PATH], compLog[MAX_PATH];
@@ -1296,7 +1298,6 @@ int wmain(int argc, wchar_t **argv)
         SetEnvironmentVariableW(WL_ENV_COMPANION_OF, NULL);
     }
 
-    int reboots = 0;
 again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
     // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the
     // agent's protocol, and a console game reading its input would wait for a key on a console
@@ -1438,6 +1439,20 @@ again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
     {
         say("windowsloader: game stopped after %d s (--timeout).\n", timeoutSec);
         code = 0; // the expected end of a timed test
+    }
+    else if ((code == WL_EXIT_TEST_MODE || code == WL_EXIT_GAME_MODE) && !agent && ++reboots <= 50)
+    {
+        // A RingEdge game handing over to its test mode (-t, the cabinet's gametest.bat) or back
+        // to the game: the same program started again with or without -t
+        size_t n = wcslen(cmd);
+        int hasT = n >= 3 && !wcscmp(cmd + n - 3, L" -t");
+        if (code == WL_EXIT_TEST_MODE && !hasT)
+            append_arg(cmd, CMDLINE_MAX, L"-t");
+        else if (code == WL_EXIT_GAME_MODE && hasT)
+            cmd[n - 3] = 0;
+        say("windowsloader: the game hands over to %s: started again%s.\n", code == WL_EXIT_TEST_MODE ? "its test mode" : "the game",
+            code == WL_EXIT_TEST_MODE ? " with -t" : " without -t");
+        goto handover;
     }
     else if (code == WL_EXIT_REBOOT)
     {
