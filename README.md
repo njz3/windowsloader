@@ -264,6 +264,38 @@ glasses); the 2D/3D button (action `View1`) changes it during the game. Dirty Dr
 on a lower one, and started with `-WinPC -Windowed -r 1360x768` by the picker, as windowsarcadeloader
 does.
 
+**Setting up a link between cabinets.** Every game whose Link column says yes or partly (the table
+above) links the same way:
+
+1. The cabinets' PCs are on the same local network, each at a fixed address.
+2. On each PC, `windowsloader.ini` gets the game's section, `[Game.<short name>]` (the short name:
+   `--list-games`, second column), with **the same** `LINK` line on every cabinet: the PCs' addresses,
+   separated by commas, cabinet 1 first (the one that hosts or leads the race in most games). Leave
+   `CABINET = 0`: each PC finds its own number from its address in `LINK`. Or set it by hand, a
+   different number on each cabinet (the game's options page, in the picker or the Tab menu: "Numéro
+   de la borne (link)"). `LINK` is set in the file only. When the game has its own `<short
+   name>.ini` next to `windowsloader.ini`, the section goes in that file.
+3. Windows' firewall lets the game's program in on each PC (UDP and TCP). The games that link
+   through DirectPlay (below) also need Windows' DirectPlay feature on.
+4. Nothing else to set in the game: windowsloader gives it the cabinet's number and the others'
+   addresses from `LINK`. The few games whose test menu still needs a setting are named below
+   (Mario Kart DX's PCB-ID, GTI Club's CABINET ID, Sonic's and Sega Racing Classic's GAME
+   ASSIGNMENTS).
+5. Start the game on every cabinet. How a linked race starts depends on the game (below): in most of
+   them, one cabinet starts and the others join with Start.
+
+```ini
+[Game.grid]
+LINK = 192.168.1.21,192.168.1.22
+CABINET = 0
+```
+
+Without `LINK`, the cabinet plays alone. When none of `LINK`'s addresses is the PC's own (and
+`CABINET` is 0), or `CABINET` is beyond `LINK`'s count, it plays alone too and the log says why. The
+log (`link:` lines) gives the cabinet's number and traces the traffic with the other PCs: it is the
+first place to look when the cabinets do not find each other, which is most often the firewall, or a
+`LINK` line that differs between the PCs.
+
 Mario Kart Arcade GP DX (`[Game.mkdx]`, 1.18 and 1.10), cabinets linked over the PC's network:
 `LINK = 192.168.1.21,192.168.1.22` lists the cabinets' PCs (up to 4, cabinet 1 first), the same
 line on each; `CABINET = 0` finds each cabinet's number from its PC's address in that list (or
