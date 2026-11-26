@@ -639,6 +639,51 @@ static const struct
     {L"InitialD8_GLW_RE_SBZZ_redumped4k_.exe", 0, L"picodaemon.exe", L"", 1000},
 };
 
+// Folders a game's DLLs are in on its cabinet, found there through the PATH or the system folder:
+// the same folders of the copy (from the game's folder) added to its PATH. Global VR's NASCAR race,
+// C:\NASCAR\Game\NASCAR_GVR.exe: GvrIO.dll in C:\NASCAR\Shell\bin (the cabinet's PATH), gvrNetComm.dll
+// and the 7.1 C runtime in C:\WINDOWS\system32 (the disc's layout, NASCAR\ and WINDOWS\ side by side)
+static const struct
+{
+    const wchar_t *game; // the game's file name
+    const wchar_t *dirs; // from the game's folder, ';' between them
+} g_gameDllPaths[] = {
+    {L"NASCAR_GVR.exe", L"..\\Shell\\bin;..\\..\\WINDOWS\\system32"},
+};
+
+static void game_dll_path(const wchar_t *gamePath, const wchar_t *gameDir)
+{
+    const wchar_t *base = wcsrchr(gamePath, L'\\');
+    base = base ? base + 1 : gamePath;
+    for (int i = 0; i < (int)(sizeof g_gameDllPaths / sizeof g_gameDllPaths[0]); i++)
+    {
+        if (_wcsicmp(base, g_gameDllPaths[i].game))
+            continue;
+        static wchar_t path[32768];
+        DWORD n = GetEnvironmentVariableW(L"PATH", path, 32768);
+        if (n >= 32768)
+            n = 0;
+        path[n] = 0;
+        for (const wchar_t *d = g_gameDllPaths[i].dirs; *d;)
+        {
+            const wchar_t *end = wcschr(d, L';');
+            size_t len = end ? (size_t)(end - d) : wcslen(d);
+            wchar_t rel[MAX_PATH], full[MAX_PATH];
+            swprintf(rel, MAX_PATH, L"%s\\%.*s", gameDir, (int)len, d);
+            if (GetFullPathNameW(rel, MAX_PATH, full, NULL) && GetFileAttributesW(full) != INVALID_FILE_ATTRIBUTES &&
+                wcslen(path) + wcslen(full) + 2 < 32768)
+            {
+                if (path[0])
+                    wcscat_s(path, 32768, L";");
+                wcscat_s(path, 32768, full);
+                say("  PATH:   %s (the game's DLLs, as on its cabinet)\n", u8(full));
+            }
+            d += len + (end ? 1 : 0);
+        }
+        SetEnvironmentVariableW(L"PATH", path);
+    }
+}
+
 // A game's option that gives it an argument, taken as the game starts: [Game.<short name>] KEY of
 // the settings file (or of <short name>.ini beside windowsloader.ini, as the DLL reads it), or
 // --set Game.KEY=VALUE; the game's module declares it for the settings menu. Each value its
@@ -1351,6 +1396,7 @@ again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
             say("windowsloader: the copy of the program with more than 2 GB cannot be written (error %lu): started as it is, it may stop on "
                 "a black screen after its attract\n", wl_write_dir_error());
     }
+    game_dll_path(gamePath, gameDir);
     PROCESS_INFORMATION pi;
     BOOL started = debugStart ? wl_debug_start(startedPath, cmd, listed, flags, gameDir, &sie.StartupInfo, &pi, logPath, debug_out)
                               : CreateProcessW(startedPath, cmd, NULL, NULL, listed, flags, NULL, gameDir, &sie.StartupInfo, &pi);

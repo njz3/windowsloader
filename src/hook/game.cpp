@@ -120,6 +120,7 @@ void wl_game_init(void)
     else if (!wl_game_daytona(exe, &g_name, &g_title) && !wl_game_codemasters(exe, &g_name, &g_title) &&
              !wl_game_ringedge(exe, &g_name, &g_title) && !wl_game_taito(exe, &g_name, &g_title) &&
              !wl_game_konami(exe, &g_name, &g_title) && !wl_game_roadfighters3d(exe, &g_name, &g_title) &&
+             !wl_game_thrilldrive4(exe, &g_name, &g_title) && !wl_game_globalvr(exe, &g_name, &g_title) &&
              !wl_game_triotech(exe, &g_name, &g_title) &&
              !wl_game_namco(exe, &g_name, &g_title) && !wl_game_unis(exe, &g_name, &g_title) &&
              !wl_game_alls(exe, &g_name, &g_title) && !wl_game_stormracer(exe, &g_name, &g_title) &&

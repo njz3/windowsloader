@@ -78,6 +78,19 @@ const WlKnownGame g_wlKnownGames[] = {
           "ACIO de Konami : HBHI (boutons, levier de vitesses, monnayeur) et HGTH (volant, pédales, moteur du volant), lecteur de "
           "cartes. Vue 2D au lancement (option)."),
      WL_FEATURE_YES, WL_FEATURE_YES, 1},
+    // Written from windowsarcadeloader's findings without a copy of the game: never run
+    {"Thrill Drive 4: Crazy Streets", "td4", "", {L"td4.exe"}, {0}, {L"libacio.dll"}, 0, NULL, "Konami PC", "2007", WL_GAME_WORK,
+     WL_N("Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur) et D44H (moteur du volant, libtd4io.dll). "
+          "Écrit sans copie du jeu, jamais essayé."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO},
+    // Global VR's NASCAR, the race alone (its frontend, the Anark player, not played): the disc's 2.0.2
+    // (build 068), told by its time stamp; any other NASCAR_GVR.exe taken as NASCAR Racing 1.1
+    {"NASCAR Team Racing", "nascar", "2.0.2", {L"NASCAR_GVR.exe"}, {0xBEBCEA21}, {NULL}, 0x4C7EC23F, NULL, "Global VR", "2009", WL_GAME_WORK,
+     WL_N("La course seule, sans le menu de la borne : son circuit et sa voiture dans les options. GvrIO.dll de Global VR (volant, "
+          "pédales, levier à 4 positions, boutons, retour de force), sa clé HASP répondue."),
+     WL_FEATURE_PARTLY, WL_FEATURE_NO},
+    {"NASCAR Racing", "nascar", "1.1", {L"NASCAR_GVR.exe"}, {0}, {NULL}, 0, NULL, "Global VR", "2007", WL_GAME_WORK,
+     WL_N("La course seule, comme NASCAR Team Racing ; écrit sans copie du jeu, jamais essayé."), WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"Wasteland Racers 2071", "wasteland", "1.6", {L"Arcade.exe"}, {0xA6CD1034}, {L"SDC2.dll", L"Inputs.xml"}, 0, NULL, "Trio Tech PC", "2006", WL_GAME_PLAYS,
      WL_N("Carte SDC2 de Trio Tech : commandes et volant en servo de position."), WL_FEATURE_YES, WL_FEATURE_YES},
     {"Mario Kart Arcade GP DX 1.18", "mkdx", "1.18", {L"MK_AGP3_FINAL.exe"}, {0x280295A6}, {L"bngrw.dll"}, 0x5FB222AA, NULL, "Namco System ES3", "", WL_GAME_PLAYS,

@@ -59,6 +59,9 @@ dans NOTES.md, « Jeux des bornes »).
 | Winter X Games SnoCross (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
 | Road Fighters 3D (Konami PC) | ✅ | ✅ | ✅ | ✅ | ✅ | ⏳ | ⚠️ | ✅ |
 | Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ⚠️ |
+| Thrill Drive 4 (Konami PC) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| NASCAR Team Racing 2.0.2 (Global VR, la course seule) | ✅ | ⏳ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
+| NASCAR Racing 1.1 (Global VR, la course seule) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | — | — |
 
 Fonctions :
 
@@ -2055,6 +2058,62 @@ près sur racecab1 et racecab2. Retour de force ⚠️ (force constante et vibra
 En 1920x1080, 48 à 58 images/s selon la scène : son calcul (Ogre, Direct3D) prend 11 à 14 ms par image sur
 l'i5-4590, windowsloader moins de 2 % (profil du 24/11) ; menus et attract à 60.
 Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrigé.
+
+## Thrill Drive 4: Crazy Streets (Konami PC, 2007)
+
+`td4\td4.exe` (x86, Direct3D 9, 640x480, base fixe 0x400000), la version export F04:E:A:A:20070330. Module
+`thrilldrive4.cpp`, écrit le 26/11 d'après windowsarcadeloader (td4.rs, pjei.rs, acio.rs, icca.rs, commit 2bfe069)
+**sans copie du jeu** : ni sur ce PC ni sur les bornes. Jamais lancé ; essayé seulement à blanc, avec un faux
+`td4.exe` et un faux `libacio.dll` faits pour l'occasion.
+
+- Cartes : `libacio.dll` (importée par td4.exe) : la PJEI (START, aussi le nitro, levier UP et DOWN, VIEW, test,
+  service, monnayeur ; volant, accélérateur et frein en 16 bits ; prise de sécurité GKF04EAA ; 8 lampes vers les
+  sorties réseau) et le lecteur ICCA (jamais de carte). Chaque import connu est redirigé, un inconnu est noté au
+  journal et laissé au `libacio.dll` de la copie. `libtd4io.dll` (LoadLibraryA puis 27 GetProcAddress) jouée par
+  windowsloader : la D44H (moteur du volant : octet 0 le couple -127..127, négatif vers la gauche ; octet 1 la
+  vibration 0..63) et la D44S (le siège, absente : SEATBELT OK ( NO DEVICE )).
+- Quatre corrections du programme, chacune seulement si ses octets sont ceux de windowsarcadeloader : le volant
+  Konami à moteur (la version export suppose un volant Happ sans moteur), DATA CHECK sauté, horloge et étalonnages
+  annoncés réglés (un CONF\NVRAM neuf arrête sinon le démarrage). Les données du jeu (son étalonnage, l'étape
+  de l'étalonnage à moteur) ne sont lues que si les quatre correspondent ; sinon les commandes suivent
+  l'étalonnage par défaut (volant 0xFF40 à gauche, 0x7A40 au centre, 0 à droite).
+- Étalonnage à moteur au démarrage (environ 45 s) : le volant lu suit le moteur jusqu'aux butées, aucune force
+  envoyée au volant du PC pendant ce temps.
+- `td4.ini` [IO] HANDLE lu KONAMI (KEYBOAD, le mode clavier de développement, dans la copie de
+  windowsarcadeloader) ; clavier du PC caché au DirectInput du jeu ; GetLogicalDriveStringsA ne donne que C:.
+- À vérifier à l'essai : le CRC-32 de td4.exe (à noter dans la liste des jeux), les imports de libacio.dll
+  non reconnus (journal), le sens du volant et du couple, l'affichage 640x480 étiré.
+
+## NASCAR Team Racing et NASCAR Racing (Global VR, la course seule)
+
+`NASCAR\Game\NASCAR_GVR.exe` (moteur NASCAR d'EA, x86, Direct3D 9, base fixe 0x400000). Module `globalvr.cpp`, d'après
+windowsarcadeloader (gvrio.rs, netcomm.rs, profils nascar-team-racing et nascar-racing, commit 2bfe069).
+
+Copie : le disque d'installation `games\Nascar Racing 2.0.2.068.iso` (NASCAR Team Racing 2.0.2, build 068 du 01/09/2010),
+dépaqueté le 26/11 dans `games\nascar-team-racing` sans lancer son installeur, par un extracteur InstallShield 6 écrit
+pour l'occasion (5 402 fichiers, chacun vérifié par le MD5 de l'archive ; les 128 fichiers « liés », dont le contenu
+est celui d'un autre, compris : sans eux, le modèle physique de la voiture du joueur `2005_NEXTEL_Cup_PLR.pm` manquait
+et la course plantait au chargement, nœud `fr_steering` introuvable). NASCAR_GVR.exe : CRC-32 BEBCEA21, horodatage
+4C7EC23F ; les deux sites de windowsarcadeloader y ont les octets attendus.
+
+Sur la borne, la course est lancée par le menu (le lecteur Anark AMPlayer.exe et `Shell.am`, des greffons .NET 1.1, une
+base SQL, les moniteurs de pièces Hercules) : **pas joué ici**. La course est lancée seule, une course par lancement,
+`[Game.nascar] TRACK` (daytona) et `CAR` (20) donnés par GetCommandLineA quand la ligne de commande n'a pas de -track.
+
+- GvrIO.dll (Shell\bin) : ses 4 fonctions importées par la course remplacées (cGvrIO, ~cGvrIO, Initialize,
+  GvrIOMessageSend) : volant, accélérateur, frein, levier à 4 positions (Shifter1..4 : GearUp, GearDown ou Gear1..4),
+  Start, View, LookBack, Nos (Nitro), Music (MusicUp), Ebrake (Handbrake), Operator (Test), en événements à 60 Hz ;
+  retour de force : le ressort au centre que donne la course (0x1D, force 0..100, centre -90..90) et les deux sinus
+  en vibration. Messages non traités, notés au journal : 0x0C, 0x43 à 0x45, 0x47, 0x48, 0x51, 0x56.
+- Clé HASP liée au programme : son lecteur (+0x275B10) répond une clé NASCAR 2.0 ; modes d'affichage jusqu'à 16384
+  pixels (+0x1079B6). NASCAR Racing 1.1 : ses adresses (+0x272460, +0x107C60), écrites sans copie, posées seulement si
+  son code a les instructions de la 2.0.2.
+- `HKLM\SOFTWARE\GlobalVR\NASCAR` inventée (Registry\NASCAR.reg du disque ; FullScreenWidth et Height à la taille de
+  l'écran) ; TsuMotion.dll (le siège mobile) refusée ; `C:\gvrtime.txt` écrit à côté de la course ; gvrNetComm.dll de
+  la copie gardée (pas de link). Le lanceur ajoute `..\Shell\bin` et `..\..\WINDOWS\system32` au PATH de la course.
+- Essai sur ce PC (26/11, mode agent, sans volant) : Daytona, voiture 20, première image à 2,9 s, course chargée,
+  passages de ligne, 75 à 109 images/s pendant 150 s, aucune exception ; le ressort du volant envoyé (centre ±0,39).
+  Pas vérifiés : les commandes en course, le sens du ressort, la fin de course. `--timeout` n'a pas arrêté le jeu.
 
 ## Direct3D 8 (d3d8to9)
 

@@ -123,6 +123,10 @@ static FARPROC virtual_proc(LPCSTR name)
     for (int i = 0; i < g_virtualCount; i++)
         if (IS_INTRESOURCE(name) ? g_virtualFns[i].ordinal == (unsigned)(ULONG_PTR)name : !strcmp(g_virtualFns[i].name, name))
             return (FARPROC)g_virtualFns[i].fn;
+    if (IS_INTRESOURCE(name))
+        wl_log("GetProcAddress of %s's function %u: not played by windowsloader", g_virtualDll, (unsigned)(ULONG_PTR)name);
+    else
+        wl_log("GetProcAddress of %s's %s: not played by windowsloader", g_virtualDll, name);
     SetLastError(ERROR_PROC_NOT_FOUND);
     return NULL;
 }

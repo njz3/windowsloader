@@ -24,6 +24,8 @@ int wl_game_ringedge(const wchar_t *exePath, const char **name, const char **tit
 int wl_game_taito(const wchar_t *exePath, const char **name, const char **title);    // Taito Type X+ (Battle Gear 4)
 int wl_game_konami(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (GTI Club 3)
 int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char **title); // Konami PC (Road Fighters 3D: jgt.dll in wl_avsboot.exe)
+int wl_game_thrilldrive4(const wchar_t *exePath, const char **name, const char **title);   // Konami PC (Thrill Drive 4: td4.exe)
+int wl_game_globalvr(const wchar_t *exePath, const char **name, const char **title);       // Global VR (NASCAR's race: NASCAR_GVR.exe)
 int wl_game_triotech(const wchar_t *exePath, const char **name, const char **title); // Trio Tech PC (Wasteland Racers 2071)
 int wl_game_namco(const wchar_t *exePath, const char **name, const char **title);    // Namco System ES3 (Mario Kart Arcade GP DX), ES3X (Wangan Midnight 5, x64)
 int wl_game_unis(const wchar_t *exePath, const char **name, const char **title);     // UNIS PC (Crazy Ride, x64)

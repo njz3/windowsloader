@@ -62,6 +62,9 @@ is checked. Another version of a game whose versions are told apart is listed by
 | Wangan Midnight Maximum Tune 5 | — | Namco System ES3X (64 bits), 2014 | `wmn5r.exe` | `51060B63` | plays, with reservations | yes | yes |
 | Road Fighters 3D | — | Konami PC, 2010 | `jgt.dll` (run in `wl_avsboot.exe`), `jgt_link_cab2.dll` | `68306E6F` (`jgt.dll`), `94023423` (`jgt_link_cab2.dll`) | plays | yes | yes |
 | Crazy Speed Arcade | — | UNIS PC, 2010 | `Client_r.exe` | `42B6AC2D` | plays | partly | yes |
+| Thrill Drive 4: Crazy Streets | — | Konami PC, 2007 | `td4.exe` | — | in progress | partly | no |
+| NASCAR Team Racing | 2.0.2 | Global VR, 2009 | `NASCAR_GVR.exe` | `BEBCEA21` | in progress | partly | no |
+| NASCAR Racing | 1.1 | Global VR, 2007 | `NASCAR_GVR.exe` | — | in progress | partly | no |
 | The Fast and the Furious | — | Raw Thrills PC, 2004 | `sdaemon.exe` | `9AEBF60F` | plays | partly | yes |
 | The Fast and the Furious Drift | — | Raw Thrills PC, 2007 | `sdaemon.exe` | `8467C744` | plays | yes | yes |
 | The Fast and the Furious Super Bikes | — | Raw Thrills PC, 2006 | `sdaemon.exe` | `25ED956B` | plays | no | yes |
@@ -259,7 +262,17 @@ the game's `prop\` files (`--avs-log`: AVS's own log in windowsloader's; after t
 game's arguments). Without e-Amusement the game stops on a network warning (5-2002-0000): SERVICE goes
 on. `[Game.rf3d]`: `VIEW = 2D` (the default) starts it in 2D, the sharp picture of an ordinary
 screen, `3D` in the cabinet's stereo (two views interlaced line by line, for its polarized screen and
-glasses); the 2D/3D button (action `View1`) changes it during the game. Dirty Drivin'
+glasses); the 2D/3D button (action `View1`) changes it during the game. Thrill Drive 4 (`td4\td4.exe`,
+the export build F04:E:A:A:20070330) was written from windowsarcadeloader's findings without a copy of
+the game and has never been run: its PJEI board (`P1_Start`, also the nitro, `GearUp`, `GearDown`,
+`ViewChange`, the wheel and pedals) and its D44H wheel motor are emulated; at the first start its
+motor calibrates the wheel (about 45 s, no force sent meanwhile). NASCAR Team Racing and NASCAR
+Racing (`[Game.nascar]`) are their race alone, `NASCAR\Game\NASCAR_GVR.exe`, without the cabinet's
+menu (its Anark player, .NET 1.1 plug-ins and database): each start is one race, its track and car
+`TRACK` (a folder of `GameData\Tracks`, `daytona` by default) and `CAR` (`20`), unless its command
+line gives `-track` and `-car`. Keep the disc's layout: the launcher puts `NASCAR\Shell\bin`
+(`GvrIO.dll`) and `WINDOWS\system32` (`gvrNetComm.dll`, the 7.1 C runtime) on the race's PATH.
+Dirty Drivin'
 (`[Game.dirtydrivin]`) is told a 1360x768 screen at least (`VIRTUAL_DISPLAY`), its loading stopping
 on a lower one, and started with `-WinPC -Windowed -r 1360x768` by the picker, as windowsarcadeloader
 does.

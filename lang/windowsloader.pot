@@ -82,11 +82,11 @@ msgstr ""
 msgid "Les écrans d'erreur et d'avertissement de la plateforme."
 msgstr ""
 
-#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:251 src/common/gameoptions.cpp:282
+#: src/common/gameoptions.cpp:82 src/common/gameoptions.cpp:88 src/common/gameoptions.cpp:112 src/common/gameoptions.cpp:121 src/common/gameoptions.cpp:129 src/common/gameoptions.cpp:139 src/common/gameoptions.cpp:172 src/common/gameoptions.cpp:186 src/common/gameoptions.cpp:197 src/common/gameoptions.cpp:209 src/common/gameoptions.cpp:231 src/common/gameoptions.cpp:251 src/common/gameoptions.cpp:291
 msgid "Numéro de la borne (link)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:252 src/common/gameoptions.cpp:283
+#: src/common/gameoptions.cpp:83 src/common/gameoptions.cpp:89 src/common/gameoptions.cpp:113 src/common/gameoptions.cpp:122 src/common/gameoptions.cpp:130 src/common/gameoptions.cpp:140 src/common/gameoptions.cpp:210 src/common/gameoptions.cpp:232 src/common/gameoptions.cpp:252 src/common/gameoptions.cpp:292
 msgid "Sa place dans le link, chaque borne la sienne ; 0 : trouvée par l'adresse du PC dans LINK (la liste des adresses des bornes, dans le fichier)."
 msgstr ""
 
@@ -127,7 +127,7 @@ msgstr ""
 msgid "Garder le rapport"
 msgstr ""
 
-#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:305
+#: src/common/gameoptions.cpp:138 src/common/gameoptions.cpp:314
 msgid "Le rapport reste engagé quand le levier en H est lâché, pour un levier dont les positions ne tiennent pas."
 msgstr ""
 
@@ -231,55 +231,71 @@ msgstr ""
 msgid "2D : l'image nette d'un écran ordinaire. 3D : les deux vues entrelacées ligne par ligne, pour l'écran polarisé de la borne et ses lunettes. Le bouton 2D/3D change la vue pendant la partie, jusqu'au lancement suivant."
 msgstr ""
 
-#: src/common/gameoptions.cpp:290
+#: src/common/gameoptions.cpp:282
+msgid "Circuit"
+msgstr ""
+
+#: src/common/gameoptions.cpp:283
+msgid "Le circuit de la course (-track), un dossier de GameData\\Tracks : daytona, talladega, bristol, atlanta, phoenix, richmond, dover, michigan, texas, indianapolis, infineon, watkinsglen..."
+msgstr ""
+
+#: src/common/gameoptions.cpp:286
+msgid "Voiture"
+msgstr ""
+
+#: src/common/gameoptions.cpp:286
+msgid "Le numéro de la voiture (-car)."
+msgstr ""
+
+#: src/common/gameoptions.cpp:299
 msgid "Standard"
 msgstr ""
 
-#: src/common/gameoptions.cpp:291
+#: src/common/gameoptions.cpp:300
 msgid "Pro"
 msgstr ""
 
-#: src/common/gameoptions.cpp:295
+#: src/common/gameoptions.cpp:304
 msgid "Comme la borne (7.1)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:296
+#: src/common/gameoptions.cpp:305
 msgid "Stéréo"
 msgstr ""
 
-#: src/common/gameoptions.cpp:300
+#: src/common/gameoptions.cpp:309
 msgid "Borne"
 msgstr ""
 
-#: src/common/gameoptions.cpp:301
+#: src/common/gameoptions.cpp:310
 msgid "Standard : 4:3, boîte AT ou MT séquentielle. Pro : écran large, embrayage et levier en H (une seconde carte d'E/S). Le jeu change ses propres réglages au lancement suivant et se ferme une fois : le relancer."
 msgstr ""
 
-#: src/common/gameoptions.cpp:304
+#: src/common/gameoptions.cpp:313
 msgid "Garder le rapport (borne Pro)"
 msgstr ""
 
-#: src/common/gameoptions.cpp:306
+#: src/common/gameoptions.cpp:315
 msgid "Haut-parleurs"
 msgstr ""
 
-#: src/common/gameoptions.cpp:307
+#: src/common/gameoptions.cpp:316
 msgid "Comme la borne : le jeu joue en 7.1, Windows ramène le son aux haut-parleurs du PC ; sa musique en dépend. Stéréo : l'ancien réglage, sans la musique."
 msgstr ""
 
-#: src/common/gameoptions.cpp:310
+#: src/common/gameoptions.cpp:319
 msgid "Serveur NESYS"
 msgstr ""
 
-#: src/common/gameoptions.cpp:311
+#: src/common/gameoptions.cpp:320
 msgid "Adresse[:port] du serveur NESYS (le jeu en ligne), le port 80 par défaut ; 124.146.156.106 par défaut. OFF : le jeu ne sort pas du PC, NESYS hors ligne."
 msgstr ""
 
-#: src/common/gameoptions.cpp:315
+#: src/common/gameoptions.cpp:324
 msgid "Identifiant de la clé NESYS"
 msgstr ""
 
-#: src/common/gameoptions.cpp:316
+#: src/common/gameoptions.cpp:325
 msgid "Les 7 lettres ou chiffres de la clé (par exemple AAT1234), lus par le jeu à chaque lecture de la clé ; l'action « EntryKey » (K par défaut) met la clé ou la retire. Vide : ceux d'OpenParrot\\KeyId.txt du dossier du jeu (le fichier du KeyManager de NESYS Revival), sinon une clé créée par windowsloader."
 msgstr ""
 
@@ -1339,6 +1355,10 @@ msgstr ""
 msgid "Carte du volant"
 msgstr ""
 
+#: src/hook/games/thrilldrive4.cpp:806
+msgid "la carte PJEI, ac_io_pjei_control_lamp_on et _off (libacio.dll)"
+msgstr ""
+
 #: src/hook/games/triotech.cpp:379
 msgid "la carte SDC2, SetDigitalOut (DigitalOutputs d'Inputs.xml)"
 msgstr ""
@@ -1460,119 +1480,131 @@ msgstr ""
 msgid "Programme jgt.dll lancé par wl_avsboot.exe (AVS, e-Amusement hors ligne : SERVICE sur l'avertissement réseau). Cartes ACIO de Konami : HBHI (boutons, levier de vitesses, monnayeur) et HGTH (volant, pédales, moteur du volant), lecteur de cartes. Vue 2D au lancement (option)."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:82
-msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."
+#: src/launcher/gamelist.cpp:83
+msgid "Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur) et D44H (moteur du volant, libtd4io.dll). Écrit sans copie du jeu, jamais essayé."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:84
-msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."
-msgstr ""
-
-#: src/launcher/gamelist.cpp:86 src/launcher/gamelist.cpp:88 src/launcher/gamelist.cpp:90 src/launcher/gamelist.cpp:92
-msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."
+#: src/launcher/gamelist.cpp:89
+msgid "La course seule, sans le menu de la borne : son circuit et sa voiture dans les options. GvrIO.dll de Global VR (volant, pédales, levier à 4 positions, boutons, retour de force), sa clé HASP répondue."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:93
-msgid "UNIS PC (64 bits)"
-msgstr ""
-
-#: src/launcher/gamelist.cpp:94
-msgid "E/S et volant UNIS, clé de la borne."
+msgid "La course seule, comme NASCAR Team Racing ; écrit sans copie du jeu, jamais essayé."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:95
-msgid "UNIS PC"
+msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:96
-msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
+#: src/launcher/gamelist.cpp:97
+msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:99
-msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle."
-msgstr ""
-
-#: src/launcher/gamelist.cpp:102
-msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle ; son écran ramené au 640x480 de ses menus. L'étalonnage du volant et de l'accélérateur gardé par la borne (TeknoParrot) est à refaire dans le menu de test (Calibration)."
-msgstr ""
-
-#: src/launcher/gamelist.cpp:104
-msgid "Moto. Carte JAMMA USB de Raw Thrills."
+#: src/launcher/gamelist.cpp:99 src/launcher/gamelist.cpp:101 src/launcher/gamelist.cpp:103 src/launcher/gamelist.cpp:105
+msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:106
-msgid "Moto. Carte H2O USB de Raw Thrills, écrite dans les tables d'entrées du jeu."
+msgid "UNIS PC (64 bits)"
+msgstr ""
+
+#: src/launcher/gamelist.cpp:107
+msgid "E/S et volant UNIS, clé de la borne."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:108
+msgid "UNIS PC"
 msgstr ""
 
 #: src/launcher/gamelist.cpp:109
-msgid "Carte H2O USB de Raw Thrills, par le SetControl du jeu ; son moteur du volant par le port parallèle."
+msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:112
-msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant ; ses calculs 3DNow! joués en SSE2. Étalonnage du volant au premier lancement."
+msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:115
+msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle ; son écran ramené au 640x480 de ses menus. L'étalonnage du volant et de l'accélérateur gardé par la borne (TeknoParrot) est à refaire dans le menu de test (Calibration)."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:117
+msgid "Moto. Carte JAMMA USB de Raw Thrills."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:119
+msgid "Moto. Carte H2O USB de Raw Thrills, écrite dans les tables d'entrées du jeu."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:122
+msgid "Carte H2O USB de Raw Thrills, par le SetControl du jeu ; son moteur du volant par le port parallèle."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:125
+msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant ; ses calculs 3DNow! joués en SSE2. Étalonnage du volant au premier lancement."
+msgstr ""
+
+#: src/launcher/gamelist.cpp:128
 msgid "Bateau. Carte JAMMA USB de Raw Thrills ; force et ressort du volant lus dans le jeu. Étalonnage de la manette des gaz au premier lancement (avant : accélérateur, arrière : frein). En course, BOOST (Nitro ou Start) au départ."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:118
+#: src/launcher/gamelist.cpp:131
 msgid "Clavier de développement et monnayeur du jeu ; force du volant lue dans le jeu ; écran virtuel 1360x768, image sans multiéchantillonnage ; le d3d9.dll de son dossier (un autre chargeur) laissé de côté. Long chargement (2 à 3 min)."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:121
+#: src/launcher/gamelist.cpp:134
 msgid "Carte RIO de Raw Thrills derrière libusb0, clé HASP ; force du volant lue dans le jeu, son moteur par le port parallèle (PortTalk émulé). Étalonnage au premier lancement. Sans gaz au départ, le jeu passe en pilote automatique jusqu'au prochain appui."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:124
+#: src/launcher/gamelist.cpp:137
 msgid "Carte RIO de Raw Thrills derrière libusb0, contrôle de la clé de la borne ; force du volant lue dans le jeu."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:127
+#: src/launcher/gamelist.cpp:140
 msgid "Motoneige. Sans carte USB : commandes par la fonction SetControl du jeu, pièges de la protection retirés ; force du guidon lue dans le jeu ; lancé depuis une copie de son programme à plus de 2 Go (dans le dossier d'écriture). En link, une borne lance la course, l'autre la rejoint."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:130
+#: src/launcher/gamelist.cpp:143
 msgid "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:132
+#: src/launcher/gamelist.cpp:145
 msgid "Moto. Carte par motobikeio.dll, clé HASP par Lock.dll."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:134 src/launcher/gamelist.cpp:138
+#: src/launcher/gamelist.cpp:147 src/launcher/gamelist.cpp:151
 msgid "Sega Nu (64 bits)"
 msgstr ""
 
-#: src/launcher/gamelist.cpp:136 src/launcher/gamelist.cpp:139
+#: src/launcher/gamelist.cpp:149 src/launcher/gamelist.cpp:152
 msgid "Plateforme Nu (amdaemon, carte AMEX), carte JVS, levier en H, moteur du volant (COM1), lampes (COM11), server box du magasin : partie invité ; les cartes Aime attendent le serveur en ligne du jeu."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:142
+#: src/launcher/gamelist.cpp:155
 msgid "Trottinette. Carte par xio.dll : guidon, poussées gauche et droite (l'accélérateur les alterne), frein, moteur du guidon."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:144
+#: src/launcher/gamelist.cpp:157
 msgid "Sega ALLS (64 bits)"
 msgstr ""
 
-#: src/launcher/gamelist.cpp:145
+#: src/launcher/gamelist.cpp:158
 msgid "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini (option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Reste le serveur de matching (GAME SERVER BAD, pas de course en réseau)."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:149 src/launcher/gamelist.cpp:153 src/launcher/gamelist.cpp:158
+#: src/launcher/gamelist.cpp:162 src/launcher/gamelist.cpp:166 src/launcher/gamelist.cpp:171
 msgid "Namco System ES3X (64 bits)"
 msgstr ""
 
-#: src/launcher/gamelist.cpp:150
+#: src/launcher/gamelist.cpp:163
 msgid "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent les cartes et la caméra."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:155
+#: src/launcher/gamelist.cpp:168
 msgid "Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr ""
 
-#: src/launcher/gamelist.cpp:159
+#: src/launcher/gamelist.cpp:172
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr ""
 

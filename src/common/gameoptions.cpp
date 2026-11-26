@@ -277,6 +277,15 @@ static const WlGameOption g_dirtydrivinOptions[] = {
     LINK_OPTION(8),
 };
 
+// globalvr.cpp's: NASCAR's race started alone, its track and car (when its command line has none)
+static const WlGameOption g_nascarOptions[] = {
+    {"TRACK", WL_N("Circuit"),
+     WL_N("Le circuit de la course (-track), un dossier de GameData\\Tracks : daytona, talladega, bristol, atlanta, phoenix, richmond, "
+          "dover, michigan, texas, indianapolis, infineon, watkinsglen..."),
+     WL_OPTION_TEXT, NULL, 0, 0, "daytona", 1, NULL},
+    {"CAR", WL_N("Voiture"), WL_N("Le numéro de la voiture (-car)."), WL_OPTION_TEXT, NULL, 0, 0, "20", 1, NULL},
+};
+
 // wahlap.cpp's
 static const WlGameOption g_stormriderOptions[] = {
     {"CABINET", WL_N("Numéro de la borne (link)"),
@@ -350,6 +359,7 @@ static const struct
     TABLE(crazyspeed),
     TABLE(dirtydrivin),
     TABLE(rf3d),
+    TABLE(nascar),
     TABLE(stormrider),
     TABLE(bg4),
     TABLE(link4),
