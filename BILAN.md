@@ -59,9 +59,10 @@ dans NOTES.md, « Jeux des bornes »).
 | Winter X Games SnoCross (Raw Thrills PC) | ✅ | ⏳ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ✅ |
 | Road Fighters 3D (Konami PC) | ✅ | ✅ | ✅ | ✅ | ✅ | ⏳ | ⚠️ | ✅ |
 | Crazy Speed Arcade (UNIS PC) | ✅ | ⚠️ | ✅ | ⚠️ | ✅ | ⏳ | ⏳ | ⚠️ |
-| Thrill Drive 4 (Konami PC) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| NASCAR Team Racing 2.0.2 (Global VR, la course seule) | ✅ | ⏳ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
-| NASCAR Racing 1.1 (Global VR, la course seule) | ✅ | ⏳ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
+| Thrill Drive 4 (Konami PC) | ✅ | ✅ | ⏳ | ✅ | ✅ | ⏳ | ⏳ | ✅ |
+| NASCAR Team Racing 2.0.2 (Global VR, la course seule) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
+| NASCAR Racing 1.1 (Global VR, la course seule) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
+| Need for Speed Underground 1.1 (Global VR, la course seule) | ✅ | ✅ | ⏳ | ⚠️ | ✅ | ⏳ | — | — |
 
 Fonctions :
 
@@ -2063,8 +2064,8 @@ Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrig
 
 `td4\td4.exe` (x86, Direct3D 9, 640x480, base fixe 0x400000), la version export F04:E:A:A:20070330. Module
 `thrilldrive4.cpp`, écrit le 26/11 d'après windowsarcadeloader (td4.rs, pjei.rs, acio.rs, icca.rs, commit 2bfe069)
-**sans copie du jeu** : ni sur ce PC ni sur les bornes. Jamais lancé ; essayé seulement à blanc, avec un faux
-`td4.exe` et un faux `libacio.dll` faits pour l'occasion.
+**sans copie du jeu** (ni sur ce PC ni sur les bornes), essayé d'abord à blanc avec un faux
+`td4.exe` et un faux `libacio.dll`, puis vérifié sur une copie (27/11, ci-dessous).
 
 - Cartes : `libacio.dll` (importée par td4.exe) : la PJEI (START, aussi le nitro, levier UP et DOWN, VIEW, test,
   service, monnayeur ; volant, accélérateur et frein en 16 bits ; prise de sécurité GKF04EAA ; 8 lampes vers les
@@ -2081,8 +2082,17 @@ Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrig
   envoyée au volant du PC pendant ce temps.
 - `td4.ini` [IO] HANDLE lu KONAMI (KEYBOAD, le mode clavier de développement, dans la copie de
   windowsarcadeloader) ; clavier du PC caché au DirectInput du jeu ; GetLogicalDriveStringsA ne donne que C:.
-- À vérifier à l'essai : le CRC-32 de td4.exe (à noter dans la liste des jeux), les imports de libacio.dll
-  non reconnus (journal), le sens du volant et du couple, l'affichage 640x480 étiré.
+- Copie (27/11) : `games\Crazy Streets - Thrill Drive 4 (2007-03-30)[Konami PC][TP].zip`, un dump TeknoParrot (les
+  fichiers à la racine, td4.ini en KEYBOAD, libacio.dll et libtd4io.dll de remplacement), dépaqueté dans `games\td4`.
+  td4.exe : CRC-32 D363889F, horodatage 460B97C6 ; les 4 sites de correction ont les octets attendus. 5 imports de
+  libacio.dll manquaient à la liste (secplug_check_softwareplug et _systemplug, req_get_control_status,
+  control_reset, set_watchdog_time) : ajoutés.
+- Essai (27/11, mode agent, scripts/agent/td4_controls.py) : étalonnage du volant par le moteur 37 s, attract,
+  2 crédits, SELECT MODE, CAREER, boîte automatique, course ; accélérateur (138 à 210 km/h), volant, frein (0 km/h),
+  View (vue cockpit), Start (nitro, « PRESS THE BUTTON ») ; 30 images/s, comme le jeu. Retour de force dans le bon
+  sens : volant à gauche, couple +80 et force -0,63 (vers la droite) ; à droite, -80 et +0,63 ; vibrations des chocs
+  (octet 1) envoyées. Lampes : masques 0x01, 0x02, 0x08 et 0x10 allumés et éteints ensemble (attract), vers les sorties
+  réseau lamp0, lamp1, lamp3, lamp4. Pas vérifiés : le levier manuel, le menu de test, le sens réel sur un volant.
 
 ## NASCAR Team Racing et NASCAR Racing (Global VR, la course seule)
 
@@ -2116,7 +2126,52 @@ base SQL, les moniteurs de pièces Hercules) : **pas joué ici**. La course est 
   la copie gardée (pas de link). Le lanceur ajoute `..\Shell\bin` et `..\..\WINDOWS\system32` au PATH de la course.
 - Essai sur ce PC (26/11, mode agent, sans volant) : Daytona, voiture 20, première image à 2,9 s, course chargée,
   passages de ligne, 75 à 109 images/s pendant 150 s, aucune exception ; le ressort du volant envoyé (centre ±0,39).
-  Pas vérifiés : les commandes en course, le sens du ressort, la fin de course. `--timeout` n'a pas arrêté le jeu.
+  `--timeout` n'arrêtait pas le jeu : les options du lanceur se mettent avant le chemin du jeu.
+- Commandes (27/11, mode agent, scripts/agent/gvr_controls.py, les deux versions) : accélérateur (77 puis 96 mph), volant
+  (la voiture part à gauche, à droite), frein (61 à 26 mph), View (vue cockpit), LookBack (vue arrière) visibles sur les
+  captures ; Nos, Music, Ebrake, Start envoyés en événements (onGvr...ButtonDown / Up), le levier à 4 positions suivi
+  (Shifter1..4 demandés ; la course en boîte automatique par défaut affiche ses propres rapports).
+- Retour de force : au départ un ressort de centrage qui monte de 0,01 à 0,40 ; contre le mur, la course alterne très
+  vite ce ressort et un ressort de 0,25 décalé de ±35° (±0,389) : les secousses. Envoyé au volant (vJoy). Pas de sinus vu.
+- Lampes : la course n'en commande aucune (aucun message de lampe dans GvrIO ; messages non traités 0x0C, 0x43 à 0x45,
+  0x47 et 0x48 avec « Shifter4 », 0x51, 0x56). Sur la borne, les lampes sont sans doute celles du menu.
+- Pas vérifiés : le sens réel du ressort décalé sur un volant, la fin de course.
+
+## Need for Speed Underground (Global VR, 1.1, la course seule)
+
+`Underground\UndergroundGVR.exe` (C:\Underground sur la borne ; x86, Direct3D 9, 800x600 ; CRC-32 9442A1EA, horodatage
+43C8447B), un programme mixte C++ / .NET 1.1 que Windows fait tourner sur son CLR 2.0 (.NET 3.5) quand .NET 1.1 manque.
+Module `globalvr.cpp` (nfsu_game), d'après windowsarcadeloader (gvrinput.rs, need-for-speed-underground.yaml) et les notes
+du projet NFSU_GVR (iGThomas, docs/technical-notes.md : les options de la course).
+
+Copie : les deux disques d'installation 1.1 (`games\nfsug1_1-disc1.iso`, `disc2.iso`) dépaquetés ensemble dans `games\nfsu`,
+rangés par groupe de fichiers comme sur la borne (Underground, GvrRoot, gvr, GvrPlus, WINDOWS\system32, WINDOWS\Fonts ; 836
+fichiers, MD5 conformes). `nfsug-recovery.iso` est l'image PowerQuest d'une borne (UG050505.PQI), pas ouverte.
+
+Sur la borne, le menu (GvrRoot\UniverShell2.exe, .NET 1.1) lance la course à chaque partie, et tous deux lisent la base SQL
+Server de la borne par PLUSDE.dll : **pas joué ici**. La course est lancée seule avec son option `-nosql` (PlusDE non
+démarré), que le lanceur ajoute ; une course par lancement, circuit et voiture par défaut. Sans -nosql, PLUSDE cherchait
+C:\PLUS\SCHEMA\NFSCABINET.XML (le disque n'en a qu'une version chiffrée) ; sur le CLR 2.0, PLUSDE plante de toute façon
+(notes de NFSU_GVR : il faudrait le vrai .NET 1.1).
+
+- GVRInputRaw.dll (WINDOWS\system32) : ses 15 fonctions importées par la course remplacées. Le bloc d'état de
+  windowsarcadeloader : volant (-128..127), gaz, frein, boutons (START 0x10, opérateur 0x20, musique 0x100, regard
+  arrière 0x200, nitro 0x400, vue 0x10000, frein à main 0x20000), levier en H à 6 vitesses (GearUp, GearDown ou
+  Gear1..6), le pilote 6 (le volant de la borne) ; le ressort (+0x88) et les deux sinus (+0xA0, +0xAC) que la course y écrit
+  vers le retour de force. Avec le vrai GVRInputRaw.dll (pas de carte ici), la course plantait à +0x1CCED0.
+- Registre inventé (_Registry du disque) : HKLM\SOFTWARE\GlobalVR\Need For Speed UnderGround (1.1.0, build 027) et
+  GVRShell\Operator\Games\NFSUNDERGROUND (son ini à côté de la course). `c:\audits.txt` écrit à côté de la course. Le
+  lanceur met `..\WINDOWS\system32` dans le PATH de la course.
+- Essai sur ce PC (26/11, mode agent, sans volant, PC déverrouillé : verrouillé, Direct3D n'a pas de carte et refuse
+  CreateDevice) : première image à 2,1 s, GVRInputRaw répondu, la course tourne 60 s sans exception, ressort (0,4) et
+  vibrations envoyés ; 60 images/s avec PRESENT = DIRECT (30 avec le PRESENT = GDI de ce PC).
+- Commandes (27/11, mode agent, scripts/agent/gvr_controls.py), mode Shadow Attack : accélérateur (0 à 70 mph), volant
+  (gauche, droite), frein (jusqu'à 0), nitro (flou de vitesse, 72 mph), vue ; les bits de chaque bouton (vue 0x10000,
+  regard arrière 0x200, nitro 0x400, musique 0x100, frein à main 0x20000, Start 0x10) et du levier en H.
+- Retour de force : ressort de centrage 0,40 et vibrations de 0,01 à 0,11 (route, chocs), envoyés au volant (vJoy).
+- Lampes : la course n'en commande aucune (GVRInputRaw.dll n'a pas de sortie de lampe chez windowsarcadeloader non plus).
+- Pas vérifiés : le sens réel sur un volant, la fin de course, le choix du circuit et de la voiture (-track, -car : des
+  numéros).
 
 ## Direct3D 8 (d3d8to9)
 

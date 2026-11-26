@@ -17,9 +17,11 @@
 // GPL v3, https://github.com/aderumier/windowsarcadeloader, commit 2bfe069: systemprofiles/konami/
 // thrill-drive-4.yaml, crates/payload-konami/src: td4.rs, pjei.rs, acio.rs, icca.rs; its
 // docs/IMPLEMENTATION.md, "Thrill Drive 4: Crazy Streets"), where a payload takes libacio.dll's
-// place. Written without a copy of the game: its addresses are windowsarcadeloader's, each code
-// change made only where the bytes are the ones it found (wl_patch_code), the game's data read only
-// when all of them are.
+// place. Written first without a copy of the game, then checked on one (td4.exe CRC-32 D363889F,
+// time stamp 460B97C6, a TeknoParrot dump with the files at its root): its addresses are
+// windowsarcadeloader's, each code change made only where the bytes are the ones it found
+// (wl_patch_code), the game's data read only when all of them are. Its lamps: masks 0x01, 0x02, 0x08
+// and 0x10, set on and off by ac_io_pjei_control_lamp_on and _off (blinking together in the attract).
 //
 // Here the cabinet's libraries stay, and the game's calls are answered:
 // - libacio.dll, the first ACIO bus (imported by td4.exe): the PJEI I/O board (switches, coin mech,
@@ -415,15 +417,47 @@ static int __cdecl pjei_get_systemid(char *out)
 #define TD4_LAMPS 8
 static volatile LONG g_lamps;
 
+// The lamp calls, each kind with its arguments, the first 60
+static void lamp_log(const char *what, ULONG_PTR a, ULONG_PTR b)
+{
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 60)
+        wl_log("thrill drive 4: lamp %s(0x%lx, 0x%lx)", what, (unsigned long)a, (unsigned long)b);
+}
+
 static int __cdecl pjei_control_lamp_on(int mask)
 {
-    wl_outputs_lamps((unsigned)(InterlockedOr(&g_lamps, mask & 0xFF) | (mask & 0xFF)), TD4_LAMPS);
+    LONG was = InterlockedOr(&g_lamps, mask & 0xFF), now = was | (mask & 0xFF);
+    if (now != was)
+        lamp_log("on", (ULONG_PTR)mask, (ULONG_PTR)now);
+    wl_outputs_lamps((unsigned)now, TD4_LAMPS);
     return 1;
 }
 
 static int __cdecl pjei_control_lamp_off(int mask)
 {
-    wl_outputs_lamps((unsigned)(InterlockedAnd(&g_lamps, ~mask & 0xFF) & ~mask & 0xFF), TD4_LAMPS);
+    LONG was = InterlockedAnd(&g_lamps, ~mask & 0xFF), now = was & ~mask & 0xFF;
+    if (now != was)
+        lamp_log("off", (ULONG_PTR)mask, (ULONG_PTR)now);
+    wl_outputs_lamps((unsigned)now, TD4_LAMPS);
+    return 1;
+}
+
+static int __cdecl pjei_control_lamp_bright(ULONG_PTR a, ULONG_PTR b)
+{
+    lamp_log("bright", a, b);
+    return 1;
+}
+
+static int __cdecl pjei_control_lamp_mode(ULONG_PTR a)
+{
+    lamp_log("mode", a, 0);
+    return 1;
+}
+
+static int __cdecl pjei_control_parallel(ULONG_PTR a)
+{
+    lamp_log("parallel", a, 0);
     return 1;
 }
 
@@ -636,6 +670,11 @@ static const WlVirtualDllFunction g_acio[] = {
     FN(ac_io_pjei_consume_coinstock, pjei_consume_coinstock),
     FN(ac_io_pjei_req_secplug_check, pjei_req_secplug_check),
     FN(ac_io_pjei_req_secplug_check_isfinished, pjei_req_secplug_check_isfinished),
+    FN(ac_io_pjei_req_secplug_check_softwareplug, pjei_req_secplug_check),
+    FN(ac_io_pjei_req_secplug_check_systemplug, acio_true),
+    FN(ac_io_pjei_req_get_control_status, acio_true),
+    FN(ac_io_pjei_control_reset, acio_true),
+    FN(ac_io_pjei_set_watchdog_time, acio_true),
     FN(ac_io_pjei_req_secplug_missing_check, acio_true),
     FN(ac_io_pjei_req_secplug_missing_check_isfinished, pjei_req_secplug_missing_check_isfinished),
     FN(ac_io_pjei_get_softwareid, pjei_get_softwareid),
@@ -647,12 +686,12 @@ static const WlVirtualDllFunction g_acio[] = {
     FN(ac_io_pjei_unlock_coincounter, acio_true),
     FN(ac_io_pjei_control_coin_blocker_on, acio_true),
     FN(ac_io_pjei_control_coin_blocker_off, acio_true),
-    FN(ac_io_pjei_control_lamp_bright, acio_true),
-    FN(ac_io_pjei_control_lamp_mode, acio_true),
+    FN(ac_io_pjei_control_lamp_bright, pjei_control_lamp_bright),
+    FN(ac_io_pjei_control_lamp_mode, pjei_control_lamp_mode),
     FN(ac_io_pjei_control_lamp_on, pjei_control_lamp_on),
     FN(ac_io_pjei_control_lamp_off, pjei_control_lamp_off),
-    FN(ac_io_pjei_control_parallel_on, acio_true),
-    FN(ac_io_pjei_control_parallel_off, acio_true),
+    FN(ac_io_pjei_control_parallel_on, pjei_control_parallel),
+    FN(ac_io_pjei_control_parallel_off, pjei_control_parallel),
     FN(ac_io_icca_cardunit_init, acio_true),
     FN(ac_io_icca_cardunit_init_isfinished, icca_cardunit_init_isfinished),
     FN(ac_io_icca_req_uid, acio_true),

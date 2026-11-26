@@ -649,7 +649,36 @@ static const struct
     const wchar_t *dirs; // from the game's folder, ';' between them
 } g_gameDllPaths[] = {
     {L"NASCAR_GVR.exe", L"..\\Shell\\bin;..\\..\\WINDOWS\\system32"},
+    // Need for Speed Underground's race, C:\Underground\UndergroundGVR.exe: GVRInputRaw.dll,
+    // PLUSDE.dll and the 7.1 C runtime in C:\WINDOWS\system32 (the discs' layout)
+    {L"UndergroundGVR.exe", L"..\\WINDOWS\\system32"},
 };
+
+// Arguments a game always gets, unless its command line has them: Need for Speed Underground's
+// race started alone, without the cabinet's database (its -nosql: PlusDE not initialized)
+static const struct
+{
+    const wchar_t *game; // the game's file name
+    const wchar_t *arg;
+} g_gameFixedArgs[] = {
+    {L"UndergroundGVR.exe", L"-nosql"},
+};
+
+static void game_fixed_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first)
+{
+    const wchar_t *base = wcsrchr(gamePath, L'\\');
+    base = base ? base + 1 : gamePath;
+    for (int i = 0; i < (int)(sizeof g_gameFixedArgs / sizeof g_gameFixedArgs[0]); i++)
+    {
+        if (_wcsicmp(base, g_gameFixedArgs[i].game))
+            continue;
+        int given = 0;
+        for (int a = first; a < argc; a++)
+            given |= !_wcsicmp(argv[a], g_gameFixedArgs[i].arg);
+        if (!given)
+            append_arg(cmd, CMDLINE_MAX, g_gameFixedArgs[i].arg);
+    }
+}
 
 static void game_dll_path(const wchar_t *gamePath, const wchar_t *gameDir)
 {
@@ -1244,6 +1273,7 @@ int wmain(int argc, wchar_t **argv)
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
     game_option_args(gamePath, cmd, argc, argv, i + 1, iniPath, setsLen ? sets : NULL);
+    game_fixed_args(gamePath, cmd, argc, argv, i + 1);
 
     clean_working_copies(0);
     say("windowsloader " WL_BUILD_VERSION " " WL_EDITION " (%d-bit): %s\n", WL_SELF_BITS, u8(gamePath));

@@ -401,15 +401,34 @@ static void *__cdecl gvr_send(sMessage *m)
         break;
     default:
     {
-        static DWORD seen[32];
+        // Each id, name and value once (the lamps are set by their names): the first 300
+        char text[48] = "";
+        __try
+        {
+            for (int i = 0; m->data && i < 47 && m->data[i] >= 0x20 && m->data[i] < 0x7F; i++)
+                text[i] = m->data[i], text[i + 1] = 0;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            text[0] = 0;
+        }
+        static struct
+        {
+            DWORD id;
+            int value;
+            char name[48];
+        } seen[300];
         static int seenCount;
         int known = 0;
-        for (int i = 0; i < seenCount; i++)
-            known |= seen[i] == m->id;
-        if (!known && seenCount < 32)
+        for (int i = 0; i < seenCount && !known; i++)
+            known = seen[i].id == m->id && seen[i].value == m->value && !strcmp(seen[i].name, text);
+        if (!known && seenCount < 300)
         {
-            seen[seenCount++] = m->id;
-            wl_log("nascar: GvrIO message 0x%lx (kind %lu, value %d) not handled", m->id, m->kind, m->value);
+            seen[seenCount].id = m->id;
+            seen[seenCount].value = m->value;
+            strcpy(seen[seenCount++].name, text);
+            wl_log("nascar: GvrIO message 0x%lx (kind %lu, value %d%s%s%s) not handled", m->id, m->kind, m->value, text[0] ? ", \"" : "", text,
+                   text[0] ? "\"" : "");
         }
         g_zero = 0;
         return &g_zero;
@@ -583,6 +602,246 @@ static void nascar_registry(int b)
 }
 
 // ------------------------------------------------------------------------------
+// Need for Speed Underground (1.1, build 027): its race alone, Underground\UndergroundGVR.exe
+// (C:\Underground on the cabinet; x86, Direct3D 9, 800x600, a mixed C++ / .NET 1.1 program, run by
+// Windows' CLR 2.0 when .NET 1.1 is not there). Reimplemented from windowsarcadeloader's findings
+// (gvrinput.rs, need-for-speed-underground.yaml) and the NFSU_GVR project's notes (iGThomas,
+// github.com/iGThomas/NFSU_GVR, docs/technical-notes.md: its command-line options).
+//
+// On the cabinet the frontend (GvrRoot\UniverShell2.exe, .NET 1.1) starts the race for each game,
+// both reading the cabinet's SQL Server database through PLUSDE.dll. Not played here: the race is
+// started on its own with -nosql (its own option: PlusDE not initialized; the launcher adds it),
+// one race per start. PLUSDE.dll on CLR 2.0 failed (its schema C:\PLUS\SCHEMA\NFSCABINET.XML,
+// which the cabinet's installer makes, and its C++ exceptions, NFSU_GVR's notes).
+//
+// GVRInputRaw.dll (the cabinet's C:\WINDOWS\system32): its 15 functions the race imports pointed
+// at ours. GVRInputRawInit(hwnd, state, game) gives the state the race reads after each
+// GVRInputRawUpdate(state) (windowsarcadeloader's layout): +0x00 the wheel, i16 -128 (left)..127,
+// +0x02 the gas 0..255, +0x34 the brake 0..255, +0x08 the previous wheel, +0x0C / +0x10 the buttons
+// and the previous ones, +0x18 / +0x20 this update's and the previous one's
+// QueryPerformanceCounter, +0x30 the driver (6: the cabinet's Immersion wheel). The buttons: 0x10
+// START (a car reset in a race), 0x20 the operator's, 0x100 music, 0x200 look back, 0x400 the
+// nitrous, 0x10000 view, 0x20000 the e-brake; its 6-speed H shifter as bits (1st 0x1, 2nd 0x80001,
+// 3rd none, 4th 0x80000, 5th 0x2, 6th 0x80002), stepped by GearUp / GearDown or set by Gear1..6.
+// The race writes its force feedback there: +0x88 the spring (u8 on, i32 strength 0..100), +0xA0
+// and +0xAC two sines (crashes, terrain). It calls the library from its DirectInput keyboard's
+// update: a keyboard device (windowsloader's, no key down) is needed.
+// The real GVRInputRawInit found no board here: the race then crashed at +0x1CCED0 (a table of
+// its input devices left empty).
+// ------------------------------------------------------------------------------
+
+enum
+{
+    UG_STEERING,
+    UG_GAS,
+    UG_BRAKE,
+    UG_START,
+    UG_OPERATOR,
+    UG_MUSIC,
+    UG_LOOKBACK,
+    UG_NOS,
+    UG_VIEW,
+    UG_EBRAKE,
+    UG_SHIFT_UP,
+    UG_SHIFT_DOWN,
+    UG_GEAR1, // .. UG_GEAR1 + 5
+    UG_COUNT = UG_GEAR1 + 6
+};
+
+static WlInput g_ugInputs[UG_COUNT] = {
+    {"Steering", "P1_Steer", WL_INPUT_AXIS, -128, 127, 0},
+    {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 255, 0},
+    {"Brake", "P1_Brake", WL_INPUT_ANALOG, 0, 255, 0},
+    {"Start", "P1_Start", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Operator", "Test", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Music", "MusicUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"LookBack", "LookBack", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Nitrous", "Nitro", WL_INPUT_SWITCH, 0, 1, 0},
+    {"View", "ViewChange", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Ebrake", "Handbrake", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ShiftUp", "GearUp", WL_INPUT_SWITCH, 0, 1, 0},
+    {"ShiftDown", "GearDown", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear1", "Gear1", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear2", "Gear2", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear3", "Gear3", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear4", "Gear4", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear5", "Gear5", WL_INPUT_SWITCH, 0, 1, 0},
+    {"Gear6", "Gear6", WL_INPUT_SWITCH, 0, 1, 0},
+};
+
+static const struct
+{
+    int input;
+    DWORD bit;
+} g_ugButtons[] = {
+    {UG_START, 0x10},   {UG_OPERATOR, 0x20}, {UG_MUSIC, 0x100},    {UG_LOOKBACK, 0x200},
+    {UG_NOS, 0x400},    {UG_VIEW, 0x10000},  {UG_EBRAKE, 0x20000},
+};
+
+// The H shifter's bits of each gear, 1st to 6th
+static const DWORD g_ugShifter[6] = {0x1, 0x80001, 0, 0x80000, 0x2, 0x80002};
+static int g_ugGear = 1, g_ugUpHeld, g_ugDownHeld;
+static DWORD g_ugLastButtons = 0xFFFFFFFF;
+
+static void ug_fill(unsigned char *state)
+{
+    DWORD buttons = 0;
+    for (int i = 0; i < (int)(sizeof g_ugButtons / sizeof g_ugButtons[0]); i++)
+        if (wl_input_get(&g_ugInputs[g_ugButtons[i].input]))
+            buttons |= g_ugButtons[i].bit;
+    int up = wl_input_get(&g_ugInputs[UG_SHIFT_UP]) != 0, down = wl_input_get(&g_ugInputs[UG_SHIFT_DOWN]) != 0;
+    int gear = g_ugGear;
+    if (up && !g_ugUpHeld && gear < 6)
+        gear++;
+    if (down && !g_ugDownHeld && gear > 1)
+        gear--;
+    g_ugUpHeld = up;
+    g_ugDownHeld = down;
+    for (int g = 0; g < 6; g++)
+        if (wl_input_get(&g_ugInputs[UG_GEAR1 + g]))
+            gear = g + 1;
+    if (gear != g_ugGear)
+    {
+        g_ugGear = gear;
+        wl_log("nfsu: gear %d", gear);
+    }
+    buttons |= g_ugShifter[gear - 1];
+    short wheel = (short)wl_input_get(&g_ugInputs[UG_STEERING]), gas = (short)wl_input_get(&g_ugInputs[UG_GAS]),
+          brake = (short)wl_input_get(&g_ugInputs[UG_BRAKE]);
+    memcpy(state + 0x08, state, 2); // the previous wheel
+    memcpy(state + 0x00, &wheel, 2);
+    memcpy(state + 0x02, &gas, 2);
+    memcpy(state + 0x34, &brake, 2);
+    memcpy(state + 0x10, state + 0x0C, 4);
+    memcpy(state + 0x0C, &buttons, 4);
+    DWORD driver = 6; // the cabinet's wheel
+    memcpy(state + 0x30, &driver, 4);
+    if (buttons != g_ugLastButtons)
+    {
+        g_ugLastButtons = buttons;
+        wl_log("nfsu: buttons 0x%lx", buttons);
+    }
+}
+
+// An effect's strength 0..1 (+0 its on byte, +4 its strength 0..100), 0 when off
+static double ug_effect(const unsigned char *state, int offset)
+{
+    if (!state[offset])
+        return 0;
+    int v;
+    memcpy(&v, state + offset + 4, 4);
+    return (v < 0 ? 0 : v > 100 ? 100 : v) / 100.0;
+}
+
+static void ug_ffb(const unsigned char *state)
+{
+    static double lastSpring = -1, lastSine = -1;
+    double spring = ug_effect(state, 0x88);
+    double a = ug_effect(state, 0xA0), b = ug_effect(state, 0xAC), sine = a > b ? a : b;
+    if (spring != lastSpring)
+    {
+        lastSpring = spring;
+        wl_ffb_set_conditions(spring, 0, spring, 0);
+    }
+    if (sine != lastSine)
+    {
+        lastSine = sine;
+        wl_ffb_set_vibration(sine, 50);
+    }
+}
+
+// int GVRInputRawInit(HWND, state *, const char *game): 0, the wheel ready
+static int __cdecl ug_init(HWND wnd, unsigned char *state, const char *game)
+{
+    wl_log("nfsu: GVRInputRawInit for \"%s\", state at %p: the controls are windowsloader's", game ? game : "", state);
+    if (!state)
+        return 2;
+    ug_fill(state);
+    return 0;
+}
+
+// int GVRInputRawUpdate(state *): 0, updated
+static int __cdecl ug_update(unsigned char *state)
+{
+    if (!state)
+        return 3;
+    memcpy(state + 0x20, state + 0x18, 8);
+    QueryPerformanceCounter((LARGE_INTEGER *)(state + 0x18));
+    ug_fill(state);
+    ug_ffb(state);
+    return 0;
+}
+
+// The cleanup, the fault and calibration counters: nothing to do, no fault
+static int __cdecl ug_none(void)
+{
+    return 0;
+}
+
+static const struct
+{
+    const char *name;
+    void *fn;
+} g_ugImports[] = {
+    {"GVRInputRawInit", (void *)ug_init},
+    {"GVRInputRawUpdate", (void *)ug_update},
+    {"GVRInputRawCleanup", (void *)ug_none},
+    {"GVRInputRawGetStuckAxis", (void *)ug_none},
+    {"GVRInputRawIncAxisFault", (void *)ug_none},
+    {"GVRInputRawGetAxisFault", (void *)ug_none},
+    {"GVRInputRawGetFFFault", (void *)ug_none},
+    {"GVRInputRawClearAxisFault", (void *)ug_none},
+    {"GVRInputRawClearStuckAxis", (void *)ug_none},
+    {"GVRInputRawGetButtonFault", (void *)ug_none},
+    {"GVRInputRawGetStuckButtonFault", (void *)ug_none},
+    {"GVRInputRawClearButtonFault", (void *)ug_none},
+    {"GVRInputRawClearStuckButtonFault", (void *)ug_none},
+    {"GVRInputRawIncButtonFault", (void *)ug_none},
+    {"GVRInputRawGetUncalibratedAxis", (void *)ug_none},
+};
+
+static int nfsu_game(const wchar_t *exePath, const wchar_t *base, const char **name, const char **title)
+{
+    HMODULE exe = GetModuleHandleW(NULL);
+    *name = "nfsu";
+    *title = "Need for Speed Underground";
+    wl_log("game: %s (Global VR, the race alone, CRC-32 %08lX)", *title, wl_game_exe_crc32());
+    wl_game_set_boards("Controls on Global VR's GVRInputRaw.dll (wheel, pedals, H shifter, buttons)",
+                       "Motor board: Global VR's GVRInputRaw.dll (the spring and sines the race writes)");
+    wl_inputs_set_table(g_ugInputs, UG_COUNT);
+    int done = 0, count = (int)(sizeof g_ugImports / sizeof g_ugImports[0]);
+    for (int i = 0; i < count; i++)
+        done += wl_patch_iat(exe, "GVRInputRaw.dll", g_ugImports[i].name, g_ugImports[i].fn, NULL) != 0;
+    wl_log("nfsu: %d of %d GVRInputRaw.dll functions answered", done, count);
+    if (!strstr(GetCommandLineA(), "-nosql"))
+        wl_log("nfsu: no -nosql on its command line: the race will want the cabinet's database (PLUSDE.dll, SQL Server)");
+
+    // HKLM\SOFTWARE\GlobalVR\Need For Speed UnderGround and the operator's entry for the game, as
+    // the disc's _Registry\UGVersion.reg and GVRInput.reg set them (its ini beside the race)
+    static char ini[MAX_PATH];
+    char folder[MAX_PATH];
+    int n = WideCharToMultiByte(CP_ACP, 0, exePath, (int)(base - exePath), folder, sizeof folder - 1, NULL, NULL);
+    folder[n > 0 ? n : 0] = 0;
+    snprintf(ini, sizeof ini, "%sNFSUnderground.ini", folder);
+    static const WlRegValue version[] = {
+        {"Version", REG_SZ, "1.1.0", 0}, {"Build", REG_SZ, "027", 0}, {"Prefix", REG_SZ, "", 0}, {"Suffix", REG_SZ, "", 0}};
+    static WlRegValue game[] = {{"Ini", REG_SZ, ini, 0}};
+    wl_registry_add_key("SOFTWARE\\GlobalVR", NULL, 0);
+    wl_registry_add_key("SOFTWARE\\GlobalVR\\Need For Speed UnderGround", version, 4);
+    wl_registry_add_key("SOFTWARE\\GVRShell", NULL, 0);
+    wl_registry_add_key("SOFTWARE\\GVRShell\\Operator", NULL, 0);
+    wl_registry_add_key("SOFTWARE\\GVRShell\\Operator\\Games", NULL, 0);
+    wl_registry_add_key("SOFTWARE\\GVRShell\\Operator\\Games\\NFSUNDERGROUND", game, 1);
+
+    // Its audits written at C:\'s root (c:\audits.txt): beside the race instead
+    char to[MAX_PATH];
+    snprintf(to, sizeof to, "%saudits.txt", folder);
+    wl_files_redirect_prefix("C:\\audits.txt", to);
+    wl_dinput_quiet_keyboard();
+    return 1;
+}
+
+// ------------------------------------------------------------------------------
 // The game
 // ------------------------------------------------------------------------------
 
@@ -590,6 +849,8 @@ int wl_game_globalvr(const wchar_t *exePath, const char **name, const char **tit
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
     base = base ? base + 1 : exePath;
+    if (!_wcsicmp(base, L"UndergroundGVR.exe"))
+        return nfsu_game(exePath, base, name, title);
     if (_wcsicmp(base, L"NASCAR_GVR.exe"))
         return 0;
     HMODULE exe = GetModuleHandleW(NULL);

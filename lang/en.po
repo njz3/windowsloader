@@ -1356,7 +1356,7 @@ msgstr "PWM light %d of the USB I/O board, UsbIO_SetPWMLightStatu (usb_io.dll), 
 msgid "Carte du volant"
 msgstr "Wheel's board"
 
-#: src/hook/games/thrilldrive4.cpp:806
+#: src/hook/games/thrilldrive4.cpp:845
 msgid "la carte PJEI, ac_io_pjei_control_lamp_on et _off (libacio.dll)"
 msgstr "the PJEI board, ac_io_pjei_control_lamp_on and _off (libacio.dll)"
 
@@ -1482,8 +1482,8 @@ msgid "Programme jgt.dll lancé par wl_avsboot.exe (AVS, e-Amusement hors ligne 
 msgstr "jgt.dll run by wl_avsboot.exe (AVS, e-Amusement offline: SERVICE on the network warning). Konami ACIO boards: HBHI (buttons, gear lever, coin mech) and HGTH (wheel, pedals, wheel motor), card reader. The 2D view at the start (option)."
 
 #: src/launcher/gamelist.cpp:83
-msgid "Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur) et D44H (moteur du volant, libtd4io.dll). Écrit sans copie du jeu, jamais essayé."
-msgstr "Konami ACIO boards: PJEI (buttons, lever, wheel, pedals, coin mech) and D44H (wheel motor, libtd4io.dll). Written without a copy of the game, never tried."
+msgid "Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur, lampes) et D44H (moteur du volant, libtd4io.dll). Étalonnage du volant par son moteur à chaque démarrage (environ 40 s)."
+msgstr "Konami ACIO boards: PJEI (buttons, lever, wheel, pedals, coin mech, lamps) and D44H (wheel motor, libtd4io.dll). The wheel calibrated by its motor at each start (about 40 s)."
 
 #: src/launcher/gamelist.cpp:89
 msgid "La course seule, sans le menu de la borne : son circuit et sa voiture dans les options. GvrIO.dll de Global VR (volant, pédales, levier à 4 positions, boutons, retour de force), sa clé HASP répondue."
@@ -1493,119 +1493,123 @@ msgstr "The race alone, without the cabinet's menu: its track and car in the opt
 msgid "La course seule, comme NASCAR Team Racing."
 msgstr "The race alone, as NASCAR Team Racing."
 
-#: src/launcher/gamelist.cpp:95
+#: src/launcher/gamelist.cpp:97
+msgid "La course seule, sans le menu de la borne ni sa base de données (-nosql). GVRInputRaw.dll de Global VR (volant, pédales, levier en H, boutons, retour de force)."
+msgstr "The race alone, without the cabinet's menu or its database (-nosql). Global VR's GVRInputRaw.dll (wheel, pedals, H shifter, buttons, force feedback)."
+
+#: src/launcher/gamelist.cpp:101
 msgid "Carte SDC2 de Trio Tech : commandes et volant en servo de position."
 msgstr "Trio Tech's SDC2 board: controls, and the wheel as a position servo."
 
-#: src/launcher/gamelist.cpp:97
+#: src/launcher/gamelist.cpp:103
 msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1)."
 msgstr "Namco NA-JV JVS board (COM3), Namco motor board (COM1)."
 
-#: src/launcher/gamelist.cpp:99 src/launcher/gamelist.cpp:101 src/launcher/gamelist.cpp:103 src/launcher/gamelist.cpp:105
+#: src/launcher/gamelist.cpp:105 src/launcher/gamelist.cpp:107 src/launcher/gamelist.cpp:109 src/launcher/gamelist.cpp:111
 msgid "Carte JVS Namco NA-JV (COM3), carte moteur Namco (COM1), lecteur de cartes NFC (COM4)."
 msgstr "Namco NA-JV JVS board (COM3), Namco motor board (COM1), NFC card reader (COM4)."
 
-#: src/launcher/gamelist.cpp:106
+#: src/launcher/gamelist.cpp:112
 msgid "UNIS PC (64 bits)"
 msgstr "UNIS PC (64-bit)"
 
-#: src/launcher/gamelist.cpp:107
+#: src/launcher/gamelist.cpp:113
 msgid "E/S et volant UNIS, clé de la borne."
 msgstr "UNIS I/O and wheel, cabinet's key."
 
-#: src/launcher/gamelist.cpp:108
+#: src/launcher/gamelist.cpp:114
 msgid "UNIS PC"
 msgstr "UNIS PC"
 
-#: src/launcher/gamelist.cpp:109
+#: src/launcher/gamelist.cpp:115
 msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
 msgstr "UNIS game232 I/O board (COM1), its wheel's force and vibration; offline, its LAN mode for the link (IN-STORE TOURNAMENT, chosen at the wheel). The cabinets' release\\dic32u.dll, another loader's, undone."
 
-#: src/launcher/gamelist.cpp:112
+#: src/launcher/gamelist.cpp:118
 msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle."
 msgstr "Raw Thrills JAMMA USB board, its wheel motor on the parallel port."
 
-#: src/launcher/gamelist.cpp:115
+#: src/launcher/gamelist.cpp:121
 msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle ; son écran ramené au 640x480 de ses menus. L'étalonnage du volant et de l'accélérateur gardé par la borne (TeknoParrot) est à refaire dans le menu de test (Calibration)."
 msgstr "Raw Thrills JAMMA USB board, its wheel motor on the parallel port; its screen set to its menus' 640x480. The wheel and accelerator calibration the cabinet kept (TeknoParrot) is to be redone in the test menu (Calibration)."
 
-#: src/launcher/gamelist.cpp:117
+#: src/launcher/gamelist.cpp:123
 msgid "Moto. Carte JAMMA USB de Raw Thrills."
 msgstr "Motorbike. Raw Thrills JAMMA USB board."
 
-#: src/launcher/gamelist.cpp:119
+#: src/launcher/gamelist.cpp:125
 msgid "Moto. Carte H2O USB de Raw Thrills, écrite dans les tables d'entrées du jeu."
 msgstr "Motorbike. Raw Thrills H2O USB board, written into the game's input tables."
 
-#: src/launcher/gamelist.cpp:122
+#: src/launcher/gamelist.cpp:128
 msgid "Carte H2O USB de Raw Thrills, par le SetControl du jeu ; son moteur du volant par le port parallèle."
 msgstr "Raw Thrills H2O USB board, through the game's SetControl; its wheel motor on the parallel port."
 
-#: src/launcher/gamelist.cpp:125
+#: src/launcher/gamelist.cpp:131
 msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant ; ses calculs 3DNow! joués en SSE2. Étalonnage du volant au premier lancement."
 msgstr "Raw Thrills JAMMA USB board, its wheel motor; its 3DNow! maths played in SSE2. Wheel calibration on the first start."
 
-#: src/launcher/gamelist.cpp:128
+#: src/launcher/gamelist.cpp:134
 msgid "Bateau. Carte JAMMA USB de Raw Thrills ; force et ressort du volant lus dans le jeu. Étalonnage de la manette des gaz au premier lancement (avant : accélérateur, arrière : frein). En course, BOOST (Nitro ou Start) au départ."
 msgstr "Boat. Raw Thrills JAMMA USB board; the wheel's force and spring read from the game. Throttle calibration on the first start (forward: accelerator, back: brake). In the race, BOOST (Nitro or Start) at the start."
 
-#: src/launcher/gamelist.cpp:131
+#: src/launcher/gamelist.cpp:137
 msgid "Clavier de développement et monnayeur du jeu ; force du volant lue dans le jeu ; écran virtuel 1360x768, image sans multiéchantillonnage ; le d3d9.dll de son dossier (un autre chargeur) laissé de côté. Long chargement (2 à 3 min)."
 msgstr "The game's developer keyboard and coin board; the wheel's force read from the game; a 1360x768 virtual screen, its picture not multisampled; the d3d9.dll of its folder (another loader's) left out. A long loading (2 to 3 min)."
 
-#: src/launcher/gamelist.cpp:134
+#: src/launcher/gamelist.cpp:140
 msgid "Carte RIO de Raw Thrills derrière libusb0, clé HASP ; force du volant lue dans le jeu, son moteur par le port parallèle (PortTalk émulé). Étalonnage au premier lancement. Sans gaz au départ, le jeu passe en pilote automatique jusqu'au prochain appui."
 msgstr "Raw Thrills RIO board behind libusb0, HASP key; the wheel's force read from the game, its motor through the parallel port (PortTalk emulated). Calibration on the first start. Without gas at the start, the game drives itself until the next press."
 
-#: src/launcher/gamelist.cpp:137
+#: src/launcher/gamelist.cpp:143
 msgid "Carte RIO de Raw Thrills derrière libusb0, contrôle de la clé de la borne ; force du volant lue dans le jeu."
 msgstr "Raw Thrills RIO board behind libusb0, the cabinet's key check; the wheel's force read from the game."
 
-#: src/launcher/gamelist.cpp:140
+#: src/launcher/gamelist.cpp:146
 msgid "Motoneige. Sans carte USB : commandes par la fonction SetControl du jeu, pièges de la protection retirés ; force du guidon lue dans le jeu ; lancé depuis une copie de son programme à plus de 2 Go (dans le dossier d'écriture). En link, une borne lance la course, l'autre la rejoint."
 msgstr "Snowmobile. No USB board: the controls through the game's SetControl function, the protection's traps removed; the handlebar's force read from the game; started from a copy of its program with more than 2 GB (in the write folder). Linked, one cabinet starts the race, the other joins it."
 
-#: src/launcher/gamelist.cpp:143
+#: src/launcher/gamelist.cpp:149
 msgid "Carte USB par usb_io.dll ; vidéos noires sans le décodeur WMV."
 msgstr "USB board through usb_io.dll; black videos without the WMV decoder."
 
-#: src/launcher/gamelist.cpp:145
+#: src/launcher/gamelist.cpp:151
 msgid "Moto. Carte par motobikeio.dll, clé HASP par Lock.dll."
 msgstr "Motorbike. Board through motobikeio.dll, HASP key through Lock.dll."
 
-#: src/launcher/gamelist.cpp:147 src/launcher/gamelist.cpp:151
+#: src/launcher/gamelist.cpp:153 src/launcher/gamelist.cpp:157
 msgid "Sega Nu (64 bits)"
 msgstr "Sega Nu (64-bit)"
 
-#: src/launcher/gamelist.cpp:149 src/launcher/gamelist.cpp:152
+#: src/launcher/gamelist.cpp:155 src/launcher/gamelist.cpp:158
 msgid "Plateforme Nu (amdaemon, carte AMEX), carte JVS, levier en H, moteur du volant (COM1), lampes (COM11), server box du magasin : partie invité ; les cartes Aime attendent le serveur en ligne du jeu."
 msgstr "Nu platform (amdaemon, AMEX board), JVS board, H-shifter, wheel's motor (COM1), lamps (COM11), the shop's server box: guest play; the Aime cards wait for the game's online server."
 
-#: src/launcher/gamelist.cpp:155
+#: src/launcher/gamelist.cpp:161
 msgid "Trottinette. Carte par xio.dll : guidon, poussées gauche et droite (l'accélérateur les alterne), frein, moteur du guidon."
 msgstr "Kick scooter. Board through xio.dll: handlebar, left and right kicks (the accelerator alternates them), brake, handlebar's motor."
 
-#: src/launcher/gamelist.cpp:157
+#: src/launcher/gamelist.cpp:163
 msgid "Sega ALLS (64 bits)"
 msgstr "Sega ALLS (64-bit)"
 
-#: src/launcher/gamelist.cpp:158
+#: src/launcher/gamelist.cpp:164
 msgid "Plateforme ALLS (amdaemon), borne seule, complète (tableau de bord : boutons du volant, vitesse ; carte LED) ou mini (option CABINET) ; ALL.Net, Aime et le serveur de titre joués sur ce PC : partie invité (course, résultats, game over), retour de force par la carte du volant sur COM1. Reste le serveur de matching (GAME SERVER BAD, pas de course en réseau)."
 msgstr "ALLS platform (amdaemon), single cabinet, full (dashboard: wheel's buttons, speed; LED board) or mini (CABINET option); ALL.Net, Aime and the title server played on this PC: guest play (race, results, game over), force feedback through the wheel's board on COM1. The matching server remains (GAME SERVER BAD, no network race)."
 
-#: src/launcher/gamelist.cpp:162 src/launcher/gamelist.cpp:166 src/launcher/gamelist.cpp:171
+#: src/launcher/gamelist.cpp:168 src/launcher/gamelist.cpp:172 src/launcher/gamelist.cpp:177
 msgid "Namco System ES3X (64 bits)"
 msgstr "Namco System ES3X (64-bit)"
 
-#: src/launcher/gamelist.cpp:163
+#: src/launcher/gamelist.cpp:169
 msgid "Clé HASP (identifiant 2808), carte JVS Namco, terminal de salle joué, lecteur Banapass sans carte, hors ligne (sans ALL.Net) : course en mode Story. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent les cartes et la caméra."
 msgstr "HASP key (ID 2808), Namco JVS board, arcade terminal played, Banapass reader without a card, offline (no ALL.Net): race in Story mode. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The cards and the camera remain."
 
-#: src/launcher/gamelist.cpp:168
+#: src/launcher/gamelist.cpp:174
 msgid "Clé HASP (identifiant 2783), carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois STEERING POWER mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key (ID 2783), Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once STEERING POWER is set to ON in the test menu. The card reader and the camera remain."
 
-#: src/launcher/gamelist.cpp:172
+#: src/launcher/gamelist.cpp:178
 msgid "Clé HASP, carte JVS Namco, terminal de salle joué : course en mode Story, levier en H. Retour de force par la carte du volant sur COM1, une fois « ステアリング反力の使用 » mis à ON dans le menu de test. Restent le lecteur de cartes et la caméra."
 msgstr "HASP key, Namco JVS board, arcade terminal played: race in Story mode, H-shifter. Force feedback through the wheel's board on COM1, once \"ステアリング反力の使用\" is set to ON in the test menu. The card reader and the camera remain."
 
@@ -1798,6 +1802,9 @@ msgstr "windowsloader %s %s — game selection"
 #: src/launcher/picker.cpp:1041
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
+
+#~ msgid "Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur) et D44H (moteur du volant, libtd4io.dll). Écrit sans copie du jeu, jamais essayé."
+#~ msgstr "Konami ACIO boards: PJEI (buttons, lever, wheel, pedals, coin mech) and D44H (wheel motor, libtd4io.dll). Written without a copy of the game, never tried."
 
 #~ msgid "Boost"
 #~ msgstr "Boost"
