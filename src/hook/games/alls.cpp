@@ -398,6 +398,18 @@ static void io4_input(unsigned char *r, int length)
     put16(r + 29, buttons[0]);
     put16(r + 31, buttons[1]);
     r[33] = (unsigned char)g_io4Status;
+    // The switches as the board reports them, each change (the first 60): what the game is given
+    static unsigned was = 0xFFFFFFFFu;
+    static int told;
+    unsigned now = buttons[0] | buttons[1] << 16;
+    if (now != was && told < 60)
+    {
+        told++;
+        wl_log("io4: switches player 1 %04x, player 2 %04x (Start %s), wheel %04x, accelerator %04x, brake %04x", buttons[0], buttons[1],
+               (buttons[0] & 0x80) ? "pressed" : "up", (unsigned)input_raw(IN_STEERING) & 0xFFFF, (unsigned)input_raw(IN_GAS) & 0xFFFF,
+               (unsigned)input_raw(IN_BRAKE) & 0xFFFF);
+    }
+    was = now;
 }
 
 static void io4_output(const unsigned char *r, int length)

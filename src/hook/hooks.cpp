@@ -13,6 +13,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "MinHook.h"
 #include "hooks.h"
@@ -58,6 +59,23 @@ static CRITICAL_SECTION g_hookLock;
 static int g_pending;           // hooks not installed yet
 static volatile LONG g_freed;   // hooks whose module was unloaded, not looked at yet
 
+// The hooks of code in a DLL (wl_hook_code: a COM object's methods, a function of a DLL): installed
+// again at the same place in that module when it is loaded again after being unloaded (a game that
+// frees d3d9.dll and loads it again: its IDirect3D9's methods otherwise left unhooked)
+typedef struct
+{
+    wchar_t path[MAX_PATH]; // the module's file
+    HMODULE base;           // where it was hooked
+    ULONG_PTR rva;          // the code's place in the module
+    void *detour;
+    void **original;
+    char what[96];
+    volatile LONG freed;    // 1: its module unloaded; 2: waiting for its module to be loaded again
+} CodeHook;
+static CodeHook g_codeHooks[128];
+static volatile LONG g_codeHookCount;
+static int g_codeWaiting; // code hooks whose module is not loaded again yet
+
 // A module unloaded, whoever unloads it (Windows' DLLs too), told by the loader: its hooks marked,
 // installed again at its next load (a game freeing iphlpapi, mf or hid, then loading it again). The
 // loader's lock is held here: nothing else than the marks, no lock of ours
@@ -86,6 +104,13 @@ static VOID CALLBACK on_dll_notification(ULONG reason, const DllNotification *da
                 InterlockedExchange(&h->freed, 1);
                 InterlockedIncrement(&g_freed);
             }
+        }
+    int codes = g_codeHookCount;
+    for (int i = 0; i < codes; i++)
+        if (g_codeHooks[i].base == (HMODULE)data->DllBase && !g_codeHooks[i].freed)
+        {
+            InterlockedExchange(&g_codeHooks[i].freed, 1);
+            InterlockedIncrement(&g_freed);
         }
 }
 
@@ -179,12 +204,16 @@ static int in_module(HMODULE mod, const void *p)
 
 void wl_hooks_install_pending(void)
 {
-    if (!g_pending && !g_freed)
+    if (!g_pending && !g_freed && !g_codeWaiting)
         return;
     wl_busy_enter();
     EnterCriticalSection(&g_hookLock);
     int queued = 0;
     if (InterlockedExchange(&g_freed, 0))
+    {
+        for (int i = 0; i < g_codeHookCount; i++)
+            if (InterlockedCompareExchange(&g_codeHooks[i].freed, 2, 1) == 1)
+                g_codeWaiting++;
         for (int t = 0; t < g_tableCount; t++)
             for (int i = 0; i < g_tables[t].count; i++)
             {
@@ -197,6 +226,20 @@ void wl_hooks_install_pending(void)
                 h->base = NULL;
                 g_pending++;
             }
+    }
+    for (int i = 0; g_codeWaiting && i < g_codeHookCount; i++)
+    {
+        CodeHook *c = &g_codeHooks[i];
+        HMODULE mod = c->freed == 2 ? GetModuleHandleW(c->path) : NULL;
+        if (!mod)
+            continue;
+        g_codeWaiting--;
+        // Back at the same place: MinHook's old hook there replaced (queue_one's again)
+        int again = mod == c->base;
+        c->base = mod;
+        InterlockedExchange(&c->freed, 0);
+        queued += queue_one((BYTE *)mod + c->rva, c->detour, c->original, c->what, again);
+    }
     for (int t = 0; t < g_tableCount; t++)
     {
         for (int i = 0; i < g_tables[t].count; i++)
@@ -244,6 +287,24 @@ int wl_hook_code(void *target, void *detour, void **original, const char *what)
     EnterCriticalSection(&g_hookLock);
     int ok = queue_one(target, detour, original, what);
     apply_queued(ok);
+    // In a DLL (not the game's program, never unloaded): kept, to be installed again
+    HMODULE mod = NULL;
+    if (ok && g_codeHookCount < (LONG)(sizeof g_codeHooks / sizeof g_codeHooks[0]) &&
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)target, &mod) && mod &&
+        mod != GetModuleHandleW(NULL) && mod != g_wlModule)
+    {
+        CodeHook *c = &g_codeHooks[g_codeHookCount];
+        memset(c, 0, sizeof *c);
+        if (GetModuleFileNameW(mod, c->path, MAX_PATH))
+        {
+            c->base = mod;
+            c->rva = (ULONG_PTR)target - (ULONG_PTR)mod;
+            c->detour = detour;
+            c->original = original;
+            snprintf(c->what, sizeof c->what, "%s", what);
+            InterlockedIncrement(&g_codeHookCount); // the entry complete before the loader's notification sees it
+        }
+    }
     LeaveCriticalSection(&g_hookLock);
     wl_busy_leave();
     return ok;

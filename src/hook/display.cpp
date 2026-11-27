@@ -30,6 +30,7 @@
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
+#include "controls.h"
 #include "menu.h"
 #include "settings.h"
 #include "wlshared.h"
@@ -1103,6 +1104,8 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     LRESULT result;
     log_window_event(h, msg, wp, lp);
+    if ((msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN) && !(lp & (1 << 30)))
+        wl_controls_key_pressed((int)wp);
     // A game that pauses when its window loses the activation (Sega Rally 3: its threads stopped, a
     // race's loading or the race itself frozen while another program's window is in front, until the
     // game's is clicked; Battle Gear 4 too): a cabinet's game runs on, the loss not passed on (KEEP_ACTIVE)

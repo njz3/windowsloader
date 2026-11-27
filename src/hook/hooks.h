@@ -32,7 +32,8 @@ extern HMODULE g_wlModule;
 // ------------------------------------------------------------------------------
 // API hooks (MinHook). Each hook file declares a table; a hook whose module is not loaded yet
 // is installed by wl_hooks_install_pending(), which the LoadLibrary hooks call after each load.
-// A module unloaded (FreeLibrary) has its hooks installed again when it is loaded again.
+// A module unloaded (FreeLibrary) has its hooks installed again when it is loaded again, those of
+// wl_hook_code in a DLL too (at the same place in the module).
 // ------------------------------------------------------------------------------
 
 typedef struct

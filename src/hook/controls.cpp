@@ -1226,10 +1226,42 @@ void wl_controls_ffb_stop(void)
 // ExitGame pressed: the game ends at once, as with the menu's "Quitter le jeu" (the launcher then
 // closes the programs it started with it). Not while the settings menu is open (Escape is its own
 // there), nor for a press already held before: only a new one counts
+static volatile LONG g_keyPresses[256]; // WM_KEYDOWN seen by the game's window since the last poll
+
+void wl_controls_key_pressed(int vk)
+{
+    if (vk > 0 && vk < 256)
+        InterlockedExchange(&g_keyPresses[vk], 1);
+}
+
+// A key counts when it is held, or was pressed in the game's window since the last poll
+// (wl_controls_key_pressed)
+static int exit_pressed(void)
+{
+    for (int i = 0; i < g_exitGame.count; i++)
+    {
+        int all = 1;
+        for (int j = 0; j < g_exitGame.alt[i].count && all; j++)
+        {
+            const Source *s = &g_exitGame.alt[i].parts[j];
+            if (s->kind != SRC_KEY)
+            {
+                all = pressed(s);
+                continue;
+            }
+            int counted = s->index > 0 && s->index < 256 && InterlockedExchange(&g_keyPresses[s->index], 0); // taken in any case
+            all = g_keyboardFocus && (counted || (GetAsyncKeyState(s->index) & 0x8000));
+        }
+        if (all)
+            return 1;
+    }
+    return 0;
+}
+
 static void exit_step(void)
 {
     static int was = 1;
-    int down = binding_pressed(&g_exitGame);
+    int down = exit_pressed();
     if (down && !was && !wl_menu_is_open())
     {
         wl_log("controls: ExitGame: the game ends");

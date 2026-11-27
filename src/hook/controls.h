@@ -43,6 +43,11 @@ int wl_controls_has_file(void);
 // for 300 ms at most from another thread); nothing opened again after
 void wl_controls_ffb_stop(void);
 
+// From the game window's procedure: a key pressed (WM_KEYDOWN, not a repeat), counted for ExitGame,
+// whose keys are otherwise polled: a program's SendKeys sends the press and its release together,
+// between two polls
+void wl_controls_key_pressed(int vk);
+
 // For the settings menu's page (linuxloader's: the devices, each binding the actions to its own inputs)
 int wl_controls_running(void);
 const char *wl_controls_player_name(int player);
