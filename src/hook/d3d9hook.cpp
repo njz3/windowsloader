@@ -75,8 +75,8 @@ static UINT g_interval = D3DPRESENT_INTERVAL_ONE;
 // GetClientRect, past the game's), Dirty Drivin' asks the screen's mode (its -r 1360x768 aside):
 // both drew their 1360x768 menus in a corner of 1920x1080. Only when larger both ways: a window
 // narrower than the screen told is kept at its size, as a smaller one is (Crazy Speed on a 1280x960
-// screen, reset at 1280x960: made 1360x768, its 3D view stopped 80 pixels before the right edge,
-// Racecab2, 24/11/2026; at 640x480 kept, whole)
+// screen, reset at 1280x960: made 1360x768, its 3D view stopped 80 pixels before the right edge;
+// at 640x480 kept, whole)
 static void told_size(D3DPRESENT_PARAMETERS *pp)
 {
     int vw, vh;
@@ -590,7 +590,7 @@ static void asked_size(D3DPRESENT_PARAMETERS *pp, HWND focus)
 }
 
 // A game whose Reset with its device's own settings, the device not lost, is not made (by its
-// module): Road Fighters 3D's at the end of a game on the cabinets, after which its effects could
+// module): Road Fighters 3D's at the end of a game, after which its effects could
 // not be made again (D3DXCreateEffect: E_OUTOFMEMORY) and it crashed (jgt.dll+0x1d3804)
 static int g_keepSameReset;
 
@@ -954,7 +954,7 @@ static void create_failed(const char *what, UINT w, UINT h, int format, DWORD ex
 // A game whose Bink videos decode into its own textures (BinkRegisterFrameBuffers): Bink builds
 // each frame from the previous one, read back from them. Made in video memory and dynamic (L8, one
 // per plane), their locks gave back zeros on today's drivers: the blocks a frame left as they were
-// came out green (Cars' Disney and Pixar logos, 24/11/2026; its device a Direct3D 9Ex one, where
+// came out green (Cars' Disney and Pixar logos; its device a Direct3D 9Ex one, where
 // managed textures do not exist). Each such texture gets a copy in memory (its private data,
 // released with it): the game's locks are given that copy, which keeps the last frame, and the
 // unlock sends it to the texture (wl_d3d9_video_textures_managed)
@@ -1140,7 +1140,7 @@ static void hook_device(IDirect3DDevice9 *dev)
 // A game drawing on one thread and loading its textures on another, its device not made
 // D3DCREATE_MULTITHREADED: Direct3D then serialises their calls (wl_d3d9_multithreaded). Storm
 // Rider's loader (d3dx9's CreateTexture) and its frames met in the graphics driver, which waited
-// for good: 2 of its 5 games on Racecab1 stopped on the bike's loading (24/11/2026)
+// for good: about one game in three stopped on the bike's loading
 static int g_multithreaded;
 
 void wl_d3d9_multithreaded(void)

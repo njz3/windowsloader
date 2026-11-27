@@ -655,7 +655,7 @@ static WlSegaShell g_shell = {
 //   accept, recvfrom, getpeername, getsockname of cabinet N's real address -> 192.168.1.N
 // Anything else is left to system.cpp, which keeps the game off the local network. Without LINK
 // the cabinet is alone, cabinet 1 of 1: a second cabinet's file (CabinetID = 2, the link's
-// identity from TeknoParrot) made it wait for cabinet 1 on "network discovery" (racecab2).
+// identity from TeknoParrot) made it wait for cabinet 1 on "network discovery".
 #define LINK_MAX 8
 #define LINK_NET 0x0001A8C0u // 192.168.1.0, in network order
 #define LINK_MASK 0x00FFFFFFu
@@ -1110,7 +1110,7 @@ static int ini_override(const char *file, const char *section, const char *key, 
 
 // The link sends each cabinet's player's pictures to the others (OpenCVMgrImpl, ImageComm):
 // without a camera, each cabinet drops the other right after "commLink OK" and both stay on
-// "POWER-ON TEST NETWORK" (racecab1 and 2; the same under TeknoParrot without a webcam). The game
+// "POWER-ON TEST NETWORK" (the same under TeknoParrot without a webcam). The game
 // opens it as an OpenCV 2.4 cv::VideoCapture (+0x16ab3b: new, then VideoCapture(700), DirectShow's
 // camera 0), sets 320x240 and its rate, asks isOpened(), then a thread takes "cap >> frame" into
 // an empty cv::Mat about 20 times a second (+0x16bf50). The camera of [Game.daytona3] CAMERA is
@@ -1215,7 +1215,7 @@ static int emulated_picture(void)
     if (!f)
         return 0;
     // The game shows its camera as a mirror (a selfie): the still picture mirrored first reads right
-    // (racecab1 and 2: "RACECAB 1" read backwards otherwise)
+    // (a cabinet's name painted behind the player read backwards otherwise)
     for (int y = 0; y < CAMERA_H; y++)
         for (int x = 0; x < CAMERA_W / 2; x++)
             for (int c = 0; c < 3; c++)
@@ -1230,7 +1230,7 @@ static int emulated_picture(void)
 }
 
 // The PC's camera, watched: its frames (size, kind, brightness) to the log, the first ones and
-// then every 10 s, and each time it goes dark or lit (all bytes nearly 0: racecab's DV20 in the
+// then every 10 s, and each time it goes dark or lit (all bytes nearly 0: a DV20 camera in the
 // cabinet room with the light off, the photo boxes black; kept, the player's face comes when the
 // light does). A camera that gives no frame for 3 s is given up for the emulated one. Its own
 // functions are kept; the game's calls only are watched (">>" calls read, read calls grab and

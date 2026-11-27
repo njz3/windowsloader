@@ -307,7 +307,7 @@ static FARPROC WINAPI game_GetProcAddress(HMODULE mod, LPCSTR name)
 }
 
 // The lamps' names, for the menu: Inputs.xml's DigitalOutputs (<string name="Output1"
-// value="BOOST"/>: bit 1), those UNUSED left out. The copy on racecab1: 1 BOOST, 2 CAMERA, 3 CHEAT1,
+// value="BOOST"/>: bit 1), those UNUSED left out. A cabinet's copy: 1 BOOST, 2 CAMERA, 3 CHEAT1,
 // 4 ACTIVEBOOST, 10 BRAKES
 static char g_lampText[TT_LAMPS][32];
 static const char *g_lampNames[TT_LAMPS];
@@ -346,7 +346,7 @@ static int exists(const wchar_t *dir, const wchar_t *name)
 // the lowest hosts, each hearing its own; the winner then says "Host Changed:<its number>:<its PC's
 // name>:Online" each second), then race in DirectPlay 8 (client and server, Windows' dpnet.dll,
 // UDP 5600): the others connect to the winner's name, which dpnet resolves itself (a cabinet's VPN
-// address may come first: on the cabinets, 31/10, the second never reached the first). Linked
+// address may come first: then the second never reaches the first). Linked
 // ([Game.wasteland] LINK, link.h): the broadcasts go to LINK's PCs, its own included, its address
 // is LINK's, and its PC's name, for the game, that address ("192.168.1.4"): the others connect to
 // it. Alone, it hears itself (system.cpp's loopback broadcast)

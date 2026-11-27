@@ -17,7 +17,7 @@
 // the picker comes back when it ends. Dear ImGui on Win32 and Direct3D 11.
 //
 // The games folder: [Launcher] GAMES_DIR of windowsloader.ini, else a "games" folder beside this
-// program or one or two levels up (C:\Racecab\Games for C:\Racecab\Emulators\windowsloader). Each
+// program or one or two levels up (C:\Arcade\Games for C:\Arcade\Emulators\windowsloader). Each
 // folder of it is a game when a program of the table (gamelist.cpp) is found in it, six levels
 // down at most. A picture of the game, when its folder has one: snap, title, art or cover, or the
 // folder's own name, .png or .jpg.
@@ -103,7 +103,7 @@ static int is_dir(const wchar_t *path)
 
 static void find_games_dir(void)
 {
-    // [Launcher] GAMES_DIR, linuxloader's key; [Picker] GAMES_DIR, the release of 25/10/2026's
+    // [Launcher] GAMES_DIR, linuxloader's key; [Picker] GAMES_DIR, the earlier releases'
     wchar_t v[MAX_PATH] = L"";
     GetPrivateProfileStringW(L"Launcher", L"GAMES_DIR", L"", v, MAX_PATH, g_ini);
     if (!v[0])
@@ -870,7 +870,7 @@ static int draw(int *selected, int *action)
         snprintf(platform, sizeof platform, "%s%s%s", wl_tr(e->game->platform), e->game->year[0] ? ", " : "", e->game->year);
         field(wl_tr("Plateforme"), platform);
         char versions[256];
-        wl_known_versions(e->game, wl_tr("celle des bornes Racecab"), versions, sizeof versions);
+        wl_known_versions(e->game, wl_tr("celle connue"), versions, sizeof versions);
         field(wl_tr("Version"), e->otherVersion ? wl_tr("une autre") : e->game->version);
         field(wl_tr("Versions prises en charge"), versions);
         field(wl_tr("Dossier"), e->exeDir);

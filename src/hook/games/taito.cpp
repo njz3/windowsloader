@@ -363,8 +363,8 @@ static HWND WINAPI hGetForegroundWindow(void)
 // GetSpeakerConfig gives, in a plain WAVEFORMATEX that DirectSound refuses past 2 channels
 // (SetFormat: DSERR_ALLOCATED, on a PC set to 5.1 or 7.1); the boot then waits for the sound
 // forever, black. The first edition is told stereo: its mixer makes two mono buffers, side left
-// and right. Tuned told stereo plays its effects but not its music (a user, 15/11/2026; the same
-// said of other loaders, music back with 5.1 speakers): [Game.bg4] SPEAKERS = CABINET (the
+// and right. Tuned told stereo plays its effects but not its music (the same with other loaders,
+// music back with 5.1 speakers): [Game.bg4] SPEAKERS = CABINET (the
 // default) gives it the speakers it asks for (7.1), and each format of more than 2 channels it
 // gives in a plain WAVEFORMATEX is given to DirectSound as a WAVEFORMATEXTENSIBLE, which it takes
 // whatever the PC's speakers and mixes down to them (this laptop, stereo: 6 and 8 channels plain
@@ -846,7 +846,7 @@ static int bg4_key_reader(const unsigned char *p, int n, unsigned char *r, int *
 // NESYS (Tuned): its client (+0x20ac40) posts HTTP/1.0 requests (/giant_baba/cgi-bin/bg4sv.kgr,
 // "Host: siru4cc.battlegear.net", "User-Agent: BG4KYOUTAI", binary) from one connect (+0x20adfc),
 // to siru4cc.battlegear.net:80 (172.18.18.8, the arcade's NESYS router, its default), a name that
-// still resolves to 210.148.144.82, where nothing answers (16/11/2026). [Game.bg4] NESYS_SERVER =
+// still resolves to 210.148.144.82, where nothing answers. [Game.bg4] NESYS_SERVER =
 // host[:port] (80 by default) sends each of them to that server, past the refusal of any address
 // off the PC (system.cpp) and the link's; 124.146.156.106 by default. OFF or empty: refused as before,
 // NESYS offline
@@ -946,7 +946,7 @@ static void bg4_link(void)
 // The Pro cabinet's settings and saves apart (WRITE_DIR\bg4pro): the game keeps its cabinet type
 // in its config.bin, rewrites it and closes when the boards it counts differ. Pro and Standard in
 // one folder (the same game.exe, CABINET apart), each start after a change of cabinet closed by
-// itself 3.5 s in (Image borne, racecab1, 14/11)
+// itself 3.5 s in
 static const char *bg4_write_name(void)
 {
     char v[32];
@@ -1131,7 +1131,7 @@ static int __cdecl d1gp_connect(void)
 // also sets when the file is not there: a new write folder): linked, CONNECTION METHOD (+0x5e of its
 // settings, 0 HOST, 1 CLIENT) is LINK's (cabinet 1 hosts) after each, and when Mode Select asks.
 // Mode Select offers LINK BATTLE only when the other cabinet says the other method (+0x8e6e0): both
-// HOST by default, it never did (31/10)
+// HOST by default, it never did
 static void d1gp_method(void)
 {
     if (wl_link_count())
@@ -1209,7 +1209,7 @@ static void d1gp_settings(void)
     {
         wl_patch_code((void *)0x484CB9, was, always, sizeof always, "linked: this cabinet is the client (CONNECTION METHOD = CLIENT)");
         // Its Connect to the host it found failed in 47 ms (0x80158080) once DirectPlay had opened
-        // and closed its port 55555 twice (cabinets, 31/10): the client's own port left to
+        // and closed its port 55555 twice: the client's own port left to
         // DirectPlay (2302 and up, as its search had), its "port" not added (+0x84b6e: to +0x84bae)
         static const unsigned char portWas[5] = {0xA1, 0x00, 0xF6, 0x61, 0x00}, skip[2] = {0xEB, 0x3E};
         wl_patch_code((void *)0x484B6E, portWas, skip, sizeof skip, "linked: the client's own port left to DirectPlay");
@@ -1391,7 +1391,7 @@ int wl_game_taito(const wchar_t *exePath, const char **name, const char **title)
     // Tuned's music and effects on the right side 46 dB down: its master volume (+0x256e00, for
     // each of the mixer's first six buffers) goes to DirectSound as a pan, 5420 - 10000 x volume,
     // -4580 at full volume (measured: STEREO's right side 45 dB down, CABINET's mixed down 10 dB
-    // down, here and on the cabinets). Given as 0, the middle (mov eax, 5420; sub eax, [ebp+0xc]
+    // down, here and on a cabinet). Given as 0, the middle (mov eax, 5420; sub eax, [ebp+0xc]
     // to xor eax, eax); the volume was never applied
     static const unsigned char panWas[8] = {0xB8, 0x2C, 0x15, 0x00, 0x00, 0x2B, 0x45, 0x0C};
     static const unsigned char panMiddle[8] = {0x31, 0xC0, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90};

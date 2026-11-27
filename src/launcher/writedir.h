@@ -21,8 +21,8 @@
 // and controls.ini (copied there from their first place the first time) and the log; the DLL makes
 // WRITE_DIR\<game> for what the game writes (src/hook/files.cpp). A write folder that cannot be
 // made, or a file not made, written and removed there, is not used, and nothing is written in its
-// stead (the owner's rule for all his emulators, 31/10/2026): the settings and the game's files are
-// read in their usual places, never written there, the writes lost, no log.
+// stead, the same rule as the other emulators (Flycast, Supermodel): the settings and the
+// game's files are read in their usual places, never written there, the writes lost, no log.
 
 // The root, absolute and made, from arg, else from iniPath's [Paths] WRITE_DIR (relative to the
 // launcher's folder selfDir): 1, 0 when there is none, -1 when it cannot be made, -2 when a file

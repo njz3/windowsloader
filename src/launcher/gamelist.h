@@ -40,7 +40,7 @@ struct WlKnownGame
     const char *name;          // its short name: the DLL module's ([Game.<name>], WRITE_DIR\<name>)
     const char *version;       // "" when the copies do not tell it
     const wchar_t *exes[3];    // the program's names (a .dll: a Konami AVS game's, run in the launcher's wl_avsboot.exe)
-    DWORD crc32[3];            // each one's CRC-32 in the cabinets' copies (zip's), 0 when not known: shown
+    DWORD crc32[3];            // each one's CRC-32 in the known copies (zip's), 0 when not known: shown
                                // by --list-games only, never checked (another program is played the same)
     const wchar_t *markers[3]; // files that must be there, from the program's folder
     DWORD stamp;               // the program's PE time stamp, 0 for any

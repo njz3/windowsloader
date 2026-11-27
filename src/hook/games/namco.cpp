@@ -553,6 +553,8 @@ static void nfc_answer(int cmd, const unsigned char *data, int n)
 {
     static const unsigned char ack[6] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
     nfc_put(ack, 6);
+    if (n > 64 - 9)
+        n = 64 - 9; // the frame's 9 bytes of its own
     unsigned char f[64] = {0x00, 0x00, 0xFF, (unsigned char)(2 + n), (unsigned char)(0x100 - (2 + n)), 0xD5, (unsigned char)(cmd + 1)};
     memcpy(f + 7, data, n);
     unsigned char sum = 0;
@@ -570,7 +572,7 @@ static void nfc_command(const unsigned char *d, int n) // D4, the command, its d
     if (logged[cmd]++ < 3)
         wl_log_hex("namco: card reader, command", d + 1, n - 1 < 16 ? n - 1 : 16);
     static const unsigned char firmware[4] = {0x32, 0x01, 0x06, 0x07}; // PN532 1.6
-    static const unsigned char zero[8] = {0};
+    static const unsigned char zero[64 - 9] = {0}; // as many as a frame holds
     switch (cmd)
     {
     case 0x02: // firmware version
@@ -667,8 +669,8 @@ static WlVirtualDevice g_com4 = {"COM4", NULL, com4_read, com4_write, com1_modem
 typedef void(__cdecl *BngCallback)(int number, int result, void *context);
 
 // The callbacks are called from a thread of the library's own, as bngrw.dll does, once the request
-// has returned; never inside it. Called inside, Wangan Midnight 6 froze in its attract (racecab2,
-// 30/10): its request (+0x8cffa6, on the game's main thread) holds a lock its callback (+0x8cf780)
+// has returned; never inside it. Called inside, Wangan Midnight 6 froze in its attract: its
+// request (+0x8cffa6, on the game's main thread) holds a lock its callback (+0x8cf780)
 // waits for, so the picture stopped for good after the reader's attach
 #define BNG_QUEUE 64
 static struct
@@ -1694,9 +1696,9 @@ static void wangan_state(int pc, const char *data, int n)
     }
 }
 
-// The cabinet alone (25/10): its packets on port 50765 from another machine are not given to the
+// The cabinet alone: its packets on port 50765 from another machine are not given to the
 // game (0 bytes, which it drops). Two Wangan on the same network with the same PCB ID saw each
-// other: E2403 "Duplicate Board ID error" here, "同一の基板IDの筐体が存在します" on racecab1.
+// other: E2403 "Duplicate Board ID error" ("同一の基板IDの筐体が存在します" on a Japanese build).
 // Linked, a PC of LINK's packets are kept, shown from its cabinet's address (192.168.92.(10 + k)).
 // 1: the packet is to be dropped
 static int from_terminal(sockaddr_in *from, int terminal, SOCKET s, const char *data, int n)
@@ -1753,7 +1755,7 @@ static int from_terminal(sockaddr_in *from, int terminal, SOCKET s, const char *
 // (its announcements to 225.0.0.1) to each other PC of LINK as well, by a sendto of their own
 static int(WSAAPI *oWSASendTo)(SOCKET, LPWSABUF, DWORD, LPDWORD, DWORD, const sockaddr *, int, LPWSAOVERLAPPED, LPWSAOVERLAPPED_COMPLETION_ROUTINE);
 
-// A datagram to a PC whose game does not listen yet (racecab1 started 3 s before racecab2, link31)
+// A datagram to a PC whose game does not listen yet (one cabinet started 3 s before the other)
 // brings back an ICMP "port unreachable", which fails the socket's next receive (WSAECONNRESET):
 // E0505 "Network disconnection error" at once. Before each send to a PC (a socket's handle may be
 // another's after a close), the socket made deaf to those (SIO_UDP_CONNRESET off), as a lost
@@ -1911,8 +1913,8 @@ static BOOL WINAPI terminal_GetQueuedCompletionStatus(HANDLE port, LPDWORD bytes
 }
 
 // After its bind on port 50765, the game joins the group 225.0.0.1 on any of the PC's cards
-// (boost::asio's join_group, the 5's +0x8761d0), and stops if Windows refuses: racecab2 (02/11,
-// error 10065, no route for the group), "set_option" thrown 7.8 s after the start, its picture
+// (boost::asio's join_group, the 5's +0x8761d0), and stops if Windows refuses (error 10065, no
+// route for the group): "set_option" thrown 7.8 s after the start, its picture
 // frozen, for the 5, 5 DX+ and 6 alike. Refused, the join is made on the loopback, or taken as done:
 // the terminal's packets come to 127.0.0.1, the other cabinets' (linked) to the PC's own address,
 // none by the group
@@ -1944,7 +1946,7 @@ static int WSAAPI wangan_setsockopt(SOCKET s, int level, int name, const char *v
 // ID and key serial (below). The game counts the cabinets by their announcements to the group, its own
 // among them (wangan_to_cabinets): two, a player is asked "Select VS acceptance" (Accept VS: "Waiting
 // for challenger"), and a player starting on another cabinet "Challenge other racers?"; yes, "A new
-// challenger!" and both go to the VS mode's selection, then race (two cabinets on this PC, 02/11)
+// challenger!" and both go to the VS mode's selection, then race (two cabinets on one PC as well)
 // Linked, its socket on 50765 is on the PC's address of LINK rather than any (two cabinets on one PC
 // each their own), the terminal's packets going there
 static int(WSAAPI *owangan_bind)(SOCKET, const sockaddr *, int);
@@ -1983,7 +1985,7 @@ static void __fastcall wangan_read_byte(void *reader, unsigned char *value, cons
 // The cabinets the game counts (the 5's +0x56b550, its InfoLocalLink: by board ID, 4 places of 0x60
 // bytes from +0x60, each a Message received; counted when its information's system_mode is 3 to 5
 // and its drive_cabinet_state's event_mode the cabinet's), each change logged with what each place
-// holds: fewer than 2, no VS (link36: racecab2 went to the mode's choice, racecab1 accepting)
+// holds: fewer than 2, no VS (one cabinet went to the mode's choice, the other accepting)
 static int(__fastcall *ocount_cabinets)(void *);
 static int __fastcall wangan_count_cabinets(void *link)
 {

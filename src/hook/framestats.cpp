@@ -12,7 +12,7 @@
 // its own project; such code is marked with its origin.
 
 // [Display] FRAME_STATS: where the presenting thread's time goes (framestats.h). Written for Road
-// Fighters 3D, at 48 fps on the cabinets with neither the GPU nor a CPU core full (24/11/2026).
+// Fighters 3D, at 48 fps on a cabinet's PC with neither the GPU nor a CPU core full.
 
 #include <windows.h>
 #include <mmsystem.h>

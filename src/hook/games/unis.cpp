@@ -509,10 +509,10 @@ static void settings(void)
 }
 
 // The game's settings files (Binaries\Win64\Setting_*.ini) are read through Plugins\IniFile.dll
-// (seen on the cabinets): BIND_ReadInI_WChar(text, text, value[260], text, flag) with the file,
+// (seen on a cabinet's copy): BIND_ReadInI_WChar(text, text, value[260], text, flag) with the file,
 // the section and the key (+0x1989d0), the value's length when found. The matching screen,
 // Matching2, whose Blueprint opens McastUDP.dll's sockets, is shown only when Setting_System's
-// bEnableOnline is true (+0x1dd5e0, read at +0x20a471; false when missing, as on the cabinets):
+// bEnableOnline is true (+0x1dd5e0, read at +0x20a471; false when missing, as in the known copies):
 // linked, the game reads it true
 static int (*oReadInI)(const wchar_t *, const wchar_t *, wchar_t *, const wchar_t *, char);
 static int BIND_ReadInI_WChar(const wchar_t *a, const wchar_t *b, wchar_t *value, const wchar_t *c, char flag)
@@ -821,9 +821,39 @@ static BOOL WINAPI dic_WriteProcessMemory(HANDLE process, LPVOID address, LPCVOI
     return TRUE;
 }
 
+// Up to 8 bytes of code replaced in one locked write, when they are the ones expected: a thread
+// running that code meanwhile sees either the old instruction or the new one, never half of each
+static int patch_atomic(unsigned char *at, const unsigned char *was, const unsigned char *now, int size, const char *what)
+{
+    DWORD old;
+    if (size < 1 || size > 8 || !VirtualProtect(at, 8, PAGE_EXECUTE_READWRITE, &old))
+        return 0;
+    volatile LONG64 *q = (volatile LONG64 *)at;
+    int done = 0;
+    for (;;)
+    {
+        LONG64 cur = *q, want = cur;
+        if (memcmp(&cur, was, size))
+            break;
+        memcpy(&want, now, size);
+        if (InterlockedCompareExchange64(q, want, cur) == cur)
+        {
+            done = 1;
+            break;
+        }
+    }
+    VirtualProtect(at, 8, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), at, 8);
+    if (done)
+        wl_log("patch %s", what);
+    return done;
+}
+
 static void speed_undo_loader(unsigned char *exe)
 {
     static volatile LONG hooked;
+    if (wl_game_exe_crc32() != 0x42B6AC2D)
+        return; // the places below are the known build's
     HMODULE dic = GetModuleHandleW(L"dic32u.dll");
     if (!dic || GetProcAddress(dic, "TransmitAPDU") == NULL)
         return; // the real dongle's library, or none
@@ -843,9 +873,15 @@ static void speed_undo_loader(unsigned char *exe)
         {0xA85C7, {0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90}, {0xD9, 0x9B, 0x98, 0x02, 0x00, 0x00}, 6, "Crazy Speed's accelerator stored (put back)"},
         {0xA8694, {0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90}, {0xD9, 0x9B, 0x9C, 0x02, 0x00, 0x00}, 6, "Crazy Speed's brake stored (put back)"},
     };
+    // all six as that loader leaves them, else none touched (another loader, another change)
     for (size_t i = 0; i < sizeof undo / sizeof undo[0]; i++)
-        if (!memcmp(exe + undo[i].rva, undo[i].loader, undo[i].size))
-            wl_patch_code(exe + undo[i].rva, undo[i].loader, undo[i].program, undo[i].size, undo[i].what);
+        if (memcmp(exe + undo[i].rva, undo[i].loader, undo[i].size))
+        {
+            wl_log("game: Crazy Speed: its input update not as release\\dic32u.dll leaves it (+0x%X): left as it is", undo[i].rva);
+            return;
+        }
+    for (size_t i = 0; i < sizeof undo / sizeof undo[0]; i++)
+        patch_atomic(exe + undo[i].rva, undo[i].loader, undo[i].program, undo[i].size, undo[i].what);
 }
 
 static void speed_patches(unsigned char *exe)
@@ -891,7 +927,7 @@ static int crazy_speed(const wchar_t *exePath, const wchar_t *base, const char *
     InitializeCriticalSection(&g_speedLock);
     wl_vdev_register(&g_speedBoard);
     wl_vdev_label("COM1", WL_N("Carte d'E/S"));
-    // The PC's own joysticks (vJoy on the cabinets) kept from the game's DirectInput (OIS): its
+    // The PC's own joysticks (vJoy on a cabinet) kept from the game's DirectInput (OIS): its
     // controls are the board's, windowsloader reads them itself
     wl_dinput_hide_controllers();
     if (crc == 0x42B6AC2D)

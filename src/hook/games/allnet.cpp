@@ -211,6 +211,8 @@ static int inflate_zlib(const unsigned char *in, int n, unsigned char *out, int 
             for (int i = 0; i < nlit + ndist && !b.bad;)
             {
                 int sym = decode(&b, &codes), repeat = 0, value = 0;
+                if (sym < 0)
+                    return -1;
                 if (sym < 16)
                 {
                     lengths[i++] = (unsigned char)sym;
@@ -760,12 +762,11 @@ static const struct
 static void title_server(SOCKET c, const char *method, const char *path, const char *headers, const char *body, int n)
 {
     static char json[1 << 16];
-    static CRITICAL_SECTION lock;
-    static volatile LONG once;
-    if (!InterlockedExchange(&once, 1))
-        InitializeCriticalSection(&lock);
-    EnterCriticalSection(&lock);
+    static SRWLOCK lock = SRWLOCK_INIT;
+    AcquireSRWLockExclusive(&lock);
     int len = title_decode((const unsigned char *)body, n, json, sizeof json);
+    if (len <= 0)
+        json[0] = 0;
     static volatile LONG logged;
     int log = InterlockedIncrement(&logged) <= 60;
     if (log)
@@ -794,7 +795,7 @@ static void title_server(SOCKET c, const char *method, const char *path, const c
         reply = "{\"rankings\":[]}";
     static unsigned char out[1 << 17];
     int on = n >= 16 ? title_encode((const unsigned char *)body, reply, out, sizeof out) : -1;
-    LeaveCriticalSection(&lock);
+    ReleaseSRWLockExclusive(&lock);
     if (on < 0)
     {
         wl_log("allnet: title server: %s not answered (no key yet, or not its format)", path);

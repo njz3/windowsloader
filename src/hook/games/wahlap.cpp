@@ -239,7 +239,7 @@ static int __cdecl hControlLightState(const unsigned char *packet)
 // bookkeeping), kept in wl_motobikeio.bin beside the game, or in its write folder when there is
 // one: the game folder's copied there the first time (as a board's EEPROM, wl_files_write_path),
 // never written in place. It was written beside the game even with a write folder: solo, link
-// and a test copy shared it, and a write folder's model could not hold it (racecab2, 25/11)
+// and a test copy shared it, and a write folder's model could not hold it
 #define BOARD_MEMORY 0x10000
 static unsigned char g_memory[BOARD_MEMORY];
 static wchar_t g_memoryFile[MAX_PATH * 2];

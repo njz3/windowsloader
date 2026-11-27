@@ -389,7 +389,7 @@ public:
 // A camera of the PC: its reader as the game reads it. Mario Kart DX turns Media Foundation's
 // converters off (MF_READWRITE_DISABLE_CONVERTERS) and takes the camera's first native format only
 // (GetNativeMediaType 0), RGB32, RGB24, YUY2 or NV12: a webcam whose first is MJPG was "not found"
-// (racecab2's DV20, E08-01). The converters are allowed again, the camera set to a format the game
+// (a DV20 camera, E08-01). The converters are allowed again, the camera set to a format the game
 // knows (one of its own, YUY2 at 640x480 first; else decoded to YUY2, NV12 or RGB32), and that
 // format given as its first native one; the rest is the camera's reader
 // ------------------------------------------------------------------------------

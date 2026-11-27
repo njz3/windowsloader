@@ -112,7 +112,7 @@ const WlKnownGame g_wlKnownGames[] = {
     {"Crazy Ride", "crazyride", "1.9.0", {L"CrazyTaxiGame-Win64-Shipping.exe"}, {0x0C97E693}, {NULL}, 0, NULL, WL_N("UNIS PC (64 bits)"), "", WL_GAME_PLAYS,
      WL_N("E/S et volant UNIS, clé de la borne."), WL_FEATURE_PARTLY, WL_FEATURE_YES},
     {"Crazy Speed Arcade", "crazyspeed", "", {L"Client_r.exe"}, {0x42B6AC2D}, {L"ReferenceAppLayer.dll"}, 0, NULL, WL_N("UNIS PC"), "2010",
-     WL_GAME_PLAYS, WL_N("Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."), WL_FEATURE_PARTLY,
+     WL_GAME_PLAYS, WL_N("Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll d'un autre chargeur, s'il est là, annulé."), WL_FEATURE_PARTLY,
      WL_FEATURE_YES, 1},
     {"The Fast and the Furious", "fnf", "", {L"sdaemon.exe"}, {0x9AEBF60F}, {NULL}, 0, NULL, "Raw Thrills PC", "2004", WL_GAME_PLAYS,
      WL_N("Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle."),

@@ -1522,8 +1522,8 @@ msgid "UNIS PC"
 msgstr "UNIS PC"
 
 #: src/launcher/gamelist.cpp:115
-msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
-msgstr "UNIS game232 I/O board (COM1), its wheel's force and vibration; offline, its LAN mode for the link (IN-STORE TOURNAMENT, chosen at the wheel). The cabinets' release\\dic32u.dll, another loader's, undone."
+msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll d'un autre chargeur, s'il est là, annulé."
+msgstr "UNIS game232 I/O board (COM1), its wheel's force and vibration; offline, its LAN mode for the link (IN-STORE TOURNAMENT, chosen at the wheel). Another loader's release\\dic32u.dll, when there, undone."
 
 #: src/launcher/gamelist.cpp:118
 msgid "Carte JAMMA USB de Raw Thrills, son moteur du volant par le port parallèle."
@@ -1722,8 +1722,8 @@ msgid "Plateforme"
 msgstr "Platform"
 
 #: src/launcher/picker.cpp:873
-msgid "celle des bornes Racecab"
-msgstr "the Racecab cabinets'"
+msgid "celle connue"
+msgstr "the known one"
 
 #: src/launcher/picker.cpp:874
 msgid "Version"
@@ -1802,6 +1802,12 @@ msgstr "windowsloader %s %s — game selection"
 #: src/launcher/picker.cpp:1041
 msgid "Impossible d'ouvrir la fenêtre de choix du jeu (Direct3D 11)."
 msgstr "Cannot open the game selection window (Direct3D 11)."
+
+#~ msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
+#~ msgstr "UNIS game232 I/O board (COM1), its wheel's force and vibration; offline, its LAN mode for the link (IN-STORE TOURNAMENT, chosen at the wheel). The cabinets' release\\dic32u.dll, another loader's, undone."
+
+#~ msgid "celle des bornes Racecab"
+#~ msgstr "the Racecab cabinets'"
 
 #~ msgid "Cartes ACIO de Konami : PJEI (boutons, levier, volant, pédales, monnayeur) et D44H (moteur du volant, libtd4io.dll). Écrit sans copie du jeu, jamais essayé."
 #~ msgstr "Konami ACIO boards: PJEI (buttons, lever, wheel, pedals, coin mech) and D44H (wheel motor, libtd4io.dll). Written without a copy of the game, never tried."

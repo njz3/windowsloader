@@ -16,7 +16,7 @@
 
 #include <windows.h>
 
-// A file's CRC-32 (zlib's, as the cabinets' copies and the game list give them), 0 when it cannot
+// A file's CRC-32 (zlib's, as the game list gives them), 0 when it cannot
 // be read: how a game whose program keeps the same name in every build is told (Raw Thrills'
 // sdaemon.exe), its time stamp may change from one copy to another
 DWORD wl_file_crc32(const wchar_t *path);

@@ -133,6 +133,57 @@ static int menu_key_pressed(void)
 // Window procedure
 // ------------------------------------------------------------------------------
 
+// The thread drawing the menu (run_menu), 0 while it is closed; the window's messages that come on
+// another thread, kept for it (ImGui is not to be fed from two threads)
+static volatile DWORD g_menuThread;
+static struct
+{
+    HWND h;
+    UINT msg;
+    WPARAM wp;
+    LPARAM lp;
+} g_queue[64];
+static int g_queued;
+static SRWLOCK g_queueLock = SRWLOCK_INIT;
+
+static void imgui_message(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    if (msg == WM_MOUSEWHEEL)
+        ImGui::GetIO().AddMouseWheelEvent(0, (float)GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA);
+    else
+        ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+}
+
+// To ImGui at once on the menu's thread, else queued for it
+static void menu_message(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    DWORD menu = g_menuThread;
+    if (!menu || menu == GetCurrentThreadId())
+    {
+        imgui_message(h, msg, wp, lp);
+        return;
+    }
+    AcquireSRWLockExclusive(&g_queueLock);
+    if (g_queued < (int)(sizeof g_queue / sizeof g_queue[0]))
+    {
+        g_queue[g_queued].h = h;
+        g_queue[g_queued].msg = msg;
+        g_queue[g_queued].wp = wp;
+        g_queue[g_queued++].lp = lp;
+    }
+    ReleaseSRWLockExclusive(&g_queueLock);
+}
+
+// On the menu's thread, before its frame: the messages the window's thread kept
+static void menu_messages_taken(void)
+{
+    AcquireSRWLockExclusive(&g_queueLock);
+    for (int i = 0; i < g_queued; i++)
+        imgui_message(g_queue[i].h, g_queue[i].msg, g_queue[i].wp, g_queue[i].lp);
+    g_queued = 0;
+    ReleaseSRWLockExclusive(&g_queueLock);
+}
+
 int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
 {
     *result = 0;
@@ -143,18 +194,18 @@ int wl_menu_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
         return 0;
     if (msg == WM_MOUSEWHEEL)
     {
-        ImGui::GetIO().AddMouseWheelEvent(0, (float)GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA);
+        menu_message(h, msg, wp, lp);
         return 1;
     }
     if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST)
     {
         // A key pressed for a binding is not a move in the page nor a button's Enter (Escape still cancels)
         if (!g_captureKeys || wp == VK_ESCAPE)
-            ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+            menu_message(h, msg, wp, lp);
         return 1;
     }
     if (msg == WM_SETFOCUS || msg == WM_KILLFOCUS)
-        ImGui_ImplWin32_WndProcHandler(h, msg, wp, lp);
+        menu_message(h, msg, wp, lp);
     return msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST; // read by feed_mouse, scaled to the picture
 }
 
@@ -1762,7 +1813,7 @@ static void draw_menu(void)
 // ------------------------------------------------------------------------------
 // The notice over the game: a write folder that cannot be written (files.cpp), for 20 s from the
 // game's first frame, the game going on under it. No message box: no one would close it on a
-// cabinet. The owner's text for all his emulators (Flycast's, Supermodel's)
+// cabinet. The same text as the other emulators (Flycast, Supermodel)
 // ------------------------------------------------------------------------------
 
 static ULONGLONG g_noticeStart;
@@ -1870,6 +1921,7 @@ static void draw_notice(void)
 static void run_menu(void (*frame)(void *), void *arg)
 {
     wl_log("menu: open");
+    g_menuThread = GetCurrentThreadId();
     InterlockedExchange(&g_open, 1);
     wl_pause_begin();
     while (g_open)
@@ -1889,8 +1941,15 @@ static void run_menu(void (*frame)(void *), void *arg)
         if (menu_key_pressed() || InterlockedExchange(&g_request, -1) == 0)
             InterlockedExchange(&g_open, 0);
         if (g_open)
+        {
+            menu_messages_taken();
             frame(arg);
+        }
     }
+    g_menuThread = 0;
+    AcquireSRWLockExclusive(&g_queueLock); // the last ones dropped with the menu closed
+    g_queued = 0;
+    ReleaseSRWLockExclusive(&g_queueLock);
     cancel_capture();
     wl_pause_end();
     wl_log("menu: closed");

@@ -228,9 +228,9 @@ static unsigned read_u32(unsigned va)
     }
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // The JAMMA USB board, read by the game (The Fast and the Furious, Drift, Super Bikes, Nicktoons)
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -839,9 +839,9 @@ static int install_jamma(const RtGame *g, int nicktoons)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // H2Overdrive: the JAMMA USB board as an object of the game
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -1108,9 +1108,9 @@ static int install_h2o(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // SetControl: The Fast and the Furious SuperCars
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -1246,9 +1246,9 @@ static int install_supercars(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // SetControl without a board: Winter X Games SnoCross (2022 build 1.58)
-// ==============================================================================
+// ------------------------------------------------------------------------------
 //
 // The game's own path without a board ("No I/O Board found"), its input init removed and its
 // SetControl fed as SuperCars'. The dump's protection traps undone, its board missing reboot and
@@ -1395,9 +1395,9 @@ static int install_snocross(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // Super Bikes 2: the board's inputs in the game's keyboard and analog tables
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -1505,9 +1505,9 @@ static int install_superbikes2(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // Dirty Drivin': its developer keyboard driven
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -1618,7 +1618,7 @@ static int install_dirtydrivin(void)
     // windowsarcadeloader's -r 1360x768
     wl_game_use_options("dirtydrivin");
     // its back buffer multisampled (2x): presented by the game, its picture never reached the screen
-    // (its loading text stayed there, 24/11 on Racecab2); a plain one is placed as the others
+    // (its loading text stayed there); a plain one is placed as the others
     wl_display_no_multisample();
     wl_vscreen_minimum(1360, 768);
     if (!strstr(GetCommandLineA(), "-Windowed"))
@@ -1633,9 +1633,9 @@ static int install_dirtydrivin(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // The RIO board behind libusb0: Cars, Batman
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -1990,9 +1990,9 @@ static int install_batman(void)
     return 1;
 }
 
-// ==============================================================================
+// ------------------------------------------------------------------------------
 // The games
-// ==============================================================================
+// ------------------------------------------------------------------------------
 
 enum
 {
@@ -2046,7 +2046,7 @@ static int g_family;
 
 // Cars' settings (ArcadeFiles\save_settings.txt): a line "<check>:KEY=VALUE" each, the check Bob
 // Jenkins' lookup2 hash (1996, public domain) of "KEY=VALUE" from 0 (+0x76ce70), in decimal.
-// Its wheel's force always on (STG_ALLOW_WHEEL_EFFECTS: off in the cabinets' copies, no force at
+// Its wheel's force always on (STG_ALLOW_WHEEL_EFFECTS: off in the known copies, no force at
 // all); linked, its networking on and its network ID CABINET - 1 as it reads them, each line's
 // check made again in as many digits (zeros first); the file left as it is
 static unsigned lookup2(const unsigned char *k, unsigned length)
@@ -2137,7 +2137,7 @@ static void cars_settings_read(unsigned char *data, DWORD size, unsigned long lo
 // The machine ID in the game's preferences (its folder's prefs: a 4-byte header, then its entries,
 // each one's value at +0x28), the file left as it is. Linked, read as CABINET - 1, its networking
 // on: two cabinets called themselves machine 0 in their announcements (byte 7) and each raced alone
-// (SuperCars on the cabinets, its "JOIN IN NOW!" shown) or never started a game (SnoCross).
+// (SuperCars, its "JOIN IN NOW!" shown) or never started a game (SnoCross).
 // SnoCross: 59 entries of 0x84 bytes named STR_PR<n>, its machine ID entry 43. SuperCars and Super
 // Bikes 2: entries of 0x80 bytes, their name at +8: "Current Machine ID", "Network enabled"
 static void prefs_set(unsigned char *data, DWORD size, unsigned long long offset, unsigned long long at, int want, const char *what)
@@ -2336,7 +2336,7 @@ int wl_game_rawthrills(const wchar_t *exePath, const char **name, const char **t
         redirect(reboot->va, (void *)rt_reboot, "the cabinet's reboot (the game ended, started again)");
     if (wl_patch_iat(GetModuleHandleW(NULL), "USER32.dll", "EnumWindows", (void *)rt_enum_windows, (void **)&oEnumWindows))
         wl_log("game: %s: its EnumWindows sees this process's windows only (another cabinet's on this PC not seen)", *title);
-    // D:\ (its audits, settings, calibration, best times): the game's folder, where the cabinets'
+    // D:\ (its audits, settings, calibration, best times): the game's folder, where the known
     // copies keep them (H2Overdrive's Audits.xml and Settings.xml, Nicktoons' audits and prefs,
     // Cars' carscade\version.txt)
     char folder[MAX_PATH * 2];

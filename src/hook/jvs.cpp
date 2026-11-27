@@ -66,6 +66,8 @@ static void send_packet(const unsigned char *data, int length)
 
 // One request (its commands) to board b -> the reply's status and reports in r; returns its length,
 // 0 for none
+#define JVS_REPLY_MAX 512 // the reply's buffer, its bytes before the packet's framing
+
 static int answer(int b, const unsigned char *p, int n, unsigned char *r)
 {
     const WlJvsBoard *board = g_boards[b];
@@ -78,6 +80,15 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
     int i = 0;
     while (i < n)
     {
+        // each command's answer is at most 33 bytes once its counts are bounded (below): the
+        // reply (JVS_REPLY_MAX) never goes past its buffer, whatever the request holds
+        if (k > JVS_REPLY_MAX - 64)
+        {
+            static int logged;
+            if (!logged++)
+                wl_log("jvs: a request asked more than a reply holds: the rest not answered");
+            break;
+        }
         unsigned char c = p[i++];
         if (board->vendor && c >= 0x60 && c <= 0x7F)
         {
@@ -137,7 +148,8 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
             break;
         case 0x20: // switches: players, bytes per player
         {
-            int players = p[i++], bytes = p[i++];
+            int players = p[i] < 4 ? p[i] : 4, bytes = p[i + 1] < 4 ? p[i + 1] : 4;
+            i += 2;
             static unsigned last = 0;
             static int changes;
             unsigned now = (unsigned)st.system << 24 | (unsigned)st.player3[0] << 16 | st.player[0];
@@ -153,7 +165,8 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
         }
         case 0x21: // coins
         {
-            int slots = p[i++];
+            int slots = p[i] < 8 ? p[i] : 8;
+            i++;
             r[k++] = 0x01;
             for (int s = 0; s < slots; s++)
             {
@@ -165,7 +178,8 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
         }
         case 0x22: // analog channels
         {
-            int channels = p[i++];
+            int channels = p[i] < 16 ? p[i] : 16;
+            i++;
             r[k++] = 0x01;
             for (int ch = 0; ch < channels; ch++)
             {
@@ -177,7 +191,8 @@ static int answer(int b, const unsigned char *p, int n, unsigned char *r)
         }
         case 0x26: // general purpose inputs: byte count
         {
-            int bytes = p[i++];
+            int bytes = p[i] < 16 ? p[i] : 16;
+            i++;
             r[k++] = 0x01;
             for (int m = 0; m < bytes; m++)
                 r[k++] = m < 4 ? st.misc[m] : 0;
@@ -346,7 +361,7 @@ static void take_packets(void)
         static unsigned packets;
         if (++packets % 1000 == 0)
             wl_log("jvs: %u requests answered", packets);
-        unsigned char reply[512];
+        unsigned char reply[JVS_REPLY_MAX];
         int n = answer(b, pkt + 2, length - 1, reply);
         if (n)
             send_packet(reply, n);

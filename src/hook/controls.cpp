@@ -602,7 +602,7 @@ static void update_haptic(void)
     g_ffbSerial = serial;
     // > 0 pushes left, as SDL's: its direction is where the force comes from, the cartesian (1, 0) the
     // right (90 degrees in DirectInput, as vJoy reports it), so a positive level pushes to the left
-    // (linuxloader's forceFeedback.c the same; seen at a cabinet's wheel on Sega Rally 3, 28/10/2026)
+    // (linuxloader's forceFeedback.c the same; checked on a cabinet's wheel with Sega Rally 3)
     double level = f * g_ffbStrength * (g_ffbInvert ? -1 : 1);
     if (level > 1)
         level = 1;

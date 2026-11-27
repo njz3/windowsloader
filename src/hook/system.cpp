@@ -1770,7 +1770,7 @@ int wl_system_udp_probe(UINT_PTR s, const struct sockaddr *a, int len)
     return udp_probe(s, a, len);
 }
 
-// A probe's socket closed, its handle comes back as another socket's (racecab2, 02/11: Wangan's
+// A probe's socket closed, its handle comes back as another socket's (Wangan's
 // on port 50765, shown on 50000 by getsockname, the terminal's packets then not known as such:
 // E0505 at 31 s): a socket bound, or connected again, is no longer a probe
 static void probe_forget(UINT_PTR s)

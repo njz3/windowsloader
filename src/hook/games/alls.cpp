@@ -47,7 +47,7 @@
 
 // The games, on two of amdaemon's platforms. Sega Nu's, Initial D Arcade Stage Zero: the game and
 // amdaemon side by side in the copy's folder, its drives in TeknoParrot\Y and TeknoParrot\AMFS
-// (the copy of the cabinets), its I/O board a JVS one through the \\.\mxjvs driver
+// (the known copy), its I/O board a JVS one through the \\.\mxjvs driver
 struct AllsGame
 {
     const wchar_t *exe; // the game's program
@@ -277,7 +277,7 @@ enum
 };
 
 // controls.ini's names shared with the other games (they had their own, P1_View, P1_Up, P1_ShiftUp...,
-// bound in no controls.ini: 03/11), the four colours their own
+// bound in no controls.ini), the four colours their own
 static WlInput g_inputs[IN_COUNT] = {
     {"Steering", "P1_Steer", WL_INPUT_AXIS, 0, 0xFFFF, 0x8000},
     {"Accelerator", "P1_Gas", WL_INPUT_ANALOG, 0, 0xFFFF, 0},
@@ -963,15 +963,18 @@ static CRITICAL_SECTION g_ledLock;
 static void led_answer(int cmd, const unsigned char *data, int n)
 {
     unsigned char f[48] = {g_ledHost, g_ledBoard, (unsigned char)(3 + n), 0x01, (unsigned char)cmd, 0x01};
-    memcpy(f + 6, data, n);
+    if (n < 0 || n > (int)sizeof f - 6 || (n && !data))
+        return;
+    // its start byte, each byte escaped at worst, its sum escaped at worst: not written unless it fits
+    if (g_ledOutLength + 1 + 2 * (6 + n) + 2 > (int)sizeof g_ledOut)
+        return;
+    if (n)
+        memcpy(f + 6, data, n);
     unsigned char sum = 0;
-    if (g_ledOutLength < (int)sizeof g_ledOut)
-        g_ledOut[g_ledOutLength++] = 0xE0;
+    g_ledOut[g_ledOutLength++] = 0xE0;
     for (int i = 0; i < 6 + n; i++)
     {
         sum += f[i];
-        if (g_ledOutLength + 2 > (int)sizeof g_ledOut)
-            return;
         unsigned char b = f[i];
         if (b == 0xE0 || b == 0xD0)
         {
@@ -1300,7 +1303,7 @@ static WlHook g_daemonHooks[] = {
 // for them among the volumes (FindFirstVolumeW, QueryDosDeviceW's \Device\CdRom, GetDriveTypeW)
 // and stops on "Error 0919 DVD Drive Remain Error" (0917 for a USB flash drive), a drive left in
 // the cabinet after an install. D:, E: and Y: are the copy's folders (drive()): fixed disks,
-// whatever the PC has under these letters (a racecab's DVD drive is its E:)
+// whatever the PC has under these letters (a cabinet PC's DVD drive may be its E:)
 static int copy_letter(wchar_t c)
 {
     c = (wchar_t)towupper(c);
@@ -1412,13 +1415,19 @@ static int nu_root(const wchar_t *exePath)
     return GetFileAttributesW(game) != INVALID_FILE_ATTRIBUTES;
 }
 
+// The drives' folders, made once the write folder is known (swdc_folders)
+static wchar_t g_driveFolders[3][MAX_PATH];
+static int g_driveCount;
+
 static void drive(const char *letter, const wchar_t *folder)
 {
     wchar_t rel[MAX_PATH], path[MAX_PATH];
     swprintf(rel, MAX_PATH, L"%s\\%s", g_root, folder);
-    if (!GetFullPathNameW(rel, MAX_PATH, path, NULL)) // a folder above the copy's: ..\ resolved
+    DWORD n = GetFullPathNameW(rel, MAX_PATH, path, NULL); // a folder above the copy's: ..\ resolved
+    if (!n || n >= MAX_PATH)
         wcscpy_s(path, MAX_PATH, rel);
-    CreateDirectoryW(path, NULL);
+    if (g_driveCount < 3)
+        wcscpy_s(g_driveFolders[g_driveCount++], MAX_PATH, path);
     char to[MAX_PATH];
     WideCharToMultiByte(CP_ACP, 0, path, -1, to, sizeof to, NULL, NULL);
     wl_files_redirect(letter, to);
@@ -1542,6 +1551,69 @@ static void nu_setup(int daemon, int box)
     wl_servoboard_register("COM1");
 }
 
+// A folder and the ones above it made (inside wl_busy_enter: windowsloader's own, the path
+// already the right one)
+static void make_folders(const wchar_t *path)
+{
+    wchar_t p[MAX_PATH * 2];
+    if (wcscpy_s(p, MAX_PATH * 2, path))
+        return;
+    for (wchar_t *s = p + 3; *s; s++)
+        if (*s == L'\\' || *s == L'/')
+        {
+            wchar_t c = *s;
+            *s = 0;
+            CreateDirectoryW(p, NULL);
+            *s = c;
+        }
+    CreateDirectoryW(p, NULL);
+}
+
+// Where windowsloader makes a file or folder of the game's: in the write folder when there is one
+// (its copy's place there), beside the game without one; NULL when it cannot be written
+static const wchar_t *swdc_place(const wchar_t *path, wchar_t *buf, size_t size)
+{
+    const wchar_t *folder;
+    int state = wl_files_write_state(&folder);
+    if (state < 0)
+        return NULL;
+    return state ? wl_files_write_path(path, buf, size) : path;
+}
+
+static int g_swdcDaemon;
+
+// Once the settings (and the write folder) are known: amdaemon's own, then the drives' folders and
+// the main cabinet's empty LanServer.dat (the only cabinet here: the game knows it by that file)
+static void swdc_settings(void)
+{
+    if (g_swdcDaemon)
+        amdaemon_settings();
+    wchar_t buf[MAX_PATH * 2], lanServer[MAX_PATH];
+    const wchar_t *at;
+    wl_busy_enter();
+    for (int i = 0; i < g_driveCount; i++)
+        if ((at = swdc_place(g_driveFolders[i], buf, MAX_PATH * 2)) != NULL)
+            make_folders(at);
+    swprintf(lanServer, MAX_PATH, L"%s\\Y\\SDDS\\LanServer.dat", g_root);
+    if ((at = swdc_place(lanServer, buf, MAX_PATH * 2)) != NULL)
+    {
+        wchar_t parent[MAX_PATH * 2];
+        wcscpy_s(parent, MAX_PATH * 2, at);
+        wchar_t *slash = wcsrchr(parent, L'\\');
+        if (slash)
+        {
+            *slash = 0;
+            make_folders(parent);
+        }
+        HANDLE f = CreateFileW(at, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (f != INVALID_HANDLE_VALUE)
+            CloseHandle(f);
+    }
+    else
+        wl_log("alls: the write folder cannot be written: the drives' folders and LanServer.dat not made");
+    wl_busy_leave();
+}
+
 int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
 {
     const wchar_t *base = wcsrchr(exePath, L'\\');
@@ -1575,20 +1647,12 @@ int wl_game_alls(const wchar_t *exePath, const char **name, const char **title)
     // current resolution is too low to run this game"); in its full screen window it draws at the
     // screen's size: told 1280x720, its 16:9 picture (vscreen.h)
     wl_vscreen_minimum(1280, 720);
-    if (daemon)
-        wl_game_on_settings(amdaemon_settings);
+    wl_game_on_settings(swdc_settings);
     drive("D:", L"D");
     drive("E:", L"AMFS");
     drive("Y:", L"Y");
     wl_hooks_add(g_driveHooks, sizeof g_driveHooks / sizeof g_driveHooks[0]);
-    // The main cabinet (the only one here): the game knows it by this empty file
-    wchar_t lanServer[MAX_PATH];
-    swprintf(lanServer, MAX_PATH, L"%s\\Y\\SDDS", g_root);
-    CreateDirectoryW(lanServer, NULL);
-    wcscat_s(lanServer, MAX_PATH, L"\\LanServer.dat");
-    HANDLE f = CreateFileW(lanServer, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f != INVALID_HANDLE_VALUE)
-        CloseHandle(f);
+    g_swdcDaemon = daemon;
     // The cabinet's network card, in the keychip's subnet (serverIpIpv4): 192.168.172.11, the
     // gateway .1 (segatools' netenv defaults); a MAC address of SEGA's (00:D0:F1)
     static const unsigned char mac[6] = {0x00, 0xD0, 0xF1, 0x01, 0x02, 0x04};

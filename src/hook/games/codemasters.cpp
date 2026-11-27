@@ -180,7 +180,7 @@ static void showdown_settings(void)
 // GRID linked: its LAN discovery server (its port 12001, +0x66ca40) answers a cabinet's search only
 // when every field read matches its own; the searches say territory 0 and track pack 0, its server
 // holds 0xFFFFFFFF for both (ShellData.ini's Territory and TrackPack empty): no search was answered
-// on the cabinets (31/10, link9 to link11). The server's are made the searches' (0), the reply then
+// between two cabinets. The server's are made the searches' (0), the reply then
 // carrying what its searcher expects. Its reads traced (its server's, its searcher's of the answers,
 // +0x66c680): each value read and whether the read held, and the server's values once
 static int(__fastcall *oGridReadU32)(void *reader, void *edx, DWORD *value);

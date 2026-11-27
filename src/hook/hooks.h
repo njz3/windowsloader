@@ -100,7 +100,7 @@ void wl_files_read_filter(const char *name, WlReadFilter fn);
 // written at the fixed place on this PC. Paths are compared without regard to case or / and \.
 void wl_files_redirect(const char *from, const char *to);
 // The same, the path's beginning replaced as text: "F:\" to "<folder>\F" makes F:\system\x
-// <folder>\Fsystem\x (Mario Kart Arcade GP DX's drives, as its cabinets' copies keep them)
+// <folder>\Fsystem\x (Mario Kart Arcade GP DX's drives, as the known copies keep them)
 void wl_files_redirect_prefix(const char *from, const char *to);
 // The path under its redirected folder (written in buf), or the path itself: for the files Windows
 // opens for the game from its own DLLs, which the file hooks do not see (DirectShow's movies)

@@ -125,7 +125,7 @@ static void usage(void)
         "                   [Paths] SEED_DIR of the settings file)\n"
         "  --list-games     the games windowsloader knows, one line per program: the game, its short name,\n"
         "                   its version, its force feedback and link between cabinets (yes, partly, no),\n"
-        "                   the program, the program's CRC32 in the cabinets' copies (for\n"
+        "                   the program, the program's CRC32 in the known copies (for\n"
         "                   information: a program with another CRC32 is played all the same, but for the\n"
         "                   games told by it: Raw Thrills' sdaemon.exe, Crazy Speed Arcade's Client_r.exe,\n"
         "                   Road Fighters 3D's jgt.dll)\n"
@@ -140,7 +140,7 @@ static void usage(void)
 // short name (its settings' [Game.<name>], its WRITE_DIR\<name>), its version ("-" when the copies
 // do not tell it), how far windowsloader plays its force feedback and its link between cabinets
 // (yes, partly, no: BILAN.md), the program, its CRC-32 ("--------" when not known). The CRC-32 is that
-// of the cabinets' copies, for information: a program with another one is recognized and played the same
+// of the known copies, for information: a program with another one is recognized and played the same
 static const char *feature_text(int feature)
 {
     return feature == WL_FEATURE_YES ? "yes" : feature == WL_FEATURE_PARTLY ? "partly" : "no";
@@ -1398,7 +1398,7 @@ again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
         flags |= CREATE_NO_WINDOW;
     // A copy of the program started from the write folder, or beside the launcher without one; in
     // the game's folder, and shown to it as its own (the DLL's WL_ENV_GAME_EXE). Nothing written when
-    // the write folder cannot be written: the owner's rule, the game then runs with its 2 GB
+    // the write folder cannot be written (nothing written elsewhere), the game then runs with its 2 GB
     static wchar_t startedPath[MAX_PATH];
     wcscpy_s(startedPath, MAX_PATH, gamePath);
     SetEnvironmentVariableW(WL_ENV_GAME_EXE, NULL);

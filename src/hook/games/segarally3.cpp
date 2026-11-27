@@ -636,7 +636,7 @@ static void __cdecl fill_list(void *selector, void *caller)
     // environments' then, at least as many as an environment's tracks
     // A selection left half way (linked: back to the lobby from a track select, the other cabinet
     // gone) left an environment's tracks listed, 1 for Lakeside: the menu made again then had 1 card,
-    // and the next environments' page (6) went past it (+0x228ea9, racecab1 18/11). The menu's new
+    // and the next environments' page (6) went past it (+0x228ea9). The menu's new
     // cards always from the longest lists, the cards pack of the last page released (its cards gone)
     int making = caller == VA(0x62d22a);
     if (making)
@@ -1051,7 +1051,7 @@ static void revo_setup(const wchar_t *gameDir)
     g_image = (unsigned char *)GetModuleHandleW(NULL);
     g_curTrackAddr = VA(0x9dbdb0);
     g_dbAddr = VA(0xb2a850);
-    // This build's code only (all the cabinets' editions have it): what is changed is checked first
+    // This build's code only (all the known editions have it): what is changed is checked first
     static const unsigned char fill[] = {0x83, 0xEC, 0x40, 0x6A, 0x3F};
     static const unsigned char vote[] = {0x8B, 0x15, 0x50, 0xA8, 0xB2, 0x00};
     if (memcmp(VA(0x600660), fill, sizeof fill) || memcmp(VA(0x64efca), vote, sizeof vote) || *(unsigned *)VA(0x7246ec) != 0x648370 ||

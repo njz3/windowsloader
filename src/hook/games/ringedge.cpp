@@ -705,7 +705,7 @@ static unsigned short src_shifter(void)
 //   10-17     the torque chopped: off half the time and a quarter stronger the other half, its half
 //             period 2^(n+1) of the board's milliseconds; 10 stops it
 //   00        no force
-//   the others: the board's own requests (the cabinets' logs: AD, BD, EF, F5 in the attract), no
+//   the others: the board's own requests (a cabinet's logs: AD, BD, EF, F5 in the attract), no
 //   change
 // A power of 32 is the wheel's full force; DRIVE_DIP (the board's switches 1-3, 0..7) adds to every
 // power; a torque pushing the wheel away from the centre also gets the power the board's start-up
@@ -803,11 +803,25 @@ static DWORD WINAPI src_board_thread(LPVOID)
     }
 }
 
+// The build whose addresses this module knows (d1a.exe, CRC-32 FC87F309): another one's motor
+// command and amLib levels are elsewhere, its memory there left alone
+#define SRC_KNOWN_CRC 0xFC87F309
+
+static int src_known_build(const char *what)
+{
+    if (wl_game_exe_crc32() == SRC_KNOWN_CRC)
+        return 1;
+    wl_log("ringedge: d1a.exe CRC-32 %08lX, not the build windowsloader knows (%08X): %s left out", wl_game_exe_crc32(), SRC_KNOWN_CRC, what);
+    return 0;
+}
+
 static void src_drive_board(int steering)
 {
     static volatile LONG started;
     InterlockedExchange(&g_srcSteering, steering);
     if (InterlockedExchange(&started, 1))
+        return;
+    if (!src_known_build("its drive board (the motor's command read in its memory)"))
         return;
     wl_log("driveboard: Sega Rally's board (EPR-17891) played from the game's command at 0x%X", SRC_DRIVE_COMMAND);
     wl_outputs_declare_drive();
@@ -926,8 +940,7 @@ static int g_toolmode; // the keychip's toolmode (use_toolmode): no table
 // Out of the table, as windowsarcadeloader's pcp.rs answers them (aderumier, GPL v3, rewritten):
 // - amDongle's fixed challenge, the same in every game, in the executable with the MACs of its 4
 //   pages 12 bytes after it. The game checks it as well: answered with made-up bytes, Initial D 8
-//   stopped on "Error 0949 Keychip Not Found" now and then, at its start (racecab2 on 16/11,
-//   racecab1 on 25/11);
+//   stopped on "Error 0949 Keychip Not Found" now and then, at its start;
 // - the records amDongle keeps in the game's memory (the challenge, then its 4 MACs as they are),
 //   the last one found in the image.
 // 1 and the answer when found
@@ -1044,7 +1057,7 @@ static int ssd_proof(const char *challenge, char *answer, size_t size)
         }
     // Out of the table: amDongle's SSD records kept in the game's memory (the challenge, then its
     // answer as it is: windowsarcadeloader's pcp.rs), the last one found in the image. Initial D 8
-    // checked those: answered with made-up bytes, it stopped on error 0949 (racecab1, 25/11)
+    // checked those: answered with made-up bytes, it stopped on error 0949
     if (!g_toolmode)
     {
         unsigned char *base = (unsigned char *)GetModuleHandleW(NULL);
@@ -1280,7 +1293,7 @@ static void ssr_settings(void)
 // TOTAL NODES LINK's count; SUB on PC k, CAR NUMBER k (as its menu shows it)
 
 // Its amLib's own messages (amSramInit, amEepromInit, amBackupInit: why its test menu's settings
-// were not kept, 31/10), printed only at its modules' debug levels (0 in its build): made 1, its
+// were not kept), printed only at its modules' debug levels (0 in its build): made 1, its
 // printing (+0x27c2e0: function, line, format, ...) logged
 static void __cdecl src_amlib_print(const char *function, int line, const char *format, ...)
 {
@@ -1307,7 +1320,7 @@ static void src_amlib_messages(void)
 {
     static const unsigned char printWas[8] = {0x8B, 0x4C, 0x24, 0x0C, 0x8B, 0x54, 0x24, 0x08};
     void *print = (void *)0x67C2E0, *unused = NULL;
-    if (memcmp(print, printWas, sizeof printWas))
+    if (!src_known_build("its amLib's messages") || memcmp(print, printWas, sizeof printWas))
         return;
     wl_hook_code(print, (void *)src_amlib_print, &unused, "its amLib's messages (+0x27c2e0)");
     // Each of its modules' debug level (every use: "1 or more, print"): amDipsw, amEeprom, amSram,

@@ -587,7 +587,7 @@ static int __cdecl icca_workflow(int workflow, DWORD device)
 // kept after the release with its code cleared, the last press: code << 16, 0x80, a 3-bit serial
 // << 4, the key's number. spice2x's keys (index: 0-9, 10 the decimal point, 11 the 00 key) are a
 // calculator's (7 8 9 on top, 0 00 . at the bottom); this game's TEN KEY is a telephone's (1 2 3
-// on top, * 0 # at the bottom) and takes them by their place (Racecab2's INPUT CHECK, 24/11). Its
+// on top, * 0 # at the bottom) and takes them by their place (its INPUT CHECK shows them). Its
 // keys from the PC's: 1-9, 0, * (* or .), # (+ or Enter), each the spice2x key at its place
 static void keypad_words(DWORD *edge, DWORD *level)
 {
@@ -887,8 +887,8 @@ static wchar_t g_dllName[MAX_PATH]; // the game DLL's file name ("jgt.dll")
 // there yet. Each view object, as the game makes them (the attract's, the car choice's, the
 // race's...), so made 2D at its creation: its byte 0 (RVA 0x465D). Its update hooked: before its
 // first one (the label index still the creation's -1) and while the renderer is missing, the last
-// index made -1, so that the 2D is sent. Both builds the same. (Making only the first object 2D
-// later, the 20261123 essai 10, left the others in 3D and the game crashed on a second game.)
+// index made -1, so that the 2D is sent. Both builds the same. (Making only the first object 2D,
+// later, left the others in 3D and the game crashed on a second game.)
 static const unsigned RF_VIEW_CREATE_STEREO = 0x465D;
 static const unsigned RF_VIEW_UPDATE = 0x4770, RF_RENDERER = 0x94709C;
 static unsigned char *g_game;
@@ -982,8 +982,8 @@ static void perf_reset_off(HMODULE game)
 // (+0x192113, QueryPerformanceCounter), the scene drawn, then Sleep for 16.64 ms less the time
 // since and 3 ms (+0x1920c8), and a wait until 16.667 ms have passed or the screen is in its
 // vertical blank (+0x192510), then the next Present. Present's own time is outside that timer:
-// a frame lasts 16.67 ms plus Present's, 4 ms on the cabinets (48 fps; 7 ms on a laptop, 42 fps;
-// [Display] FRAME_STATS, 24/11/2026). The timer starts as the Present began instead: 60 fps
+// a frame lasts 16.67 ms plus Present's, 4 ms on a cabinet's PC (48 fps; 7 ms on a laptop, 42 fps;
+// [Display] FRAME_STATS). The timer starts as the Present began instead: 60 fps
 // while the frame's work and its Present fit in 16.67 ms
 static HMODULE g_jgt;
 static BOOL(WINAPI *oQueryPerformanceCounter)(LARGE_INTEGER *);
@@ -1020,10 +1020,10 @@ static void frame_pace(HMODULE game)
 // dev/nvram/rfs.dat, the game's saved settings: 0xB3C bytes, at +4 the CRC-32 of +0x10..0xB3C, then
 // blocks of 0x104 bytes from +0x114, each its CRC-32 first. Block 1 (+0x118..0x218) is the I/O's
 // calibration: the wheel's and the pedals' (16 bits at +0x11C, +0x120, +0x128, +0x134) and three
-// "done" bytes (+0x13C..0x13E). Racecab2's copy (22/02/2024, another loader's) had every block's
-// CRC at 0 and that block not done: ERROR 5-1550 "do the I/O's calibration" at the start of a
-// new write folder (24/11/2026). Such a block is read as the one of the cabinets' other copy,
-// calibrated for the boards windowsloader answers for; the file itself is left as it is
+// "done" bytes (+0x13C..0x13E). A copy made by another loader can have every block's CRC at 0 and
+// that block not done: ERROR 5-1550 "do the I/O's calibration" at the start of a new write
+// folder. Such a block is read as a calibrated one, calibrated for the boards windowsloader
+// answers for; the file itself is left as it is
 static DWORD crc32_of(const unsigned char *p, DWORD n)
 {
     DWORD c = 0xFFFFFFFF;
@@ -1079,8 +1079,8 @@ static void rf_settings(void)
 }
 
 // The game's effects (D3DXCreateEffect, d3dx9_41.dll): made again after each Reset of its device
-// (at the end of a game on the cabinets); one that fails is used anyway (jgt.dll+0x1d3804 read 0,
-// Racecab1 24/11). A failure is logged with its compiler's messages and tried again
+// (at the end of a game); one that fails is used anyway (jgt.dll+0x1d3804 read 0). A failure is
+// logged with its compiler's messages and tried again
 typedef HRESULT(WINAPI *CreateEffectFn)(void *dev, const void *src, UINT len, const void *defines, void *include, DWORD flags, void *pool,
                                         void **effect, void **errors);
 static CreateEffectFn oCreateEffect;

@@ -1521,7 +1521,7 @@ msgid "UNIS PC"
 msgstr ""
 
 #: src/launcher/gamelist.cpp:115
-msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll des bornes, d'un autre chargeur, annulé."
+msgid "Carte d'E/S UNIS game232 (COM1), sa force et sa vibration du volant ; hors ligne, son mode LAN pour le link (IN-STORE TOURNAMENT, choisi au volant). Le release\\dic32u.dll d'un autre chargeur, s'il est là, annulé."
 msgstr ""
 
 #: src/launcher/gamelist.cpp:118
@@ -1715,7 +1715,7 @@ msgid "Plateforme"
 msgstr ""
 
 #: src/launcher/picker.cpp:873
-msgid "celle des bornes Racecab"
+msgid "celle connue"
 msgstr ""
 
 #: src/launcher/picker.cpp:874

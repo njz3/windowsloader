@@ -222,6 +222,8 @@ int wl_patch_iat(HMODULE mod, const char *dll, const char *func, void *replaceme
                                : IMAGE_SNAP_BY_ORDINAL(names->u1.Ordinal) ||
                                      strcmp((const char *)((IMAGE_IMPORT_BY_NAME *)(base + names->u1.AddressOfData))->Name, func))
                 continue;
+            if (iat->u1.Function == (ULONG_PTR)replacement)
+                return 1; // already ours: *original left as the first replacement set it
             DWORD old;
             VirtualProtect(&iat->u1.Function, sizeof iat->u1.Function, PAGE_READWRITE, &old);
             if (original)

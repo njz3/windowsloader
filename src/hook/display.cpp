@@ -230,7 +230,7 @@ static const char *g_defaults =
     "# cannot be written: nothing is written at all, the usual files only read, no log, a notice on the screen;\r\n"
     "# but for the files named in TEMP_WRITES (and those the game's module names), kept in working copies in\r\n"
     "# Windows' temporary folder during the run, then removed.\r\n"
-    "# For Example: C:\\Racecab\\Saves\\windowsloader. Default: empty\r\n"
+    "# For Example: C:\\Games\\Saves\\windowsloader. Default: empty\r\n"
     "WRITE_DIR = \"\"\r\n"
     "# With a write folder (or --seed-dir): SEED_DIR\\<game> holds the files WRITE_DIR\\<game> starts with, in\r\n"
     "# the same tree (its settings, calibration, free play, a cabinet's link ID), each copied there at the\r\n"
@@ -356,8 +356,8 @@ void wl_display_load(void)
     g_cropBarrel = wl_settings_get_bool("Display", "CROP_BARREL", 0);
     g_barrelCenter = clamp(wl_settings_get_int("Display", "BARREL_CENTER", 60), 0, 100);
     g_barrelRadius = clamp(wl_settings_get_int("Display", "BARREL_RADIUS", 50), 1, 1000);
-    // DIRECT by default since 28/10/2026: GDI held Sega Rally 3 at 26 frames a second on racecab1 (each
-    // frame read back and drawn by the processor); GDI for the PCs that show nothing of DIRECT
+    // DIRECT by default: GDI held Sega Rally 3 at 26 frames a second on a cabinet's PC (each frame
+    // read back and drawn by the processor); GDI for the PCs that show nothing of DIRECT
     wl_settings_get("Display", "PRESENT", "DIRECT", v, sizeof v);
     g_gdiSetting = !_stricmp(v, "GDI");
     g_showFrame = wl_settings_get_bool("Display", "SHOW_FRAME", 0);
@@ -962,9 +962,9 @@ static void front_window(char *out, size_t n)
     _snprintf_s(out, n, _TRUNCATE, "%p, %s, class '%s'%s", (void *)fg, exe, cls, pid == GetCurrentProcessId() ? ", the game's" : "");
 }
 
-// What ends or puts aside the game's window, logged (Battle Gear 4 Pro and Tuned on racecab1, one
-// start in three: the game saved its settings, hid its window and quit by itself 3.5 s after its
-// start, a DXUT game that closes on WM_CLOSE or Escape)
+// What ends or puts aside the game's window, logged (Battle Gear 4 Pro and Tuned, one start in
+// three: the game saved its settings, hid its window and quit by itself 3.5 s after its start, a
+// DXUT game that closes on WM_CLOSE or Escape)
 static void log_window_event(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     const char *what = NULL;
@@ -1055,7 +1055,7 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     if (msg == WM_PAINT || msg == WM_SIZE || msg == WM_ERASEBKGND)
         InterlockedExchange(&g_repaint, 1);
     // Full screen and borderless: the window stays where windowsloader put it, the whole screen,
-    // whatever the game does to it after (seen at 1024x768 on the cabinets: D1GP shrunk to the work
+    // whatever the game does to it after (seen at 1024x768: D1GP shrunk to the work
     // area above the taskbar, SWDC back to its 853x640, Crazy Ride its framed window, Initial D
     // Zero 1040x754, larger than the screen). Minimized or hidden, it is left alone
     if (g_keepWindow && h == g_wnd && msg == WM_WINDOWPOSCHANGING && lp && !IsIconic(h))
@@ -1548,7 +1548,7 @@ static int draw_barrel(HDC dc, Dib *bi, const void *pixels, int pitch, int width
 // pace keeps every frame), its other frames only presented to the hidden window. Wasteland Racers
 // 2071 loads one texture per frame on its "Get Ready To Race" screen: with a copy each frame (its
 // 2560x1440 multisampled back buffer read back and stretched by GDI, about 60 a second), its map
-// took 141 s on the cabinets instead of 12 (938 frames a second with PRESENT = DIRECT)
+// took 141 s on a cabinet's PC instead of 12 (938 frames a second with PRESENT = DIRECT)
 int wl_display_gdi_due(int immediate)
 {
     if (!immediate)

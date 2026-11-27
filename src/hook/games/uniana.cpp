@@ -21,7 +21,7 @@
 //   g_bBrake     the brake, 0..0xFF
 //   g_bLAccel, g_bLAccelDif, g_bLAccelEnd, and the same with R: the left and right pedals (the
 //                board gave each pedal's speed, its change, and 1 while it quickens)
-// The copy of the cabinets has a keyboard version of the library (GetAsyncKeyState: F3, F2, 1,
+// The known copy has a keyboard version of the library (GetAsyncKeyState: F3, F2, 1,
 // Enter, the arrows, Z, X, Ctrl, Shift). Here update() is windowsloader's and fills the globals
 // from the controls, a pedal down setting its three bytes to 1, as OpenParrot does. The game also
 // drives (read in xwin.exe):

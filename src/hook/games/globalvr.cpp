@@ -233,13 +233,18 @@ static void update(void)
 }
 
 // The original's message thread: the button events 60 times a second
+static volatile LONG g_dongleChecked; // the dongle checked: its answer (0x24) still to send
+
 static DWORD WINAPI events_thread(void *p)
 {
     for (;;)
     {
         Sleep(16);
-        if (g_callback)
-            update();
+        if (!g_callback)
+            continue;
+        if (InterlockedExchange(&g_dongleChecked, 0))
+            post(ID_DONGLE_CHECKED, 1, NULL);
+        update();
     }
 }
 
@@ -313,7 +318,8 @@ static void ffb(DWORD id, int value, const int *param)
         break;
     }
     int centre = g_springCentre < -90 ? -90 : g_springCentre > 90 ? 90 : g_springCentre;
-    wl_ffb_set_conditions(g_springForce / 100.0, centre / 90.0, g_springForce / 100.0, 0);
+    // the race's centre: +90 the wheel turned fully right; windowsloader's: > 0 to the left
+    wl_ffb_set_conditions(g_springForce / 100.0, -centre / 90.0, g_springForce / 100.0, 0);
     int sine = g_sine[0] > g_sine[1] ? g_sine[0] : g_sine[1];
     wl_ffb_set_vibration(sine / 100.0, 50);
 }
@@ -362,7 +368,7 @@ static void *__cdecl gvr_send(sMessage *m)
     // the dongle and card dispenser plug-ins' answers (the frontend's), the board's
     case ID_DONGLE_CHECK:
         m->handled = 1;
-        post(ID_DONGLE_CHECKED, 1, NULL);
+        InterlockedExchange(&g_dongleChecked, 1); // answered by the events' thread
         return (void *)&g_present;
     case ID_DONGLE_PRESENT:
         m->handled = 1;
@@ -405,7 +411,8 @@ static void *__cdecl gvr_send(sMessage *m)
         char text[48] = "";
         __try
         {
-            for (int i = 0; m->data && i < 47 && m->data[i] >= 0x20 && m->data[i] < 0x7F; i++)
+            // a name when it points somewhere (some kinds carry a number there: 1000, 0x3E8)
+            for (int i = 0; (ULONG_PTR)m->data >= 0x10000 && i < 47 && m->data[i] >= 0x20 && m->data[i] < 0x7F; i++)
                 text[i] = m->data[i], text[i + 1] = 0;
         }
         __except (EXCEPTION_EXECUTE_HANDLER)

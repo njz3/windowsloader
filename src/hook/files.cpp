@@ -260,8 +260,8 @@ static int under(const wchar_t *path, const wchar_t *folder, size_t len)
     return i == len && (!path[i] || path[i] == L'\\' || path[i] == L'/');
 }
 
-// windowsloader's own folders on a redirected drive (a user's E:\windowsloader beside the game's
-// E:\windowsloader\games\D1GP, 15/11/2026: its controls.ini looked for in the game's folder, not
+// windowsloader's own folders on a redirected drive (E:\windowsloader beside the game's
+// E:\windowsloader\games\D1GP: its controls.ini looked for in the game's folder, not
 // found nor made, no control bound): the one of its DLL, the one of its settings file, the write
 // folder, left in their places; a drive's root cannot be (the game's drive would not be redirected)
 static wchar_t g_ownDir[MAX_PATH];
@@ -399,9 +399,9 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // into it (D:, E:, F:...) as well. Without a write folder, nothing changes.
 // A write folder that cannot be used (the launcher's WL_ENV_WRITE_DENIED, or WRITE_DIR\<game> not
 // made or a file not written there) is still the one written to: nothing goes anywhere else, the
-// game's files are read in their places, its writes fail there (the owner's rule for all his
-// emulators, 31/10/2026: "les écritures sont perdues et on n'écrit pas dans les dossiers protégés
-// quoi qu'il se passe"). windowsloader's own writes too (its settings, the game's NVRAM): any write
+// game's files are read in their places, its writes fail there: the writes are lost, and nothing is
+// ever written in the protected folders, the same rule as the other emulators (Flycast,
+// Supermodel). windowsloader's own writes too (its settings, the game's NVRAM): any write
 // on a disk outside the write folder is refused, but the agent's pictures. Some files a game cannot
 // start without (Wangan Midnight's bookkeeping, F:\BK_*.bin: "bookkeep: file broken", the game
 // stopped) are named by a filter on their names ([Paths] TEMP_WRITES and the game's module,
@@ -664,7 +664,7 @@ void wl_files_write_dir(void)
     // The seed folder (the launcher's --seed-dir or [Paths] SEED_DIR, set only with a usable write
     // folder): <seed>\<game> copied into WRITE_DIR\<game> before the game reads or lists anything, a
     // file already there never replaced (a cloned cabinet's first start: its free play, calibration,
-    // link ID). Nothing with a write folder that cannot be written (the owner's rule)
+    // link ID). Nothing with a write folder that cannot be written (the writes are lost)
     wchar_t seed[MAX_PATH];
     if (!g_writeDenied && GetEnvironmentVariableW(WL_ENV_SEED_DIR, seed, MAX_PATH) && seed[0])
     {
@@ -817,7 +817,7 @@ static int make_parents(const wchar_t *path)
 
 // A file created in a redirected folder (a Taito Type X's D:\bk_info in the game's folder) without a
 // write folder: the folders it lacks made first, as the cabinet's drive has them. D1GP never makes
-// its bk_info nor its card_backup: its bookkeeping's files failed (error 3, a user's PC 19/11/2026);
+// its bk_info nor its card_backup: its bookkeeping's files failed (error 3);
 // with a write folder they are made there (ov_create)
 static void redirected_parents(const wchar_t *path, DWORD disp)
 {
@@ -893,7 +893,7 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
             wl_busy_enter();
             BOOL ok = CopyFileW(full, buf, TRUE);
             // the copy is to be written: a read-only file's attribute not kept (The Fast and the
-            // Furious's envmap.stats, read-only on the cabinets: its writes refused, error 5)
+            // Furious's envmap.stats, read-only in the known copies: its writes refused, error 5)
             if (ok && (a & FILE_ATTRIBUTE_READONLY))
                 SetFileAttributesW(buf, a & ~FILE_ATTRIBUTE_READONLY);
             wl_busy_leave();
@@ -1432,8 +1432,52 @@ static HANDLE base_open(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTR
     return h;
 }
 
+// Whether code at addr is the C runtime of Visual Studio 2015 and later, which a game built with
+// it calls for its files (fopen, rename, remove, _findfirst...) and which calls KERNELBASE directly,
+// past kernel32's hooks: its calls are the game's. The modules seen kept (by their base)
+static int crt_caller(const void *addr)
+{
+    MEMORY_BASIC_INFORMATION mbi;
+    if (!addr || !VirtualQuery(addr, &mbi, sizeof mbi) || mbi.Type != MEM_IMAGE || !mbi.AllocationBase)
+        return 0;
+    static struct
+    {
+        void *base;
+        int crt;
+    } seen[32];
+    static volatile LONG count;
+    LONG n = count;
+    for (LONG i = 0; i < n && i < 32; i++)
+        if (seen[i].base == mbi.AllocationBase)
+            return seen[i].crt;
+    wchar_t path[MAX_PATH];
+    DWORD len = GetModuleFileNameW((HMODULE)mbi.AllocationBase, path, MAX_PATH);
+    if (!len || len >= MAX_PATH)
+        return 0;
+    const wchar_t *base = wcsrchr(path, L'\\');
+    base = base ? base + 1 : path;
+    static const wchar_t *const crts[] = {L"ucrtbase", L"msvcp140", L"vcruntime140", L"concrt140"};
+    int crt = 0;
+    for (int i = 0; i < (int)(sizeof crts / sizeof crts[0]) && !crt; i++)
+        crt = !_wcsnicmp(base, crts[i], wcslen(crts[i]));
+    LONG slot = InterlockedIncrement(&count) - 1;
+    if (slot < 32)
+    {
+        seen[slot].crt = crt;
+        seen[slot].base = mbi.AllocationBase;
+    }
+    if (crt)
+    {
+        char u[MAX_PATH * 2];
+        wl_log("files: %s's file calls (KERNELBASE's) treated as the game's", wl_u8(path, u, sizeof u));
+    }
+    return crt;
+}
+
 static HANDLE WINAPI hBaseCreateFileW(LPCWSTR name, DWORD access, DWORD share, LPSECURITY_ATTRIBUTES sa, DWORD disp, DWORD flags, HANDLE tmpl)
 {
+    if (!wl_busy() && crt_caller(WL_CALLER))
+        return hCreateFileW(name, access, share, sa, disp, flags, tmpl);
     if (wl_busy() || !name || !g_redirCount)
         return oBaseCreateFileW(name, access, share, sa, disp, flags, tmpl);
     wl_busy_enter();
@@ -1456,8 +1500,12 @@ static HANDLE WINAPI hBaseCreateFileA(LPCSTR name, DWORD access, DWORD share, LP
 // What winmm asks before it opens a file (mmioOpen: SearchPath, then the attributes): the same
 // redirected path, so it finds the file the open above then takes
 static DWORD(WINAPI *oBaseGetFileAttributesW)(LPCWSTR);
+static DWORD WINAPI hGetFileAttributesW(LPCWSTR name);
+
 static DWORD WINAPI hBaseGetFileAttributesW(LPCWSTR name)
 {
+    if (!wl_busy() && crt_caller(WL_CALLER))
+        return hGetFileAttributesW(name);
     if (wl_busy() || !name || !g_redirCount)
         return oBaseGetFileAttributesW(name);
     wl_busy_enter();
@@ -2072,6 +2120,35 @@ static int remove_over(const wchar_t *path, int folder, BOOL *done)
 
 // A file renamed: from where it is to the write folder; one only in its first place is copied there
 // (Mario Kart DX saves its settings as F:\TestMode\testmode_<n>.bin.tmp, then renames it)
+// A folder and all it holds copied (inside wl_busy_enter): the destination made, not there yet
+static BOOL copy_tree(const wchar_t *from, const wchar_t *to)
+{
+    if (!CreateDirectoryW(to, NULL))
+        return FALSE;
+    wchar_t pattern[WL_PATH];
+    if (swprintf(pattern, WL_PATH, L"%s\\*", from) < 0)
+        return FALSE;
+    WIN32_FIND_DATAW fd;
+    HANDLE f = FindFirstFileW(pattern, &fd);
+    if (f == INVALID_HANDLE_VALUE)
+        return TRUE; // empty
+    BOOL ok = TRUE;
+    do
+    {
+        if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L".."))
+            continue;
+        wchar_t a[WL_PATH], b[WL_PATH];
+        if (swprintf(a, WL_PATH, L"%s\\%s", from, fd.cFileName) < 0 || swprintf(b, WL_PATH, L"%s\\%s", to, fd.cFileName) < 0)
+            ok = FALSE;
+        else if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            ok &= copy_tree(a, b);
+        else
+            ok &= CopyFileW(a, b, TRUE);
+    } while (ok && FindNextFileW(f, &fd));
+    FindClose(f);
+    return ok;
+}
+
 static int move_over(const wchar_t *from, const wchar_t *to, DWORD flags, BOOL *done)
 {
     wchar_t full[WL_PATH], over[WL_PATH], toBuf[WL_PATH];
@@ -2088,8 +2165,9 @@ static int move_over(const wchar_t *from, const wchar_t *to, DWORD flags, BOOL *
         return 1;
     }
     wl_busy_enter();
-    if (fromOver && source == full && !is_dir(attributes(full)))
-        *done = CopyFileW(source, dest, !(flags & MOVEFILE_REPLACE_EXISTING));
+    // From its first place: copied, never moved out of it (a folder with all it holds)
+    if (fromOver && source == full)
+        *done = is_dir(attributes(full)) ? copy_tree(source, dest) : CopyFileW(source, dest, !(flags & MOVEFILE_REPLACE_EXISTING));
     else
         *done = MoveFileExW(source, dest, flags | MOVEFILE_COPY_ALLOWED);
     wl_busy_leave();
@@ -2278,6 +2356,80 @@ static BOOL WINAPI hSetCurrentDirectoryA(LPCSTR path)
     return oSetCurrentDirectoryA(wl_busy() ? path : redir(path, rbuf, sizeof rbuf));
 }
 
+// The same KERNELBASE functions, for the C runtime's calls (crt_caller): the game's answers; anything
+// else (kernel32, through the hooks above; Windows' own DLLs) as it was
+static BOOL(WINAPI *oKbDeleteFileW)(LPCWSTR a);
+static BOOL WINAPI hKbDeleteFileW(LPCWSTR a)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hDeleteFileW(a) : oKbDeleteFileW(a);
+}
+
+static BOOL(WINAPI *oKbMoveFileExW)(LPCWSTR a, LPCWSTR b, DWORD c);
+static BOOL WINAPI hKbMoveFileExW(LPCWSTR a, LPCWSTR b, DWORD c)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hMoveFileExW(a, b, c) : oKbMoveFileExW(a, b, c);
+}
+
+static BOOL(WINAPI *oKbCreateDirectoryW)(LPCWSTR a, LPSECURITY_ATTRIBUTES b);
+static BOOL WINAPI hKbCreateDirectoryW(LPCWSTR a, LPSECURITY_ATTRIBUTES b)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hCreateDirectoryW(a, b) : oKbCreateDirectoryW(a, b);
+}
+
+static BOOL(WINAPI *oKbRemoveDirectoryW)(LPCWSTR a);
+static BOOL WINAPI hKbRemoveDirectoryW(LPCWSTR a)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hRemoveDirectoryW(a) : oKbRemoveDirectoryW(a);
+}
+
+static BOOL(WINAPI *oKbGetFileAttributesExW)(LPCWSTR a, GET_FILEEX_INFO_LEVELS b, LPVOID c);
+static BOOL WINAPI hKbGetFileAttributesExW(LPCWSTR a, GET_FILEEX_INFO_LEVELS b, LPVOID c)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hGetFileAttributesExW(a, b, c) : oKbGetFileAttributesExW(a, b, c);
+}
+
+static BOOL(WINAPI *oKbSetFileAttributesW)(LPCWSTR a, DWORD b);
+static BOOL WINAPI hKbSetFileAttributesW(LPCWSTR a, DWORD b)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hSetFileAttributesW(a, b) : oKbSetFileAttributesW(a, b);
+}
+
+static HANDLE(WINAPI *oKbFindFirstFileExW)(LPCWSTR a, FINDEX_INFO_LEVELS b, LPVOID c, FINDEX_SEARCH_OPS d, LPVOID e, DWORD f);
+static HANDLE WINAPI hKbFindFirstFileExW(LPCWSTR a, FINDEX_INFO_LEVELS b, LPVOID c, FINDEX_SEARCH_OPS d, LPVOID e, DWORD f)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hFindFirstFileExW(a, b, c, d, e, f) : oKbFindFirstFileExW(a, b, c, d, e, f);
+}
+
+static BOOL(WINAPI *oKbFindNextFileW)(HANDLE a, LPWIN32_FIND_DATAW b);
+static BOOL WINAPI hKbFindNextFileW(HANDLE a, LPWIN32_FIND_DATAW b)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hFindNextFileW(a, b) : oKbFindNextFileW(a, b);
+}
+
+static BOOL(WINAPI *oKbFindClose)(HANDLE a);
+static BOOL WINAPI hKbFindClose(HANDLE a)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hFindClose(a) : oKbFindClose(a);
+}
+
+static BOOL(WINAPI *oKbReadFile)(HANDLE a, LPVOID b, DWORD c, LPDWORD d, LPOVERLAPPED e);
+static BOOL WINAPI hKbReadFile(HANDLE a, LPVOID b, DWORD c, LPDWORD d, LPOVERLAPPED e)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hReadFile(a, b, c, d, e) : oKbReadFile(a, b, c, d, e);
+}
+
+static BOOL(WINAPI *oKbWriteFile)(HANDLE a, LPCVOID b, DWORD c, LPDWORD d, LPOVERLAPPED e);
+static BOOL WINAPI hKbWriteFile(HANDLE a, LPCVOID b, DWORD c, LPDWORD d, LPOVERLAPPED e)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hWriteFile(a, b, c, d, e) : oKbWriteFile(a, b, c, d, e);
+}
+
+static BOOL(WINAPI *oKbCloseHandle)(HANDLE a);
+static BOOL WINAPI hKbCloseHandle(HANDLE a)
+{
+    return !wl_busy() && crt_caller(WL_CALLER) ? hCloseHandle(a) : oKbCloseHandle(a);
+}
+
 static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", DeleteFileA),
     WL_HOOK(L"kernel32.dll", DeleteFileW),
@@ -2300,6 +2452,18 @@ static WlHook g_hooks[] = {
     {L"kernelbase.dll", "CreateFileA", (void *)hBaseCreateFileA, (void **)&oBaseCreateFileA, 0},
     {L"kernelbase.dll", "GetFileAttributesW", (void *)hBaseGetFileAttributesW, (void **)&oBaseGetFileAttributesW, 0},
     {L"kernelbase.dll", "SearchPathW", (void *)hBaseSearchPathW, (void **)&oBaseSearchPathW, 0},
+    {L"kernelbase.dll", "DeleteFileW", (void *)hKbDeleteFileW, (void **)&oKbDeleteFileW, 0},
+    {L"kernelbase.dll", "MoveFileExW", (void *)hKbMoveFileExW, (void **)&oKbMoveFileExW, 0},
+    {L"kernelbase.dll", "CreateDirectoryW", (void *)hKbCreateDirectoryW, (void **)&oKbCreateDirectoryW, 0},
+    {L"kernelbase.dll", "RemoveDirectoryW", (void *)hKbRemoveDirectoryW, (void **)&oKbRemoveDirectoryW, 0},
+    {L"kernelbase.dll", "GetFileAttributesExW", (void *)hKbGetFileAttributesExW, (void **)&oKbGetFileAttributesExW, 0},
+    {L"kernelbase.dll", "SetFileAttributesW", (void *)hKbSetFileAttributesW, (void **)&oKbSetFileAttributesW, 0},
+    {L"kernelbase.dll", "FindFirstFileExW", (void *)hKbFindFirstFileExW, (void **)&oKbFindFirstFileExW, 0},
+    {L"kernelbase.dll", "FindNextFileW", (void *)hKbFindNextFileW, (void **)&oKbFindNextFileW, 0},
+    {L"kernelbase.dll", "FindClose", (void *)hKbFindClose, (void **)&oKbFindClose, 0},
+    {L"kernelbase.dll", "ReadFile", (void *)hKbReadFile, (void **)&oKbReadFile, 0},
+    {L"kernelbase.dll", "WriteFile", (void *)hKbWriteFile, (void **)&oKbWriteFile, 0},
+    {L"kernelbase.dll", "CloseHandle", (void *)hKbCloseHandle, (void **)&oKbCloseHandle, 0},
     WL_HOOK(L"kernel32.dll", ReadFile),
     WL_HOOK(L"kernel32.dll", WriteFile),
     WL_HOOK(L"kernel32.dll", CloseHandle),

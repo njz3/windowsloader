@@ -26,7 +26,8 @@
 
 static volatile LONG g_paused;
 static volatile LONGLONG g_qpcPaused, g_qpcFrozen, g_qpcStart; // counter ticks
-static volatile LONGLONG g_msPaused;                           // milliseconds
+static volatile LONG g_tickPaused, g_tgtPaused;                // milliseconds, each on its own clock
+static volatile LONG g_tickStart, g_tgtStart;                  // the clocks as the pause began
 static volatile LONG g_tickFrozen, g_tgtFrozen;
 static LARGE_INTEGER g_freq;
 
@@ -49,12 +50,12 @@ static BOOL WINAPI game_QueryPerformanceCounter(LARGE_INTEGER *c)
 
 static DWORD WINAPI game_GetTickCount(void)
 {
-    return g_paused ? (DWORD)g_tickFrozen : oGetTickCount() - (DWORD)read64(&g_msPaused);
+    return g_paused ? (DWORD)g_tickFrozen : oGetTickCount() - (DWORD)g_tickPaused;
 }
 
 static DWORD WINAPI game_timeGetTime(void)
 {
-    return g_paused ? (DWORD)g_tgtFrozen : oTimeGetTime() - (DWORD)read64(&g_msPaused);
+    return g_paused ? (DWORD)g_tgtFrozen : oTimeGetTime() - (DWORD)g_tgtPaused;
 }
 
 void wl_pause_init(void)
@@ -149,8 +150,11 @@ void wl_pause_begin(void)
     oQueryPerformanceCounter(&now);
     InterlockedExchange64(&g_qpcStart, now.QuadPart);
     InterlockedExchange64(&g_qpcFrozen, now.QuadPart - read64(&g_qpcPaused));
-    InterlockedExchange(&g_tickFrozen, (LONG)(oGetTickCount() - (DWORD)read64(&g_msPaused)));
-    InterlockedExchange(&g_tgtFrozen, (LONG)(oTimeGetTime() - (DWORD)read64(&g_msPaused)));
+    DWORD tick = oGetTickCount(), tgt = oTimeGetTime();
+    InterlockedExchange(&g_tickStart, (LONG)tick);
+    InterlockedExchange(&g_tgtStart, (LONG)tgt);
+    InterlockedExchange(&g_tickFrozen, (LONG)(tick - (DWORD)g_tickPaused));
+    InterlockedExchange(&g_tgtFrozen, (LONG)(tgt - (DWORD)g_tgtPaused));
     InterlockedExchange(&g_paused, 1);
     set_mute(1);
 }
@@ -162,7 +166,8 @@ void wl_pause_end(void)
     oQueryPerformanceCounter(&now);
     LONGLONG ticks = now.QuadPart - read64(&g_qpcStart);
     InterlockedExchange64(&g_qpcPaused, read64(&g_qpcPaused) + ticks);
-    InterlockedExchange64(&g_msPaused, read64(&g_msPaused) + ticks * 1000 / (g_freq.QuadPart ? g_freq.QuadPart : 1));
+    InterlockedExchange(&g_tickPaused, (LONG)((DWORD)g_tickPaused + (oGetTickCount() - (DWORD)g_tickStart)));
+    InterlockedExchange(&g_tgtPaused, (LONG)((DWORD)g_tgtPaused + (oTimeGetTime() - (DWORD)g_tgtStart)));
     InterlockedExchange(&g_paused, 0);
     wl_log("pause: %.1f s", (double)ticks / (double)(g_freq.QuadPart ? g_freq.QuadPart : 1));
 }
