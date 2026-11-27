@@ -243,9 +243,10 @@ LONGLONG wl_d3d9_present_began(void);
 void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why);
 // A shadow projection matrix of the game's vertex shaders (by its name in their constant table)
 // that, left all zeros, made today's graphics cards draw black (0 times infinite: NaN,
-// d3d9shadow.cpp): the pixel shader's flag (by its name) set to 0 while such a draw is made, the
-// colour without the shadow; before the device is made. Not with wl_d3d9_replace_pixel_shader
-void wl_d3d9_zero_projection(const char *matrix, const char *flag);
+// d3d9shadow.cpp): while such a draw is made, w made 1, the pixel shader's flag (by its name) 0 and
+// its shadow sampler (by its name) given a white texture: the colour without the shadow; before the
+// device is made. Not with wl_d3d9_replace_pixel_shader
+void wl_d3d9_zero_projection(const char *matrix, const char *flag, const char *sampler);
 int wl_d3d9_zero_projection_on(void);
 void wl_d3d9_zero_projection_hooks(void **vt);
 void wl_dinput_hooks(void);

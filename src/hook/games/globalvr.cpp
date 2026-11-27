@@ -1040,7 +1040,7 @@ int wl_game_globalvr(const wchar_t *exePath, const char **name, const char **tit
     nascar_registry(b);
     // The night track (Richmond): no sun shadow, its shadow projection all zeros, drawn black on
     // today's graphics cards (d3d9shadow.cpp): drawn without the shadow
-    wl_d3d9_zero_projection("shadowProjection", "shadowed");
+    wl_d3d9_zero_projection("shadowProjection", "shadowed", "ShadowSampler");
     // its command line read by the C runtime's start: the track and car given once the settings are
     if (!wl_patch_iat(exe, "kernel32.dll", "GetCommandLineA", (void *)nascar_GetCommandLineA, (void **)&oGetCommandLineA))
         oGetCommandLineA = NULL;
