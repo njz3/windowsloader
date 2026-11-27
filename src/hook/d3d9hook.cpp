@@ -47,13 +47,10 @@ enum
     SLOT_DEVICE_SETVERTEXDECLARATION = 87,
     SLOT_DEVICE_SETFVF = 89,
     SLOT_DEVICE_CREATEPIXELSHADER = 106,
+    SLOT_DEVICE9EX_PRESENTEX = 121,
+    SLOT_DEVICE9EX_RESETEX = 132,
     SLOT_SWAPCHAIN_PRESENT = 3,
 };
-
-static void **vtable_of(void *com)
-{
-    return *(void ***)com;
-}
 
 static void log_pp(const char *what, const D3DPRESENT_PARAMETERS *pp)
 {
@@ -65,7 +62,6 @@ static void log_pp(const char *what, const D3DPRESENT_PARAMETERS *pp)
            pp->FullScreen_RefreshRateInHz, pp->PresentationInterval);
 }
 
-// Full screen -> window, with the presentation settings a window accepts
 // The game's presentation interval: its frames' pace once presented to the hidden window (GDI)
 static UINT g_interval = D3DPRESENT_INTERVAL_ONE;
 
@@ -97,6 +93,8 @@ static void told_size(D3DPRESENT_PARAMETERS *pp)
     }
 }
 
+// Full screen -> window, with the presentation settings a window accepts (1 when made so); the
+// interval kept, IMMEDIATE in a window with WINDOW_VSYNC false
 static int make_windowed(D3DPRESENT_PARAMETERS *pp)
 {
     if (pp)
@@ -458,9 +456,31 @@ static HRESULT STDMETHODCALLTYPE present_out(IDirect3DDevice9 *dev, const RECT *
     return oPresent(dev, src, dst, wnd, dirty);
 }
 
+// The same for IDirect3DDevice9Ex::PresentEx, its flags kept when the game's Present shows the picture
+static HRESULT(STDMETHODCALLTYPE *oPresentEx)(IDirect3DDevice9Ex *, const RECT *, const RECT *, HWND, const RGNDATA *, DWORD);
+static HRESULT present_out_ex(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty, DWORD flags)
+{
+    if (wl_display_gdi())
+        return present_out(dev, src, dst, wnd, dirty);
+    return oPresentEx((IDirect3DDevice9Ex *)dev, src, dst, wnd, dirty, flags);
+}
+
 // The game's device; the ones Windows makes for itself in the game's process (DirectShow's video
-// renderer, quartz.dll) are left alone: same vtable, so their calls come here too
+// renderer, quartz.dll) are left alone: same vtable, so their calls come here too. Only compared,
+// never called through: the game may have released it (a device made later at the same address by
+// Windows or as a helper clears it, hCreateDevice)
 static IDirect3DDevice9 *g_gameDev;
+
+// Stage 0's texture on the game's device (2D scaling: inset_texels). No reference of windowsloader's:
+// the device holds one on the texture bound, and one of ours would keep the game's device alive
+// after its last Release (DXUT's games stop on that). Forgotten at a Reset and when the game makes
+// a device again
+static IDirect3DBaseTexture9 *g_tex0;
+
+static void keep_tex0(IDirect3DBaseTexture9 *tex)
+{
+    g_tex0 = tex;
+}
 
 static int made_by_windows(const void *caller)
 {
@@ -476,14 +496,15 @@ LONGLONG wl_d3d9_present_began(void)
     return g_presentBegan;
 }
 
-static volatile LONG g_presentThread; // the thread in hPresent: its swap chain's Present is d3d9's own
+static volatile LONG g_presentThread; // the thread in game_present: its swap chain's Present is d3d9's own
+static volatile LONG g_presentExThread; // the thread in PresentEx's original: a Present from there is d3d9's own
 
-static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
+// The game's frame, from IDirect3DDevice9::Present (ex 0) or IDirect3DDevice9Ex::PresentEx (ex 1,
+// its flags kept)
+static HRESULT game_present(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty, int ex, DWORD flags)
 {
     static unsigned frames, lastFrames;
     static ULONGLONG lastTick;
-    if (dev != g_gameDev)
-        return oPresent(dev, src, dst, wnd, dirty);
     struct PresentThread
     {
         PresentThread()
@@ -502,8 +523,19 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     QueryPerformanceCounter(&began);
     g_presentBegan = began.QuadPart;
     wl_framestats_present_begin();
-    HRESULT hr = present_out(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty);
+    HRESULT hr;
+    if (ex)
+    {
+        InterlockedExchange(&g_presentExThread, (LONG)GetCurrentThreadId());
+        hr = present_out_ex(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty, flags);
+        InterlockedExchange(&g_presentExThread, 0);
+    }
+    else
+        hr = present_out(dev, src || dst ? src : wl_display_source(), dst ? dst : place, wnd, dirty);
     wl_framestats_present_end();
+    // PresentEx with D3DPRESENT_DONOTWAIT, the GPU still busy: nothing presented, the game asks again
+    if (hr == D3DERR_WASSTILLDRAWING)
+        return hr;
     InterlockedIncrement(&g_frames);
 
     // A lost device (screen locked, remote desktop minimized) draws nothing until the game resets it
@@ -541,25 +573,49 @@ static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src
     return hr;
 }
 
+static HRESULT STDMETHODCALLTYPE hPresent(IDirect3DDevice9 *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty)
+{
+    if (dev != g_gameDev || g_presentExThread == (LONG)GetCurrentThreadId())
+        return oPresent(dev, src, dst, wnd, dirty);
+    return game_present(dev, src, dst, wnd, dirty, 0, 0);
+}
+
+// A Direct3D 9Ex game's PresentEx goes the way of Present; d3d9's own call from the device's
+// Present (or from the menu's) is left as it is
+static HRESULT STDMETHODCALLTYPE hPresentEx(IDirect3DDevice9Ex *dev, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty, DWORD flags)
+{
+    if ((IDirect3DDevice9 *)dev != g_gameDev || g_presentThread == (LONG)GetCurrentThreadId())
+        return oPresentEx(dev, src, dst, wnd, dirty, flags);
+    static int told;
+    if (!told++)
+        wl_log("IDirect3DDevice9Ex::PresentEx: the game presents by it (flags 0x%lx)", flags);
+    return game_present(dev, src, dst, wnd, dirty, 1, flags);
+}
+
 // A game presenting through its device's implicit swap chain (IDirect3DSwapChain9::Present: Storm
 // Racer G) goes the way of the device's Present; d3d9's own call from the device's Present, and
-// the other swap chains, are left as they are
+// the other swap chains, are left as they are. The swap chain's device is asked (the one presenting,
+// alive), compared with the game's
 static HRESULT(STDMETHODCALLTYPE *oSwapChainPresent)(IDirect3DSwapChain9 *, const RECT *, const RECT *, HWND, const RGNDATA *, DWORD);
 static HRESULT STDMETHODCALLTYPE hSwapChainPresent(IDirect3DSwapChain9 *sc, const RECT *src, const RECT *dst, HWND wnd, const RGNDATA *dirty,
                                                    DWORD flags)
 {
     if (g_presentThread == (LONG)GetCurrentThreadId() || !g_gameDev)
         return oSwapChainPresent(sc, src, dst, wnd, dirty, flags);
+    IDirect3DDevice9 *dev = NULL;
+    if (FAILED(sc->GetDevice(&dev)) || !dev)
+        return oSwapChainPresent(sc, src, dst, wnd, dirty, flags);
     IDirect3DSwapChain9 *implicit = NULL;
-    int ours = SUCCEEDED(g_gameDev->GetSwapChain(0, &implicit)) && implicit == sc;
+    int ours = dev == g_gameDev && SUCCEEDED(dev->GetSwapChain(0, &implicit)) && implicit == sc;
     if (implicit)
         implicit->Release();
+    dev->Release(); // the swap chain keeps it
     if (!ours)
         return oSwapChainPresent(sc, src, dst, wnd, dirty, flags);
     static int told;
     if (!told++)
         wl_log("IDirect3DSwapChain9::Present: the game presents through its device's swap chain");
-    return hPresent(g_gameDev, src, dst, wnd, dirty);
+    return game_present(dev, src, dst, wnd, dirty, 0, 0);
 }
 
 // The window set for the display mode, the picture placed in it (display.cpp)
@@ -600,11 +656,14 @@ void wl_d3d9_keep_same_reset(void)
 }
 
 static HRESULT(STDMETHODCALLTYPE *oReset)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *);
-static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp)
+static HRESULT(STDMETHODCALLTYPE *oResetEx)(IDirect3DDevice9Ex *, D3DPRESENT_PARAMETERS *, D3DDISPLAYMODEEX *);
+static volatile LONG g_resetThread; // the thread in Reset's or ResetEx's original: the other one from there is d3d9's own
+
+// The game's device reset, by IDirect3DDevice9::Reset (ex 0) or IDirect3DDevice9Ex::ResetEx (ex 1,
+// with its full-screen mode)
+static HRESULT game_reset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp, int ex, D3DDISPLAYMODEEX *mode)
 {
-    if (dev != g_gameDev)
-        return oReset(dev, pp);
-    log_pp("Reset", pp);
+    log_pp(ex ? "ResetEx" : "Reset", pp);
     // Settings that can only fail (no swap effect), the back buffer's size unchanged: nothing to
     // reset, the device's settings given back and the Reset told done. The DirectX SDK framework's
     // Reset after its window was moved or sized (Battle Gear 4 Tuned, +0xe3f0: its copy of the
@@ -648,6 +707,7 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     told_size(pp);
     wl_menu_device_reset();
     gdi_release(); // its render target, in the default pool, would make the Reset fail
+    keep_tex0(NULL); // the same for the texture kept
     int forced = make_windowed(pp);
     {
         D3DDEVICE_CREATION_PARAMETERS cp = {};
@@ -657,15 +717,31 @@ static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAME
     if (forced)
         wl_log("  kept in a window");
     wl_display_prepare(pp);
-    HRESULT hr = oReset(dev, pp);
+    InterlockedExchange(&g_resetThread, (LONG)GetCurrentThreadId());
+    HRESULT hr = ex ? oResetEx((IDirect3DDevice9Ex *)dev, pp, pp && pp->Windowed ? NULL : mode) : oReset(dev, pp); // a window takes no mode
+    InterlockedExchange(&g_resetThread, 0);
     if (SUCCEEDED(hr))
     {
         D3DDEVICE_CREATION_PARAMETERS cp = {};
         dev->GetCreationParameters(&cp);
         after_device(pp, cp.hFocusWindow, forced);
     }
-    wl_log("Reset -> 0x%08lx", hr);
+    wl_log("%s -> 0x%08lx", ex ? "ResetEx" : "Reset", hr);
     return hr;
+}
+
+static HRESULT STDMETHODCALLTYPE hReset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp)
+{
+    if (dev != g_gameDev || g_resetThread == (LONG)GetCurrentThreadId())
+        return oReset(dev, pp);
+    return game_reset(dev, pp, 0, NULL);
+}
+
+static HRESULT STDMETHODCALLTYPE hResetEx(IDirect3DDevice9Ex *dev, D3DPRESENT_PARAMETERS *pp, D3DDISPLAYMODEEX *mode)
+{
+    if ((IDirect3DDevice9 *)dev != g_gameDev || g_resetThread == (LONG)GetCurrentThreadId())
+        return oResetEx(dev, pp, mode);
+    return game_reset(dev, pp, 1, mode);
 }
 
 // ------------------------------------------------------------------------------
@@ -712,8 +788,6 @@ static UINT vertices_of(D3DPRIMITIVETYPE type, UINT prims)
         return 0;
     }
 }
-
-static IDirect3DBaseTexture9 *g_tex0; // stage 0's texture, only looked at in the draws that follow
 
 // A sprite drawn larger than its texels samples half a texel beyond its edges, where its texture
 // wraps or its neighbour in the atlas starts: lines between the tiles. Its texture coordinates are
@@ -797,8 +871,8 @@ static HRESULT STDMETHODCALLTYPE hSetFVF(IDirect3DDevice9 *dev, DWORD fvf)
 static HRESULT(STDMETHODCALLTYPE *oSetTexture)(IDirect3DDevice9 *, DWORD, IDirect3DBaseTexture9 *);
 static HRESULT STDMETHODCALLTYPE hSetTexture(IDirect3DDevice9 *dev, DWORD stage, IDirect3DBaseTexture9 *tex)
 {
-    if (stage == 0)
-        g_tex0 = tex;
+    if (stage == 0 && dev == g_gameDev)
+        keep_tex0(tex);
     return oSetTexture(dev, stage, tex);
 }
 
@@ -1101,8 +1175,21 @@ static HRESULT STDMETHODCALLTYPE hCreateDepthStencilSurface(IDirect3DDevice9 *de
 
 static void hook_device(IDirect3DDevice9 *dev)
 {
-    static int done;
-    if (done || !dev)
+    static int done, doneEx;
+    if (!dev)
+        return;
+    // A Direct3D 9Ex device: its PresentEx and ResetEx too (the first such device's vtable, maybe
+    // after a plain device's)
+    IDirect3DDevice9Ex *ex = NULL;
+    if (!doneEx && SUCCEEDED(dev->QueryInterface(__uuidof(IDirect3DDevice9Ex), (void **)&ex)) && ex)
+    {
+        doneEx = 1;
+        void **vtx = vtable_of(ex);
+        wl_hook_code(vtx[SLOT_DEVICE9EX_PRESENTEX], (void *)hPresentEx, (void **)&oPresentEx, "IDirect3DDevice9Ex::PresentEx");
+        wl_hook_code(vtx[SLOT_DEVICE9EX_RESETEX], (void *)hResetEx, (void **)&oResetEx, "IDirect3DDevice9Ex::ResetEx");
+        ex->Release();
+    }
+    if (done)
         return;
     done = 1;
     void **vt = vtable_of(dev);
@@ -1158,6 +1245,16 @@ static DWORD behavior_flags(DWORD behavior)
     return behavior;
 }
 
+// A device not the game's made at the address of the game's: the game released that one, forgotten
+static void not_the_game(HRESULT hr, IDirect3DDevice9 *dev)
+{
+    if (SUCCEEDED(hr) && dev && dev == g_gameDev)
+    {
+        wl_log("  at the address of the game's device, which it released: that one forgotten");
+        g_gameDev = NULL;
+    }
+}
+
 static HRESULT(STDMETHODCALLTYPE *oCreateDevice)(IDirect3D9 *, UINT, D3DDEVTYPE, HWND, DWORD, D3DPRESENT_PARAMETERS *, IDirect3DDevice9 **);
 static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3DDEVTYPE type, HWND focus, DWORD behavior, D3DPRESENT_PARAMETERS *pp,
                                                IDirect3DDevice9 **out)
@@ -1168,6 +1265,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
     {
         HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
         wl_log("CreateDevice -> 0x%08lx, Windows' own device (a video's): left alone", hr);
+        not_the_game(hr, out ? (IDirect3DDevice9 *)*out : NULL);
         return hr;
     }
     behavior = behavior_flags(behavior);
@@ -1179,6 +1277,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
         int forced = make_windowed(pp);
         HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
         wl_log("CreateDevice -> 0x%08lx, a helper of the game's (its picture is the DXGI swap chain's): left alone%s", hr, forced ? ", kept in a window" : "");
+        not_the_game(hr, out ? (IDirect3DDevice9 *)*out : NULL);
         return hr;
     }
     D3DADAPTER_IDENTIFIER9 id;
@@ -1190,6 +1289,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
         wl_log("  kept in a window");
     asked_size(pp, focus);
     wl_display_prepare(pp);
+    keep_tex0(NULL); // the previous device's texture let go
     HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
     if (SUCCEEDED(hr) && out)
         g_gameDev = *out;
@@ -1212,6 +1312,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
     {
         HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
         wl_log("CreateDeviceEx -> 0x%08lx, Windows' own device (a video's): left alone", hr);
+        not_the_game(hr, out ? (IDirect3DDevice9 *)*out : NULL);
         return hr;
     }
     behavior = behavior_flags(behavior);
@@ -1225,6 +1326,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
             mode = NULL;
         HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
         wl_log("CreateDeviceEx -> 0x%08lx, a helper of the game's (its picture is the DXGI swap chain's): left alone%s", hr, forced ? ", kept in a window" : "");
+        not_the_game(hr, out ? (IDirect3DDevice9 *)*out : NULL);
         return hr;
     }
     D3DADAPTER_IDENTIFIER9 id;
@@ -1238,6 +1340,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
     }
     asked_size(pp, focus);
     wl_display_prepare(pp);
+    keep_tex0(NULL);
     HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
     if (SUCCEEDED(hr) && out)
         g_gameDev = *out;

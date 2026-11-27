@@ -245,7 +245,11 @@ static const GUID *guid_of(int obj)
 // Force feedback (WlVirtualJoystick.ffb): the effects the game creates are kept and played
 // together as one force on the X axis. Springs pull towards their offset by the wheel's
 // position, constant forces, ramps and periodic forces push; dampers, inertia and friction are
-// left out (the wheel's speed is not known here). A force towards +X is towards the right.
+// left out (the wheel's speed is not known here). A force > 0 here is towards +X, the right, and
+// an effect's direction is taken as the way its force pushes: a positive force along +X pushes
+// right. DirectInput's documentation (and SDL's, controls.cpp) takes the direction as the one the
+// force comes from, so a real DirectInput wheel pushes such a constant, ramp or periodic force to
+// the left; springs do not depend on the direction.
 // ------------------------------------------------------------------------------
 
 #define MAX_EFFECTS 32
@@ -371,7 +375,8 @@ class VirtualEffect : public IDirectInputEffect
             m_duration = e->dwDuration;
         if ((flags & DIEP_DIRECTION) && e->rglDirection && e->cAxes)
         {
-            // One axis: the sign along X (polar: 9000 is +X, 27000 is -X)
+            // One axis: the sign along X (polar: 9000 is +X, 27000 is -X), taken as the way the
+            // force pushes (see above)
             LONG d = e->rglDirection[0];
             if (e->dwFlags & DIEFF_POLAR)
                 m_dir = d > 0 && d < 18000 ? 1 : d > 18000 ? -1 : 0;
@@ -803,15 +808,20 @@ class VirtualDevice : public IDirectInputDevice8A
         return DI_OK;
     }
 
+    // A DirectInput 3 caller passes the smaller structure: only its dwSize bytes are written
     STDMETHODIMP GetObjectInfo(LPDIDEVICEOBJECTINSTANCEA info, DWORD obj, DWORD how)
     {
-        if (!info)
+        if (!info || info->dwSize < sizeof(DIDEVICEOBJECTINSTANCE_DX3A))
             return DIERR_INVALIDPARAM;
         DIPROPHEADER h = {sizeof h, sizeof h, obj, how};
         int i = find_object(&h);
         if (i < 0)
             return DIERR_OBJECTNOTFOUND;
-        object_info(i, info);
+        DIDEVICEOBJECTINSTANCEA o;
+        object_info(i, &o);
+        DWORD size = info->dwSize;
+        memcpy(info, &o, size < sizeof o ? size : sizeof o);
+        info->dwSize = size;
         return DI_OK;
     }
 
@@ -870,13 +880,19 @@ class VirtualDevice : public IDirectInputDevice8A
         }
         return DI_OK;
     }
+    // DIEFFECTINFO has a single version: a smaller dwSize is refused, a larger one keeps its
+    // extra bytes
     STDMETHODIMP GetEffectInfo(LPDIEFFECTINFOA info, REFGUID g)
     {
         if (!info)
             return E_POINTER;
+        if (info->dwSize < sizeof(DIEFFECTINFOA))
+            return DIERR_INVALIDPARAM;
         if (!g_joy->ffb || !effect_kind(g))
             return DIERR_DEVICENOTREG;
+        DWORD size = info->dwSize;
         effect_info(g, info);
+        info->dwSize = size;
         return DI_OK;
     }
     STDMETHODIMP GetForceFeedbackState(LPDWORD state)
@@ -1235,10 +1251,17 @@ class VirtualDeviceW : public IDirectInputDevice8W
     {
         if (!info)
             return E_POINTER;
+        if (info->dwSize < sizeof(DIEFFECTINFOW))
+            return DIERR_INVALIDPARAM;
         DIEFFECTINFOA a;
+        a.dwSize = sizeof a;
         HRESULT hr = m_a->GetEffectInfo(&a, g);
         if (SUCCEEDED(hr))
+        {
+            DWORD size = info->dwSize;
             effect_to_wide(&a, info);
+            info->dwSize = size;
+        }
         return hr;
     }
     STDMETHODIMP GetForceFeedbackState(LPDWORD state)

@@ -77,12 +77,6 @@ static ID3D11RenderTargetView *g_rtv;
 static UINT g_resizeW, g_resizeH;
 static int g_retitle; // the language changed: the window's title too
 
-static void u8(const wchar_t *w, char *out, int size)
-{
-    if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, out, size, NULL, NULL))
-        out[0] = 0;
-}
-
 // A UTF-8 text (wl_tr's) for Windows' own windows
 static const wchar_t *wide(const char *text, wchar_t *out, int size)
 {
@@ -115,7 +109,8 @@ static void find_games_dir(void)
             wcscpy_s(joined, MAX_PATH, v);
         else
             swprintf(joined, MAX_PATH, L"%s\\%s", g_selfDir, v);
-        if (!GetFullPathNameW(joined, MAX_PATH, g_gamesDir, NULL))
+        DWORD n = GetFullPathNameW(joined, MAX_PATH, g_gamesDir, NULL);
+        if (!n || n >= MAX_PATH) // longer than MAX_PATH too: not copied
             wcscpy_s(g_gamesDir, MAX_PATH, joined);
         return;
     }
@@ -124,7 +119,8 @@ static void find_games_dir(void)
     {
         wchar_t joined[MAX_PATH];
         swprintf(joined, MAX_PATH, L"%s\\%s", g_selfDir, tries[i]);
-        if (GetFullPathNameW(joined, MAX_PATH, g_gamesDir, NULL) && is_dir(g_gamesDir))
+        DWORD n = GetFullPathNameW(joined, MAX_PATH, g_gamesDir, NULL);
+        if (n && n < MAX_PATH && is_dir(g_gamesDir))
             return;
     }
     swprintf(g_gamesDir, MAX_PATH, L"%s\\games", g_selfDir);
@@ -205,18 +201,18 @@ static void scan_games(void)
         find_program(e.folder, 7, &e);
         if (!e.game)
             continue;
-        u8(fd.cFileName, e.folderName, sizeof e.folderName);
+        wl_utf8(fd.cFileName, e.folderName, sizeof e.folderName);
         {
             wchar_t exeDir[MAX_PATH];
             wcscpy_s(exeDir, MAX_PATH, e.exe);
             wchar_t *slash = wcsrchr(exeDir, L'\\');
-            u8(slash ? slash + 1 : exeDir, e.exeShown, sizeof e.exeShown);
+            wl_utf8(slash ? slash + 1 : exeDir, e.exeShown, sizeof e.exeShown);
             if (slash)
                 *slash = 0;
-            u8(exeDir, e.exeDir, sizeof e.exeDir);
+            wl_utf8(exeDir, e.exeDir, sizeof e.exeDir);
         }
         if (e.game->args)
-            u8(e.game->args, e.args, sizeof e.args);
+            wl_utf8(e.game->args, e.args, sizeof e.args);
         if (e.otherVersion)
         {
             // The game's title without the version its entry is for ("Mario Kart Arcade GP DX 1.10")
@@ -359,9 +355,10 @@ static DWORD WINAPI read_tail(LPVOID param)
 static void play(HWND wnd, const Entry *e)
 {
     wchar_t cmd[4096];
-    // --quiet: the game's log stays in windowsloader.log (beside this program), the pipe only gets
-    // the launcher's messages
-    swprintf(cmd, 4096, L"\"%s\" --quiet \"%s\"%s%s", g_selfPath, e->exe, e->game->args ? L" " : L"", e->game->args ? e->game->args : L"");
+    // --quiet: the game's log stays in its file (windowsloader.log in g_logDir), the pipe only gets
+    // the launcher's messages. The cabinet's arguments (the game list's args) are the launcher's to
+    // add (game_cabinet_args), as for a game started from the command line
+    swprintf(cmd, 4096, L"\"%s\" --quiet \"%s\"", g_selfPath, e->exe);
     static Tail tail;
     tail.len = 0;
     tail.text[0] = 0;
@@ -384,7 +381,7 @@ static void play(HWND wnd, const Entry *e)
         if (tail.pipe)
             CloseHandle(tail.pipe);
         char exe[MAX_PATH * 3];
-        u8(e->exe, exe, sizeof exe);
+        wl_utf8(e->exe, exe, sizeof exe);
         snprintf(g_message, sizeof g_message, wl_tr("Impossible de lancer %s (erreur %lu)."), exe, err);
         return;
     }
@@ -429,7 +426,7 @@ static void play(HWND wnd, const Entry *e)
     if (code && GetTickCount64() - start < 10000)
     {
         char dir[MAX_PATH * 3];
-        u8(g_logDir, dir, sizeof dir);
+        wl_utf8(g_logDir, dir, sizeof dir);
         if (g_log)
             snprintf(g_message, sizeof g_message,
                      wl_tr("Le jeu s'est arrêté aussitôt (code %ld).\n\n%s%sLe journal du jeu, s'il a démarré : %s\\windowsloader.log."), (long)code,
@@ -461,7 +458,8 @@ static int set_games_dir(const wchar_t *path)
         wcscpy_s(joined, MAX_PATH, path);
     else
         swprintf(joined, MAX_PATH, L"%s\\%s", g_selfDir, path);
-    if (!GetFullPathNameW(joined, MAX_PATH, full, NULL))
+    DWORD len = GetFullPathNameW(joined, MAX_PATH, full, NULL);
+    if (!len || len >= MAX_PATH) // longer than MAX_PATH too: not copied
         wcscpy_s(full, MAX_PATH, joined);
     size_t n = wcslen(full);
     while (n > 3 && full[n - 1] == L'\\')
@@ -655,14 +653,14 @@ static void options_open(const Entry *e)
     if (GetFileAttributesW(own) != INVALID_FILE_ATTRIBUTES)
         wcscpy_s(g_opt.file, MAX_PATH, own);
     const wchar_t *base = wcsrchr(g_opt.file, L'\\');
-    u8(base ? base + 1 : g_opt.file, g_opt.fileShown, sizeof g_opt.fileShown);
+    wl_utf8(base ? base + 1 : g_opt.file, g_opt.fileShown, sizeof g_opt.fileShown);
     for (int i = 0; i < g_opt.count; i++)
     {
         wchar_t key[64], v[WL_OPTION_VALUE_SIZE];
         char read[WL_OPTION_VALUE_SIZE * 3];
         wide(g_opt.options[i].key, key, 64);
         GetPrivateProfileStringW(g_opt.section, key, L"", v, WL_OPTION_VALUE_SIZE, g_opt.file);
-        u8(v, read, sizeof read);
+        wl_utf8(v, read, sizeof read);
         wl_game_option_normalize(&g_opt.options[i], read, g_opt.values[i], WL_OPTION_VALUE_SIZE);
     }
     g_opt.open = 1;
@@ -703,7 +701,7 @@ static int options_draw(void)
         return 1;
     ImGui::TextUnformatted(g_opt.title);
     char section[96];
-    u8(g_opt.section, section, sizeof section);
+    wl_utf8(g_opt.section, section, sizeof section);
     ImGui::TextDisabled(wl_tr("[%s] de %s, pour ce jeu seulement"), section, g_opt.fileShown);
     ImGui::Separator();
     float buttons = ImGui::GetFrameHeightWithSpacing() * 2 + ImGui::GetStyle().ItemSpacing.y;
@@ -772,7 +770,7 @@ static int draw(int *selected, int *action)
     ImGui::Begin("##picker", NULL,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus);
     char dir[MAX_PATH * 3];
-    u8(g_gamesDir, dir, sizeof dir);
+    wl_utf8(g_gamesDir, dir, sizeof dir);
     ImGui::PushFont(NULL, ImGui::GetFontSize() * 1.5f);
     ImGui::Text("windowsloader");
     ImGui::PopFont();
@@ -785,7 +783,7 @@ static int draw(int *selected, int *action)
     // chosen in Windows' dialog; kept in [Launcher] GAMES_DIR
     static int typing;
     if (!typing)
-        u8(g_gamesDir, g_dirEdit, sizeof g_dirEdit);
+        wl_utf8(g_gamesDir, g_dirEdit, sizeof g_dirEdit);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(wl_tr("Dossier des jeux"));
     ImGui::SameLine();
@@ -923,7 +921,7 @@ static int draw(int *selected, int *action)
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
     {
         char dir[MAX_PATH * 3];
-        u8(g_logDir, dir, sizeof dir);
+        wl_utf8(g_logDir, dir, sizeof dir);
         ImGui::SetTooltip(wl_tr("Le journal des jeux, %s\\windowsloader.log, refait à chaque lancement (pour le débogage) ;\n"
                                 "le précédent gardé dans windowsloader.old.log. Pris en compte au prochain lancement d'un jeu."),
                           dir);
@@ -1010,7 +1008,7 @@ int wl_picker_run(void)
     wchar_t language[16];
     char setting[16];
     GetPrivateProfileStringW(L"Launcher", L"LANGUAGE", L"AUTO", language, 16, g_ini);
-    u8(language, setting, sizeof setting);
+    wl_utf8(language, setting, sizeof setting);
     g_log = wl_log_setting(g_ini) != 0;
     wl_lang_init(g_selfDir, setting, NULL);
 
@@ -1055,7 +1053,7 @@ int wl_picker_run(void)
     char font[MAX_PATH * 3];
     GetWindowsDirectoryW(fonts, MAX_PATH);
     wcscat_s(fonts, MAX_PATH, L"\\Fonts\\segoeui.ttf");
-    u8(fonts, font, sizeof font);
+    wl_utf8(fonts, font, sizeof font);
     if (GetFileAttributesW(fonts) == INVALID_FILE_ATTRIBUTES || !io.Fonts->AddFontFromFileTTF(font, 19.0f * scale))
         io.Fonts->AddFontDefault();
     ImGui_ImplWin32_Init(wnd);

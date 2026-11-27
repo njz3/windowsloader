@@ -72,8 +72,12 @@ int wl_write_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t 
         wcscpy_s(joined, MAX_PATH, v);
     else
         swprintf(joined, MAX_PATH, L"%s\\%s", selfDir, v);
-    if (!GetFullPathNameW(joined, (DWORD)size, root, NULL))
+    DWORD n = GetFullPathNameW(joined, (DWORD)size, root, NULL);
+    if (!n || n >= size) // past the buffer: the size it needs, nothing written
+    {
+        root[0] = 0;
         return 0;
+    }
     size_t length = wcslen(root);
     while (length > 3 && (root[length - 1] == L'\\' || root[length - 1] == L'/'))
         root[--length] = 0;
@@ -100,8 +104,12 @@ int wl_seed_dir_root(const wchar_t *selfDir, const wchar_t *arg, const wchar_t *
         wcscpy_s(joined, MAX_PATH, v);
     else
         swprintf(joined, MAX_PATH, L"%s\\%s", selfDir, v);
-    if (!GetFullPathNameW(joined, (DWORD)size, root, NULL))
+    DWORD n = GetFullPathNameW(joined, (DWORD)size, root, NULL);
+    if (!n || n >= size)
+    {
+        root[0] = 0;
         return 0;
+    }
     size_t length = wcslen(root);
     while (length > 3 && (root[length - 1] == L'\\' || root[length - 1] == L'/'))
         root[--length] = 0;

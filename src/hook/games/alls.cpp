@@ -34,6 +34,7 @@
 
 #include "display.h"
 #include "servoboard.h"
+#include "filecrc.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
@@ -674,18 +675,6 @@ static BOOL eeprom_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DW
     return amex_ioctl(code, out, outSize, returned, 1, 224, 32, 1);
 }
 
-static unsigned crc32(const unsigned char *p, int n)
-{
-    unsigned c = 0xFFFFFFFF;
-    while (n-- > 0)
-    {
-        c ^= *p++;
-        for (int k = 0; k < 8; k++)
-            c = c >> 1 ^ (0xEDB88320 & (0 - (c & 1)));
-    }
-    return ~c;
-}
-
 static BOOL ds_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
 {
     *returned = 0;
@@ -697,7 +686,7 @@ static BOOL ds_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD 
         memset(r, 0, 32);
         r[8] = 4; // the region: 1 Japan, 4 export (amdaemon's "EXP")
         memcpy(r + 9, "AAVE-01A99999999", 16); // segatools' default serial number
-        *(unsigned *)r = crc32(r + 4, 28);
+        *(unsigned *)r = wl_crc32(r + 4, 28);
         *returned = 32;
         return TRUE;
     }
@@ -1445,14 +1434,8 @@ static int has_icf(const wchar_t *folder)
 // Sega's network or other cabinets off (ALL.Net's accounting, the network delivery, the electronic
 // money, ABaaS's logs, the LAN install), and the language of its own messages (errors, warnings:
 // am_resources). The launcher gives amdaemon this file (-c); written here, in amdaemon, before it
-// reads its settings. The game's own texts are Japanese whatever the language.
-
-// amdaemon's languages, those of its resources (am_resources\error.<language>.dll), by their English names
-
-// The cabinet the game plays: the launcher gives it -launch= (launcher.cpp, g_gameOptionArgs)
-
-// Initial D Zero's: the same language of amdaemon's messages
-
+// reads its settings. The game's own texts are Japanese whatever the language. The language by
+// its English name, that of amdaemon's resources (am_resources\error.<language>.dll)
 static void amdaemon_settings(void)
 {
     char language[32];

@@ -199,7 +199,6 @@ static int g_springOn = 1, g_springStiffness, g_springCentre;
 static int g_page = -1, g_pageInvert; // FB's page playing, -1 none
 static ULONGLONG g_pageStart;
 static ULONGLONG g_lastFrame;
-static double g_qpcPerSecond;
 
 // The board's output for a level on 127: a fraction of its strength
 static double board_out(double level)
@@ -385,6 +384,8 @@ static BOOL board_write(const void *buffer, DWORD size, DWORD *written, LONGLONG
 {
     const unsigned char *b = (const unsigned char *)buffer;
     wl_outputs_drive(b, size); // as they come, for BackForceFeeder ([Outputs] OUTPUTS_NETWORK)
+    // The board's state changed under g_lock, as board_read reads it (g_fxLock taken inside it)
+    EnterCriticalSection(&g_lock);
     for (DWORD i = 0; i < size; i++)
     {
         g_frame[g_used++] = b[i];
@@ -397,17 +398,16 @@ static BOOL board_write(const void *buffer, DWORD size, DWORD *written, LONGLONG
             frame(g_frame);
             if (!reset)
                 n = answer(a, g_frame[0]);
-            EnterCriticalSection(&g_lock);
             // The reset's answer alone, those of before gone (a test reopening the port); a 4-byte
             // mode's first answer alone (the reset's short one would put them off by a byte)
             if (reset || (g_frame[0] == 0xFA && four_bytes()))
                 g_answerCount = 0;
             for (int k = 0; k < n && g_answerCount < (int)sizeof g_answers; k++)
                 g_answers[(g_answerFirst + g_answerCount++) % sizeof g_answers] = a[k];
-            LeaveCriticalSection(&g_lock);
             g_used = 0;
         }
     }
+    LeaveCriticalSection(&g_lock);
     *written = size;
     return TRUE;
 }
@@ -465,9 +465,6 @@ void wl_servoboard_register(const char *port)
 {
     InitializeCriticalSection(&g_lock);
     InitializeCriticalSection(&g_fxLock);
-    LARGE_INTEGER f;
-    QueryPerformanceFrequency(&f);
-    g_qpcPerSecond = (double)f.QuadPart;
     cold_pages();
     CloseHandle(CreateThread(NULL, 0, effects_thread, NULL, 0, NULL));
     g_port.name = port;

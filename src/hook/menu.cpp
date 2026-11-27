@@ -14,8 +14,9 @@
 // The settings menu, on Tab (as linuxloader's, Flycast's and Supermodel's). It opens in the Present hook, on the game's render thread, and keeps that thread
 // until it is closed: the game's logic stands still, its clocks and its sound too (pause.cpp).
 // Each frame of the menu draws the game's last frame, then Dear ImGui over it, and presents.
-// Direct3D 9 (Sega Rally 3) and Direct3D 11 (Daytona Championship USA) each have their frame;
-// ImGui is set up for the first renderer the menu opens on.
+// Direct3D 9 (Sega Rally 3), Direct3D 10 (Mario Kart Arcade GP DX), Direct3D 11 (Daytona
+// Championship USA) and OpenGL (Initial D 6 to 8) each have their frame; ImGui is set up for the
+// first renderer the menu opens on (on Direct3D 9, moved to the game's device made again).
 //
 // The picture seldom has the window's size (a 1920x1080 picture in a 1674x942 window, or with
 // black bars around it): ImGui works in the picture's size, and the mouse is scaled from the part
@@ -62,7 +63,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 static volatile LONG g_open;
 static volatile LONG g_request = -1; // the agent's: 1 open, 0 close
 static int g_ready;                  // 1 set up, -1 failed
-static int g_backend;                // 9, 10 or 11: the renderer ImGui was set up for
+static int g_backend;                // 9, 10 or 11 (Direct3D), 2 (OpenGL): the renderer ImGui was set up for
+static IDirect3DDevice9 *g_dev9;     // the Direct3D 9 device ImGui draws with (its backend holds a reference)
 static HWND g_wnd;
 static int g_bbW, g_bbH;
 
@@ -293,8 +295,41 @@ static int setup(IDirect3DDevice9 *dev)
         return 0;
     }
     g_backend = 9;
+    g_dev9 = dev;
     wl_log("menu: ready (Direct3D 9, window %p, picture %dx%d)", g_wnd, g_bbW, g_bbH);
     return 1;
+}
+
+// The game presenting with another device than ImGui's (its device made again): ImGui's objects on
+// the old one released, with the backend's reference that kept it alive, and made again on this one
+// at the next frame; the window's backend moved too when the device has another window
+static void follow_device9(IDirect3DDevice9 *dev)
+{
+    if (g_ready <= 0 || g_backend != 9 || dev == g_dev9)
+        return;
+    ImGui_ImplDX9_Shutdown();
+    g_dev9 = NULL;
+    D3DDEVICE_CREATION_PARAMETERS cp = {};
+    dev->GetCreationParameters(&cp);
+    if (cp.hFocusWindow && cp.hFocusWindow != g_wnd)
+    {
+        ImGui_ImplWin32_Shutdown();
+        if (!ImGui_ImplWin32_Init(cp.hFocusWindow))
+        {
+            wl_log("menu: ImGui could not start on window %p", cp.hFocusWindow);
+            g_ready = -1;
+            return;
+        }
+        g_wnd = cp.hFocusWindow;
+    }
+    if (!ImGui_ImplDX9_Init(dev))
+    {
+        wl_log("menu: ImGui could not start on the game's new device");
+        g_ready = -1;
+        return;
+    }
+    g_dev9 = dev;
+    wl_log("menu: moved to the game's new Direct3D 9 device (window %p)", g_wnd);
 }
 
 static int setup11(HWND wnd, ID3D11Device *dev, ID3D11DeviceContext *ctx)
@@ -2051,6 +2086,7 @@ static void notice9(IDirect3DDevice9 *dev)
 
 void wl_menu_present(IDirect3DDevice9 *dev, WlPresentFn present)
 {
+    follow_device9(dev);
     int want = menu_key_pressed();
     if (InterlockedExchange(&g_request, -1) == 1)
         want = 1;

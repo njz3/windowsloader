@@ -53,9 +53,41 @@ typedef struct
 } HookTable;
 
 static HookTable g_tables[32];
-static int g_tableCount;
+static volatile LONG g_tableCount;
 static CRITICAL_SECTION g_hookLock;
-static int g_pending; // hooks not installed yet
+static int g_pending;           // hooks not installed yet
+static volatile LONG g_freed;   // hooks whose module was unloaded, not looked at yet
+
+// A module unloaded, whoever unloads it (Windows' DLLs too), told by the loader: its hooks marked,
+// installed again at its next load (a game freeing iphlpapi, mf or hid, then loading it again). The
+// loader's lock is held here: nothing else than the marks, no lock of ours
+typedef struct
+{
+    ULONG Flags;
+    const void *FullDllName, *BaseDllName; // UNICODE_STRING *
+    PVOID DllBase;
+    ULONG SizeOfImage;
+} DllNotification;
+typedef VOID(CALLBACK *DllNotificationFn)(ULONG, const DllNotification *, PVOID);
+typedef LONG(NTAPI *LdrRegisterDllNotificationFn)(ULONG, DllNotificationFn, PVOID, PVOID *);
+#define DLL_UNLOADED 2 // LDR_DLL_NOTIFICATION_REASON_UNLOADED
+
+static VOID CALLBACK on_dll_notification(ULONG reason, const DllNotification *data, PVOID context)
+{
+    if (reason != DLL_UNLOADED || !data || !data->DllBase)
+        return;
+    int tables = g_tableCount;
+    for (int t = 0; t < tables; t++)
+        for (int i = 0; i < g_tables[t].count; i++)
+        {
+            WlHook *h = &g_tables[t].hooks[i];
+            if (h->base == (HMODULE)data->DllBase && !h->freed)
+            {
+                InterlockedExchange(&h->freed, 1);
+                InterlockedIncrement(&g_freed);
+            }
+        }
+}
 
 void wl_hooks_init(void)
 {
@@ -63,6 +95,11 @@ void wl_hooks_init(void)
     MH_STATUS st = MH_Initialize();
     if (st != MH_OK)
         wl_log("MinHook: MH_Initialize failed (%s)", MH_StatusToString(st));
+    LdrRegisterDllNotificationFn reg =
+        (LdrRegisterDllNotificationFn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "LdrRegisterDllNotification");
+    PVOID cookie;
+    if (!reg || reg(0, on_dll_notification, NULL, &cookie) < 0)
+        wl_log("hooks: no notification of the modules unloaded, their hooks not installed again");
 }
 
 void wl_hooks_add(WlHook *hooks, int count)
@@ -80,10 +117,14 @@ void wl_hooks_add(WlHook *hooks, int count)
 
 // Creates the hook and queues its activation: MH_ApplyQueued then freezes the other threads
 // once for all of them (about 100 ms each time).
-static int queue_one(void *target, void *detour, void **original, const char *what)
+static int queue_one(void *target, void *detour, void **original, const char *what, int again = 0)
 {
     char where[128];
     MH_STATUS st = MH_CreateHook(target, detour, original);
+    // A module loaded again (again) where it was unloaded: MinHook still has its old hook there, its
+    // code fresh. The old one removed (its bytes put back are the module's own), then made again
+    if (again && st == MH_ERROR_ALREADY_CREATED && MH_RemoveHook(target) == MH_OK)
+        st = MH_CreateHook(target, detour, original);
     if (st == MH_OK)
         st = MH_QueueEnableHook(target);
     if (st != MH_OK)
@@ -138,11 +179,24 @@ static int in_module(HMODULE mod, const void *p)
 
 void wl_hooks_install_pending(void)
 {
-    if (!g_pending)
+    if (!g_pending && !g_freed)
         return;
     wl_busy_enter();
     EnterCriticalSection(&g_hookLock);
     int queued = 0;
+    if (InterlockedExchange(&g_freed, 0))
+        for (int t = 0; t < g_tableCount; t++)
+            for (int i = 0; i < g_tables[t].count; i++)
+            {
+                WlHook *h = &g_tables[t].hooks[i];
+                // 2: to be installed again, over MinHook's old hook when the module comes back
+                // at the same place
+                if (InterlockedCompareExchange(&h->freed, 2, 1) != 1 || !h->installed)
+                    continue;
+                h->installed = 0;
+                h->base = NULL;
+                g_pending++;
+            }
     for (int t = 0; t < g_tableCount; t++)
     {
         for (int i = 0; i < g_tables[t].count; i++)
@@ -154,7 +208,9 @@ void wl_hooks_install_pending(void)
             if (!mod)
                 continue;
             h->installed = 1;
+            h->base = mod;
             g_pending--;
+            int again = InterlockedCompareExchange(&h->freed, 0, 2) == 2;
             void *target = (void *)GetProcAddress(mod, h->name);
             char what[160], name[64];
             snprintf(what, sizeof what, "%s!%s", wl_u8(h->module, name, sizeof name), h->name);
@@ -174,7 +230,7 @@ void wl_hooks_install_pending(void)
                        wl_where(target, where, sizeof where));
                 target = own;
             }
-            queued += queue_one(target, h->detour, h->original, what);
+            queued += queue_one(target, h->detour, h->original, what, again);
         }
     }
     apply_queued(queued);

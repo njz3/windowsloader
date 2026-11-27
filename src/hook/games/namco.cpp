@@ -1308,8 +1308,6 @@ static void mkdx_settings(void)
         wl_log("namco: cabinet %d (192.168.112.%d), alone", g_cabinet, 10 + g_cabinet);
 }
 
-// v1.05 and v1.06: the same, and their test menu's camera and wheel's force turned on
-
 // ------------------------------------------------------------------------------
 // System ES3X: Wangan Midnight Maximum Tune 5 (wmn5r.exe, x64, Direct3D 11, 2014) and 5 DX+ (the
 // same program's name, 2016). The cabinet's Sentinel HASP key is reached through

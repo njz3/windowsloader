@@ -56,6 +56,10 @@ const WlGameOption *wl_game_options_table(const char *id, int *count);
 // The table of a game of the picker's list (gamelist.h): its short name and version; NULL for none
 const char *wl_game_options_table_of(const char *name, const char *version);
 
+// A setting's value as a box's: 1 for true, yes, on or a number not 0, 0 for false, no, off or 0
+// (any case), def for anything else
+int wl_parse_bool(const char *v, int def);
+
 // A value as the game reads it: a box's as true or false (true, yes, on or a number not 0), the
 // others as they are; empty, the default
 void wl_game_option_normalize(const WlGameOption *o, const char *read, char *out, int size);

@@ -46,6 +46,9 @@ int wl_input_raw_of(const WlInput *in, double value);
 void wl_input_hold(WlInput *in, int raw);
 void wl_input_release(WlInput *in);
 void wl_inputs_release_all(void);
+// The controllers' write: nothing while the agent holds the input (checked under the agent's
+// lock); 1 when written
+int wl_input_set_unheld(WlInput *in, int raw);
 
 static inline int wl_input_get(const WlInput *in)
 {

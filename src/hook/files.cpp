@@ -165,8 +165,7 @@ static void filter_track(const char *path, DWORD access, HANDLE h)
 {
     if (!g_filter || h == INVALID_HANDLE_VALUE || !(access & (GENERIC_READ | GENERIC_ALL | FILE_READ_DATA)))
         return;
-    const char *slash = strrchr(path, '\\'), *other = strrchr(path, '/');
-    const char *name = other > slash ? other + 1 : slash ? slash + 1 : path;
+    const char *name = wl_path_name(path);
     wchar_t wname[MAX_PATH];
     if (!MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, MAX_PATH) || !wild(wname, g_filterName, g_filterName + wcslen(g_filterName)))
         return;
@@ -234,7 +233,8 @@ static void add_redirect(const char *from, const char *to, int prefix)
     g_redirs[g_redirCount].prefix = prefix;
     MultiByteToWideChar(CP_ACP, 0, g_redirs[g_redirCount].to, -1, g_redirs[g_redirCount].toW, MAX_PATH);
     wchar_t *keep = g_redirs[g_redirCount].keep;
-    if (!GetFullPathNameW(g_redirs[g_redirCount].toW, MAX_PATH, keep, NULL))
+    DWORD kn = GetFullPathNameW(g_redirs[g_redirCount].toW, MAX_PATH, keep, NULL);
+    if (!kn || kn >= MAX_PATH) // past the buffer: the size it needs, nothing written
         keep[0] = 0;
     size_t k = wcslen(keep);
     while (k > 3 && keep[k - 1] == L'\\')
@@ -394,7 +394,8 @@ const wchar_t *wl_files_redirectedW(const wchar_t *path, wchar_t *buf, size_t si
 // WRITE_DIR\<game>\appdata, the temporary folder in temp, ProgramData in programdata, Windows' in
 // windows, so a disk under a write filter (UWF) but for the write folder keeps all the game writes.
 // The write folder itself and devices are left alone. A file removed that is only in its first
-// place stays there (as in linuxloader). Applied after the redirections above, on the full path:
+// place stays there (as in linuxloader), missing to the game for the rest of its run (gone_add).
+// Applied after the redirections above, on the full path:
 // it takes a game writing above its program's folder (Crazy Ride's Saved) or on a drive redirected
 // into it (D:, E:, F:...) as well. Without a write folder, nothing changes.
 // A write folder that cannot be used (the launcher's WL_ENV_WRITE_DENIED, or WRITE_DIR\<game> not
@@ -441,7 +442,10 @@ static int g_ruleCount;
 static void add_rule(const wchar_t *path, const wchar_t *sub)
 {
     wchar_t full[MAX_PATH];
-    if (!path || !path[0] || g_ruleCount >= (int)(sizeof g_rules / sizeof g_rules[0]) || !GetFullPathNameW(path, MAX_PATH, full, NULL))
+    if (!path || !path[0] || g_ruleCount >= (int)(sizeof g_rules / sizeof g_rules[0]))
+        return;
+    DWORD n0 = GetFullPathNameW(path, MAX_PATH, full, NULL);
+    if (!n0 || n0 >= MAX_PATH)
         return;
     size_t n = wcslen(full);
     while (n > 3 && full[n - 1] == L'\\')
@@ -476,10 +480,13 @@ void wl_files_temp_writes(const char *names)
 {
     if (!names || !names[0])
         return;
-    size_t n = wcslen(g_tempNames);
-    if (n && n + 1 < sizeof g_tempNames / sizeof g_tempNames[0])
+    const size_t cap = sizeof g_tempNames / sizeof g_tempNames[0];
+    size_t was = wcslen(g_tempNames), n = was;
+    if (n && n + 1 < cap)
         g_tempNames[n++] = L';';
-    MultiByteToWideChar(CP_UTF8, 0, names, -1, g_tempNames + n, (int)(sizeof g_tempNames / sizeof g_tempNames[0] - n));
+    // names that do not fit (or not UTF-8): none of them added, the list kept as it was
+    if (n + 1 >= cap || !MultiByteToWideChar(CP_UTF8, 0, names, -1, g_tempNames + n, (int)(cap - n)))
+        g_tempNames[was] = 0;
 }
 
 // A name and a wildcard (* and ?), without case
@@ -620,10 +627,11 @@ void wl_files_write_dir(void)
     snprintf(name, sizeof name, "%s", wl_game_write_name());
     if (!strcmp(name, "unknown"))
     {
-        wchar_t exe[MAX_PATH];
-        GetModuleFileNameW(NULL, exe, MAX_PATH);
+        wchar_t exe[MAX_PATH] = L"";
+        DWORD len = GetModuleFileNameW(NULL, exe, MAX_PATH);
         const wchar_t *base = wcsrchr(exe, L'\\');
-        WideCharToMultiByte(CP_ACP, 0, base ? base + 1 : exe, -1, name, sizeof name, NULL, NULL);
+        if (!len || len >= MAX_PATH || !WideCharToMultiByte(CP_ACP, 0, base ? base + 1 : exe, -1, name, sizeof name, NULL, NULL))
+            snprintf(name, sizeof name, "unknown"); // its name not read, or too long: "unknown" kept
         char *dot = strrchr(name, '.');
         if (dot)
             *dot = 0;
@@ -716,7 +724,8 @@ static int overlay_path(const wchar_t *path, wchar_t *full, wchar_t *over)
 {
     if (!g_writeGame[0] || !path || !path[0] || (path[0] == L'\\' && path[1] == L'\\' && (path[2] == L'.' || path[2] == L'?')))
         return 0;
-    if (!GetFullPathNameW(path, WL_PATH, full, NULL) || (full[0] == L'\\' && full[1] == L'\\' && (full[2] == L'.' || full[2] == L'?')))
+    DWORD fn = GetFullPathNameW(path, WL_PATH, full, NULL);
+    if (!fn || fn >= WL_PATH || (full[0] == L'\\' && full[1] == L'\\' && (full[2] == L'.' || full[2] == L'?')))
         return 0; // a device too ("NUL", "COM1": \\.\NUL)
     int rule = -1;
     size_t longest = 0;
@@ -845,13 +854,74 @@ static void redirected_parentsA(const char *path, DWORD disp)
         redirected_parents(w, disp);
 }
 
-// For reading: the write folder's file when it is there, else path
+// Files removed with a write folder whose first place (the game's folder) still has them: that one
+// is never removed, so its full path (overlay_path's) is kept here, for this run only (nothing
+// saved). From then on only the write folder's copy counts: the file is missing to the game's
+// reads, lookups, listings and opens until it is made there anew, and a copy made there and removed
+// again does not bring the first place's back. Folders removed are not kept
+static wchar_t *g_gone[256];
+static volatile LONG g_goneCount;
+static SRWLOCK g_goneLock = SRWLOCK_INIT;
+
+static int gone_has(const wchar_t *full)
+{
+    if (!g_goneCount)
+        return 0;
+    int has = 0;
+    AcquireSRWLockShared(&g_goneLock);
+    for (LONG i = 0; i < g_goneCount && !has; i++)
+        has = !_wcsicmp(g_gone[i], full);
+    ReleaseSRWLockShared(&g_goneLock);
+    return has;
+}
+
+// A file removed right in folder (a full path, without '\' at its end)
+static int gone_in(const wchar_t *folder)
+{
+    if (!g_goneCount)
+        return 0;
+    size_t n = wcslen(folder);
+    int has = 0;
+    AcquireSRWLockShared(&g_goneLock);
+    for (LONG i = 0; i < g_goneCount && !has; i++)
+        has = !_wcsnicmp(g_gone[i], folder, n) && g_gone[i][n] == L'\\' && !wcschr(g_gone[i] + n + 1, L'\\');
+    ReleaseSRWLockShared(&g_goneLock);
+    return has;
+}
+
+static void gone_add(const wchar_t *full)
+{
+    if (gone_has(full))
+        return;
+    wchar_t *copy = _wcsdup(full);
+    int kept = 0;
+    AcquireSRWLockExclusive(&g_goneLock);
+    if (copy && g_goneCount < (LONG)(sizeof g_gone / sizeof g_gone[0]))
+    {
+        g_gone[g_goneCount] = copy;
+        g_goneCount++;
+        kept = 1;
+    }
+    ReleaseSRWLockExclusive(&g_goneLock);
+    if (!kept)
+        free(copy);
+    static volatile LONG logged;
+    if (InterlockedIncrement(&logged) <= 50)
+    {
+        char u[WL_PATH * 2];
+        wl_log("files: %s removed or moved away: left in the game's folder, %s", wl_u8(full, u, sizeof u),
+               kept ? "missing to the game from now on" : "no room to remember it, still seen by the game");
+    }
+}
+
+// For reading: the write folder's file when it is there, else path; a file removed (gone_add): the
+// write folder's path, where it is missing
 static const wchar_t *ov_read(const wchar_t *path, wchar_t *buf)
 {
     wchar_t full[WL_PATH];
     if (!overlay_path(path, full, buf))
         return path;
-    return attributes(buf) != INVALID_FILE_ATTRIBUTES ? buf : path;
+    return attributes(buf) != INVALID_FILE_ATTRIBUTES || gone_has(full) ? buf : path;
 }
 
 const wchar_t *wl_files_read_path(const wchar_t *path, wchar_t *buf, size_t size)
@@ -887,8 +957,8 @@ static const wchar_t *ov_write(const wchar_t *path, int keep, wchar_t *buf)
     }
     if (keep && attributes(buf) == INVALID_FILE_ATTRIBUTES)
     {
-        DWORD a = attributes(full);
-        if (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY))
+        DWORD a = attributes(full); // a file removed (gone_add) not copied: it is made anew, or missing
+        if (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY) && !gone_has(full))
         {
             wl_busy_enter();
             BOOL ok = CopyFileW(full, buf, TRUE);
@@ -941,13 +1011,17 @@ static const wchar_t *ov_create(const wchar_t *path, DWORD *access, DWORD *disp,
     if (!overlay_path(path, full, buf))
         return path;
     DWORD there = attributes(buf), first = attributes(full);
+    // A file removed (gone_add): its first place's taken as missing, only the write folder's counts
+    int gone = first != INVALID_FILE_ATTRIBUTES && !is_dir(first) && gone_has(full);
+    if (gone)
+        first = INVALID_FILE_ATTRIBUTES;
     if (is_dir(there) || is_dir(first))
         return there != INVALID_FILE_ATTRIBUTES ? buf : path;
     const DWORD writing = GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | DELETE;
     int writes = (*access & writing) || *disp == CREATE_NEW || *disp == CREATE_ALWAYS || *disp == TRUNCATE_EXISTING ||
                  (*disp == OPEN_ALWAYS && there == INVALID_FILE_ATTRIBUTES && first == INVALID_FILE_ATTRIBUTES);
     if (!writes)
-        return there != INVALID_FILE_ATTRIBUTES ? buf : path;
+        return there != INVALID_FILE_ATTRIBUTES || gone ? buf : path;
     if (g_writeDenied && !(g_tempGame[0] && inside(buf, g_tempGame)) && first != INVALID_FILE_ATTRIBUTES &&
         (*disp == OPEN_EXISTING || *disp == OPEN_ALWAYS))
     {
@@ -1022,8 +1096,19 @@ static int refused(const wchar_t *path, const char *what)
         if (!GetWindowsDirectoryW(full, WL_PATH) || wcscat_s(full, WL_PATH, L"\\win.ini"))
             return 0;
     }
-    else if (!path[0] || !GetFullPathNameW(path, WL_PATH, full, NULL))
+    else if (!path[0])
         return 0;
+    else
+    {
+        DWORD n = GetFullPathNameW(path, WL_PATH, full, NULL);
+        if (!n)
+            return 0;
+        if (n >= WL_PATH) // too long to tell where it is: not in the write folder, refused
+        {
+            SetLastError(ERROR_ACCESS_DENIED);
+            return 1;
+        }
+    }
     const wchar_t *disk = full;
     if (!wcsncmp(full, L"\\\\?\\UNC\\", 8) && swprintf(unc, WL_PATH, L"\\\\%s", full + 8) > 0)
         disk = unc;
@@ -1124,16 +1209,20 @@ static void find_add(WIN32_FIND_DATAW **items, int *count, int *size, const WIN3
     (*items)[(*count)++] = *d;
 }
 
-static void find_list(const wchar_t *pattern, WIN32_FIND_DATAW **items, int *count, int *size)
+// gone: the pattern's folder (its full path) when files removed there (gone_in) are to be left out
+static void find_list(const wchar_t *pattern, WIN32_FIND_DATAW **items, int *count, int *size, const wchar_t *gone)
 {
     WIN32_FIND_DATAW d;
+    wchar_t p[WL_PATH];
     wl_busy_enter();
     HANDLE h = FindFirstFileW(pattern, &d);
     if (h != INVALID_HANDLE_VALUE)
     {
         do
-            find_add(items, count, size, &d);
-        while (FindNextFileW(h, &d));
+        {
+            if (!gone || swprintf(p, WL_PATH, L"%s\\%s", gone, d.cFileName) < 0 || !gone_has(p))
+                find_add(items, count, size, &d);
+        } while (FindNextFileW(h, &d));
         FindClose(h);
     }
     wl_busy_leave();
@@ -1143,19 +1232,26 @@ static void find_list(const wchar_t *pattern, WIN32_FIND_DATAW **items, int *cou
 // the merged listing's handle (INVALID_HANDLE_VALUE, ERROR_FILE_NOT_FOUND, when both are empty)
 static HANDLE merged_find(const wchar_t *pattern, WIN32_FIND_DATAW *first)
 {
-    wchar_t full[WL_PATH], over[WL_PATH], dir[WL_PATH];
+    wchar_t full[WL_PATH], over[WL_PATH], dir[WL_PATH], firstDir[WL_PATH];
     if (!overlay_path(pattern, full, over))
         return NULL;
     wcscpy_s(dir, WL_PATH, over);
     wchar_t *slash = wcsrchr(dir, L'\\');
     if (slash)
         *slash = 0;
-    if (!is_dir(attributes(dir)))
+    wcscpy_s(firstDir, WL_PATH, full);
+    slash = wcsrchr(firstDir, L'\\');
+    if (slash)
+        *slash = 0;
+    // a file removed there (gone_add) left out of the first place's listing, even with nothing in
+    // the write folder
+    int gone = slash && gone_in(firstDir);
+    if (!gone && !is_dir(attributes(dir)))
         return NULL;
     WIN32_FIND_DATAW *items = NULL;
     int count = 0, size = 0;
-    find_list(over, &items, &count, &size);
-    find_list(full, &items, &count, &size);
+    find_list(over, &items, &count, &size, NULL);
+    find_list(full, &items, &count, &size, gone ? firstDir : NULL);
     if (!count)
     {
         free(items);
@@ -1755,7 +1851,9 @@ static HANDLE WINAPI hFindFirstFileW(LPCWSTR pattern, LPWIN32_FIND_DATAW data)
     return h;
 }
 
-// The C runtime's and Unreal Engine's: only redirected, and merged with the write folder
+// FindFirstFileEx: kernel32's (Unreal Engine, an older C runtime), and KERNELBASE's for the C runtime
+// of Visual Studio 2015 and later (hKbFindFirstFileExW). Redirected, then merged with the write
+// folder as FindFirstFile is (its data asked for, no search filter); not logged
 static HANDLE(WINAPI *oFindFirstFileExW)(LPCWSTR, FINDEX_INFO_LEVELS, LPVOID, FINDEX_SEARCH_OPS, LPVOID, DWORD);
 static HANDLE WINAPI hFindFirstFileExW(LPCWSTR pattern, FINDEX_INFO_LEVELS level, LPVOID data, FINDEX_SEARCH_OPS op, LPVOID filter, DWORD flags)
 {
@@ -2096,20 +2194,31 @@ static BOOL WINAPI hWritePrivateProfileStringW(LPCWSTR app, LPCWSTR key, LPCWSTR
 // ------------------------------------------------------------------------------
 
 // A file or a folder removed: the write folder's; one only in its first place stays there, the
-// call told done (as in linuxloader). 0 when the path is not the write folder's business
+// call told done (as in linuxloader). A file's first place, never removed, is missing to the game
+// from then on (gone_add). 0 when the path is not the write folder's business
 static int remove_over(const wchar_t *path, int folder, BOOL *done)
 {
     wchar_t full[WL_PATH], over[WL_PATH];
     if (!g_writeGame[0] || !overlay_path(path, full, over))
         return 0;
+    DWORD first = attributes(full);
+    int file = !folder && first != INVALID_FILE_ATTRIBUTES && !is_dir(first);
+    if (file && gone_has(full))
+        first = INVALID_FILE_ATTRIBUTES; // removed already
     if (attributes(over) != INVALID_FILE_ATTRIBUTES)
     {
         wl_busy_enter();
         *done = folder ? RemoveDirectoryW(over) : DeleteFileW(over);
         wl_busy_leave();
+        if (*done && file)
+            gone_add(full);
     }
-    else if (attributes(full) != INVALID_FILE_ATTRIBUTES)
+    else if (first != INVALID_FILE_ATTRIBUTES)
+    {
         *done = TRUE;
+        if (file)
+            gone_add(full);
+    }
     else
     {
         SetLastError(folder ? ERROR_PATH_NOT_FOUND : ERROR_FILE_NOT_FOUND);
@@ -2158,7 +2267,11 @@ static int move_over(const wchar_t *from, const wchar_t *to, DWORD flags, BOOL *
     const wchar_t *dest = ov_write(to, 0, toBuf);
     if (!fromOver && dest == to)
         return 0;
-    const wchar_t *source = !fromOver ? from : attributes(over) != INVALID_FILE_ATTRIBUTES ? over : full;
+    // A file removed (gone_add): only the write folder's, where it may be missing
+    DWORD first = fromOver ? attributes(full) : INVALID_FILE_ATTRIBUTES;
+    int file = first != INVALID_FILE_ATTRIBUTES && !is_dir(first);
+    int gone = file && gone_has(full);
+    const wchar_t *source = !fromOver ? from : attributes(over) != INVALID_FILE_ATTRIBUTES || gone ? over : full;
     if (refused(dest, "MoveFile") || (source != full && refused(source, "MoveFile")))
     {
         *done = FALSE;
@@ -2170,7 +2283,12 @@ static int move_over(const wchar_t *from, const wchar_t *to, DWORD flags, BOOL *
         *done = is_dir(attributes(full)) ? copy_tree(source, dest) : CopyFileW(source, dest, !(flags & MOVEFILE_REPLACE_EXISTING));
     else
         *done = MoveFileExW(source, dest, flags | MOVEFILE_COPY_ALLOWED);
+    DWORD err = GetLastError();
     wl_busy_leave();
+    // The first place's file, still there: missing to the game, as a file moved away is
+    if (*done && file)
+        gone_add(full);
+    SetLastError(err);
     return 1;
 }
 

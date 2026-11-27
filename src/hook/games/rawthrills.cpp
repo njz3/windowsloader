@@ -1011,7 +1011,7 @@ static void __cdecl h2o_press_det(unsigned char *obj)
 }
 
 // GetAsyncKeyState: the keys the game reads for service, test and the volume answered from our
-// inputs (D / Insert service, E / Delete test, Page Up / Down the volume), for the game's calls
+// inputs (Home / Insert service, End / Delete test, Page Up / Down the volume), for the game's calls
 static SHORT(WINAPI *oGetAsyncKeyState)(int);
 
 static SHORT WINAPI h2o_get_async_key_state(int vk)

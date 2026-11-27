@@ -23,6 +23,7 @@
 #include <wchar.h>
 
 #include "debugstart.h"
+#include "lang.h"
 
 #define MAX_MODULES 1024
 #define FIRST_CHANCE_LOGGED 64
@@ -74,12 +75,6 @@ static void dlog(const char *fmt, ...)
         g.out(line);
 }
 
-static void to_u8(const wchar_t *w, char *out, size_t size)
-{
-    if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)size, NULL, NULL))
-        out[0] = 0;
-}
-
 // The module's size from its headers in the game
 static ULONG_PTR image_size(ULONG_PTR base)
 {
@@ -98,7 +93,7 @@ static void module_name(HANDLE file, ULONG_PTR base, char *out, size_t size)
     if (file && GetFinalPathNameByHandleW(file, w, MAX_PATH, FILE_NAME_NORMALIZED))
     {
         const wchar_t *p = wcsncmp(w, L"\\\\?\\", 4) ? w : w + 4;
-        to_u8(p, out, size);
+        wl_utf8(p, out, size);
     }
     if (!out[0])
         snprintf(out, size, "(module at %p)", (void *)base);
@@ -233,7 +228,7 @@ static void write_dump(DWORD threadId, EXCEPTION_RECORD *r, CONTEXT *c)
     GetFileSizeEx(f, &size);
     CloseHandle(f);
     char u[MAX_PATH * 3];
-    to_u8(g.dump, u, sizeof u);
+    wl_utf8(g.dump, u, sizeof u);
     if (ok)
         dlog("minidump written: %s (%lld bytes)", u, size.QuadPart);
     else
@@ -309,7 +304,7 @@ static void debug_string(const OUTPUT_DEBUG_STRING_INFO *s)
         if (ReadProcessMemory(g.pi.hProcess, s->lpDebugStringData, w, n * sizeof(wchar_t), NULL))
         {
             w[n] = 0;
-            to_u8(w, text, sizeof text);
+            wl_utf8(w, text, sizeof text);
         }
     }
     else
@@ -437,7 +432,7 @@ BOOL wl_debug_start(const wchar_t *path, wchar_t *cmd, BOOL inherit, DWORD flags
         DeleteFileW(g.dump); // the last crash's, not this start's
         g.file = CreateFileW(file, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         char u[MAX_PATH * 3];
-        to_u8(file, u, sizeof u);
+        wl_utf8(file, u, sizeof u);
         if (g.file == INVALID_HANDLE_VALUE)
             dlog("the debug log %s cannot be written (error %lu): this console only", u, GetLastError());
         else

@@ -35,7 +35,8 @@
 static int env_int(const wchar_t *name, int def)
 {
     wchar_t v[32];
-    if (!GetEnvironmentVariableW(name, v, 32))
+    DWORD n = GetEnvironmentVariableW(name, v, 32);
+    if (!n || n >= 32) // too long: v was not written
         return def;
     return _wtoi(v);
 }
@@ -48,14 +49,15 @@ static void lang_log(const char *message)
 // The interface's language (lang.h), the launcher's LANGUAGE: lang\ is beside this DLL
 static void lang_init(void)
 {
-    wchar_t dir[MAX_PATH], w[16];
-    char setting[16] = "AUTO";
+    wchar_t dir[MAX_PATH], w[64];
+    char setting[64] = "AUTO";
     GetModuleFileNameW(g_wlModule, dir, MAX_PATH);
     wchar_t *slash = wcsrchr(dir, L'\\');
     if (slash)
         *slash = 0;
-    if (GetEnvironmentVariableW(WL_ENV_LANGUAGE, w, 16))
-        WideCharToMultiByte(CP_UTF8, 0, w, -1, setting, sizeof setting, NULL, NULL);
+    DWORD n = GetEnvironmentVariableW(WL_ENV_LANGUAGE, w, 64);
+    if (n && n < 64) // too long: w was not written, AUTO
+        wl_u8(w, setting, sizeof setting);
     wl_lang_init(dir, setting, lang_log);
 }
 

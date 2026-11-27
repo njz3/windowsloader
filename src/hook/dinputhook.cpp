@@ -46,11 +46,6 @@ enum
     SLOT_EFF_STOP = 8,
 };
 
-static void **vtable_of(void *com)
-{
-    return *(void ***)com;
-}
-
 static const char *guid_text(REFGUID g, char *buf, size_t size)
 {
     snprintf(buf, size, "{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}", g.Data1, g.Data2, g.Data3, g.Data4[0], g.Data4[1], g.Data4[2],

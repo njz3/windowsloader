@@ -261,11 +261,11 @@ static void read_binding(const char *section, const char *action, Binding *b)
     if (!action)
         return;
     wchar_t ws[64], wk[96], wv[1024];
-    char v[1024];
+    char v[3 * 1024]; // 3 UTF-8 bytes at most per UTF-16 unit
     MultiByteToWideChar(CP_UTF8, 0, section, -1, ws, 64);
     MultiByteToWideChar(CP_UTF8, 0, action, -1, wk, 96);
     GetPrivateProfileStringW(ws, wk, L"", wv, 1024, g_ini);
-    WideCharToMultiByte(CP_UTF8, 0, wv, -1, v, sizeof v, NULL, NULL);
+    wl_u8(wv, v, sizeof v);
 
     char *ctx = NULL;
     for (char *alt = strtok_s(v, ",", &ctx); alt && b->count < MAX_ALTERNATIVES; alt = strtok_s(NULL, ",", &ctx))
@@ -326,6 +326,12 @@ static unsigned g_effectsSerial;
 static int g_hapticPlayer = -1; // 0: the effects are on player 1's device; -1 another one or none
 static unsigned g_ffbSerial;
 static double g_ffbStrength = 1.0;
+
+// FFB_Strength held to 0 to 200 % (a mistyped value never multiplies the forces past the device's range)
+static double ffb_strength(double s)
+{
+    return s < 0 ? 0 : s > 2 ? 2 : s;
+}
 static int g_ffbInvert;
 
 #define MAX_FFB_DEVICES 16
@@ -378,7 +384,7 @@ static void read_ffb_device(void)
     {
         wchar_t w[128];
         GetPrivateProfileStringW(L"Config", L"FFB_Device", L"", w, 128, g_ini);
-        WideCharToMultiByte(CP_UTF8, 0, w, -1, v, sizeof v, NULL, NULL);
+        wl_u8(w, v, sizeof v); // cut to g_ffbDevice's size
     }
     trim(v);
     ffb_lock();
@@ -654,7 +660,7 @@ static void open_devices(void)
         swprintf(key, 16, L"P%d_GUID", p + 1);
         if (!GetPrivateProfileStringW(L"ControllerGUIDs", key, L"", wguid, 64, g_ini))
             continue;
-        WideCharToMultiByte(CP_UTF8, 0, wguid, -1, guid, sizeof guid, NULL, NULL);
+        wl_u8(wguid, guid, sizeof guid);
         for (int i = 0; i < count && i < 64; i++)
         {
             char g[64];
@@ -1295,7 +1301,8 @@ static DWORD WINAPI controls_thread(LPVOID)
             WlInput *in = wl_input_at(i);
             if (!in->action || in->held)
                 continue;
-            InterlockedExchange(&in->raw, wl_input_raw_of(in, input_value(in, &g_binds[i])));
+            // held is checked again under the agent's lock: a hold made meanwhile wins
+            wl_input_set_unheld(in, wl_input_raw_of(in, input_value(in, &g_binds[i])));
         }
         if (InterlockedExchange(&g_ffbStopAsked, 0))
         {
@@ -1314,7 +1321,7 @@ void wl_controls_load(const wchar_t *iniPath)
     wcsncpy_s(g_ini, MAX_PATH, iniPath, _TRUNCATE);
     write_defaults();
     load_bindings();
-    g_ffbStrength = GetPrivateProfileIntW(L"Config", L"FFB_Strength", 100, g_ini) / 100.0;
+    g_ffbStrength = ffb_strength(GetPrivateProfileIntW(L"Config", L"FFB_Strength", 100, g_ini) / 100.0);
     g_ffbInvert = GetPrivateProfileIntW(L"Config", L"FFB_Invert", 0, g_ini) != 0;
     read_ffb_device();
 }
@@ -1464,7 +1471,7 @@ static int controls_rows_read(const char *section, WlControlRow *rows, int max)
     for (const wchar_t *line = all; *line && n < max; line += wcslen(line) + 1)
     {
         char text[1024];
-        WideCharToMultiByte(CP_UTF8, 0, line, -1, text, sizeof text, NULL, NULL);
+        wl_u8(line, text, sizeof text); // a longer line is cut
         char *eq = strchr(text, '=');
         if (!eq || text[0] == ';' || text[0] == '#')
             continue;
@@ -1620,7 +1627,7 @@ void wl_controls_ffb_settings(double *strength, int *invert)
 
 void wl_controls_set_ffb(double strength, int invert)
 {
-    g_ffbStrength = strength;
+    g_ffbStrength = ffb_strength(strength);
     g_ffbInvert = invert;
     g_ffbSerial--; // the current force is sent again with the new settings
     g_effectsSerial--;

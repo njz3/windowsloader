@@ -278,11 +278,10 @@ static int button(const char *name)
     LONG gear = g_gear;
     if (!strncmp(name, "Shifter", 7) && name[7] >= '1' && name[7] <= '4' && !name[8])
         return gear == name[7] - '0';
-    // an H shifter's place of a gear (1 up-left, 2 down-left, 3 up, 4 down)
+    // an H shifter's place of a gear (1 up-left, 2 down-left, 3 up, 4 down); ShifterRight, for a
+    // fifth gear and above, is never held: 0 below
     if (!strcmp(name, "ShifterLeft"))
         return gear <= 2;
-    if (!strcmp(name, "ShifterRight"))
-        return gear >= 5;
     if (!strcmp(name, "ShifterUp"))
         return gear % 2 == 1;
     if (!strcmp(name, "ShifterDown"))

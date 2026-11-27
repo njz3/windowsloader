@@ -16,6 +16,9 @@
 
 #include <windows.h>
 
+// The CRC-32 of a buffer (zlib's: reflected 0xEDB88320, started at and ended with 0xFFFFFFFF)
+DWORD wl_crc32(const void *data, size_t size);
+
 // A file's CRC-32 (zlib's, as the game list gives them), 0 when it cannot
 // be read: how a game whose program keeps the same name in every build is told (Raw Thrills'
 // sdaemon.exe), its time stamp may change from one copy to another

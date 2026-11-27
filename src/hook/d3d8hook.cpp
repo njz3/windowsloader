@@ -54,11 +54,6 @@ enum
     SLOT_DEVICE8_PRESENT = 15,
 };
 
-static void **vtable_of(void *com)
-{
-    return *(void ***)com;
-}
-
 static void log_pp(const char *what, const WlPresent8 *pp)
 {
     if (pp)

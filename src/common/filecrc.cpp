@@ -16,17 +16,37 @@
 
 #include <stdlib.h>
 
-DWORD wl_file_crc32(const wchar_t *path)
+// The table of the reflected polynomial 0xEDB88320, made by the compiler
+struct Crc32Table
 {
-    static DWORD table[256];
-    if (!table[1])
+    DWORD v[256];
+    constexpr Crc32Table() : v()
+    {
         for (DWORD i = 0; i < 256; i++)
         {
             DWORD c = i;
             for (int k = 0; k < 8; k++)
                 c = c & 1 ? c >> 1 ^ 0xEDB88320 : c >> 1;
-            table[i] = c;
+            v[i] = c;
         }
+    }
+};
+static constexpr Crc32Table g_crc32;
+
+static DWORD crc32_add(DWORD crc, const unsigned char *p, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        crc = g_crc32.v[(crc ^ p[i]) & 0xFF] ^ crc >> 8;
+    return crc;
+}
+
+DWORD wl_crc32(const void *data, size_t size)
+{
+    return crc32_add(0xFFFFFFFF, (const unsigned char *)data, size) ^ 0xFFFFFFFF;
+}
+
+DWORD wl_file_crc32(const wchar_t *path)
+{
     HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
     if (f == INVALID_HANDLE_VALUE)
         return 0;
@@ -35,8 +55,7 @@ DWORD wl_file_crc32(const wchar_t *path)
     DWORD crc = 0xFFFFFFFF, got = 0;
     BOOL ok = buf != NULL;
     while (ok && (ok = ReadFile(f, buf, size, &got, NULL)) && got)
-        for (DWORD i = 0; i < got; i++)
-            crc = table[(crc ^ buf[i]) & 0xFF] ^ crc >> 8;
+        crc = crc32_add(crc, buf, got);
     free(buf);
     CloseHandle(f);
     return ok ? crc ^ 0xFFFFFFFF : 0;

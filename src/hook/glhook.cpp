@@ -589,8 +589,9 @@ static BOOL WINAPI hSwapBuffers(HDC dc)
     int w = 0, h = 0;
     if (t)
     {
-        // The window set for the mode at the first frame, then placed (F11, Alt+Enter, the title)
-        if (!g_placedWnd)
+        // The window set for the mode at the first frame, then placed (F11, Alt+Enter, the title);
+        // again in a window of the game's made after the first was destroyed
+        if (g_placedWnd != wnd && (!g_placedWnd || !IsWindow(g_placedWnd)))
         {
             g_placedWnd = wnd;
             wl_display_gl_window(wnd, t->picW, t->picH);

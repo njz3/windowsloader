@@ -38,6 +38,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "filecrc.h"
 #include "game.h"
 #include "hooks.h"
 #include "log.h"
@@ -675,25 +676,13 @@ static int title_decode(const unsigned char *body, int n, char *json, int room)
     return len;
 }
 
-static unsigned crc32(const unsigned char *p, int n)
-{
-    unsigned c = 0xFFFFFFFF;
-    while (n-- > 0)
-    {
-        c ^= *p++;
-        for (int k = 0; k < 8; k++)
-            c = c >> 1 ^ (0xEDB88320 & (0 - (c & 1)));
-    }
-    return ~c;
-}
-
 // An answer: its header, 01 01, the status (0), the JSON's CRC-32 and its length, big-endian (the
 // library checks both, +0x264478a: -8 otherwise), 4 bytes more, then the JSON, if any, packed
 static int title_encode(const unsigned char *request, const char *json, unsigned char *out, int room)
 {
     unsigned char *head = out;
     int n = json ? (int)strlen(json) : 0;
-    unsigned crc = crc32((const unsigned char *)json, n);
+    unsigned crc = wl_crc32(json, n);
     head[0] = 1, head[1] = 1, head[2] = 0, head[3] = 0;
     for (int i = 0; i < 4; i++)
     {

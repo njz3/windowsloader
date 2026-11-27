@@ -28,9 +28,11 @@
 //   game starts with "-h=<its window> -p=<port>" (+0x128b70). InpWrapper sends the game's window
 //   WM_COPYDATA type 3 with its own window handle (+0xdcd80 takes it), then the game sends it
 //   WM_COPYDATA type 0x20 with one byte (+0x129570) that goes to the port: 0 for no force, else
-//   the low nibble is the strength, 1 the strongest to 15 the weakest, bit 4 set when it pushes
+//   the low nibble is the strength, 1 the strongest down to 15 none, bit 4 set when it pushes
 //   the wheel to the right (the centring force +0x1292a0 pushes left a wheel turned right).
-//   windowsloader is that InpWrapper: a hidden window of its own, nothing is started.
+//   windowsloader is that InpWrapper: a hidden window of its own, nothing is started. Its byte
+//   drives the wheel only with [Game.daytona3] FFB PORT or a build not known; otherwise the drive
+//   board is played from the game's commands (below) and the byte only logged.
 //
 // - Coins, credits, the test menu and the cabinet's security are Sega\shell\Shell.exe's. The game
 //   talks to it over TCP on 127.0.0.1:18888 (+0x1826a0), frames of 11 bytes "DYT", the command

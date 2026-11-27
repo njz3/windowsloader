@@ -175,6 +175,7 @@ add_library(wl_hook SHARED
     src/hook/games/ringedge.cpp
     src/hook/games/taito.cpp
     src/hook/games/konami.cpp
+    src/hook/games/acio.cpp
     src/hook/games/roadfighters3d.cpp
     src/hook/games/thrilldrive4.cpp
     src/hook/games/globalvr.cpp

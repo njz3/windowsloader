@@ -64,6 +64,7 @@
 #include <wchar.h>
 #include <intrin.h>
 
+#include "acio.h"
 #include "ffb.h"
 #include "filecrc.h"
 #include "game.h"
@@ -148,13 +149,12 @@ static const unsigned char g_gears[6] = {LEVER_UP | LEVER_LEFT, LEVER_DOWN | LEV
 // The HBHI board
 // ------------------------------------------------------------------------------
 
-static volatile LONG g_coinStock; // coins in, not taken by the game yet
 static volatile LONG g_packets;
 static volatile LONG64 g_clock; // the packet's time, which the game watches (unchanged 20 s: an I/O error)
 
 // GearUp and GearDown move a sequential gear through the H pattern (0 neutral, 1..6); the lever
 // moved by hand (Gear1..Gear6, the four switches) puts it back to neutral
-static int g_gear, g_gearUpHeld, g_gearDownHeld, g_coinHeld;
+static int g_gear, g_gearUpHeld, g_gearDownHeld;
 
 static void hbhi_packet(unsigned char raw[15])
 {
@@ -166,9 +166,7 @@ static void hbhi_packet(unsigned char raw[15])
     int coin = held(IN_COIN);
     if (coin)
         raw[1] |= 0x04;
-    if (coin && !g_coinHeld)
-        InterlockedIncrement(&g_coinStock);
-    g_coinHeld = coin;
+    wl_acio_coin_mech(coin);
     if (held(IN_VIEW))
         raw[8] |= 0x04;
     if (held(IN_3D))
@@ -227,38 +225,15 @@ static void __cdecl hbhi_get_control_status_buffer(unsigned char *out)
     memcpy(out, buf, sizeof buf);
 }
 
-static int __cdecl hbhi_current_coinstock(int slot, DWORD *stock)
-{
-    if (stock)
-        *stock = (DWORD)g_coinStock;
-    return 1;
-}
-
-static int __cdecl hbhi_consume_coinstock(int slot, DWORD coins)
-{
-    for (;;)
-    {
-        LONG was = g_coinStock, now = was > (LONG)coins ? was - (LONG)coins : 0;
-        if (InterlockedCompareExchange(&g_coinStock, now, was) == was)
-            return 1;
-    }
-}
-
 // The security plugs (the game's software plug, the cabinet's system plug): found at once, 0x12;
 // the missing plug check passed, 8
 #define PLUG_FOUND 0x12
-#define PLUGS_PRESENT 8
 
 static int __cdecl hbhi_req_secplug_check(const char *id)
 {
     static volatile LONG logged;
     if (id && !InterlockedExchange(&logged, 1))
         wl_log("road fighters 3d: software plug %.16s present", id);
-    return 1;
-}
-
-static int __cdecl hbhi_req_secplug_check_systemplug(void)
-{
     return 1;
 }
 
@@ -269,36 +244,12 @@ static int __cdecl hbhi_req_secplug_check_isfinished(DWORD *status)
     return 1;
 }
 
-static int __cdecl hbhi_req_secplug_missing_check_isfinished(DWORD *status)
-{
-    if (status)
-        *status = PLUGS_PRESENT;
-    return 1;
-}
-
-// A plug's id as libacio writes it: "0140" and its 8 bytes in hex
-static int plug_id(char *out, const unsigned char id[8])
-{
-    if (!out)
-        return 0;
-    strcpy(out, "0140");
-    for (int i = 0; i < 8; i++)
-        sprintf(out + 4 + i * 2, "%02X", id[i]);
-    return 1;
-}
-
 static int __cdecl hbhi_get_softwareid(char *out)
 {
     // windowsarcadeloader's answer, with which the game boots (the plug's name in jgt.dll is
     // GQJGTJAA)
     static const unsigned char id[8] = {'G', 'L', 'H', '2', '4', 'J', 'A', 'A'};
-    return plug_id(out, id);
-}
-
-static int __cdecl hbhi_get_systemid(char *out)
-{
-    static const unsigned char id[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
-    return plug_id(out, id);
+    return wl_acio_plug_id(out, id);
 }
 
 // The lamps (8, a bit each; on and off kept only out of the brightness mode, mode 1), for the
@@ -330,96 +281,12 @@ static int __cdecl hbhi_control_lamp_mode(int mode)
     return 1;
 }
 
-// The requests answered at once, done, and the board's other outputs (coin counters and blockers,
-// lamps' brightness, parallel outputs, volume, watchdog): nothing to drive here
-static int __cdecl acio_true(void)
-{
-    return 1;
-}
-
-static int __cdecl acio_false(void)
-{
-    return 0;
-}
-
+// The volume's request, done at once (the other requests: acio.h)
 static int __cdecl acio_status0(DWORD *status)
 {
     if (status)
         *status = 0;
     return 1;
-}
-
-// ------------------------------------------------------------------------------
-// The bus itself (both: libacio.dll and libacioEx.dll)
-// ------------------------------------------------------------------------------
-
-// The game's version text, as much of it as can be read
-static void read_text(const char *from, char *to, size_t size)
-{
-    size_t n = 0;
-    __try
-    {
-        for (; from && n + 1 < size && from[n]; n++)
-            to[n] = from[n];
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-    to[n] = 0;
-}
-
-// (port, version, out, flags); another game's libacio takes (port, device, version, out, flags):
-// the version is the second argument unless it is a small number
-static int __cdecl acio_begin(DWORD a, ULONG_PTR b, ULONG_PTR c, ULONG_PTR d, DWORD e)
-{
-    char version[33];
-    read_text((const char *)(b < 0x10000 ? c : b), version, sizeof version);
-    DWORD *out = (DWORD *)(b < 0x10000 ? d : c);
-    wl_log("road fighters 3d: ACIO bus started (game %s)", version);
-    if (out)
-        *out = 0;
-    return 1;
-}
-
-// A bus whose devices were all found
-static int __cdecl acio_is_active2(DWORD a, DWORD *status)
-{
-    if (status)
-        *status = 6;
-    return 1;
-}
-
-static void __cdecl acio_update(void)
-{
-}
-
-// A device's version record (0x2C bytes): firmware 2.0.0 (byte 5), the rest zeros
-static int __cdecl acio_get_version(unsigned char *out, DWORD device)
-{
-    if (out)
-    {
-        memset(out, 0, 0x2C);
-        out[5] = 2;
-    }
-    wl_log("road fighters 3d: ACIO device %lu present", device);
-    return 1;
-}
-
-static int __cdecl acio_get_firmware_update_device_index(void)
-{
-    return 0xFF; // none waits for a new firmware
-}
-
-// The serial line's statistics (0x58 bytes): nothing lost
-static void __cdecl acio_get_rs232c_status(unsigned char *out)
-{
-    if (out)
-        memset(out, 0, 0x58);
-}
-
-static DWORD __cdecl acio_get_log(void *out, DWORD size)
-{
-    return 0;
 }
 
 // ------------------------------------------------------------------------------
@@ -491,21 +358,6 @@ static void __cdecl hdxs_get_control_status_buffer(unsigned char *out)
 // status). The card (EntryKey) is presented until the game ejects it
 // ------------------------------------------------------------------------------
 
-enum
-{
-    WF_STEP = 0,
-    WF_SLEEP = 1,
-    WF_START = 2,
-    WF_INIT = 3,
-    WF_READY = 4,
-    WF_GET_USERID = 5,
-    WF_ACTIVE = 6,
-    WF_EJECT = 7,
-    WF_EJECT_CHECK = 8,
-    WF_CLOSE_EJECT = 10,
-    WF_CLOSE_END = 12,
-};
-
 static volatile LONG g_workflow = WF_STEP, g_cardIn;
 static int g_cardHeld;
 
@@ -531,13 +383,6 @@ static void card_update(void)
         }
     }
     g_cardHeld = pressed;
-}
-
-static int __cdecl icca_cardunit_init_isfinished(DWORD device, DWORD *status)
-{
-    if (status)
-        *status = 4; // ready
-    return 1;
 }
 
 static int __cdecl icca_req_uid_isfinished(DWORD device, DWORD *status)
@@ -669,36 +514,36 @@ static int __cdecl icca_get_uid_felica(DWORD device, unsigned char *out)
 
 // jgt.dll's imports of libacio.dll
 static const WlVirtualDllFunction g_acio[] = {
-    FN(ac_io_begin, acio_begin),
-    FN(ac_io_begin_get_status, acio_true),
-    FN(ac_io_end, acio_true),
-    FN(ac_io_end_get_status, acio_true),
-    FN(ac_io_update, acio_update),
-    FN(ac_io_is_active2, acio_is_active2),
-    FN(ac_io_is_active_device, acio_true),
-    FN(ac_io_get_version, acio_get_version),
-    FN(ac_io_get_rs232c_status, acio_get_rs232c_status),
-    FN(ac_io_soft_watch_dog_on, acio_true),
-    FN(ac_io_soft_watch_dog_off, acio_true),
+    FN(ac_io_begin, wl_acio_begin),
+    FN(ac_io_begin_get_status, wl_acio_true),
+    FN(ac_io_end, wl_acio_true),
+    FN(ac_io_end_get_status, wl_acio_true),
+    FN(ac_io_update, wl_acio_update),
+    FN(ac_io_is_active2, wl_acio_is_active2),
+    FN(ac_io_is_active_device, wl_acio_true),
+    FN(ac_io_get_version, wl_acio_get_version),
+    FN(ac_io_get_rs232c_status, wl_acio_get_rs232c_status),
+    FN(ac_io_soft_watch_dog_on, wl_acio_true),
+    FN(ac_io_soft_watch_dog_off, wl_acio_true),
     FN(ac_io_hbhi_update_control_status_buffer, hbhi_update_control_status_buffer),
     FN(ac_io_hbhi_get_control_status_buffer, hbhi_get_control_status_buffer),
-    FN(ac_io_hbhi_current_coinstock, hbhi_current_coinstock),
-    FN(ac_io_hbhi_consume_coinstock, hbhi_consume_coinstock),
-    FN(ac_io_hbhi_lock_coincounter, acio_true),
-    FN(ac_io_hbhi_unlock_coincounter, acio_true),
-    FN(ac_io_hbhi_control_coin_blocker_open, acio_true),
-    FN(ac_io_hbhi_control_coin_blocker_close, acio_true),
+    FN(ac_io_hbhi_current_coinstock, wl_acio_current_coinstock),
+    FN(ac_io_hbhi_consume_coinstock, wl_acio_consume_coinstock),
+    FN(ac_io_hbhi_lock_coincounter, wl_acio_true),
+    FN(ac_io_hbhi_unlock_coincounter, wl_acio_true),
+    FN(ac_io_hbhi_control_coin_blocker_open, wl_acio_true),
+    FN(ac_io_hbhi_control_coin_blocker_close, wl_acio_true),
     FN(ac_io_hbhi_control_lamp_mode, hbhi_control_lamp_mode),
     FN(ac_io_hbhi_control_lamp_on, hbhi_control_lamp_on),
     FN(ac_io_hbhi_control_lamp_off, hbhi_control_lamp_off),
-    FN(ac_io_hbhi_control_lamp_bright, acio_true),
+    FN(ac_io_hbhi_control_lamp_bright, wl_acio_true),
     FN(ac_io_hbhi_get_softwareid, hbhi_get_softwareid),
-    FN(ac_io_hbhi_get_systemid, hbhi_get_systemid),
-    FN(ac_io_hbhi_get_watchdog_status, acio_true),
+    FN(ac_io_hbhi_get_systemid, wl_acio_get_systemid),
+    FN(ac_io_hbhi_get_watchdog_status, wl_acio_true),
     FN(ac_io_hbhi_req_secplug_check_isfinished, hbhi_req_secplug_check_isfinished),
-    FN(ac_io_icca_cardunit_init, acio_true),
-    FN(ac_io_icca_cardunit_init_isfinished, icca_cardunit_init_isfinished),
-    FN(ac_io_icca_req_uid, acio_true),
+    FN(ac_io_icca_cardunit_init, wl_acio_true),
+    FN(ac_io_icca_cardunit_init_isfinished, wl_acio_icca_cardunit_init_isfinished),
+    FN(ac_io_icca_req_uid, wl_acio_true),
     FN(ac_io_icca_req_uid_isfinished, icca_req_uid_isfinished),
     FN(ac_io_icca_get_uid_felica, icca_get_uid_felica),
     FN(ac_io_icca_workflow, icca_workflow),
@@ -708,77 +553,77 @@ static const WlVirtualDllFunction g_acio[] = {
 // libacioEx.dll's, the names jgt.dll looks up there (in this order, from rva 0x61E244, after the
 // DLL's name)
 static const WlVirtualDllFunction g_acioEx[] = {
-    FN(ac_io_begin, acio_begin),
-    FN(ac_io_end, acio_true),
-    FN(ac_io_get_rs232c_status, acio_get_rs232c_status),
-    FN(ac_io_get_send_log, acio_get_log),
-    FN(ac_io_get_recv_log, acio_get_log),
-    FN(ac_io_get_version, acio_get_version),
-    FN(ac_io_is_active_device, acio_true),
-    FN(ac_io_reset, acio_true),
-    FN(ac_io_get_firmware_update_device_index, acio_get_firmware_update_device_index),
-    FN(ac_io_go_firmware_update, acio_true),
-    FN(ac_io_is_active2, acio_is_active2),
-    FN(ac_io_begin_get_status, acio_true),
-    FN(ac_io_set_get_status_device, acio_true),
-    FN(ac_io_update, acio_update),
-    FN(ac_io_end_get_status, acio_true),
-    FN(ac_io_soft_watch_dog_on, acio_true),
-    FN(ac_io_soft_watch_dog_off, acio_true),
-    FN(ac_io_set_soft_watch_dog, acio_true),
+    FN(ac_io_begin, wl_acio_begin),
+    FN(ac_io_end, wl_acio_true),
+    FN(ac_io_get_rs232c_status, wl_acio_get_rs232c_status),
+    FN(ac_io_get_send_log, wl_acio_get_log),
+    FN(ac_io_get_recv_log, wl_acio_get_log),
+    FN(ac_io_get_version, wl_acio_get_version),
+    FN(ac_io_is_active_device, wl_acio_true),
+    FN(ac_io_reset, wl_acio_true),
+    FN(ac_io_get_firmware_update_device_index, wl_acio_get_firmware_update_device_index),
+    FN(ac_io_go_firmware_update, wl_acio_true),
+    FN(ac_io_is_active2, wl_acio_is_active2),
+    FN(ac_io_begin_get_status, wl_acio_true),
+    FN(ac_io_set_get_status_device, wl_acio_true),
+    FN(ac_io_update, wl_acio_update),
+    FN(ac_io_end_get_status, wl_acio_true),
+    FN(ac_io_soft_watch_dog_on, wl_acio_true),
+    FN(ac_io_soft_watch_dog_off, wl_acio_true),
+    FN(ac_io_set_soft_watch_dog, wl_acio_true),
     FN(ac_io_hbhi_update_control_status_buffer, hbhi_update_control_status_buffer),
     FN(ac_io_hbhi_get_control_status_buffer, hbhi_get_control_status_buffer),
-    FN(ac_io_hbhi_current_coinstock, hbhi_current_coinstock),
-    FN(ac_io_hbhi_consume_coinstock, hbhi_consume_coinstock),
-    FN(ac_io_hbhi_lock_coincounter, acio_true),
-    FN(ac_io_hbhi_unlock_coincounter, acio_true),
-    FN(ac_io_hbhi_control_coin_blocker_close, acio_true),
-    FN(ac_io_hbhi_control_coin_blocker_open, acio_true),
+    FN(ac_io_hbhi_current_coinstock, wl_acio_current_coinstock),
+    FN(ac_io_hbhi_consume_coinstock, wl_acio_consume_coinstock),
+    FN(ac_io_hbhi_lock_coincounter, wl_acio_true),
+    FN(ac_io_hbhi_unlock_coincounter, wl_acio_true),
+    FN(ac_io_hbhi_control_coin_blocker_close, wl_acio_true),
+    FN(ac_io_hbhi_control_coin_blocker_open, wl_acio_true),
     FN(ac_io_hbhi_control_lamp_mode, hbhi_control_lamp_mode),
     FN(ac_io_hbhi_control_lamp_on, hbhi_control_lamp_on),
     FN(ac_io_hbhi_control_lamp_off, hbhi_control_lamp_off),
-    FN(ac_io_hbhi_control_lamp_bright, acio_true),
-    FN(ac_io_hbhi_control_parallel_on, acio_true),
-    FN(ac_io_hbhi_control_parallel_off, acio_true),
-    FN(ac_io_hbhi_control_reset, acio_true),
-    FN(ac_io_hbhi_set_framing_err_packet_send_interval, acio_true),
-    FN(ac_io_hbhi_req_volume_control, acio_true),
+    FN(ac_io_hbhi_control_lamp_bright, wl_acio_true),
+    FN(ac_io_hbhi_control_parallel_on, wl_acio_true),
+    FN(ac_io_hbhi_control_parallel_off, wl_acio_true),
+    FN(ac_io_hbhi_control_reset, wl_acio_true),
+    FN(ac_io_hbhi_set_framing_err_packet_send_interval, wl_acio_true),
+    FN(ac_io_hbhi_req_volume_control, wl_acio_true),
     FN(ac_io_hbhi_req_volume_control_isfinished, acio_status0),
-    FN(ac_io_hbhi_set_watchdog_time, acio_true),
-    FN(ac_io_hbhi_get_watchdog_status, acio_true),
-    FN(ac_io_hbhi_get_watchdog_time_min, acio_false),
-    FN(ac_io_hbhi_get_watchdog_time_now, acio_false),
-    FN(ac_io_hbhi_watchdog_off, acio_true),
-    FN(ac_io_hbhi_get_systemid, hbhi_get_systemid),
+    FN(ac_io_hbhi_set_watchdog_time, wl_acio_true),
+    FN(ac_io_hbhi_get_watchdog_status, wl_acio_true),
+    FN(ac_io_hbhi_get_watchdog_time_min, wl_acio_false),
+    FN(ac_io_hbhi_get_watchdog_time_now, wl_acio_false),
+    FN(ac_io_hbhi_watchdog_off, wl_acio_true),
+    FN(ac_io_hbhi_get_systemid, wl_acio_get_systemid),
     FN(ac_io_hbhi_get_softwareid, hbhi_get_softwareid),
     FN(ac_io_hbhi_req_secplug_check, hbhi_req_secplug_check),
     FN(ac_io_hbhi_req_secplug_check_isfinished, hbhi_req_secplug_check_isfinished),
     FN(ac_io_hbhi_req_secplug_check_softwareplug, hbhi_req_secplug_check),
-    FN(ac_io_hbhi_req_secplug_check_systemplug, hbhi_req_secplug_check_systemplug),
-    FN(ac_io_hbhi_req_secplug_missing_check, acio_true),
-    FN(ac_io_hbhi_req_secplug_missing_check_isfinished, hbhi_req_secplug_missing_check_isfinished),
-    FN(ac_io_hbhi_req_get_control_status, acio_true),
-    FN(ac_io_hbhi_add_coin, acio_true),
-    FN(ac_io_hbhi_req_coin_input_wave, acio_true),
-    FN(ac_io_hbhi_get_coin_input_wave_buffer, acio_false),
+    FN(ac_io_hbhi_req_secplug_check_systemplug, wl_acio_true),
+    FN(ac_io_hbhi_req_secplug_missing_check, wl_acio_true),
+    FN(ac_io_hbhi_req_secplug_missing_check_isfinished, wl_acio_secplug_missing_check_isfinished),
+    FN(ac_io_hbhi_req_get_control_status, wl_acio_true),
+    FN(ac_io_hbhi_add_coin, wl_acio_true),
+    FN(ac_io_hbhi_req_coin_input_wave, wl_acio_true),
+    FN(ac_io_hbhi_get_coin_input_wave_buffer, wl_acio_false),
     // No card dispenser: its requests fail, their status never comes
-    FN(ac_io_hbhi_req_carddispenser_get_status, acio_false),
-    FN(ac_io_hbhi_req_carddispenser_get_status_isfinished, acio_false),
-    FN(ac_io_hbhi_req_carddispenser_init, acio_false),
-    FN(ac_io_hbhi_req_carddispenser_init_isfinished, acio_false),
-    FN(ac_io_hbhi_req_carddispenser_disburse, acio_false),
-    FN(ac_io_hbhi_req_carddispenser_disburse_isfinished, acio_false),
+    FN(ac_io_hbhi_req_carddispenser_get_status, wl_acio_false),
+    FN(ac_io_hbhi_req_carddispenser_get_status_isfinished, wl_acio_false),
+    FN(ac_io_hbhi_req_carddispenser_init, wl_acio_false),
+    FN(ac_io_hbhi_req_carddispenser_init_isfinished, wl_acio_false),
+    FN(ac_io_hbhi_req_carddispenser_disburse, wl_acio_false),
+    FN(ac_io_hbhi_req_carddispenser_disburse_isfinished, wl_acio_false),
     FN(ac_io_hgth_set_senddata, hgth_set_senddata),
-    FN(ac_io_hgth_update_recvdata, acio_true),
+    FN(ac_io_hgth_update_recvdata, wl_acio_true),
     FN(ac_io_hgth_get_recvdata, hgth_get_recvdata),
     FN(ac_io_hgth_directreq_set_handle_limit, hgth_set_handle_limit),
     FN(ac_io_hgth_directreq_set_handle_limit_isfinished, hgth_set_handle_limit_isfinished),
-    FN(ac_io_hdxs_update_control_status_buffer, acio_true),
+    FN(ac_io_hdxs_update_control_status_buffer, wl_acio_true),
     FN(ac_io_hdxs_get_control_status_buffer, hdxs_get_control_status_buffer),
-    FN(ac_io_hdxs_led_set_pattern, acio_true),
-    FN(ac_io_hdxs_led_set_rgb_mask, acio_true),
-    FN(ac_io_hdxs_led_scroll, acio_true),
-    FN(ac_io_hdxs_set_framing_err_packet_send_interval, acio_true),
+    FN(ac_io_hdxs_led_set_pattern, wl_acio_true),
+    FN(ac_io_hdxs_led_set_rgb_mask, wl_acio_true),
+    FN(ac_io_hdxs_led_scroll, wl_acio_true),
+    FN(ac_io_hdxs_set_framing_err_packet_send_interval, wl_acio_true),
 };
 
 // ------------------------------------------------------------------------------
@@ -1024,24 +869,12 @@ static void frame_pace(HMODULE game)
 // that block not done: ERROR 5-1550 "do the I/O's calibration" at the start of a new write
 // folder. Such a block is read as a calibrated one, calibrated for the boards windowsloader
 // answers for; the file itself is left as it is
-static DWORD crc32_of(const unsigned char *p, DWORD n)
-{
-    DWORD c = 0xFFFFFFFF;
-    while (n--)
-    {
-        c ^= *p++;
-        for (int k = 0; k < 8; k++)
-            c = c >> 1 ^ (0xEDB88320 & (0 - (c & 1)));
-    }
-    return ~c;
-}
-
 static void rfs_read(unsigned char *data, DWORD size, unsigned long long offset)
 {
     if (offset != 0 || size < 0xB3C || *(DWORD *)data != 0xB3C)
         return;
     unsigned char *calib = data + 0x118;
-    if (*(DWORD *)(data + 0x114) == crc32_of(calib, 0x100) && calib[0x24] && calib[0x25] && calib[0x26])
+    if (*(DWORD *)(data + 0x114) == wl_crc32(calib, 0x100) && calib[0x24] && calib[0x25] && calib[0x26])
         return;
     memset(calib, 0, 0x100);
     *(WORD *)(data + 0x11C) = 0xFFFF;
@@ -1049,8 +882,8 @@ static void rfs_read(unsigned char *data, DWORD size, unsigned long long offset)
     *(WORD *)(data + 0x128) = 0xFFFF;
     *(WORD *)(data + 0x134) = 0xFFFF;
     data[0x13C] = data[0x13D] = data[0x13E] = 1;
-    *(DWORD *)(data + 0x114) = crc32_of(calib, 0x100);
-    *(DWORD *)(data + 4) = crc32_of(data + 0x10, 0xB3C - 0x10);
+    *(DWORD *)(data + 0x114) = wl_crc32(calib, 0x100);
+    *(DWORD *)(data + 4) = wl_crc32(data + 0x10, 0xB3C - 0x10);
     wl_log("road fighters 3d: rfs.dat's I/O calibration missing (ERROR 5-1550): read calibrated");
 }
 
@@ -1080,26 +913,34 @@ static void rf_settings(void)
 
 // The game's effects (D3DXCreateEffect, d3dx9_41.dll): made again after each Reset of its device
 // (at the end of a game); one that fails is used anyway (jgt.dll+0x1d3804 read 0). A failure is
-// logged with its compiler's messages and tried again
+// logged with its compiler's messages and tried again, a short wait between two attempts (none
+// after the last): the caller is given the last attempt's messages only, the others released
 typedef HRESULT(WINAPI *CreateEffectFn)(void *dev, const void *src, UINT len, const void *defines, void *include, DWORD flags, void *pool,
                                         void **effect, void **errors);
 static CreateEffectFn oCreateEffect;
+#define RF_EFFECT_ATTEMPTS 4
+
+static void rf_release(void *unknown) // IUnknown::Release
+{
+    if (unknown)
+        ((ULONG(STDMETHODCALLTYPE *)(void *))(*(void ***)unknown)[2])(unknown);
+}
 
 static HRESULT WINAPI rf_CreateEffect(void *dev, const void *src, UINT len, const void *defines, void *include, DWORD flags, void *pool,
                                       void **effect, void **errors)
 {
     HRESULT hr = E_FAIL;
-    for (int attempt = 0; attempt < 4; attempt++)
+    for (int attempt = 0; attempt < RF_EFFECT_ATTEMPTS; attempt++)
     {
         void *local = NULL;
         void **errs = errors ? errors : &local;
+        *errs = NULL; // an out parameter: never one of an earlier attempt's, nor what the caller left there
         hr = oCreateEffect(dev, src, len, defines, include, flags, pool, effect, errs);
         if (SUCCEEDED(hr))
         {
             if (attempt)
                 wl_log("road fighters 3d: D3DXCreateEffect made at attempt %d", attempt + 1);
-            if (local)
-                ((ULONG(STDMETHODCALLTYPE *)(void *))(*(void ***)local)[2])(local);
+            rf_release(local);
             return hr;
         }
         static int logged;
@@ -1112,9 +953,16 @@ static HRESULT WINAPI rf_CreateEffect(void *dev, const void *src, UINT len, cons
             wl_log("road fighters 3d: D3DXCreateEffect (%u bytes) failed, 0x%08lx%s%.300s [%s]", len, hr, text ? ": " : "", text ? text : "",
                    wl_where(WL_CALLER, where, sizeof where));
         }
-        if (local)
-            ((ULONG(STDMETHODCALLTYPE *)(void *))(*(void ***)local)[2])(local);
-        Sleep(100);
+        rf_release(local);
+        if (attempt + 1 < RF_EFFECT_ATTEMPTS)
+        {
+            if (errors)
+            {
+                rf_release(*errors); // replaced by the next attempt's
+                *errors = NULL;
+            }
+            Sleep(50);
+        }
     }
     return hr;
 }
@@ -1217,6 +1065,7 @@ int wl_game_roadfighters3d(const wchar_t *exePath, const char **name, const char
 
     *name = "rf3d";
     *title = "Road Fighters 3D";
+    wl_acio_name("road fighters 3d");
     wl_log("game: %s (Konami PC: %s, CRC-32 %08lX%s)", *title, wl_u8(dll, u, sizeof u), crc, crc == g_builds[1] ? ", cabinet 2's build" : "");
     wl_game_set_boards("Controls on Konami ACIO boards \"HBHI\" (libacio.dll) and \"HGTH\" (libacioEx.dll: wheel, pedals)",
                        "Motor board: Konami ACIO board \"HGTH\" (libacioEx.dll, the torque the game sends)");

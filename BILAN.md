@@ -1,13 +1,13 @@
 # Bilan des jeux sous windowsloader
 
 Ce qui marche, jeu par jeu et fonction par fonction, rempli au fur et à mesure des jeux traités
-(copie locale depuis racecab1, module, essais, copie effacée). Le détail des essais et des trouvailles est
+(copie locale depuis une borne, module, essais, copie effacée). Le détail des essais et des trouvailles est
 dans [NOTES.md](NOTES.md) (journal).
 
 Légende : ✅ fait et vérifié · ⚠️ fait, vérifié en partie (mode agent, sans volant physique…) · ❌ pas
 possible ou absent du jeu · ⏳ pas encore fait · — sans objet.
 
-Ordre de traitement : jeux Sega en 32 bits avec retour de force d'abord (liste de la session Image borne
+Ordre de traitement : jeux Sega en 32 bits avec retour de force d'abord (liste
 dans NOTES.md, « Jeux des bornes »).
 
 ## Vue d'ensemble
@@ -69,7 +69,7 @@ Fonctions :
 - **Lancement** : le jeu démarre par `windowsloader.exe`, sans patch ni fichier du jeu modifié, en fenêtre.
 - **Commandes** : volant, pédales, boutons du jeu reçus de windowsloader (vérifié en mode agent :
   chaque commande pilotée et son effet vu dans le jeu).
-- **vJoy** : manettes lues par SDL et retour de force envoyé au joueur 1 (vJoy sur le PC d'essai, aucun
+- **vJoy** : manettes lues par SDL et retour de force envoyé au joueur 1 (vJoy sur un PC, aucun
   volant physique branché).
 - **Retour de force** : la sortie du jeu décodée en force −1..1, sens vérifié (le ressort de centrage
   pousse contre le braquage).
@@ -77,8 +77,8 @@ Fonctions :
   par `scripts/agent/display_check.py`. Par défaut l'image est recopiée dans la fenêtre par GDI
   (`PRESENT = GDI`, voir « Affichage sur ce PC » plus bas) ; `PRESENT = DIRECT` garde le Present du jeu.
   Les réglages de linuxloader en plus (voir « Rapport d'aspect, recadrage et courbure » plus bas).
-- **Menu Tab** (F10 jusqu'au 24/10/2026, Tab comme Flycast, linuxloader et Supermodel) : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
-  et « Sauvegarder pour ce jeu ». En français ou en anglais (28/10, `[Launcher] LANGUAGE`, catalogues
+- **Menu Tab** (F10 auparavant, Tab comme Flycast, linuxloader et Supermodel) : pause, pages Jeu, Contrôles, Affichage, Retour de force, À propos ; boutons « Sauvegarder »
+  et « Sauvegarder pour ce jeu ». En français ou en anglais (`[Launcher] LANGUAGE`, catalogues
   `lang\<code>.po`), comme le sélecteur ; vu en anglais sur Sega Rally 3 et Mario Kart DX 1.18.
 - **Menu de service** : le menu de test de la borne (bouton Test).
 - **Crédits / Shell** : pièces, crédits et ce que le Shell de la borne fournit au jeu.
@@ -86,12 +86,12 @@ Fonctions :
 ## Sega Rally 3 (Sega Europa-R, 2008)
 
 `Rally\Rally.exe`, x86, Direct3D 9. Module `src/hook/games/segarally3.cpp`. Copie locale effacée
-(Corbeille) le 22/10 ; l'édition Standard recopiée de racecab1 le 27/10 (`games/segarally3`).
+(Corbeille) ; l'édition Standard recopiée d'une borne (`games/segarally3`).
 
 - Commandes ✅ : carte d'E/S USB HID émulée (VID 0x1043), volant, pédales, Start, vue, frein à main,
   rapports + / − (`sr3_bits.py`, `sr3_pedals.py`, `sr3_race_bits.py`, `sr3_handbrake.py`).
 - vJoy ⚠️ : ouvert par un lancement normal, retour de force vers lui ; pas repris en course depuis.
-- Pédales par vJoy (28/10, le controls.ini des bornes : accélérateur sur Y-, frein sur Z-, du milieu relâché à 0
+- Pédales par vJoy (le controls.ini des bornes : accélérateur sur Y-, frein sur Z-, du milieu relâché à 0
   enfoncé) : la carte reçoit 40 au repos, 124 à mi-course, 210 à fond (l'étalonnage de `ShellData.ini`). En course,
   boîte AT : à demi-accélérateur la voiture reste en 1re (65 km/h au rupteur), à fond elle passe jusqu'en 4e ; le frein
   ralentit jusqu'à l'arrêt, puis, gardé, passe en R et la voiture recule (la logique du jeu : le rapport de la carte
@@ -103,21 +103,21 @@ Fonctions :
   (`config.ini`) vérifiée en 1280×720.
 - Menu Tab ✅ (`sr3_menu.py`).
 - Menu de service ❌ : il appartient au Shell Europa-R, absent des copies.
-- Link entre bornes ✅ (31/10) : le jeu en LAN de Demonware (`bd*`) : ses bornes se trouvent par une diffusion UDP
+- Link entre bornes ✅ : le jeu en LAN de Demonware (`bd*`) : ses bornes se trouvent par une diffusion UDP
   sur 50000 (`bdDiscoveryClient`), puis une session (UDP 3074 sur l'adresse du PC, TCP 8086) ; son adresse par
   GetAdaptersInfo ; Winsock 1 (`WSOCK32.dll`) importé par numéro, désormais pris par `link.cpp` comme ws2_32 ;
   `[Network] CabinetID` (1 à 4) et `Enabled` de ShellData.ini (« For Link play: must be on same LAN and change
-  CabinetID to 1..4 ») d'après `[Game.segarally3] LINK` / `CABINET`. Essayé seul sur ce PC (LINK = son adresse et
+  CabinetID to 1..4 ») d'après `[Game.segarally3] LINK` / `CABINET`. Essayé seul sur un PC (LINK = son adresse et
   une autre) : CabinetID lu, la carte filtrée (1 sur 7), la recherche partie vers les deux PC, puis le jeu écoute sur
-  50000. Sur les bornes (Image borne, racecab1 et 2) : les bornes se trouvent au démarrage et restent reliées
-  (session UDP 3074) ; course rapide à deux réussie, confirmée par le propriétaire : « EN ATTENTE D'UN CONCURRENT… »
+  50000. Sur deux bornes : les bornes se trouvent au démarrage et restent reliées
+  (session UDP 3074) ; course rapide à deux réussie : « EN ATTENTE D'UN CONCURRENT… »
   sur la première, la seconde appuie sur Start pendant son décompte (environ 15 s ; plus tard ou avant, chacune court
   seule), même circuit, 6 voitures, chacune voit l'autre.
 
 ## Daytona Championship USA (2017) et New Season Edition (2019)
 
 `Sega\Daytona\Daytona.exe`, x86, Direct3D 11. Module `src/hook/games/daytona.cpp`. Copies locales
-effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
+effacées (Corbeille). Noms courts `daytona3` et `daytona3nse`
 (ceux des bornes).
 
 - Commandes ✅ : manette DirectInput « SEGA IO Controller » jouée par windowsloader ; volant (sens
@@ -139,7 +139,7 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
 - Menu de service ❌ : le menu de test est celui de `Shell.exe`, non émulé.
 - Crédits / Shell ✅ : Shell émulé (TCP 127.0.0.1:18888) : crédits, défi de sécurité, SKU (la NSE
   l'attend).
-- Link entre bornes 🔄 (30/10, `[Game.daytona3] LINK` et `CABINET`, voir le README) : le jeu cherche ses bornes
+- Link entre bornes 🔄 (`[Game.daytona3] LINK` et `CABINET`, voir le README) : le jeu cherche ses bornes
   sur 192.168.1.0/24, en dur (`src\soc\ping.cpp`) : son adresse est le dernier octet de
   `gethostbyname(gethostname())`, la borne 1 (`CabinetID`) est le maître, elle essaie 192.168.1.1 à 8 (sauf la
   sienne) en TCP 26000, chaque autre borne y répond avec son `CabinetID`, puis le maître envoie la liste des
@@ -147,40 +147,40 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
   192.168.1.255 et les photos de la caméra (ImageComm ; sans caméra, la capture est coupée sans erreur).
   windowsloader : la borne N est 192.168.1.N pour le jeu, ses échanges vont aux PC de `LINK` (gethostbyname, bind,
   connect, sendto, recvfrom, accept, getpeername, getsockname de sa table d'importation) ; NumCabinets et CabinetID
-  lus d'après `LINK` et `CABINET`. Essayé sur ce PC avec un faux Daytona.exe qui fait ces appels (deux jeux,
+  lus d'après `LINK` et `CABINET`. Essayé sur un PC avec un faux Daytona.exe qui fait ces appels (deux jeux,
   127.0.0.1 et 127.0.0.2) : chaque borne a son adresse, le maître trouve la borne 2 et reçoit son CabinetID, les
-  diffusions passent dans les deux sens. Sur les bornes (30/10, Image borne, racecab1 et 2) : la découverte marche,
+  diffusions passent dans les deux sens. Sur deux bornes : la découverte marche,
   « POWER-ON TEST NETWORK » montre LINK ID 1 et 2 [GOOD], TOTAL MACHINE 2, puis chaque borne perd l'autre : la
-  caméra refusée au jeu (le propriétaire avait le même blocage sous TeknoParrot sans webcam ; les deux bornes en
+  caméra refusée au jeu (le même blocage sous TeknoParrot sans webcam ; les deux bornes en
   ont une). Désormais le jeu en link a la caméra du PC (`[Emulation] CAMERA = true` pour les autres jeux), `TOTAL
   CABINETS` de `GameSettings.ini` suit `LINK`, et le journal compte le trafic avec chaque borne toutes les 10 s
-  (paquets UDP, octets TCP, connexions TCP fermées). Deuxième essai : même écran. Les journaux montrent que la borne 1
+  (paquets UDP, octets TCP, connexions TCP fermées). Ensuite : même écran. Les journaux montrent que la borne 1
   charge bien plus lentement (25 à 40 images/s, figée 5,8 s ; la borne 2 à 60) : la borne 2 attend son battement de
   cœur (TCP 25000) dès 40 s, la borne 1 seulement à 57 s ; reliées, la borne 1 n'envoie presque rien pendant 12 s et
   chacune coupe vers 70 s, sans jamais rouvrir ; ensuite les données de course passent dans les deux sens (~60
   paquets/s), la traduction des adresses tient. Les images de la caméra partent en diffusion vers 192.168.1.255:3167 +
   numéro de borne. Les messages du jeu étaient perdus (2000 lignes de débogage prises par ses chargements `.nrfc`,
-  désormais écartées). Troisième essai (la borne 1 lancée 20 s avant) : le test réseau passe, « commLink OK » des
+  désormais écartées). La borne 1 lancée 20 s avant : le test réseau passe, « commLink OK » des
   deux côtés, l'attraction affiche « LINK SYSTEM JUSQU'À 2 COUREURS » ; mais la borne 1, en fenêtre avec barre de
   titre (`DISPLAY_MODE = WINDOW`, la 2 en BORDERLESS), se figeait 13 à 32 s dans la boucle modale du menu de la
   fenêtre (Alt) : la borne 2 la déclarait perdue (« nodeID0:0 is timeout », « Network Disconnection ») et chacune
   repartait seule. Le menu de la fenêtre n'est plus ouvert par Alt (vérifié sur Sega Rally 3 en fenêtre : plus de
   gel) ; les boucles de déplacement et de taille de la fenêtre sont notées au journal (l'Alt venait de l'outil de
-  test d'Image borne). Le premier essai, sans caméra, avait le même retard de la borne 1 : la caméra n'est peut-être
+  test). Sans caméra, la borne 1 avait le même retard : la caméra n'est peut-être
   pas nécessaire ; `[Emulation] CAMERA` vaut AUTO (caméra donnée en link), true ou false (jamais, même en link) pour
-  l'essayer. Cinquième essai (31/10, borne 1 en BORDERLESS) : **course à deux réussie avec les webcams** (salon « 2/2
+  l'essayer. Les deux bornes en BORDERLESS : **course à deux réussie avec les webcams** (salon « 2/2
   PRÊT », circuit choisi ensemble, positions 1/2 et 2/2, mêmes temps) ; sans caméra, le link tombe juste après
   « commLink OK » (une connexion TCP sans données ferme au bout de 11 attentes), comme sous TeknoParrot. Désormais une
   caméra émulée : l'objet `cv::VideoCapture` d'OpenCV 2.4 que le jeu crée (+0x642df0, NSE +0x6484f0) devient celui de
   windowsloader, ouvert, ses images une image fixe 320x240 (noire, ou `CAMERA_PICTURE`) ; option du jeu `CAMERA` = AUTO
   (la caméra du PC, sinon l'émulée), PICTURE, ou le nom d'une caméra du PC (liste dans « Options du jeu »), commune aux
   jeux qui ont une caméra (`camera.cpp`). Vérifié hors jeu (l'objet appelé comme le jeu l'appelle, l'image lue par WIC,
-  les deux caméras de ce PC listées) ; pas encore essayé sur les bornes. Caméra du PC : ses images surveillées
+  les deux caméras du PC listées) ; pas encore essayé sur les bornes. Caméra du PC : ses images surveillées
   (taille, canaux, luminosité moyenne des 5 premières puis toutes les 10 s, images manquées, passage au noir ou à
-  l'éclairé) ; si elle ne donne aucune image pendant 3 s, l'émulée la remplace. Essai sur les bornes (camera4) : la
+  l'éclairé) ; si elle ne donne aucune image pendant 3 s, l'émulée la remplace. Essai sur les bornes : la
   DV20 donne du BGR 320x240, noir dans la salle éteinte (les cases photo noires venaient de là) ; course à deux en link.
   Une caméra noire est gardée (le visage vient avec la lumière). Vérifié hors jeu avec une fausse caméra.
-- Link sur les bornes ✅ (31/10, release 20261031-5, borne 1 lancée d'abord, les deux en BORDERLESS) :
+- Link sur les bornes ✅ (release 20261031-5, borne 1 lancée d'abord, les deux en BORDERLESS) :
   - caméra émulée (d3emu, `CAMERA = PICTURE` pour cet essai) : « camera: emulated, a black picture » sur les deux,
     salon « 2/2 PRÊT », même circuit (Daytona International Speedway, 8 tours), positions 2/2 et 1/2, podium à deux ;
     le trafic compté toutes les 10 s pendant 10 min, aucune déconnexion : un PC sans webcam se linke ;
@@ -192,8 +192,8 @@ effacées (Corbeille) le 22/10. Noms courts `daytona3` et `daytona3nse`
 ## Ford Racing Full Blown (Sega, 2006)
 
 `FordRacing\fordracing.exe`, x86, Direct3D 9 ; `GameShell\GameShell.exe`. Module
-`src/hook/games/fordracing.cpp`. Copie locale le 22/10 (333 Mo), plugin FFB, `teknoparrot.ini`,
-dgVoodoo et jconfig (JVSEmuFR.dll) mis de côté dans `_teknoparrot_off` ; effacée (Corbeille) le 22/10.
+`src/hook/games/fordracing.cpp`. Copie locale (333 Mo), plugin FFB, `teknoparrot.ini`,
+dgVoodoo et jconfig (JVSEmuFR.dll) mis de côté dans `_teknoparrot_off` ; effacée (Corbeille).
 
 - Lancement ✅ : le jeu importe inpout32 statiquement ; le lanceur fait pointer cette importation vers
   la DLL de windowsloader (qui exporte Inp32 / Out32), le vrai pilote n'est jamais chargé. Jeu en
@@ -212,19 +212,19 @@ dgVoodoo et jconfig (JVSEmuFR.dll) mis de côté dans `_teknoparrot_off` ; effac
   borne (`/k=`), puis s'arrête sur « SECURITY FAILURE 4 » : il veut la clé iButton de la borne (DS1991,
   pilotes TMEX `IBFS32.DLL`), non émulée. Ses écritures dans HKLM (adresse IP de la carte réseau) et
   l'horloge du PC sont refusées par windowsloader.
-- Link entre bornes ✅ (31/10) : protocole Sega (`net_sega.c`) : découverte par diffusion
+- Link entre bornes ✅ : protocole Sega (`net_sega.c`) : découverte par diffusion
   (« SEGA_PROTOCOL_IM_SERVER_WHOS_WITH_ME »), sa carte par WSAIoctl SIO_GET_INTERFACE_LIST, liaison sur son adresse,
   ports 53001 à 53003 (54001 de base), `CabinetPostion` de `data\GameSettings.ini` différent sur chaque borne.
   `[Game.fordracing] LINK` / `CABINET` (`link.cpp`) : diffusions envoyées à chaque PC de LINK, autres adresses refusées,
-  seule la carte de LINK montrée, CabinetPostion d'après CABINET. Essayé seul sur ce PC (LINK = son adresse et une autre) :
-  la carte filtrée (2 sur 5), les diffusions sur 53001 et 53003 partent vers les deux PC et reviennent. Sur les bornes
-  (Image borne, racecab1 et 2) : course à deux en MULTIPLAYER, 6 voitures, 3 tours, le même compte à rebours, chaque
+  seule la carte de LINK montrée, CabinetPostion d'après CABINET. Essayé seul sur un PC (LINK = son adresse et une autre) :
+  la carte filtrée (2 sur 5), les diffusions sur 53001 et 53003 partent vers les deux PC et reviennent. Sur deux bornes :
+  course à deux en MULTIPLAYER, 6 voitures, 3 tours, le même compte à rebours, chaque
   borne voit l'autre (« Plyr 1 ») ; environ 76 paquets par 10 s dans chaque sens, rien de refusé. GameShell (menu de service) change l'adresse IP et le nom du PC dans le registre : toujours refusé.
 
 ## Initial D Arcade Stage 6 AA (Sega RingEdge, 2011)
 
 `id6_dump_.exe` (l'exécutable déchiffré ; `InitialD6_GLW_RE_SBUU.exe` est chiffré), x86, OpenGL.
-Module `src/hook/games/ringedge.cpp`. Copie locale le 22/10 (4,2 Go, 3 840 fichiers) ; plugin FFB,
+Module `src/hook/games/ringedge.cpp`. Copie locale (4,2 Go, 3 840 fichiers) ; plugin FFB,
 OutputBlaster et `teknoparrot.ini` mis de côté dans `_teknoparrot_off`.
 
 La plateforme RingEdge est émulée ; elle servira aussi aux RingWide (K.O. Drive, Sonic & Sega All-Stars
@@ -232,7 +232,7 @@ Racing) :
 - les pilotes `\\.\mxsram` (SRAM dans `wl_sram.bin`), `mxsuperio`, `mxsmbus` (EEPROM dans `wl_eeprom.bin`)
   et `columba` (une table DMI fabriquée : plateforme « AAL ») ;
 - l'enregistrement système AM_SYSDATA_STATIC de l'EEPROM (région, numéro de la carte), écrit par windowsloader
-  quand il est vide ou abîmé (depuis Sonic, le 23/10 ; Initial D 6 et K.O. Drive pas relancés depuis, leurs
+  quand il est vide ou abîmé (depuis Sonic ; Initial D 6 et K.O. Drive pas relancés depuis, leurs
   copies effacées) ;
 - les services PCP sur 127.0.0.1:40100 et suivants : mxmaster, la clé (keychip), le réseau, gcatcher ;
 - la clé répond à ses défis d'après `SBUU_Table.dat`, la table du jeu ;
@@ -247,13 +247,13 @@ Racing) :
 - Retour de force ⚠️ : carte de pilotage Sega sur COM1, couple (0x84) envoyé en course ; sens à
   confirmer au volant ; le test du menu de service est grisé (sa vérification fait bouger le volant et
   attend que la position suive).
-- Affichage ✅ (27/10) : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus
+- Affichage ✅ : OpenGL ; le lanceur fait passer le jeu sur la carte NVIDIA d'un portable Optimus
   (noir sur l'Intel) ; FPS et `[initiald6]` dans le titre ; captures pour l'agent. `[Display]` appliqué comme
   pour Direct3D : le jeu dessine dans un framebuffer de windowsloader à la taille de sa fenêtre (1920×1080),
   recopié à chaque image (`glBlitFramebuffer`) là où va l'image, bandes noires autour ; la fenêtre réglée selon
   `DISPLAY_MODE`, F11 et Alt+Entrée. Vérifié en mode agent : ORIGINAL, 4:3, 4:3_CROP, 4:3_STRETCH en fenêtre,
   plein écran fenêtré et plein écran ; la course rendue comme avant (lumières, phares, HUD).
-- Menu Tab ✅ (27/10) : dessiné dans `SwapBuffers` avec le backend OpenGL 2 de Dear ImGui (le pipeline fixe),
+- Menu Tab ✅ : dessiné dans `SwapBuffers` avec le backend OpenGL 2 de Dear ImGui (le pipeline fixe),
   l'image du jeu relue dans une texture et redessinée dessous. Le jeu laisse ses programmes Cg, ses tampons et
   d'autres états actifs : sans un état neutre, le menu sortait noir, retourné et décalé. windowsloader garde
   l'état du jeu (`glPushAttrib`, et ce que la pile ne garde pas : programme GLSL, tampons, framebuffers, unité de
@@ -261,14 +261,14 @@ Racing) :
 - Menu de service ✅ : le jeu lancé avec `-t` (comme `gametest.bat`) : GAME TEST MODE, tests d'entrées
   et de sorties, choix au bouton Service, validation au bouton Test (`id6_race.py test`).
 - Crédits ✅ : pièces comptées par la carte JVS.
-- Erreur 5101 (26/10, sur les bornes : « pas de réponse du lecteur-graveur de cartes » à « avez-vous une
+- Erreur 5101 (sur les bornes : « pas de réponse du lecteur-graveur de cartes » à « avez-vous une
   licence ? ») : comme pour les 7 et 8, le `game.bat` du 6 lance `picodaemon.exe` avant le jeu ; windowsloader ne
   le lançait que pour 7 et 8. Le lanceur le démarre maintenant aussi avec `id6_dump_.exe` et
   `InitialD6_GLW_RE_SBUU.exe`, et `cardrw.cpp` met ses écritures dans `WRITE_DIR\initiald6`. Vérifié sur la copie
-  locale (reprise de racecab1 le 26/10) : nettoyage du lecteur, « licence ? » passé sans carte, achat de la voiture.
-- Sauvegarde (31/10) ✅ : amLib refusait la version 0x100 des pilotes (sa SRAM et son EEPROM veulent 1, +0x7fda15,
+  locale (reprise d'une borne) : nettoyage du lecteur, « licence ? » passé sans carte, achat de la voiture.
+- Sauvegarde ✅ : amLib refusait la version 0x100 des pilotes (sa SRAM et son EEPROM veulent 1, +0x7fda15,
   +0x7fe843) : le jeu tournait sans sauvegarde. Version 1 : wl_sram.bin (512 Ko) et wl_eeprom.bin lus et faits dans
-  le dossier d'écriture ; 40 s d'essai sur ce PC, 60 images par seconde.
+  le dossier d'écriture ; 40 s d'essai, 60 images par seconde.
 ## Initial D Arcade Stage 7 AAX et 8 Infinity (Sega RingEdge, 2012 et 2014)
 
 La même borne qu'Initial D 6, dans la même table de `ringedge.cpp` (gameid SBYD et SBZZ, la clé par
@@ -276,7 +276,7 @@ La même borne qu'Initial D 6, dans la même table de `ringedge.cpp` (gameid SBY
 - Exécutables : `InitialD7_GLW_RE_SBYD_dumped_.exe` et `InitialD8_GLW_RE_SBZZ_redumped_.exe`, ceux que lance
   TeknoParrot. Le `InitialD8_GLW_RE_SBZZ_dumped_.exe` n'a pas le manifeste du runtime VC 2008 : il s'arrête sur
   0xC0000135 (DLL introuvable).
-- Copies locales le 24/10 depuis racecab1 (4,9 et 5,4 Go). Le crochet `dinput8.dll` de TeknoParrot (le plugin
+- Copies locales depuis une borne (4,9 et 5,4 Go). Le crochet `dinput8.dll` de TeknoParrot (le plugin
   FFB), OutputBlaster et `SDL2.dll` mis de côté (`_teknoparrot_off`).
 
 Ce qui diffère d'Initial D 6 :
@@ -301,15 +301,15 @@ Ce qui diffère d'Initial D 6 :
   - Initial D 8 : personnage, voiture, boîte, mode, course (98 km/h).
 - Retour de force ⚠️ : la carte de pilotage sur COM1, couple (0x84) envoyé en course (363 et 559 trames),
   comme Initial D 6 ; sens à confirmer au volant.
-- Affichage ⏳, Menu Tab ⏳ : le même code qu'Initial D 6 (OpenGL), pas essayé (pas de copie sur ce PC).
+- Affichage ⏳, Menu Tab ⏳ : le même code qu'Initial D 6 (OpenGL), pas essayé (pas de copie).
 - Menu de service : Initial D 7 ✅ (`-t` : GAME TEST MODE, GAME ASSIGNMENTS, l'option « CARD R/W USE »).
   Initial D 8 ⏳.
 - Crédits ✅ : pièces par la carte JVS.
 
 ## GRID (Codemasters pour Sega, 2008, Europa-R)
 
-`Sega\Grid\GRID.exe`, x86, Direct3D 9. Module `src/hook/games/codemasters.cpp` (avec DiRT Showdown). Copie locale le 22/10 de tout
-`C:\Sega` de racecab1 (19 953 fichiers, 7 Go, 10 min) : `Grid`, la coquille Sega `shell` et `ShellData`.
+`Sega\Grid\GRID.exe`, x86, Direct3D 9. Module `src/hook/games/codemasters.cpp` (avec DiRT Showdown). Copie locale de tout
+`C:\Sega` d'une borne (19 953 fichiers, 7 Go, 10 min) : `Grid`, la coquille Sega `shell` et `ShellData`.
 Plugin FFB et `teknoparrot.ini` mis de côté.
 
 - Lancement ✅ : le jeu veut `C:\Sega\Grid` et y crée `ShellData` : `C:\Sega` est redirigé vers la copie
@@ -330,39 +330,39 @@ Plugin FFB et `teknoparrot.ini` mis de côté.
   importe `DK2win32.dll`, la bibliothèque d'une clé matérielle Dinkey, absente de la copie (installée dans le
   système de la borne). Il faudrait émuler cette clé.
 - Crédits ✅ : free play (`ShellData.ini`).
-- Link entre bornes 🔄 (31/10) : la « party » du moteur Neon de Codemasters : les bornes se trouvent par une
+- Link entre bornes 🔄 : la « party » du moteur Neon de Codemasters : les bornes se trouvent par une
   diffusion UDP sur 12000 (le chercheur trouve aussi la session de sa propre borne), puis UDP et TCP sur 7342 ;
   `[Network] CabinetID` de ShellData.ini, 1 hôte, 2 à 6 clients (le plus petit héberge) ; l'adresse qu'il annonce
   est la première de gethostbyname(nom du PC) qui n'est pas 127.0.0.1. `[Game.grid] LINK` / `CABINET` (1 à 6) :
   CabinetID d'après LINK, et `link.cpp` donne désormais à gethostbyname(nom du PC) l'adresse de LINK seule. Pas
   essayé (la copie n'a pas les données du jeu).
-- Link, essais link9 sur les bornes (31/10) ❌ : chaque borne court seule (menu SINGLE PLAYER). La « party » se
+- Link, essais sur les bornes ❌ : chaque borne court seule (menu SINGLE PLAYER). La « party » se
   forme dès l'attract : chaque borne héberge, cherche (24 octets en diffusion vers UDP 12001 toutes les 10 s) et
   la plus petite CabinetID garde la session ; 12001/7343 sont la party, 12000/7342 la course ; le jeu ne lit que
   `[Network] CabinetID` (jamais NumCabinets). Les recherches arrivaient (les deux, la sienne comprise) mais aucun
   serveur ne répondait : la borne a deux sockets UDP sur 12001 (son serveur de découverte et sa session) et un
-  datagramme envoyé à un PC n'en atteint qu'un (essayé sur ce PC : un envoi à l'adresse va à un seul socket, une
+  datagramme envoyé à un PC n'en atteint qu'un (essayé sur un PC : un envoi à l'adresse va à un seul socket, une
   diffusion aux deux). `link.cpp` : une diffusion vers un port où le jeu a plusieurs sockets UDP part en diffusion
   sur le réseau de LINK (192.168.1.255 d'après la carte de LINK), les PC de LINK hors de ce réseau un par un ; le
   journal donne pour chaque bind le type de socket et le code du jeu qui l'appelle, et chaque fermeture d'un
   socket UDP. Pas encore essayé sur les bornes.
-- Essai link10 (31/10) ❌ : un seul socket du jeu sur 12001 (le premier, fermé 1 ms après, puis un autre) : la diffusion
+- Essai ❌ : un seul socket du jeu sur 12001 (le premier, fermé 1 ms après, puis un autre) : la diffusion
   sur le réseau ne s'applique pas. La recherche décodée (flux de bits, un bit d'en-tête, chaque champ précédé d'une
   étiquette de 5 bits) : 0x35A6CB40, titre 0x1370, territoire 0, track pack 0 ; le serveur la reçoit, compare ces
   champs aux siens (les mêmes valeurs, faites par la même fonction) et ne répond pas. Linké, le journal trace
   maintenant chaque lecture du serveur de découverte (+0x66ca40) et de la recherche (+0x66c680), et les valeurs du
   serveur, pour voir laquelle échoue sur les bornes.
-- Essai link11 (31/10) : la trace montre le champ rejeté : le serveur de découverte a territoire et track pack à
+- Essai : la trace montre le champ rejeté : le serveur de découverte a territoire et track pack à
   0xFFFFFFFF (aucun : Territory et TrackPack vides dans ShellData.ini), les recherches disent 0. Linké, windowsloader
   met ces deux valeurs du serveur à 0 (à chaque passage de son attente, +0x66ca40) : il répond alors aux
   recherches, et sa réponse porte les valeurs que le chercheur attend. Pas encore essayé sur les bornes.
-- Link sur les bornes ✅ (31/10, link12) : le serveur de découverte répond ; la borne 2 se connecte en TCP 7343 à la 1 ;
+- Link sur les bornes ✅ : le serveur de découverte répond ; la borne 2 se connecte en TCP 7343 à la 1 ;
   Start sur la 1 : « WAIT TO START MULTIPLAYER », Start sur la 2 : les deux à NAME ENTRY aux mêmes décomptes, puis
   « MULTIPLAYER WASHINGTON », les deux joueurs (AAA) classés avec 4 voitures de l'ordinateur.
 ## DiRT Showdown (Codemasters pour Sega Amusements, 2015)
 
 `Showdown\Showdown.exe`, x86, Direct3D 11, même organisation que GRID (`C:\Sega` avec la coquille Sega
-Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22/10 (6 455 fichiers, 14,3 Go,
+Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale (6 455 fichiers, 14,3 Go,
 13 min) ; plugin FFB et `teknoparrot.ini` mis de côté.
 
 - Lancement ✅ : `C:\Sega` redirigé ; la coquille Sega émulée (`segashell.cpp`, commune avec Daytona :
@@ -386,13 +386,13 @@ Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22
   et recopiée par GDI (voir « Affichage sur ce PC »).
 - Menu de service ❌ : coquille Sega Europe (`shell\Shell.exe`, clé Dinkey `DK2WIN32.DLL`).
 - Crédits ✅ : free play.
-- Link entre bornes ✅ (31/10) : ws2_32 importé (en partie par numéro), ses cartes par GetAdaptersAddresses.
+- Link entre bornes ✅ : ws2_32 importé (en partie par numéro), ses cartes par GetAdaptersAddresses.
   `[Game.showdown] LINK` / `CABINET` (`link.cpp`, comme Ford Racing) ; `[Network] CabinetID` de ShellData.ini d'après
   LINK (le jeu ne lit pas de NumCabinets). Essai sur les bornes : les bornes se trouvent (diffusion UDP sur 1240, 38
   octets, réponse de 75), se relient au démarrage (TCP et UDP sur 1001, échos de 8 octets toutes les 0,3 s), puis la
   partie MULTI-PLAYER ouvre une session (la borne 1 sur 1000 et 1250, la borne 2 s'y connecte), les deux passent par
-  les mêmes étapes du Shell, le trafic monte en course (environ 1,6 Ko/s de la 1 vers la 2). Course à deux (Image
-  borne, Knockout) : 6 IA et 2 joueurs, les mêmes points sur les deux bornes, chacune voit l'autre joueur (« AAA ») ;
+  les mêmes étapes du Shell, le trafic monte en course (environ 1,6 Ko/s de la 1 vers la 2). Course à deux (Knockout) :
+  6 IA et 2 joueurs, les mêmes points sur les deux bornes, chacune voit l'autre joueur (« AAA ») ;
   pas d'écran d'attente d'adversaires. Le journal note les paquets de chaque port (les ports temporaires de Windows,
   un par diffusion, ensemble).
 
@@ -400,7 +400,7 @@ Europe). Module `src/hook/games/codemasters.cpp` (avec GRID). Copie locale le 22
 
 `exe\M-DriveR_RingWide.exe` (la version 1080P, celle de `game.bat`), x86, Direct3D 9 ; `exe\TestMode.exe -t`
 est le menu de service (`gametest.bat`). Module `src/hook/games/ringedge.cpp`, devenu une table de jeux
-RingEdge / RingWide (Initial D 6 et K.O. Drive). Copie locale le 22/10 (1 min 26) ; plugin FFB, OutputBlaster,
+RingEdge / RingWide (Initial D 6 et K.O. Drive). Copie locale (1 min 26) ; plugin FFB, OutputBlaster,
 le `d3d9.dll` et le `dinput8.dll` de TeknoParrot mis de côté.
 
 Ce que la RingWide ajoute à la plateforme émulée :
@@ -428,29 +428,29 @@ Ce que la RingWide ajoute à la plateforme émulée :
   l'image remplit la fenêtre en 4:3). Pas mesurable à l'écran sur ce PC à ce moment-là (une fenêtre Direct3D 9
   y restait noire, même un petit programme d'essai sans windowsloader) ; corrigé depuis par la recopie GDI,
   pas revu sur K.O. Drive (copie effacée).
-  - Résolution native (01/11) : 1024×600. `M-DriveR_RingWide original.exe` règle partout 1024×600 (défaut
+  - Résolution native : 1024×600. `M-DriveR_RingWide original.exe` règle partout 1024×600 (défaut
     +0x48bd60, table des modes +0x5018c8) ; `M-DriveR_RingWide 1080P.exe` (et `M-DriveR_RingWide.exe`, le même)
     n'est que ces nombres changés en 1920×1080. Les écrans de démarrage placent leur texte en pixels de 1024×600
     sur une grille de 80 × 24 cases de la vraie résolution (+0x6584d0) : en 1080, une case fait 45 pixels pour
-    des lignes à 25 l'une de l'autre, d'où les lignes cachées du POWER-ON NETWORK TEST ; et selon Image borne les
+    des lignes à 25 l'une de l'autre, d'où les lignes cachées du POWER-ON NETWORK TEST ; et les
     écrans 2D (choix du circuit) n'occupent que le coin 1024×600 en haut à gauche. Avec l'original (essai sur les
-    bornes le 01/11) : les six lignes du test, les écrans 2D et l'interface pleine taille, le link marche ; la
+    bornes) : les six lignes du test, les écrans 2D et l'interface pleine taille, le link marche ; la
     3D, calculée en 1024×600 puis agrandie, est moins nette.
   - Premier lancement d'un programme : Windows (l'assistant de compatibilité) le surveille par des shims
     d'apphelp.dll, dont Direct3DCreate9 et ChangeDisplaySettings. GetProcAddress donnait leur fonction, que le
     jeu n'appelait pas sur les bornes : windowsloader ne voyait pas le device (jeu en 1024×600 sans sa fenêtre).
     Corrigé (`hooks.cpp`) : la fonction propre du module est interceptée, et les DLL de shims comptent pour le
-    jeu ; vu sur ce PC avec une copie jamais lancée (1er lancement shimé, 2e non : même device, même fenêtre).
-    Sur les bornes (01/11, essai link24, l'original) : « the game's picture is 1024x600 », « BORDERLESS ORIGINAL,
+    jeu ; vu sur un PC avec une copie jamais lancée (1er lancement shimé, 2e non : même device, même fenêtre).
+    Sur les bornes (l'original) : « the game's picture is 1024x600 », « BORDERLESS ORIGINAL,
     window 1920x1080, picture 1843x1080 at 38,0 (multisampled back buffer: the picture fills the window) » (le
     back buffer multiéchantillonné remplit la fenêtre, sans bandes), les six lignes du test réseau sur les deux
-    bornes, course à deux. Le propriétaire a choisi l'original : `exe\M-DriveR_RingWide.exe` des deux bornes est
-    maintenant l'original (la copie 1080P sauvegardée dans `C:\Racecab\_sauvegardes`).
+    bornes, course à deux. L'original est gardé : `exe\M-DriveR_RingWide.exe` est l'original, pas la copie
+    1080P.
 - Menu Tab ✅ : pause, pages Jeu, Contrôles, Affichage, Retour de force.
 - Menu de service ✅ : `TestMode.exe -t` : GAME TEST MODE, test d'entrées (volant, pédales, START/WEAPON,
   TEST, SERVICE), navigation par les boutons de la carte (`kod_race.py test`).
 - Crédits ✅ : pièces JVS, crédit de service.
-- Link entre bornes ✅ (01/11, `[Game.kodrive] LINK` et `CABINET`, 2 à 6 bornes) : la bibliothèque de link de Sega
+- Link entre bornes ✅ (`[Game.kodrive] LINK` et `CABINET`, 2 à 6 bornes) : la bibliothèque de link de Sega
   (+0x59e510 à +0x5a3200, « POWER-ON NETWORK TEST »), UDP seulement. Démarrée (+0x59ffd0) sur le réseau
   192.168.99.0/24, port 0x6a2e retourné deux fois (UDP 11882, vu au journal des bornes), jeu SBXA. Le nœud i de
   TOTAL MACHINE n dans le groupe g est 192.168.99.(1 + i + 6 (g + 2 (3 n − 6))) (+0x59e570) : .1 et .2 pour deux
@@ -462,9 +462,9 @@ Ce que la RingWide ajoute à la plateforme émulée :
   mène la course. Linké : ces trois fonctions répondent la place dans LINK moins un, le nombre de LINK et le
   groupe A (rien à régler dans le menu de test) ; les 192.168.99.k sont les PC de LINK (`wl_link_virtual_net_from`,
   le premier hôte du groupe), et l'adresse que la plateforme donne au jeu est la sienne. Les deux exécutables
-  (1080P et original) sont le même build (0x51936371). Essayé sur ce PC, le programme seul : les trois
+  (1080P et original) sont le même build (0x51936371). Essayé sur un PC, le programme seul : les trois
   interceptions posées, LINK pris (borne 1 de 2, 192.168.99.1) ; le jeu s'arrête avant le réseau (« IzErrorTrap:
-  Stop », pas de données). Vérifié sur les bornes (01/11, essai link23, la borne 2 lancée 3 s après la 1) : sur
+  Stop », pas de données). Vérifié sur les bornes (la borne 2 lancée 3 s après la 1) : sur
   chacune les trois interceptions, « LINK ID 1 » / « LINK ID 2 », 192.168.99.1 et .2 ; environ 300 trames par
   10 s dans chaque sens ; « MULTI PLAY AVAILABLE » à l'attente ; choix du circuit et de la voiture en même
   temps sur les deux, puis une seule course : la voiture de chaque borne sur l'écran de l'autre (marquée RIVAL),
@@ -472,14 +472,14 @@ Ce que la RingWide ajoute à la plateforme émulée :
   `games\kodrive\linklogs`. L'écran POWER-ON NETWORK TEST (+0x4ca630) écrit LINK ID 1 à 6 de 25 en 25, mais à
   cette résolution sa grille de texte a moins de lignes : les lignes 2 et 5 tombent sous les 3 et 6 (« [NGAD] »,
   GOOD et N/A l'un sur l'autre), d'où « LINK ID 1, 3, 4, 6 » et, sur la borne 2, « *LINK ID 3 » (son « * » de la
-  ligne 2 reste, l'espace de la ligne 3 ne s'écrit pas). Affichage seulement : le test passe sur les deux (vu le
-  01/11 avec la release 20261101-2 dans l'image).
+  ligne 2 reste, l'espace de la ligne 3 ne s'écrit pas). Affichage seulement : le test passe sur les deux (vu
+  avec la release 20261101-2 dans l'image).
 
 ## Sonic & Sega All-Stars Racing Arcade (Sega RingWide, 2011)
 
 `game.exe` et `gametest.exe` (le menu de service), x86, Direct3D 9, 1280×720. Dans la table RingEdge / RingWide
 de `ringedge.cpp` (gameid SBVH), reconnu par `SBVH_Table.dat` à côté (les noms d'exe sont génériques).
-Copie locale le 22/10 (2 min 12) ; le plugin FFB (chargé sous les noms `winmm.dll` et `dinput8.dll`),
+Copie locale (2 min 12) ; le plugin FFB (chargé sous les noms `winmm.dll` et `dinput8.dll`),
 OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
 
 - Lancement ✅ :
@@ -508,7 +508,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   copie en 0x220), réglé au lancement ; le menu de test du jeu n'a pas les réglages de pièces (ils sont dans
   celui du système de la borne). Décochée : les pièces sont comptées (CREDIT(S) 1, 2, 3) et Start en prend une.
 - Retour de force ⚠️ : le test de la carte passe ; en course, le couple (84) de −16 à +20 sur 127, une trentaine
-  de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) noté sans être joué jusqu'au 12/11 ; depuis, la servoboard joue tous ses effets (demande 324). Sens pas
+  de changements par seconde, envoyé au joueur 1 (vJoy) ; l'amortisseur (86) noté sans être joué d'abord ; depuis, la servoboard joue tous ses effets (demande 324). Sens pas
   vérifié au volant.
 - vJoy ✅ : course avec les manettes ouvertes, retour de force sur le joueur 1.
 - Menu Tab ✅ : toutes les pages, dont « Options du jeu ».
@@ -516,7 +516,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   avec la recopie GDI (noir à l'écran avant, 47 images/s).
 - Menu de service ✅ : `gametest.exe` : GAME TEST MENU, test d'entrées, réglages du jeu, comptabilité,
   navigation par les boutons Test et Service de la carte.
-- Link entre bornes 🔄 (31/10) : UDP seulement (Winsock 1 par numéro) : synchronisation sur 47616 et 47872 en
+- Link entre bornes 🔄 : UDP seulement (Winsock 1 par numéro) : synchronisation sur 47616 et 47872 en
   diffusion vers 192.168.88.255, présence de partie vers 255.255.255.255:48879. Le jeu se donne lui-même l'adresse
   192.168.88.<CABINET ID> (CABINET ID de son menu de test, dans la SRAM), pas celle de la plateforme. `[Game.ssasr]
   LINK` / `CABINET` : ces adresses sont traduites (`wl_link_virtual_net`, `link.cpp`) : 192.168.88.k est le PC k de
@@ -524,7 +524,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
   ce qui vient du PC k vient pour lui de 192.168.88.k. Le CABINET ID du menu de test doit être la place de la borne
   dans LINK (le journal le signale sinon). Pas essayé (la copie n'a pas les données : le jeu s'arrête à 5 s, avec ou
   sans LINK).
-- Link sur les bornes ✅ (31/10, link10) : racecab2 avait le CABINET ID 1 (le journal le signalait) : passé à 2
+- Link sur les bornes ✅ : la borne 2 avait le CABINET ID 1 (le journal le signalait) : passé à 2
   dans gametest.exe (GAME ASSIGNMENTS) ; puis Start sur les deux : SELECT RACER aux décomptes ensemble, la même
   course, le même temps sur les deux écrans (7e et 8e sur 8). Environ 51 paquets de 68 octets par seconde dans
   chaque sens en course, 16 octets par seconde à l'attract. Le bouton Test dans game.exe ferme le jeu
@@ -533,7 +533,7 @@ OutputBlaster, SDL2, dgVoodoo et `teknoparrot.ini` mis de côté.
 
 `d1a.exe` (`d1a.exe -t` : le menu de service), x86, Direct3D 9, 1280×720. Sur les bornes dans `C:\Sega Racing
 Classic`, hors du dossier des jeux. Dans la table RingEdge / RingWide de `ringedge.cpp` (gameid SBTN, la clé par
-`rom\SBTN_Table.dat`). Copie locale le 24/10 depuis racecab2 (0,67 Go) ; le crochet `dinput8.dll` de
+`rom\SBTN_Table.dat`). Copie locale depuis une borne (0,67 Go) ; le crochet `dinput8.dll` de
 TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin FFB, OutputBlaster, SDL2 et
 `teknoparrot.ini` mis de côté. Sous TeknoParrot, sur les bornes, le jeu ne se lançait plus.
 
@@ -545,7 +545,7 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
     windowsloader, choisi par `Gear1` à `Gear4` ou passé par `GearUp` / `GearDown` ;
   - volant (00H à gauche), accélérateur, frein ; partie : pièces, choix du circuit et de la boîte (automatique
     ou manuelle 4) à l'accélérateur (« STEP TO CHOOSE »), course.
-- Retour de force 🔄 (31/10) : une commande d'un octet que le jeu garde dans ses données (VA 0x834C19, l'adresse
+- Retour de force 🔄 : une commande d'un octet que le jeu garde dans ses données (VA 0x834C19, l'adresse
   que lit FFBArcadePlugin) et n'envoie nulle part ici (ni JVS, ni port série, ni E/S). C'est la carte de Sega
   Rally Championship (Model 2, EPR-17891), pas celle de Daytona USA : les commandes vues sur les bornes (C4-C7,
   D8-DF, 8E, 9D en course ; AD, BD, EF, F5 à l'attract) sont ses couples de 5 bits, pas les 0x-7x de Daytona ; la
@@ -555,14 +555,14 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   effet. Le ressort du panneau (celui de Daytona, `PANEL_SPRING`, 20 % par défaut) ; `DRIVE_DIP` (les
   interrupteurs 1 à 3, 0 à 7 ajoutés à chaque puissance) ; un couple vers l'extérieur reçoit aussi la puissance
   de calibrage de la carte contre le ressort. Un fil à 4 ms ; la commande aussi aux sorties réseau (RawDrive).
-  Essayé sur ce PC : la carte démarre, les options lues ; pas encore ressenti sur un volant ni sur les bornes.
+  Essayé sur un PC : la carte démarre, les options lues ; pas encore ressenti sur un volant ni sur les bornes.
 - Menu Tab ✅ : la vraie touche Tab, la fenêtre au premier plan : ouvert, puis refermé.
 - Menu de service ✅ : `d1a.exe -t` : GAME TEST MODE, comptabilité, test d'entrées, navigation par Service et
   Test. Au démarrage du menu, un premier appui sur Service peut se perdre.
 - vJoy ✅ : course avec les manettes ouvertes (vJoy en joueur 1), retour de force sur le joueur 1 (accord de
   linuxloader).
-- Affichage sur NVIDIA ✅ (12/11) : points rouges sur la route (les traces de pneus) et trame sur l'herbe, sur une carte
-  NVIDIA seulement (vus ici sur une RTX 3050, pas sur l'Intel UHD du même PC). Le shader du jeu (`rom\shader\m2.fxo`,
+- Affichage sur NVIDIA ✅ : points rouges sur la route (les traces de pneus) et trame sur l'herbe, sur une carte
+  NVIDIA seulement (vus sur une RTX 3050, pas sur l'Intel UHD du même PC). Le shader du jeu (`rom\shader\m2.fxo`,
   ps_2_0) lit la couleur dans sa colour RAM (texture 64×1024, sans filtrage) à la colonne rouge × 4 de la texture et
   à la ligne de la 2e coordonnée du sommet : au bord d'un texel, que NVIDIA arrondit de l'autre côté (le jeu visait la
   Radeon de la RingEdge, `d1a.ini` 1002:94cb). `[Game.src] PALETTE_FIX` (vrai par défaut) : le même shader, la
@@ -570,43 +570,43 @@ TeknoParrot (le jeu l'aurait chargé à la place de celui de Windows), le plugin
   sa table de constantes remise). Vu à l'attract sur la NVIDIA (plus de points ni de trame) et l'Intel (inchangé).
   Écarté : le décodage des textures DXT5 (essayé, sans effet). Le correctif de la communauté (`SegafixNvidia.exe`,
   uMod) et le « Red Road Fix » de TeknoParrot visent le même défaut.
-- Link entre bornes 🔄 (31/10) : UDP seulement (Winsock par nom, d1a.exe, « comm_lib » de Sega) : le nœud k (MAIN 0,
+- Link entre bornes 🔄 : UDP seulement (Winsock par nom, d1a.exe, « comm_lib » de Sega) : le nœud k (MAIN 0,
   les SUB leur CAR NUMBER) est 192.168.75.(1 + k) ; les SUB écrivent au port 26666 de MAIN, MAIN répond avec les
   adresses des nœuds, puis chacun envoie ses images à chaque nœud sur 26665. `[Game.src] LINK` / `CABINET` (1 à 4) :
   ces adresses sont les PC de LINK (`wl_link_virtual_net("192.168.75")`) ; linké, la carte réseau a son lien
   (query_nic_status 0) et query_ip_address répond 192.168.75.<place dans LINK>, le jeu ne demande donc pas de
   changer d'adresse. Menu de test, GAME ASSIGNMENTS : la borne 1 en MAIN (TOTAL NODES : le nombre de bornes), la
   borne k en SUB, CAR NUMBER k (le menu le montre de 2 à 4 ; le journal le rappelle). Pas essayé (la copie n'a pas ses données).
-- Essai link13 sur les bornes (31/10) ❌ : GAME ASSIGNMENTS réglé dans `d1a.exe -t` (MAIN, TOTAL NODES 2 ; SUB, CAR
+- Essai sur les bornes ❌ : GAME ASSIGNMENTS réglé dans `d1a.exe -t` (MAIN, TOTAL NODES 2 ; SUB, CAR
   NUMBER 2 : le menu va de 2 à 4), mais rien n'était gardé : le jeu demande la version de l'interface de
   `\\.\mxsram` et attend 1 (son amSramInit, +0x265105), windowsloader répondait 0x100 (celle des autres pilotes
   RingEdge) : le jeu se passait de sa SRAM, ses réglages perdus à la sortie. La SRAM répond désormais 1 (Initial D 6
   attend aussi 1, +0x7fda15 : sa SRAM était de même inutilisée), et son fichier wl_sram.bin va dans le dossier
-  d'écriture (il était créé dans le dossier du jeu). Essayé sur ce PC : la géométrie de la SRAM demandée ensuite.
-- Essai link15 (31/10) ❌ : la SRAM acceptée, mais toujours ni lue ni écrite. Les messages d'amLib (affichés seulement
+  d'écriture (il était créé dans le dossier du jeu). Essayé sur un PC : la géométrie de la SRAM demandée ensuite.
+- Essai ❌ : la SRAM acceptée, mais toujours ni lue ni écrite. Les messages d'amLib (affichés seulement
   à ses niveaux de débogage, mis à 1, sa fonction d'affichage +0x27c2e0 journalisée) le disent : « amEepromInit:
   Unknown SMBUS Driver Protocol(0x00000100) » : l'EEPROM, par `\.\mxsmbus`, veut elle aussi la version 1 ; sans
   elle amBackupInit échoue et la sauvegarde entière avec. Tous les contrôles de version des pilotes d'amLib de
   Sega Racing Classic et d'Initial D 6 veulent 1 dans le mot bas (amSramInit, amEepromInit, amDipswInit…) : leur
   version passe à 1 (Initial D 7 et 8 gardent 0x100, pas vérifiés) ; wl_eeprom.bin va aussi dans le dossier
-  d'écriture. Essayé sur ce PC : l'EEPROM et les commutateurs lus par le SMBus (link16).
-- Essai link16 (31/10) ❌, puis corrigé sur ce PC : l'EEPROM acceptée, mais la sauvegarde toujours sans accès. Elle
+  d'écriture. Essayé sur un PC : l'EEPROM et les commutateurs lus par le SMBus.
+- Essai ❌, puis corrigé sur un PC : l'EEPROM acceptée, mais la sauvegarde toujours sans accès. Elle
   choisit ses périphériques par la plateforme (amPlatform : « AAL » et « NEC » → 0, RingEdge ; « AAM » et
   Supermicro / Advantech → 1, 2 ; sinon 3, aucun périphérique, chaque lecture d'enregistrement en erreur -21 sans
   accès). Son amOemstring lisait des chaînes vides : il s'arrête quand un compte à lui (les caractères de chaque
   chaîne et un octet de chaque structure) atteint la longueur de la table, et la table émulée n'avait que 120
   octets : arrêté après la structure du BIOS. La table annonce désormais 0x800 octets (des zéros après sa fin), et
-  ses structures ont leurs champs (numéros des chaînes). Essayé sur ce PC : « AAL », « NEC », la sauvegarde lue
+  ses structures ont leurs champs (numéros des chaînes). Essayé sur un PC : « AAL », « NEC », la sauvegarde lue
   (CRC vide à la première fois), wl_sram.bin et wl_eeprom.bin faits dans le dossier d'écriture ; Initial D 6 lit
   toujours sa SRAM (une structure de remplissage de type 126 le gênait : abandonnée).
-- Link sur les bornes ✅ (31/10, link17) : GAME ASSIGNMENTS gardé (`d1a.exe -t` : MAIN, TOTAL NODES 2 ; SUB, CAR
+- Link sur les bornes ✅ : GAME ASSIGNMENTS gardé (`d1a.exe -t` : MAIN, TOTAL NODES 2 ; SUB, CAR
   NUMBER 2). Sur une sauvegarde vierge, le premier réglage se perd (la séance reconstruit les enregistrements) :
   régler une seconde fois, il tient ensuite. La plateforme donne 192.168.75.1 et .2 ; le SUB écrit au port 26666
   du MAIN, puis 26665 dans les deux sens, environ 60 paquets par seconde ; le choix du circuit au même décompte, la
   course à deux (2e et 1re sur 2), chaque borne voit la voiture de l'autre et son numéro sur la carte.
 ## Storm Racer G (Sega, « Arcade PC Based »)
 
-`bin\racing.exe` (copie `games\srg`, 6,3 Go depuis racecab2), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
+`bin\racing.exe` (copie `games\srg`, 6,3 Go depuis une borne), x86, Direct3D 9, OpenAL. Module `stormracer.cpp`.
 Toute la borne passe par deux DLL que le jeu importe : `usb_io.dll` (une carte USB EasyUSB214x) et `usb_cam.dll` (la
 caméra des photos de joueurs). Leurs fonctions sont remplacées dans la table d'import, la carte n'est jamais ouverte.
 Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `teknoparrot.ini` mis de côté
@@ -631,13 +631,13 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
   Il n'est pas installé ici, et l'installer serait un téléchargement à décider. Des images noires sont servies à la
   place.
 - Menu Tab ✅ (mode agent). À voir : le menu de service, l'étalonnage du volant, vJoy.
-- Link entre bornes ✅ (01/11, `[Game.srg] LINK` et `CABINET`, jusqu'à 8) : son `CNetworkMgr` prend la carte de plus
+- Link entre bornes ✅ (`[Game.srg] LINK` et `CABINET`, jusqu'à 8) : son `CNetworkMgr` prend la carte de plus
   petite métrique (GetAdaptersAddresses, +0x97330), rejoint le groupe multicast de `racing.cfg` [network] `mcast`
   (234.7.7.7, +0x98280) sur son UDP 5002 et y demande qui joue (McastFind, +0x98150 : 8 octets) ; puis TCP vers les
   adresses trouvées, une borne hôte (« Start connect to host »). `link.cpp` envoie maintenant un multicast à
   chaque PC de LINK (comme une diffusion) ; la carte du jeu est celle de LINK. Une liste d'hôtes fixe
-  ([network] `hostNum`, `host`) serait prise telle quelle. Pas essayé sur ce PC (sa copie effacée). Vérifié sur
-  racecab1 et racecab2 (essai link25, release 20261101-3) : le multicast vers 234.7.7.7:5002 envoyé à l'autre PC,
+  ([network] `hostNum`, `host`) serait prise telle quelle. Pas essayé sur un PC (sa copie effacée). Vérifié sur
+  deux bornes (release 20261101-3) : le multicast vers 234.7.7.7:5002 envoyé à l'autre PC,
   15 paquets reçus de chaque côté, la borne 2 se connecte en TCP à la 1 (192.168.1.4:5001, « Find to Connect
   to ») ; pièce et Start sur les deux, chacune son circuit et sa voiture, puis une seule course de 15 voitures sur
   The Height, les numéros de joueurs entrelacés (borne 1 : 2, 5, 8, 11, 14 ; borne 2 : 1, 4, 7, 10, 13), la voiture
@@ -665,14 +665,14 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
 - Menu de service ✅ (I/O CHECK). Le jeu affiche « STEERING HAS NOT CALIBRATED » : l'étalonnage du volant dans son
   menu de test reste à faire.
 - Menu Tab ✅ (mode agent). À voir : vJoy, les pièces (le jeu est en FREE PLAY).
-- Link entre bornes 🔄 (31/10) : DirectPlay 8 (dpnet.dll de Windows, UDP 13405, session « wracesnet », 4 au plus) :
+- Link entre bornes 🔄 : DirectPlay 8 (dpnet.dll de Windows, UDP 13405, session « wracesnet », 4 au plus) :
   le NETWORK-ID 1 (LINKID 0) héberge, les autres se connectent à HOSTADDR (192.168.66.110 par défaut, l'adresse
   que le jeu donne au PC, refusée) et hébergent eux-mêmes si l'hôte ne répond pas. windowsloader répondait
   LINKID 0 quand wr.ini n'en a pas, ce qui passait aussi devant le NETWORK-ID du menu de test : chaque borne
   hébergeait. `[Game.wacky] LINK` / `CABINET` (1 à 4) : LINKID = la place dans LINK moins un, HOSTADDR = le
-  premier PC de LINK (Launcher.exe+0x3320) ; seul, LINKID 0 comme avant. Essayé sur ce PC : LINKID et HOSTADDR
+  premier PC de LINK (Launcher.exe+0x3320) ; seul, LINKID 0 comme avant. Essayé sur un PC : LINKID et HOSTADDR
   pris ; la copie s'arrête ensuite faute de ses données. Lancer la borne 1 d'abord.
-- Link sur les bornes ✅ (31/10, link11) : NETWORK-ID 1 et 2 pris dans LINK ; Start sur la borne 1 (« Waiting for
+- Link sur les bornes ✅ : NETWORK-ID 1 et 2 pris dans LINK ; Start sur la borne 1 (« Waiting for
   drivers ») puis sur la 2 (« JOIN THE GAME NOW! ») : le choix des voitures au même décompte, la course à deux (le
   repère 2P sur la voiture de l'autre borne).
 ## Let's Go Safari (Sega RingWide, 2014)
@@ -685,7 +685,7 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
   - les copies n'ont pas de table de clé (`SDAX_Table.dat`). Le jeu construit son chemin (`%s\%s_Table.dat`) : ce
     format est remplacé par le mot « toolmode », la voie de Sega pour tourner sans table (comme K.O. Drive) ;
     tous les défis de la clé y sont hors table et reçoivent des zéros. Les releases 20261025 et 20261025-2 leur
-    donnaient des octets fabriqués (faits pour Initial D 8) : « Error 0949 / Keychip Not Found » sur racecab2,
+    donnaient des octets fabriqués (faits pour Initial D 8) : « Error 0949 / Keychip Not Found » sur une borne,
     corrigé dans la 20261025-3 ;
   - le service PCP du port 40114 (l'état des stockages) est servi ; sans lui, le démarrage attend une minute ;
   - la carte JVS doit être une 837-14895 en « FE MODE » (l'identité que lui donne TeknoParrot), avec un joueur,
@@ -708,7 +708,7 @@ Le crochet `dinput8.dll` de TeknoParrot, `xinput1_3.dll`, le plugin FFB et `tekn
 ## Battle Gear 4 Tuned (Taito Type X+, 2006)
 
 `game.exe _MTS_FULL_SCREEN_` (la ligne de la borne), x86, Direct3D 9 (moteur RenderWare), 800×600. Nouveau
-module `src/hook/games/taito.cpp`. Copie locale le 22/10 (4 449 fichiers, 4,6 Go, 11 min 45) ; plugin FFB
+module `src/hook/games/taito.cpp`. Copie locale (4 449 fichiers, 4,6 Go, 11 min 45) ; plugin FFB
 (`winmm.dll`, `dinput8.dll`), OutputBlaster, SDL2, dgVoodoo, le dossier `OpenParrot` et `teknoparrot.ini` mis
 de côté. « Professional Edition » est une option de TeknoParrot (correctifs du jeu), pas un autre exe :
 `game.exe` et `game4.exe` ne diffèrent que par la DLL qu'ils chargent (`JVSEmuBG` et `ttx_monitor.dll`, absentes).
@@ -796,16 +796,16 @@ embrayage, levier en H). Dans windowsloader : `[Game.bg4] CABINET = PRO` (page �
 - Restent : vJoy et le menu Tab non refaits en Pro (le même code qu'en Tuned) ; l'identité de la seconde
   carte est celle de la première (celle de la vraie borne inconnue) ; le côté de chaque capteur de la grille
   est supposé (le jeu s'en accommode : il pousse dans les deux sens).
-- Link entre bornes 🔄 (31/10), les deux éditions (pas entre elles : leurs paquets diffèrent) : Winsock 1 par
+- Link entre bornes 🔄, les deux éditions (pas entre elles : leurs paquets diffèrent) : Winsock 1 par
   numéro dans game.exe ; chaque borne diffuse son état (432 octets à chaque image, UDP 8821, vers x.y.z.255 de la
   première adresse de sa première carte), doit entendre le sien, puis se connecte en TCP 9573 aux adresses lues
   dans les paquets ; son MACHINE NO (menu de test, NETWORK SETTING, D:\config.bin) doit être différent sur chaque
   borne. `[Game.bg4] LINK` / `[Game.bg4eng] LINK` : diffusions vers chaque PC de LINK, la carte de LINK seule
   (GetAdaptersInfo), et le MACHINE NO est la place dans LINK, remis après chaque lecture des réglages (Tuned
   +0x11c980, la première édition +0xe4870). `[Game.bg4] CABINET` reste le type de borne (STANDARD / PRO) : la place
-  vient de l'adresse du PC dans LINK. Essayé sur ce PC : le réglage pris ; le jeu n'a pas ouvert son réseau dans
+  vient de l'adresse du PC dans LINK. Essayé sur un PC : le réglage pris ; le jeu n'a pas ouvert son réseau dans
   la minute. NESYS (le service en ligne de Tuned) : le mettre sur OFF.
-- Link sur les bornes ✅ (31/10, link11) : MACHINE NO 1 et 2 pris dans LINK ; environ 60 paquets de 432 octets par
+- Link sur les bornes ✅ : MACHINE NO 1 et 2 pris dans LINK ; environ 60 paquets de 432 octets par
   seconde dès l'attract ; « 参加人数 » 2, le choix du circuit au même décompte, la course à deux (PL.1, PL.2), sans
   LAN CUT ERROR. NESYS laissé tel quel. La première édition (bg4eng) : 2 participants affichés aussi, essai arrêté au
   choix du constructeur.
@@ -838,12 +838,12 @@ Direct3D 9, 800×600. Le module de Tuned (`taito.cpp`), qui reconnaît cette éd
 - Menu de service ✅ : TEST MODE (bouton Test), SHIFT UP descend, SHIFT DOWN remonte, START choisit ; EXIT ferme le
   jeu (la borne redémarre).
 - Crédits ⚠️ : le jeu est en « FREE PLAY » dans cette copie ; la pièce n'a pas été vue créditer.
-- Link sur les bornes ✅ (31/10, release 20261031-2) : MACHINE NO 1 et 2 pris dans LINK, « The number of entrants »
+- Link sur les bornes ✅ (release 20261031-2) : MACHINE NO 1 et 2 pris dans LINK, « The number of entrants »
   2, Race Mode 1/2 ; la course à deux (6e et 7e sur 7), chaque borne voit la voiture de l'autre.
 ## Chase H.Q. 2 (Taito Type X2, 2007)
 
 `game.exe` (avec `chq2.ini`), x86, Direct3D 9 (RenderWare, back buffer 10 bits A2R10G10B10), 800×600.
-Dans `taito.cpp`, avec Battle Gear 4. Copie locale le 22/10 (641 fichiers, 908 Mo, 1 min 53) ; plugin FFB,
+Dans `taito.cpp`, avec Battle Gear 4. Copie locale (641 fichiers, 908 Mo, 1 min 53) ; plugin FFB,
 OutputBlaster, SDL2, dgVoodoo, `OpenParrot`, `TeknoParrot` et `teknoparrot.ini` mis de côté.
 
 - Lancement ⚠️ : D:\ redirigé (sauvegardes `rtb.dat`, `rtc.dat`, `compe_on.dat`) ; JVS sur COM2 (même
@@ -880,7 +880,7 @@ tc.dat` de TeknoParrot) le sont,
 - Crédits ✅ : pièces JVS.
 - Pas de carte de volant sur un port série : son retour de force passe sans doute par les sorties
   analogiques du JVS (commande 0x33, 6 voies).
-- Link entre bornes ✅ (01/11, `[Game.chasehq2] LINK` et `CABINET`, 2 bornes) : DirectPlay 8 (dpnet.dll de Windows,
+- Link entre bornes ✅ (`[Game.chasehq2] LINK` et `CABINET`, 2 bornes) : DirectPlay 8 (dpnet.dll de Windows,
   UDP 13400, `LINKPORTR` pour l'hôte et `LINKPORTS` pour le client dans `chq2.ini`). Au démarrage, « NETWORK
   CHECKING ... » (+0x65bf0) : le numéro de réseau (bits 17-18 du mot de réglages, +0x130bf28 ; `LINKHOST` 1 le met à
   0, 0 à 1) 0 héberge la session (« HOST OR SINGLE »), les autres se connectent à `HOSTADDR` (192.168.65.110 par
@@ -888,9 +888,9 @@ tc.dat` de TeknoParrot) le sont,
   si l'hôte ne répond pas (« HOST FOUND » sinon). `chq2.ini` lu par les mêmes fonctions que le wr.ini de Wacky Races
   (+0x1fa0 un nombre, +0x1f30 un texte). Linké : `LINKHOST` 1 sur la borne 1 seulement, `HOSTADDR` le premier PC de
   LINK, le numéro de réseau la place dans LINK moins un ; la vérification réseau notée au journal (numéro, résultat,
-  durée). Essayé sur ce PC, le programme seul (sans ses données) : les interceptions posées, LINK pris (borne 2 de
-  2) ; le jeu s'arrête avant le réseau (« GRAPHICS SYSTEM ERROR », pas de données). Vérifié sur les bornes (01/11,
-  essai link22, la borne 1 lancée d'abord, la 2 vingt secondes après) : la borne 1 « network ID 0 (it hosts) »,
+  durée). Essayé sur un PC, le programme seul (sans ses données) : les interceptions posées, LINK pris (borne 2 de
+  2) ; le jeu s'arrête avant le réseau (« GRAPHICS SYSTEM ERROR », pas de données). Vérifié sur les bornes
+  (la borne 1 lancée d'abord, la 2 vingt secondes après) : la borne 1 « network ID 0 (it hosts) »,
   DirectPlay sur 192.168.1.4:13400, « -> 1 (hosting) » en 5,2 s ; la borne 2 « network ID 1 », « -> 2 (connected to
   the host) » en 2,7 s ; « 2-PLAYERS CAN COMPETE » ; la borne 2 rejoint la partie de la borne 1 (« Join the game
   now!! »), même choix de voiture, puis course à deux (« YOU / RIVAL 0-0 », la voiture de l'autre borne marquée
@@ -914,7 +914,7 @@ Sonic (61), Battle Gear 4 (55), Chase H.Q. 2 (60).
 
 Un jeu qui n'attend pas l'écran (D3D9 `D3DPRESENT_INTERVAL_IMMEDIATE`, D3D11/DXGI `Present(0, …)`) ne voit son
 image recopiée qu'une fois par rafraîchissement (`wl_display_gdi_due`, `display.cpp`, 3/4 de la période de
-l'écran au moins entre deux recopies) ; ses autres images vont à la fenêtre cachée seulement. Avant (26/10), chaque
+l'écran au moins entre deux recopies) ; ses autres images vont à la fenêtre cachée seulement. Avant, chaque
 image était lue et dessinée, la recopie tenait le jeu à la cadence de GDI : Wasteland Racers chargeait sa course en
 141 s au lieu de 12. Programmes d'essai sur ce PC (avant → après) : D3D9 76 → 3 387 images/s ; D3D11 60 → 176
 (486 sans windowsloader) ; les jeux qui attendent l'écran ne changent pas.
@@ -940,12 +940,12 @@ Les réglages de linuxloader, mêmes noms et même sens (le front-end les passe 
 - Vérifié (captures de la fenêtre) sur GTI Club 3 (D3D9, 16:9), Battle Gear 4 (D3D9, 4:3) et DiRT Showdown
   (D3D11, 16:9) : les 16 cas de `crop_check.py` (bloc-notes) et le menu ; `--set`, `-c`, le fichier du jeu
   créé, relu au lancement suivant.
-- OpenGL (Initial D 6 à 8, Frenzy Express, depuis le 27/10) : comme la recopie GDI, sauf la courbure (recadré
+- OpenGL (Initial D 6 à 8, Frenzy Express) : comme la recopie GDI, sauf la courbure (recadré
   sans courbure) : l'image du jeu est recopiée par OpenGL dans la fenêtre.
 - Modes d'affichage (`DISPLAY_MODE`, mêmes noms que linuxloader) : `WINDOW`, `WINDOW_STRETCH` ; `FULLSCREEN`,
   `FULLSCREEN_STRETCH`, l'écran passé à son plus petit mode qui contient l'image du jeu, comme SDL chez linuxloader (repris en revenant à une fenêtre, et par Windows à
   la fin du jeu ; à la résolution du bureau si l'écran refuse cette taille) ; `BORDERLESS`, `BORDERLESS_STRETCH`
-  (« plein écran fenêtré », 23/10), une fenêtre sans bordure qui couvre l'écran à la résolution du bureau, ce que
+  (« plein écran fenêtré »), une fenêtre sans bordure qui couvre l'écran à la résolution du bureau, ce que
   faisait `FULLSCREEN` jusque-là. F11 / Alt+Entrée : la fenêtre ou le plein écran choisi. Vérifié sur Battle Gear 4 :
   `BORDERLESS` (image entre bandes) et `BORDERLESS_STRETCH` ; `FULLSCREEN` pas essayé à l'écran de ce portable.
 
@@ -974,7 +974,7 @@ du volant ; chaque module le déclare (`wl_game_set_boards`) :
 
 ## Options propres à chaque jeu (menu Tab, « Options du jeu »)
 
-Comme linuxloader (forme convenue avec sa session le 23/10) : section `[Game.<nom court>]` du fichier de réglages (le
+Comme linuxloader (forme convenue avec sa session) : section `[Game.<nom court>]` du fichier de réglages (le
 commun ou le `<nom court>.ini` du jeu), clés en majuscules, valeurs de liste en majuscules, `true`/`false`, nombres ;
 `--set Game.CLE=VALEUR` vise la section du jeu lancé. Le module du jeu déclare ses options (case, liste ou curseur, une
 aide, « au prochain lancement » ou non) ; l'onglet « Options du jeu » les montre (sinon « Aucune option pour ce jeu. »),
@@ -992,7 +992,7 @@ jeu à une vraie carte ; `EMULATE_DRIVEBOARD = false` avec `SERIAL_<n>_PATH` (n 
 dans la partie « Cartes » de « Options du jeu » : une liste par port émulé du jeu, « Émulée » ou « Vraie carte sur
 COMn » (les ports que Windows connaît), au prochain lancement.
 
-Vérifié (23/10) avec Battle Gear 4 sur une paire de ports virtuels (COM10 vers COM11, un script Python jouant la carte
+Vérifié avec Battle Gear 4 sur une paire de ports virtuels (COM10 vers COM11, un script Python jouant la carte
 sur COM11) :
 - carte du volant (COM1 du jeu) : la même séquence de démarrage que la carte émulée, puis l'interrogation, le jeu
   jusqu'à l'attract ;
@@ -1010,11 +1010,11 @@ Dossier des jeux : `[Picker] GAMES_DIR`, sinon `games` à côté du lanceur ou u
 choisit un autre. Les jeux sont reconnus comme le fait la DLL (nom du programme, fichiers à côté, date du programme
 pour les deux Battle Gear 4) : la table est `src/launcher/gamelist.cpp`, à tenir à jour avec les modules.
 
-Vérifié (25/10) : dossier d'essai (deux éditions de Sega Rally 3, Chase H.Q. 2, Wangan Midnight 5, un dossier sans
+Vérifié : dossier d'essai (deux éditions de Sega Rally 3, Chase H.Q. 2, Wangan Midnight 5, un dossier sans
 jeu écarté), flèches, image, message d'erreur du lanceur, Échap ; puis le dossier `games` du dépôt, Wangan Midnight 5
 lancé depuis le sélecteur (windowsloader.exe → windowsloader64.exe → wmn5r.exe), le sélecteur revenu à l'arrêt du jeu.
 
-## Dossier d'écriture, sorties réseau, menu Tab désactivable (25/10)
+## Dossier d'écriture, sorties réseau, menu Tab désactivable
 
 Les trois fonctions de linuxloader qui manquaient, avec ses clés :
 - `[Paths] WRITE_DIR` ou `--write-dir` : les dossiers du lanceur et des jeux ne sont plus que lus.
@@ -1025,7 +1025,7 @@ Les trois fonctions de linuxloader qui manquaient, avec ses clés :
   `programdata`, `windows` ; un disque sous filtre d'écriture (UWF) sauf le dossier d'écriture garde ainsi tout
   ce que le jeu écrit. Un seul réglage, `WRITE_DIR` : vide, tout s'écrit à sa place habituelle. Le sélecteur
   suit.
-  Dossier d'écriture inutilisable (31/10, règle du propriétaire pour tous ses émulateurs) : impossible à créer,
+  Dossier d'écriture inutilisable (même règle que les autres émulateurs, Flycast, Supermodel) : impossible à créer,
   fichier d'essai qui ne se crée, ne s'écrit ou ne s'efface pas, ou réglages qui ne s'y copient pas (le lanceur
   pour `WRITE_DIR`, la DLL pour `WRITE_DIR\<jeu>`) : il reste le seul endroit écrit, donc rien n'est écrit.
   Réglages et fichiers du jeu lus à leur place, jamais écrits ; écritures du jeu et de windowsloader refusées
@@ -1054,7 +1054,7 @@ Les trois fonctions de linuxloader qui manquaient, avec ses clés :
   cartes les trames de la carte servo Sega faites de la force), `mame_stop` à la fin.
 - `[Launcher] SETTINGS_MENU = false` : Tab n'ouvre plus le menu (borne publique) ; l'agent l'ouvre toujours.
 
-Vérifié (25/10) :
+Vérifié :
 - Wangan Midnight 5 avec les trois : le dossier du jeu intact, ses 20 fichiers écrits dans le dossier
   d'écriture (chemins de plus de 260 caractères, forme `\\?\`), démonstration normale ; annonce UDP
   `mame_start = wmmt5`, lampes `RawLamps`/`lamp0..15`, `mame_stop = 1` à la fin ; « menu : Tab n'ouvre pas »
@@ -1063,23 +1063,23 @@ Vérifié (25/10) :
   `CREATE_NEW` sur un fichier existant, liste fusionnée, .ini écrit et relu, renommage, dossier, suppression
   (16 contrôles chacun, tous bons, le dossier du « jeu » inchangé) ;
 - Wangan Midnight 5 sans dossier d'écriture : comme avant ;
-- les dossiers du système (25/10, après la demande sur UWF) : le programme d'essai écrit son rapport dans
+- les dossiers du système (après la demande sur UWF) : le programme d'essai écrit son rapport dans
   `%TEMP%` et un fichier dans AppData\Local ; ils arrivent dans `temp` et `appdata\Local` du dossier d'écriture,
   ni le vrai dossier temporaire ni le vrai AppData touchés (17 contrôles, 32 et 64 bits, A et W). Wangan
   Midnight 5 : le fichier que le pilote NVIDIA écrit dans ProgramData pour le jeu rangé dans `programdata`,
   démonstration normale.
 
-Les compagnons (25/10) : `picodaemon.exe` (Initial D 7 et 8) et `amdaemon.exe` (SWDC), que le lanceur démarre
+Les compagnons : `picodaemon.exe` (Initial D 7 et 8) et `amdaemon.exe` (SWDC), que le lanceur démarre
 avant le jeu, écrivent dans le `WRITE_DIR\<jeu>` de leur jeu (le lanceur leur dit lequel ; picodaemon prend
 initiald7 ou initiald8 d'après le programme du jeu) et n'ouvrent pas le serveur des sorties réseau (il aurait pris
 le port 8000 avant le jeu). Vérifié avec SWDC : le port 8000 au jeu, un seul sous-dossier `swdc` pour les deux,
 les fichiers d'amdaemon (AMFS, Y:\SDDS, son journal) copiés dedans, le dossier du jeu intact. picodaemon pas
-essayé ici (plus de copie d'Initial D 7 ou 8).
+essayé (plus de copie d'Initial D 7 ou 8).
 
-`RawDrive` vu en jeu le 25/10 : Wangan Midnight 5 en course, son retour de force mis à ON (148 trames de la
+`RawDrive` vu en jeu : Wangan Midnight 5 en course, son retour de force mis à ON (148 trames de la
 carte servo Sega faites de la force, avec les lampes et `mame_start = wmmt5`).
 
-Le 26/10 (demandes 143 à 145) :
+Demandes 143 à 145 :
 - Onglet « Sorties et réseau » du menu (page 6 de l'agent) : l'état du serveur (port, clients), puis la liste
   défilante de ce que le jeu peut envoyer, avec son type, sa dernière valeur et ce que c'est ; les cartes
   déclarent leurs sorties en s'enregistrant, et les valeurs sont gardées même sans `OUTPUTS_NETWORK`. Vu dans
@@ -1092,7 +1092,7 @@ Le 26/10 (demandes 143 à 145) :
   - Mario Kart DX ✅ : les LED de la borne, commandes Namco 0x78, 0x79, 0x7A, 9 LED RVB chacune, 4 bits par
     couleur → `led0_r` … `led26_b` (0-15, ordre des couleurs supposé) ; 81 valeurs vues dans le flux en attract.
   - Wasteland Racers 2071 ⚠️ : `SetDigitalOut` → `lamp0..15`, nommées d'après l'`Inputs.xml` du jeu (1 BOOST,
-    2 CAMERA, 3 CHEAT1, 4 ACTIVEBOOST, 10 BRAKES sur la copie de racecab1).
+    2 CAMERA, 3 CHEAT1, 4 ACTIVEBOOST, 10 BRAKES sur la copie connue).
   - Storm Racer G ⚠️ (lu dans `usb_io.dll`) : `UsbIO_SetLedLightStatu`, octet 6 = 6 lampes → `lamp0..5` ;
     `UsbIO_SetPWMLightStatu`, 6 intensités → `pwm0..5` (0-255).
   - Crazy Ride ⚠️ (lu dans `UsbPluginsDll_R.dll`) : `BIND_SetBoxLight`, `SetEdgeLight`, `SetSideLight`,
@@ -1100,8 +1100,8 @@ Le 26/10 (demandes 143 à 145) :
     `SetBrakeLight` (0-3), `SetGameStateLight`, `SetStartLightState` ; la fonction de la DLL appelée ensuite.
   - GTI Club 3 ⚠️ (lu dans `libacio.dll`) : `ac_io_hbhi_control_lamp_on` / `_off` (8 lampes) → `lamp0..7`,
     `_bright` (0-31) → `bright0..7`, `_mode` suivi ; libacio appelée ensuite.
-  - ⚠️ = pas essayé en jeu : ces jeux ne sont pas sur ce PC (bibliothèques copiées de racecab1 pour les lire).
-  - SWDC en mode Cabinet ✅ (27/10) : la carte LED 837-15070 (`led0_r` à `led8_b`, `fet0` à `fet2`) et le tableau de
+  - ⚠️ = pas essayé en jeu : ces jeux ne sont pas sur ce PC (bibliothèques copiées d'une borne pour les lire).
+  - SWDC en mode Cabinet ✅ : la carte LED 837-15070 (`led0_r` à `led8_b`, `fet0` à `fet2`) et le tableau de
     bord (`speed`, `gear`, `rpm`, `dash_lamp0` à `dash_lamp7`) ; voir sa section. Sega Rally 3, Daytona, GRID,
     Showdown, Ford Racing : le jeu n'envoie rien à sa carte d'E/S.
 
@@ -1117,7 +1117,7 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
 ## GTI Club: Supermini Festa! (GTI Club 3, Konami PC, 2008)
 
 `gti3.exe` (celui de `boot.bat` ; `gti3japkey.exe` n'en diffère que par 6 octets de texte), x86, Direct3D 9
-(1360×768), son XACT 2.10, base fixe 0x400000. Nouveau module `src/hook/games/konami.cpp`. Copie locale le 22/10
+(1360×768), son XACT 2.10, base fixe 0x400000. Nouveau module `src/hook/games/konami.cpp`. Copie locale
 (121 fichiers, 3,15 Go, 3 min 29, 16 Mo/s) ; plugin FFB (`dinput8.dll`), OutputBlaster, SDL2, dgVoodoo et
 `teknoparrot.ini` mis de côté.
 
@@ -1134,11 +1134,11 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
     `regsvr32` sur la borne ; windowsloader ne touche pas au registre (à prévoir : activation COM sans
     registre si une borne ne l'a pas) ;
   - le jeu écoute sur le réseau (ports 50002 et 50006) : une boîte du pare-feu s'ouvre, laissée à l'utilisateur.
-- Affichage ✅ : fenêtre 1360×768 (recopie GDI), 30 images/s. Depuis le 25/10 (contribution de Legired, pull
+- Affichage ✅ : fenêtre 1360×768 (recopie GDI), 30 images/s. Désormais (contribution de Legired, pull
   request n° 1, `2fe629e`), `[Display] WIDTH x HEIGHT` donne la résolution de rendu : les deux valeurs
   1360×768 du code remplacées, les 84 endroits qui en font des flottants gardant l'écran de 1360×768 pour la
   vue et le 2D projeté, le 2D déjà transformé (XYZRHW) et les rectangles de découpe remis à l'échelle par
-  `wl_d3d9_scale_2d` ; `AUTO` laisse le jeu comme avant. Pas vérifié ici (plus de copie du jeu) : release
+  `wl_d3d9_scale_2d` ; `AUTO` laisse le jeu comme avant. Pas vérifié (plus de copie du jeu) : release
   20261025-5.
 - Commandes ✅ (mode agent, `scripts/agent/race_check.py gticlub3`) : jeu gratuit, « Vous jouez ? YES », choix du
   mode (Race battle), départ rapide, course « Traffic jam escape race » (jusqu'à 131 km/h, la voiture suit la
@@ -1156,16 +1156,16 @@ vues sur chaque jeu ; le compteur d'images ne bouge pas tant que le menu est ouv
   sans).
 - Crédits ✅ : jeu gratuit (réglage de la copie) ; les pièces passent par `ac_io_hbhi_current_coinstock` de la
   carte, pas émulé.
-- Link entre bornes ✅ (31/10) : diffusion sur 255.255.255.255, salon des bornes (« global matching step lobby »),
+- Link entre bornes ✅ : diffusion sur 255.255.255.255, salon des bornes (« global matching step lobby »),
   son adresse par GetAdaptersInfo (« machine IP %s, GIP %s, GPORT %d »), CABINET ID du menu de test (NETWORK OPTIONS),
-  différent sur chaque borne. `[Game.gticlub3] LINK` / `CABINET` (`link.cpp`). Sur les bornes (Image borne, racecab1 et
-  2, CABINET ID laissés tels quels, pas de doublon signalé) : MATCHING / STORE avec les deux joueurs, « 2 joueurs », la
+  différent sur chaque borne. `[Game.gticlub3] LINK` / `CABINET` (`link.cpp`). Sur deux bornes (CABINET ID laissés tels quels,
+  pas de doublon signalé) : MATCHING / STORE avec les deux joueurs, « 2 joueurs », la
   même épreuve, course à quatre (deux joueurs et deux COM), chacun voit l'autre ; liaison sur 0.0.0.0:50002.
 
 ## Wasteland Racers 2071 (Trio Tech PC, 2006)
 
 `Arcade.exe`, x86, Direct3D 8 (2560×1440, `D3DLocalConfigData.txt`), son fmod, moteur Diesel de Grin. Nouveau module
-`src/hook/games/triotech.cpp`. Copie locale le 22/10 (4 860 fichiers, 1,66 Go), interrompue par un redémarrage puis
+`src/hook/games/triotech.cpp`. Copie locale (4 860 fichiers, 1,66 Go), interrompue par un redémarrage puis
 terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin reste dans le dossier).
 
 - Lancement ✅ :
@@ -1184,7 +1184,7 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   - le jeu écoute sur le réseau : une boîte du pare-feu s'ouvre, laissée à l'utilisateur ;
   - au démarrage, environ 90 s de vidéo d'introduction (DirectShow) avant la première image.
 - Affichage ✅ : recopie GDI de l'image Direct3D 9 que d3d8to9 fait, fenêtre 2042×1149 sur ce portable,
-  60 à 90 images/s. Sur les bornes (Image borne, 25/10), « Get Ready To Race » durait 150 à 170 s : le jeu
+  60 à 90 images/s. Sur les bornes, « Get Ready To Race » durait 150 à 170 s : le jeu
   charge une texture de la carte par image, sans attendre l'écran (intervalle IMMEDIATE), et la recopie de son
   image (2560×1440 multiéchantillonnée, relue puis mise à l'échelle par GDI) le tenait à 60 images/s : 141 s de
   chargement, 12 s avec `PRESENT = DIRECT` (938 images/s). Corrigé dans `d3d9hook.cpp` : pour un jeu qui
@@ -1210,30 +1210,30 @@ terminée ; rien de la copie n'est modifié (le `dinput8.dll` de FFBArcadePlugin
   quitte le jeu), prix de la partie (VIEW), jeu gratuit, statistiques.
 - Crédits ✅ : jeu gratuit (réglage de la copie) : le jeu met le prix d'une partie dans le compteur de la carte
   (`SetCoin(8, …)`, le compteur du bit COIN) puis le relit (`GetCoin(8)`) ; une pièce compte une fois par appui.
-- Link entre bornes 🔄 (31/10) : deux couches dans Arcade.exe : l'élection de l'hôte par diffusion UDP sur 2070
+- Link entre bornes 🔄 : deux couches dans Arcade.exe : l'élection de l'hôte par diffusion UDP sur 2070
   (Winsock 1 par numéro ; « Host Election:<adresse> », la plus petite adresse héberge, chaque borne entendant la
   sienne ; son identité est la première adresse de gethostbyname(nom du PC)), puis la course en DirectPlay 8
   (dpnet.dll de Windows, qui atteint le réseau local lui-même). `[Game.wasteland] LINK` : diffusions vers les PC de
   LINK, le sien compris, et son adresse, son identité, celle de LINK ; seul, il s'entend lui-même comme avant.
-  Essayé seul sur ce PC : bind 2070, gethostbyname du PC → l'adresse de LINK ; le jeu s'arrête ensuite faute de
+  Essayé seul sur un PC : bind 2070, gethostbyname du PC → l'adresse de LINK ; le jeu s'arrête ensuite faute de
   ses données (copie sans données).
-- Essai link9 sur les bornes (31/10) ❌ : l'élection marche (les nombres sont les adresses entières, le journal n'en
+- Essai sur les bornes ❌ : l'élection marche (les nombres sont les adresses entières, le journal n'en
   montrait que 16 octets ; il écrit désormais un paquet texte en clair) ; la borne 2 voit l'hôte (« PRESS ANY
   BUTTON TO JOIN ») mais sa connexion DirectPlay (client et serveur, UDP 5600) reste sans réponse : elle se connecte
   au nom du PC de l'hôte (« Host Changed:<n>:<nom>:Online »), que dpnet.dll résout lui-même, l'adresse du VPN
   TeamViewer des bornes (7.x) pouvant venir d'abord ; puis elle relance une élection que l'hôte, déjà en ligne,
   ignore. Linké, le nom du PC donné au jeu (gethostname) est son adresse de LINK : l'hôte annonce 192.168.1.4. Le
   relevé des fils à 113 s était la vidéo d'attract (DirectShow), pas un blocage.
-- Link sur les bornes ✅ (31/10, link11) : Nitro sur la borne 1 (STARTING SERVER), puis sur la borne 2 pendant le
+- Link sur les bornes ✅ : Nitro sur la borne 1 (STARTING SERVER), puis sur la borne 2 pendant le
   choix du circuit de la 1 : la 2 passe directement au choix de la voiture ; même chargement, course à deux
   (2e et 1re), temps au tour cohérents. DirectPlay écoutait aussi sur la carte VPN (UDP 5600 sur 7.x) : linké,
-  dpnet.dll ne voit plus que la carte de LINK (link12).
-- link12 (31/10) : toujours linké ; DirectPlay n'écoute plus que sur 192.168.1.4:5600.
+  dpnet.dll ne voit plus que la carte de LINK.
+- Ensuite : toujours linké ; DirectPlay n'écoute plus que sur 192.168.1.4:5600.
 ## Mario Kart Arcade GP DX 1.18 (Namco System ES3)
 
 `MK_AGP3_FINAL.exe`, x86 relogeable, Direct3D 10 (le 9Ex qu'il crée ne dessine rien). Module
 `src/hook/games/namco.cpp`. Il dessinait du noir : il restait dans sa vérification du démarrage (`clBootCheck`, douze
-étapes) sans rien charger, et la recopie de son image lisait du noir. Ce qu'il a fallu (23/10), à l'écran de
+étapes) sans rien charger, et la recopie de son image lisait du noir. Ce qu'il a fallu, à l'écran de
 vérification ensuite :
 
 - Lancement ✅ :
@@ -1265,7 +1265,7 @@ vérification ensuite :
 - Menu de service ✅ : menu de test, test des entrées-sorties, étalonnage, réglages du jeu ; enregistrés (le
   renommage de `F:\TestMode\…bin.tmp` passe maintenant par la redirection de F:\).
 - Crédits ✅ : la pièce compte (test des contacts) ; la copie est en jeu gratuit.
-- Link entre bornes ✅ (26/10, `[Game.mkdx] LINK` et `CABINET`, voir le README ; vérifié sur les deux bornes le 27/10) :
+- Link entre bornes ✅ (`[Game.mkdx] LINK` et `CABINET`, voir le README ; vérifié sur les deux bornes) :
   - le protocole, lu dans le jeu (+0x318c40) : chaque borne diffuse toutes les 10 s environ sur UDP 20199 huit
     octets « MK3 » 0x12 0x10, son mode, son groupe et son PCB-ID − 1 ; une borne entendue depuis le réseau des
     bornes (l'adresse de l'envoyeur) entre dans le link, ses paquets (155 octets, puis l'état de toutes) lui
@@ -1278,36 +1278,36 @@ vérification ensuite :
     un bind sur l'adresse d'une autre borne est refusé (comme sur borne) ; rien d'autre ne sort du PC. Ses
     sockets sont liées à l'adresse de la borne dans `LINK` (pas à 0.0.0.0) et ce qui vient d'ailleurs n'est pas
     entendu : l'adaptateur VPN de TeamViewer des bornes (7.x.x.x/8) n'y entre pas ;
-  - essai sur ce PC (deux jeux, 127.0.0.1 et 127.0.0.2, chacun son dossier d'écriture et son mutex) : PCB-ID 2
+  - essai sur un PC (deux jeux, 127.0.0.1 et 127.0.0.2, chacun son dossier d'écriture et son mutex) : PCB-ID 2
     réglé dans le menu de test du second ; chacun entend l'autre, l'état de l'autre (310 octets) reçu toutes les
     0,18 s ; pièce et Start sur les deux : choix du personnage et du circuit ensemble, puis une course à quatre
     (les deux Mario des bornes, Yoshi et Luigi en COM), Kingdom Way, le même classement sur les deux écrans, le
     kart de l'autre borne visible à côté ;
-  - sur les deux bornes (27/10, Image borne, la -2 en mode agent, BFF arrêté) : `--set Game.LINK=192.168.1.4,192.168.1.5`
-    et `--set Game.CABINET=1` / `2`, PCB-ID 1 sur racecab1 et 2 sur racecab2 (en 1.18, la ligne 基板ID de その他
+  - sur deux bornes (la -2 en mode agent, BFF arrêté) : `--set Game.LINK=192.168.1.4,192.168.1.5`
+    et `--set Game.CABINET=1` / `2`, PCB-ID 1 sur la borne 1 et 2 sur la borne 2 (en 1.18, la ligne 基板ID de その他
     ne fait qu'afficher : le réglage est sous ゲーム設定) ; les paquets dans les deux sens (UDP 20100,
     192.168.112.11 et .12), la démo synchronisée « 2人で対戦できます », Start des deux côtés, Kingdom Way, une
-    course à quatre (les deux Mario des bornes, Yoshi et Luigi en COM) ; sur racecab2, le Mario de racecab1 porte
+    course à quatre (les deux Mario des bornes, Yoshi et Luigi en COM) ; sur la borne 2, le Mario de la borne 1 porte
     l'objet qu'il vient de prendre. Le bandeau hors ligne s'affiche en jeu, sans effet sur la partie.
 
-- Caméra (photos des joueurs, « ナムカム ») ⚠️ (31/10) : réglage du jeu ゲーム設定 → ナムカム（カメラ）の使用 (OFF dans la
+- Caméra (photos des joueurs, « ナムカム ») ⚠️ : réglage du jeu ゲーム設定 → ナムカム（カメラ）の使用 (OFF dans la
   copie : « 現在、カメラは使用できません » dans l'attraction). Option `[Game.mkdx] CAMERA` / `CAMERA_PICTURE` (camera.h) :
   la caméra du PC ou une émulée (`mfcamera.cpp`) : MFEnumDeviceSources liste la caméra choisie en premier (le jeu prend la
   première) ou une caméra de windowsloader, dont le lecteur asynchrone donne au rappel du jeu du RGB32 640x480 à 30
-  images/s, l'image fixe. Le chemin RGB32 du jeu lit les octets R, G, B (rouge vu bleu sinon). Vérifié sur ce PC (1.18,
+  images/s, l'image fixe. Le chemin RGB32 du jeu lit les octets R, G, B (rouge vu bleu sinon). Vérifié sur un PC (1.18,
   NamCam mise à ON dans le dossier d'écriture de l'essai) : l'écran « しゃしんさつえい » montre l'image fixe, couleurs
   justes, plus de 100 images prises. La 1.10 a les mêmes imports, non essayée ; la caméra réelle non essayée ici.
   Caméra du PC (DV20 USB CAMERA des bornes, UVC générique) : le jeu coupe les convertisseurs et ne lit que le premier
   format natif ; ils sont rendus et un format qu'il connaît (YUY2 640x480 d'abord, sinon décodé) lui est donné comme
   premier, les formats de la caméra au journal. Avant de la donner au jeu, la caméra est essayée une fois dans ce
   format : si elle ne s'ouvre pas ou ne donne aucune image en 5 s, l'émulée (sans caméra, E08-01 au démarrage).
-  Essai sur racecab2 (camera4, AUTO) : 13 formats natifs (NV12 et MJPG de 480x320 à 1920x1080, YUY2 640x480 et
+  Essai sur une borne (AUTO) : 13 formats natifs (NV12 et MJPG de 480x320 à 1920x1080, YUY2 640x480 et
   320x240), YUY2 640x480 choisi, plus de E08-01, la vue de la caméra sur l'écran しゃしんさつえい (noire : salle éteinte).
 
 ## Mario Kart Arcade GP DX 1.10 (Namco System ES3, « MKDX french Mod V 1.h »)
 
 `MK_AGP3_FINAL.exe` de 2015 (« MK3 Rev.1.10.22/JP »), traduit en français par un mod ; le même module que la 1.18,
-qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (16 497 fichiers, 5,8 Go, 76 min).
+qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale (16 497 fichiers, 5,8 Go, 76 min).
 
 - Lancement ✅ : la carte JVS, la carte moteur, le réseau des bornes comme pour la 1.18 ; les trois fonctions de la
   1.18 retrouvées ailleurs dans cet exe (la clé de sécurité par le GUID de son interface, l'âge de l'authentification
@@ -1325,14 +1325,14 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
 - Menu de service ✅ : menu de test, réglages du jeu modifiés et enregistrés (« E05-11 ERROR DEVICE » en tête du menu,
   sans effet vu).
 - Crédits ✅ : la pièce compte.
-- Link entre bornes 🔄 (26/10) : le même code que la 1.18 (mêmes imports de ws2_32 par numéro, mêmes ports) ; le
+- Link entre bornes 🔄 : le même code que la 1.18 (mêmes imports de ws2_32 par numéro, mêmes ports) ; le
   PCB-ID dans Game options → Board ID. Ses diffusions disent « MK3 » 0x00 0x01 (la 1.18 : 0x12 0x10) : une 1.10 et
   une 1.18 ne se lient pas, les bornes du link doivent avoir la même version. Pas de mutex « une seule fois » dans
-  la 1.10. Essai sur ce PC comme pour la 1.18 (Board ID 2 réglé sur le second) : chacune entend l'autre, deux
+  la 1.10. Essai sur un PC comme pour la 1.18 (Board ID 2 réglé sur le second) : chacune entend l'autre, deux
   pièces et Start sur les deux, « Deux Joueurs VERSUS / CO-OP » proposé, course ensemble au Château de Peach, le
-  même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Sur les deux bornes (27/10, Image
-  borne, Board ID 1 et 2) : « Deux Joueurs VERSUS / CO-OP » proposé sur les deux, la course pas encore lancée.
-- Link sur les bornes ✅ (31/10, mkdx110, release 20261031-5, par le RunWindowsLoaderLinkGame.cmd de l'image) :
+  même chrono sur les deux écrans, le kart de l'autre borne marqué « Mario ». Sur deux bornes (Board ID 1 et 2) :
+  « Deux Joueurs VERSUS / CO-OP » proposé sur les deux, la course pas encore lancée.
+- Link sur les bornes ✅ (mkdx110, release 20261031-5, par le RunWindowsLoaderLinkGame.cmd de l'image) :
   « Connexion impossible au service BanaPassport » puis Continue sur les deux, « Deux Joueurs VERSUS », le même
   circuit (Château de Peach, « En attente d'autres joueurs » puis « Confirmé! »), la course à deux : même chrono
   (250, puis 233/232), 1er et 2e sur 2, les deux karts sur chaque carte. Marqué « oui » dans la liste des jeux.
@@ -1340,7 +1340,7 @@ qui les distingue par `bngrw.dll` (absente de la 1.10). Copie locale le 23/10 (1
 ## Mario Kart Arcade GP DX 1.06 (Namco System ES3)
 
 D'après les patchs de Nono et l'analyse statique de `JVSEmuMK.dll`. Deux compilations, chacune avec ses adresses :
-« MK3 Rev.1.06.35/OF » (horodatage 0x62E76DA6, CRC32 0x81D94584, essayée ici le 06/11) et la 1.06 USA de Nono
+« MK3 Rev.1.06.35/OF » (horodatage 0x62E76DA6, CRC32 0x81D94584, essayée ici) et la 1.06 USA de Nono
 (0x582D5E48, CRC32 0x2A5F62F3, pas essayée ici). `MK_AGP3_FINAL_v1.06.35.exe` (CRC32 0xE3CB2153) a le même code que
 l'original : il n'ajoute que l'import de `JVSEmuMK.dll`, qui se chargerait avant windowsloader. Il n'est pas pris en
 charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est modifié.
@@ -1354,7 +1354,7 @@ charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est m
   et OFF au test des contacts), objet, partie jusqu'à la course (accélère, tourne), JVS 0x7D et 0x7E répondus.
 - Retour de force ⚠️ : commandes de la carte moteur reçues en course (raideur, amortissement, vibration), pas essayé
   au volant.
-- Borne ⚠️ (racecab1, 20261107-1, 07/11, par la commande d'AttractPlus et vJoy) : fenêtre en 6 s, pièce, Start, puis
+- Borne ⚠️ (20261107-1, par la commande d'AttractPlus et vJoy) : fenêtre en 6 s, pièce, Start, puis
   course ; commandes moteur qui suivent le volant (raideur 19 à 50, amortissement 49 à 76) et paquets DirectInput reçus
   par vJoy, BFF fermé : force pas ressentie. Vignette du joueur noire en course : la vraie
   caméra (DV20, CAMERA = AUTO) ouverte en YUY2 640x480, mais sa première image presque noire (luminance moyenne 2.0 :
@@ -1366,7 +1366,7 @@ charge : on lance l'original, corrigé en mémoire, aucun fichier du jeu n'est m
 ## Mario Kart Arcade GP DX 1.05 (Namco System ES3)
 
 « MK3 Rev.1.05.21/OF » (horodatage 0x582179A8, CRC32 0x3CED423E ; la liste connaissait déjà 0xC7BD1948, même horodatage).
-Les patchs de Nono pour la 1.06, aux adresses de cette version, essayés ici le 06/11 en mode agent. Aucun fichier du
+Les patchs de Nono pour la 1.06, aux adresses de cette version, essayés ici en mode agent. Aucun fichier du
 jeu modifié (la copie relevée avant et après est identique).
 
 - Lancement ✅ : le dongle (`+0x1EF639` jne devenu je, `+0x1F81E3` jne devenu jmp) et son numéro (`+0x1F7070`,
@@ -1434,18 +1434,18 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
 - Menu de service ✅ : bouton vert, Main Menu, Hardware Test, Input Test (pièce, Start, siège, étalonnage du volant et des
   pédales).
 - Crédits ✅ : jeu gratuit (`Setting_Pay.ini`), pièce comptée (Input Test).
-- Link entre bornes ✅ (01/11, `[Game.crazyride] LINK` et `CABINET`) : les sockets sont dans `Plugins\McastUDP.dll`,
+- Link entre bornes ✅ (`[Game.crazyride] LINK` et `CABINET`) : les sockets sont dans `Plugins\McastUDP.dll`,
   dont le jeu demande les fonctions BIND_* par GetProcAddress, comme celles de la carte. Réception sur UDP 8888
   (toutes adresses) après avoir rejoint le groupe 234.2.2.1 (BIND_InitSocket_Recv, BIND_JoinMcast), envoi vers ce
   groupe avec un TTL de 1 (BIND_InitSocket_Send, un fil à +0x3cf0), puis une connexion TCP vers l'adresse et le
   port que le jeu donne (+0x4630). La logique est dans les Blueprints du jeu. Linké : les importations de
   `McastUDP.dll` deviennent celles du link (`wl_link_module`) dès que le jeu demande une de ses fonctions ; son
-  multicast va à chaque PC de LINK. Pas essayé sur ce PC (sa copie effacée). Essai link25 sur les bornes (release
+  multicast va à chaque PC de LINK. Pas essayé sur un PC (sa copie effacée). Essai sur les bornes (release
   20261101-3) : pas linké. `McastUDP.dll` chargée (11,6 s) et ses importations prises (21,4 s), mais le jeu n'en
   demande que BIND_GetTCPSocketClientList et BIND_GetRecvData : aucune initialisation (BIND_InitSocket_Recv,
   BIND_JoinMcast), rien sur UDP 8888 ni vers 234.2.2.1, même en course ; chaque borne joue seule (7 taxis de
   l'ordinateur). Le jeu tourne aussi dans une fenêtre avec barre de titre sur les bornes, pas sans bord.
-  Lu par Image borne (sans pak : des .uasset) : le réseau est ouvert par l'écran de matching
+  Lu (sans pak : des .uasset) : le réseau est ouvert par l'écran de matching
   (`Content\UI\Matching2.uasset` : UDP_InitSocket_Recv, UDP_JoinMcast, BIND_InitTCPSocketListen), jamais vu
   dans nos parties (Start, ceinture, course). Aucun réglage Link ou MachineId dans les .ini ;
   `DefaultMenu_Matching.ini` a `iMatchingChannel=0`, `DefaultSettingData.ini` `PingIP=` (vide : l'adresse .1
@@ -1453,20 +1453,20 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
   du jeu (+0x1d80ef : l'état 1, le matching). Le ping du jeu (APing, +0x210c20) appelle BIND_ICMPPing(hôte,
   &état, &temps, &temps2, délai, défaut) : -1 met l'état à 2 et appelle l'évènement d'échec du Blueprint ;
   sinon l'état reste 1. windowsloader répondait toujours -1 (pas de réseau) ; linké, il répond maintenant 1 ms,
-  état 1. Essai link27 : sans effet, le jeu ne pingue jamais (aucun BIND_ICMPPing) ; il appelle
+  état 1. Essai : sans effet, le jeu ne pingue jamais (aucun BIND_ICMPPing) ; il appelle
   BIND_CloseAllSocket à 21 s sans avoir ouvert de socket, puis Start, ceinture, course seule. La vraie
   condition : la fonction qui crée Matching2 (+0x1dd5e0) ne le fait que si `bEnableOnline` (fichier
   `Setting_System`, lu à +0x20a471 ; faux quand il manque, comme sur les bornes) est vrai ; sinon la partie
   part seule. Le jeu lit ses fichiers `Setting_*.ini` par `BIND_ReadInI_WChar` (+0x1989d0), qu'il demande
-  par GetProcAddress : linké, windowsloader lui répond maintenant `bEnableOnline` = true. Essai link28
+  par GetProcAddress : linké, windowsloader lui répond maintenant `bEnableOnline` = true. Essai
   (release 20261101-5 aussi) : sans effet, la fonction est celle de `Plugins\IniFile.dll` et non de
-  `UsbPluginsDll_R.dll`, que windowsloader regardait seule ; corrigé ensuite. Essai link29 : bEnableOnline lu
+  `UsbPluginsDll_R.dll`, que windowsloader regardait seule ; corrigé ensuite. Essai : bEnableOnline lu
   vrai, et l'écran « Searching for other players » apparaît (radar, 7 icônes), après le choix de la voiture et
   l'écran photo ; le jeu pingue alors 192.168.1.1, mais aucun socket de McastUDP.dll n'est ouvert et la course
   part seule. Le ping, lu dans `UsbPluginsDll_R.dll` des bornes : BIND_ICMPPing(hôte, &état, &temps, &ttl,
   nombre, délai) met l'état à 1 et rend 1 ; son fil (+0xe0e0) pingue, puis écrit le statut de la dernière
   réponse (0 réussi), le temps moyen et le TTL moyen. Le jeu attend que l'état ne soit plus 1 pour finir son
-  ping (PingEnd) ; windowsloader le laissait à 1. Linké, il répond maintenant 0, 1 ms, TTL 128. Essai link30 :
+  ping (PingEnd) ; windowsloader le laissait à 1. Linké, il répond maintenant 0, 1 ms, TTL 128. Essai :
   linké. Le ping a lieu au démarrage (écran WARNING) ; à l'ouverture de la recherche, le jeu demande
   BIND_InitTCPSocketListen, BIND_InitSocket_Recv, BIND_JoinMcast et BIND_InitSocket_Send, ouvre UDP 8888 et
   son multicast 234.2.2.1 va à l'autre PC : 10 paquets de 20 octets par 10 s dans chaque sens. « Linking
@@ -1476,7 +1476,7 @@ windowsloader donne les siennes à la place (les autres, fichiers ini et convers
 
 ## Wangan Midnight Maximum Tune 5 (Namco System ES3X, 64 bits)
 
-`wmn5r.exe` (copie `games\wmmt5`, 18,5 Go depuis racecab1), x64, Direct3D 11. Dans `namco.cpp`, à côté de Mario
+`wmn5r.exe` (copie `games\wmmt5`, 18,5 Go depuis une borne), x64, Direct3D 11. Dans `namco.cpp`, à côté de Mario
 Kart DX. Les deux crochets de TeknoParrot (`d3d11.dll` et `dinput8.dll`, le plugin FFB), OutputBlaster et `SDL2.dll`
 mis de côté (`_teknoparrot_off`). Le jeu écrit ses erreurs dans le journal (« [WMN5Err] »).
 
@@ -1493,7 +1493,7 @@ Fait :
 - E0505 « network: interface not found » : une carte réseau de borne, 192.168.92.11. Ajouts dans `netenv.cpp`
   (`GetIpAddrTable`, `GetInterfaceInfo`, `GetIpForwardTable`) et `system.cpp` (un `connect` UDP vers 8.8.8.8
   suivi de `getsockname` répond l'adresse de cette carte) : « LINK OK » ;
-- le terminal de la salle (25/10) : la borne écoute sur le port UDP 50765 la machine des cartes, 192.168.92.20 ;
+- le terminal de la salle : la borne écoute sur le port UDP 50765 la machine des cartes, 192.168.92.20 ;
   muet, il donne E0505 « Network disconnection error / Disconnected from local network » 35 s après le
   démarrage. windowsloader en joue un : les six paquets « free play » de l'émulateur de terminal d'OpenParrot
   (GPL-3.0), envoyés toutes les 8 ms vers 127.0.0.1:50765 seulement (rien ne sort du PC), et montrés au jeu
@@ -1502,7 +1502,7 @@ Fait :
   sur « GAME SERVER CONNECT CHECK ». Les trois sauts de la recherche de terminal posés avant ne servent plus,
   retirés. Le jeu arrive en démonstration, « FREE PLAY ».
 
-- Commandes ✅ (25/10) : la table propre au jeu, relevée dans le test des contacts du menu de test
+- Commandes ✅ : la table propre au jeu, relevée dans le test des contacts du menu de test
   (スイッチテスト) : Test, Service, haut, bas, Entrée, vue (0x0002), interruption (0x0001) ; le levier en H sur
   quatre contacts (0x80 haut, 0x40 bas, 0x20 gauche, 0x10 droite), rapports 1 à 6 par Gear1..Gear6, ou montés
   et descendus par ShiftUp / ShiftDown ; l'option « Garder le rapport » (`HOLD_GEAR`) pour un levier dont les
@@ -1513,7 +1513,7 @@ Fait :
   (Minato Mirai), 120 km/h et plus ; le volant tourne la voiture du bon côté (`wmmt5_play.py`).
 - Menu de service ✅ : test des contacts, étalonnage du volant (アナログボリュームの初期化, ハンドル 000 après
   Entrée), réglages du jeu ; tout est enregistré dans le dossier d'écriture quand il y en a un.
-- Retour de force ✅ (25/10) : c'est un réglage du jeu, « ステアリング反力の使用 » dans ゲーム設定, à OFF dans la
+- Retour de force ✅ : c'est un réglage du jeu, « ステアリング反力の使用 » dans ゲーム設定, à OFF dans la
   copie ; à mettre à ON dans le menu de test. Le jeu ouvre alors COM1 à 115200 bauds par boost::asio et le rattache
   à un port de complétion, ce qu'un handle émulé (un événement) ne permettait pas (« [STR3] initialize: open:
   Descripteur non valide ») : `vdev.cpp` garde le port et sa clé, et chaque lecture ou écriture se termine par un
@@ -1530,29 +1530,29 @@ Reste :
 - le mode avec pièces : les paquets « coin » du terminal, à proposer en option ;
 - vJoy, l'affichage, le menu Tab.
 
-Sur les bornes (Image borne, 25/10) : la -4 puis la -5 posées, le réglage à ON sur les deux ; en course sur
-racecab2 le ressort ramène vers le centre (±0,24 à ±0,6 de braquage), pas d'E2212 en 5 minutes. Sur racecab1, la
+Sur deux bornes : la -4 puis la -5 posées, le réglage à ON sur les deux ; en course sur
+l'une le ressort ramène vers le centre (±0,24 à ±0,6 de braquage), pas d'E2212 en 5 minutes. Sur l'autre, la
 page des réglages affiche en rouge sous 基板ID = 1 « 同一の基板IDの筐体が存在します » (une borne de même
 identifiant existe). La cause : le Wangan d'essai de ce PC, sur le même réseau local (192.168.1.134), avec le même
 identifiant, au même moment (20:28) ; il s'est arrêté lui-même sur E2403 « Duplicate Board ID error ». Le jeu
 annonce sa borne au groupe 225.0.0.1:50765 par `WSASendTo` (boost::asio), que les refus de `system.cpp` (`sendto`,
-`connect`) ne voient pas : ses envois sortaient du PC. Corrigé le 25/10 : ses envois vers une autre machine vont à
+`connect`) ne voient pas : ses envois sortaient du PC. Corrigé : ses envois vers une autre machine vont à
 127.0.0.1:50766 (le socket du terminal, qui ne lit rien), et ses paquets reçus d'une autre machine sur le port 50765
 lui arrivent vides (il les écarte). Vérifié : une « autre borne » simulée depuis 192.168.1.134 ignorée, le 5 et DX+
 en démonstration normalement.
 
-Sur racecab2 (02/11, release 20261101-6) : le 5 s'arrêtait 7,8 s après son lancement, l'image figée (exception
+Sur une borne (release 20261101-6) : le 5 s'arrêtait 7,8 s après son lancement, l'image figée (exception
 C++ « set_option ») ; DX+ et le 6 de même. Après son `bind` sur le port 50765, le jeu s'abonne au groupe
 225.0.0.1 sur toutes les cartes (`join_group` de boost::asio, +0x8761d0 pour le 5), et Windows le refuse sur
-racecab2 (erreur 10065, pas de route pour le groupe). Le refus est maintenant rattrapé : l'abonnement refait
+cette borne (erreur 10065, pas de route pour le groupe). Le refus est maintenant rattrapé : l'abonnement refait
 sur la boucle locale (le terminal joué envoie à 127.0.0.1, rien ne passe par le groupe), ou tenu pour fait ; la
-ligne « namco: the game's join of the group … refused by Windows » le note. Vérifié sur les deux bornes (essais
-link31 à link33 : le 5, DX+ et le 6 jusqu'au choix de la voiture ou en course) et sur ce PC en forçant le refus.
-Aussi (link33) : le socket que le jeu ouvre vers 8.8.8.8:0 pour connaître sa carte, refermé, voyait son numéro
+ligne « namco: the game's join of the group … refused by Windows » le note. Vérifié sur les deux bornes
+(le 5, DX+ et le 6 jusqu'au choix de la voiture ou en course) et sur un PC en forçant le refus.
+Aussi : le socket que le jeu ouvre vers 8.8.8.8:0 pour connaître sa carte, refermé, voyait son numéro
 repris par celui du port 50765, que `system.cpp` montrait alors sur le port 50000 : le terminal n'était plus
 reconnu, E0505 à 31 s. Un socket qui fait un `bind` ou un `connect` n'est plus pris pour l'ancien.
 
-Link (02/11, `[Game.wmmt5] LINK`, le même code pour DX+ et le 6) :
+Link (`[Game.wmmt5] LINK`, le même code pour DX+ et le 6) :
 - la borne k est 192.168.92.(10 + k) pour le jeu, sa carte de borne là ; ses annonces au groupe 225.0.0.1 vont à
   chaque PC de LINK, elle comprise, ses envois à 192.168.92.(10 + k) au PC k, et ce qui vient du PC k lui est montré
   depuis 192.168.92.(10 + k) ; son socket du port 50765 et celui du terminal sont sur l'adresse du PC dans LINK (deux
@@ -1561,27 +1561,27 @@ Link (02/11, `[Game.wmmt5] LINK`, le même code pour DX+ et le 6) :
   lecteur d'un octet de setting.lua : +0x94f5a0 pour le 5, +0xafe320 DX+, +0xafb5a0 le 6), et le numéro de sa clé
   le dernier chiffre + k − 1 ;
 - les erreurs « port unreachable » (ICMP) d'une borne pas encore lancée sont coupées sur les sockets du jeu
-  (SIO_UDP_CONNRESET) : racecab1, lancée la première, s'arrêtait sur E0505 (link32) ;
-- la cause de l'absence de VS (« Refuse VS », pas d'écran de défi, link32 à link34) : le jeu compte les bornes
+  (SIO_UDP_CONNRESET) : la borne lancée la première s'arrêtait sur E0505 ;
+- la cause de l'absence de VS (« Refuse VS », pas d'écran de défi) : le jeu compte les bornes
   par leurs annonces, la sienne comprise (+0x56b550 pour le 5 : par 基板ID, l'information de la borne au
   `system_mode` 3 à 5 et son `event_mode` celui de la borne), le retour du multicast l'y fait entendre la sienne ;
   sans elle, une borne, seule. Avec : « Select VS acceptance » (Accept VS, « Waiting for challenger ») sur la
   première borne, « Challenge other racers? » sur l'autre, « A new challenger! », le choix du mode VS, de la zone,
-  de la rampe, puis la course à deux. Vérifié sur ce PC pour le 5, DX+ et le 6 (deux bornes linkées).
-- sur les bornes (essais link35 à link37, Image borne, 02/11) : les deux se voient (« 1P/2P play available », le
+  de la rampe, puis la course à deux. Vérifié sur un PC pour le 5, DX+ et le 6 (deux bornes linkées).
+- sur deux bornes : les deux se voient (« 1P/2P play available », le
   jeu compte 2 bornes, journal « namco: link: the game counts »), « Select VS acceptance » et « Challenge other
   racers? » (le 6 : « 店内乱入対戦しますか？ ») apparaissent ; le curseur part sur NO, YES le volant tenu à droite
-  (1,2 s). Course à deux vérifiée sur racecab1 et racecab2 pour le 5, DX+ et le 6 (link37) : « Waiting on other
+  (1,2 s). Course à deux vérifiée sur deux bornes pour le 5, DX+ et le 6 : « Waiting on other
   player(s) », la zone, « VS player (This Machine) », l'écran « VS » des deux voitures, puis 1/2 et 2/2, chacun
   voyant l'autre (GUEST) et l'avance en mètres. Chaque changement d'état annoncé par une borne est noté
   (« namco: link: cabinet N … announces system_mode, sync … »). Link marqué « oui ».
 
 ## Wangan Midnight Maximum Tune 5 DX+ (Namco System ES3X, 64 bits, 2016)
 
-`wmn5r.exe` comme le 5 (copie `games\wmmt5dxp`, 15,2 Go depuis racecab1), reconnu à sa bibliothèque de clé
+`wmn5r.exe` comme le 5 (copie `games\wmmt5dxp`, 15,2 Go depuis une borne), reconnu à sa bibliothèque de clé
 `hasp_windows_x64_106482.dll` ; ses fichiers `F*`/`G*` en `W5P`. Le crochet FFB de TeknoParrot (`d3d11.dll`) et
 `SDL2.dll` mis de côté (`_teknoparrot_off`). Tout le 5 repris (carte JVS et commandes, carte du volant « STR3 »,
-terminal joué, dossier d'écriture), avec ce qui change (25/10) :
+terminal joué, dossier d'écriture), avec ce qui change :
 - la clé : `hasp_write` (n° 17) importé en plus ; l'identifiant de la borne doit commencer par 2783 (comparé à
   0xadf, +0x89db0d : sinon E1911 « USB DONGLE error2 ») : `278313042069`, celui d'OpenParrot pour DX+ ;
 - E1911 aussi par la comparaison avec le composant « auth » : le même saut que pour le 5, `mov sil, 1` à
@@ -1599,13 +1599,13 @@ terminal joué, dossier d'écriture), avec ce qui change (25/10) :
   −0,25, à droite force positive, vibrations (`wmmt5_play.py` avec `WL_GAME`).
 
 Reste : le lecteur de cartes, la caméra, le mode avec pièces ; vJoy, l'affichage, le menu Tab. Dans la release
-20261025-6, posée sur les deux bornes (STEERING POWER à ON sur racecab1).
+20261025-6, posée sur les deux bornes (STEERING POWER à ON sur une borne).
 
 ## Wangan Midnight Maximum Tune 6 (Namco System ES3X, 64 bits, 2018)
 
-`wmn6r.exe` (copie `games\wmmt6`, 16,3 Go depuis racecab1). Le crochet FFB de TeknoParrot (`d3d11.dll`) et
+`wmn6r.exe` (copie `games\wmmt6`, 16,3 Go depuis une borne). Le crochet FFB de TeknoParrot (`d3d11.dll`) et
 `SDL2.dll` mis de côté. Les mêmes cartes et le même terminal que le 5 ; le code des trois Wangan réuni dans une table
-de `namco.cpp` (ce qui change d'une version à l'autre). Ce qui est propre au 6 (25/10) :
+de `namco.cpp` (ce qui change d'une version à l'autre). Ce qui est propre au 6 :
 - la clé : `hasp_windows_x64_28756.dll`, identifiant `280813990002` (2808 comparé à +0x8bbbc2) ; le terminal
   `280811990002` ;
 - les lecteurs F:/ et G:/ (`F:/BK_WM6_DriveOpe.bin`…) dans le dossier `TP\` de la copie, comme OpenParrot ;
@@ -1619,9 +1619,8 @@ de `namco.cpp` (ce qui change d'une version à l'autre). Ce qui est propre au 6 
   ERROR » au journal) ; l'étape passe sans elle (+0x6a0df3) ;
 - E0552 « OFFLINE UPTIME ERROR » ensuite : 36 h depuis la dernière authentification, jamais faite ; la limite tenue
   pour non atteinte (+0x6916bd), comme pour Mario Kart DX. Son avertissement une heure avant (35 h, +0x68f6a0 :
-  « Please connect this unit to the network. The Game will shutdown shortly. » sur tout le jeu) n'est plus montré
-  (26/10).
-- Menu Tab ✅ (26/10) : les cinq pages, le jeu en pause (images 2403 → 2403), reprise à la fermeture.
+  « Please connect this unit to the network. The Game will shutdown shortly. » sur tout le jeu) n'est plus montré.
+- Menu Tab ✅ : les cinq pages, le jeu en pause (images 2403 → 2403), reprise à la fermeture.
 - Course ✅ : les mêmes écrans que le 5 (pas de carte, Story, épisode 1, Yokohama).
 - Menu de service ✅ : en anglais ; GAME OPTIONS → STEERING POWER, OFF dans la copie, à mettre à ON.
 - Retour de force ✅ : la même carte du volant ; volant à gauche force −0,25, à droite force positive, vibrations.
@@ -1637,11 +1636,11 @@ le mode avec pièces (le terminal joué est en jeu gratuit) ; vJoy et l'affichag
 `[Game.swdc] CABINET` (`CABINET` par défaut, `MINI`), et démarre 5 s avant lui `AMDaemon\amdaemon.exe`, le service de
 la plateforme (programme compagnon), avec le `config.json` du jeu et les réglages de borne seule de windowsloader
 (`%TEMP%\windowsloader-swdc-amdaemon.json`, écrit par le module dans amdaemon). Modules `src/hook/games/alls.cpp`,
-`src/hook/games/allnet.cpp` (les services réseau), `src/hook/netenv.cpp`. Copie locale le 23/10 (12,5 Go, 95 min).
+`src/hook/games/allnet.cpp` (les services réseau), `src/hook/netenv.cpp`. Copie locale (12,5 Go, 95 min).
 
-État au 26/10 (deux parties invité en mode agent sur ce PC, avec les réglages par défaut du lanceur) :
+État (deux parties invité en mode agent, avec les réglages par défaut du lanceur) :
 - Lancement ✅ : test de démarrage, ALL.Net, Aime, UserDB et NetBattle « Online », avertissement, attract.
-- Commandes ⚠️ (agent) : pièce, Start, gauche (はい de la connexion invité), accélérateur, volant. Depuis le 03/11
+- Commandes ⚠️ (agent) : pièce, Start, gauche (はい de la connexion invité), accélérateur, volant. Désormais
   sous les noms communs de controls.ini (P1_Service, ViewChange, SelectUp/Down/Left/Right, GearUp/GearDown : ses noms
   à lui, P1_View, P1_Up, P1_ShiftUp…, n'étaient liés dans aucun controls.ini), et les quatre boutons de couleur
   P1_Yellow, P1_Green, P1_Blue, P1_Red ajoutés au modèle de controls.ini. Pas de carte Aime : le lecteur est
@@ -1650,14 +1649,14 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
   changements de force en une course, de −0,96 à +0,96 ; volant à −0,5 force moyenne +0,16, à +0,5 −0,18, au centre
   +0,02 : vers le centre, comme Wangan 6 ; 0 aux résultats.
 - Crédits ⚠️ : pièces comptées (« CREDIT(S) »), la partie invité en prend une.
-- Lecteurs (27/10) : sur racecab2 (graveur DVD HP en E:), « Error 0919 DVD Drive Remain Error » au bout de 14 s :
+- Lecteurs : sur une borne (graveur DVD HP en E:), « Error 0919 DVD Drive Remain Error » au bout de 14 s :
   amdaemon cherche un lecteur de CD/DVD parmi les volumes (`FindFirstVolumeW`, `QueryDosDeviceW` → `\Device\CdRom`,
   `GetDriveTypeW`) ; 0917 pour une clé USB. windowsloader lui cache (et au jeu) les lecteurs de CD/DVD et les disques
-  amovibles ; D:, E: et Y: (les dossiers de la copie) sont des disques fixes. Reproduit sur le PC d'essai avec une
+  amovibles ; D:, E: et Y: (les dossiers de la copie) sont des disques fixes. Reproduit sur un PC avec une
   image ISO montée en E: (0919 en 10 s), plus d'erreur avec le correctif ; pas encore rejoué sur la borne.
 - Langue : `[Game.swdc] LANGUAGE` (`ENGLISH` par défaut, `JAPANESE`, `CHINESE`, les noms anglais dans le menu) pour
   les messages d'amdaemon seulement ; les textes du jeu restent en japonais (son pak n'a que la locale « en » du moteur).
-- Mode Cabinet (27/10) ✅ : avec les services réseau joués sur le PC et l'installation LAN coupée, plus de 8404 ni de
+- Mode Cabinet ✅ : avec les services réseau joués sur le PC et l'installation LAN coupée, plus de 8404 ni de
   4103 ; une partie invité complète (course, résultats, continue, game over), le retour de force comme en MiniCabinet.
   C'est maintenant le mode par défaut (option `CABINET`, prise au lancement : le lanceur donne `-launch=`, sauf si la
   ligne de commande en a un). Le jeu n'ouvre COM2 (carte LED) et COM20 (tableau de bord) qu'en mode Cabinet.
@@ -1682,14 +1681,14 @@ la plateforme (programme compagnon), avec le `config.json` du jeu et les réglag
   avec les manettes, 26 à 29 sans, sur trop peu de course pour conclure.
 - Pas encore : le serveur de matching (« GAME SERVER BAD » au démarrage, pas de course en réseau), un essai au vrai
   volant, le test du retour de force.
-- Copie sur un lecteur que le jeu redirige ✅ (31/10, signalé par un utilisateur, jeu dans D:\games\…) : « Failed
+- Copie sur un lecteur que le jeu redirige ✅ (jeu dans D:\games\…) : « Failed
   to open descriptor file '../../../Todoroki/Todoroki.uproject' », le jeu cherchait ses fichiers sous la redirection
   de D: (D:\games\…\D\games\…\App). Le dossier qui contient les dossiers de la redirection (celui du jeu) reste
   désormais à sa place, pour toutes les redirections de lecteurs (`files.cpp`) ; le journal le dit une fois. Rejoué
-  sur ce PC avec la copie vue en D: (`subst`) : 45 s de jeu, D:\games\swdc lu en place, E: et Y: toujours dans AMFS
+  sur un PC avec la copie vue en D: (`subst`) : 45 s de jeu, D:\games\swdc lu en place, E: et Y: toujours dans AMFS
   et Y.
 
-Avant (23/10) :
+Avant :
 - Lancement ⚠️ : amdaemon démarre sans erreur (registre `SystemProperty` inventé en mémoire, clé `\??\FddDriver`,
   moniteur matériel, pilote d'affichage `$amvideo`, lecteurs `D:`/`E:`/`Y:` dans la copie, carte d'E/S USB « IO4 »,
   lecteur de cartes Aime sur COM3, afficheur VFD sur COM4, carte réseau de borne 192.168.172.11) ; le jeu passe
@@ -1703,7 +1702,7 @@ Avant (23/10) :
 - Affichage ⚠️ : seulement avec `-windowed` (sinon le jeu se réduit, notre refus du plein écran répondant S_OK).
 - Le reste pas encore vu.
 
-Repris le 26/10 (« avec segatools ») :
+Repris (« avec segatools ») :
 - Sans réglage de plus, amdaemon tente la livraison réseau et s'arrête (`amGfetcherInit(). ErrCode -1`) : le jeu
   affiche Error 4105 après « Aime Setup ». Avec ALL.Net (authentification et comptabilité), la livraison réseau,
   la monnaie électronique, les journaux ABAAS et l'installation LAN coupés par une config de plus
@@ -1720,7 +1719,7 @@ Repris le 26/10 (« avec segatools ») :
 - Reste : soit un serveur de jeu ABaaS minimal (son protocole à retrouver dans le jeu), soit un jeu hors ligne
   obtenu en neutralisant ses contrôles réseau ; l'un comme l'autre est un chantier à part.
 
-Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
+Les services réseau joués sur le PC (`allnet.cpp`) :
 - ALL.Net, dans amdaemon : les noms de naominet.jp → 192.0.2.1 (la bibliothèque refuse 127/8), ses connexions
   (port 80) → un serveur sur 127.0.0.1:40180 ; PowerOn et DownloadOrder répondus.
 - Aime (AiMeDB, port 22345 → 40182, dans amdaemon) : en-tête de 32 octets, AES-128-ECB ; chaque commande reçoit
@@ -1735,7 +1734,7 @@ Les services réseau joués sur ce PC (26/10, `allnet.cpp`) :
 
 ## Initial D Arcade Stage Zero Ver.2 et Ver.1.31 (Sega Nu, 64 bits, 2017)
 
-`InitialD0_DX11_Nu.exe` (copie `games/idz230`, 14,1 Go depuis racecab1), Direct3D 11, 2560x1440 (son
+`InitialD0_DX11_Nu.exe` (copie `games/idz230`, 14,1 Go depuis une borne), Direct3D 11, 2560x1440 (son
 `initialD.ini`). Module `alls.cpp`, ouvert à une seconde plateforme d'amdaemon : la Nu. Trois programmes
 démarrés par le lanceur dans le dossier du jeu : `amdaemon.exe` (les réglages export de la première borne,
 `configDHCP_Final_Common/EX/EX_ST1.json`, puis ceux de windowsloader pour une borne seule), le server box du
@@ -1743,36 +1742,36 @@ magasin `ServerBoxD8_Nu_x64.exe` (sa fenêtre cachée), puis le jeu. Ce que la p
 leurs clés et valeurs) :
 - le registre `SystemProperty` (jeu SDDF, plateforme AAV2), la clé `FddDriver`, le moniteur ;
 - la carte AMEX par ses interfaces de périphérique : la SRAM (512 Ko, `wl_sram.bin`), l'EEPROM (8 Ko,
-  `wl_eeprom.bin` ; les deux dans le dossier d'écriture quand il y en a un, depuis le 27/10), la puce DS (l'identité de la carte, région export), le GPIO (DIP 1 : la première borne),
+  `wl_eeprom.bin` ; les deux dans le dossier d'écriture quand il y en a un), la puce DS (l'identité de la carte, région export), le GPIO (DIP 1 : la première borne),
   le pilote JVS (salut, ligne de détection, échange : `jvs.cpp`) ;
 - la carte d'E/S JVS 837-14572 : boutons des menus et de vue, levier en H à 6 vitesses (Gear1 à Gear6,
   GearUp/GearDown), volant, accélérateur, frein ; le lecteur Aime 837-15286 sur COM10 ;
-- les lecteurs E: et Y: dans `TeknoParrot` de la copie ; ALL.Net et Aime joués sur ce PC (`allnet.cpp`).
+- les lecteurs E: et Y: dans `TeknoParrot` de la copie ; ALL.Net et Aime joués sur le PC (`allnet.cpp`).
 
 - Lancement ✅ : réglage du volant (Start), « Initializing », attract (ALL.Net, Xeen, titre, démo). Sans le
   server box : ERROR 8306 ; avec lui (diffusions UDP en boucle locale), l'attract.
 - Commandes ✅ (agent, INPUT TEST) : volant −128 à 127, accélérateur 0 à 255, boutons, levier N, 1 à 6. Les
-  pédales sur 0 à 0x3000 (27/10) : le jeu montre 0 à 255 sur cette course et reste à 255 au-delà (les
+  pédales sur 0 à 0x3000 : le jeu montre 0 à 255 sur cette course et reste à 255 au-delà (les
   potentiomètres d'une borne ne tournent pas plus loin) ; avant, elles saturaient à 19 % de la course.
 - Partie invité ✅ : deux pièces, Start, « sans données », choix de la voiture, AT/MT, Story, STAGE 0,
   course (100 à 145 km/h).
 - Retour de force ✅ : la carte du moteur Sega sur COM1 (`servoboard.cpp`), en statut long après FA 00 10
   (DRIVEBOARD.md de BackForceFeeder) ; FORCE FEEDBACK TEST : LEFT +0,19, RIGHT −0,19 ; en course, couple et
   sinus (environ 580 changements par segment). Le même changement sert Initial D 6 à 8.
-  Vérifiée au protocole (27/10, DRIVEBOARD.md) : 80 (mode court : la force retombe 240 ms après la dernière
+  Vérifiée au protocole (DRIVEBOARD.md) : 80 (mode court : la force retombe 240 ms après la dernière
   trame ; l'activation), 83 (gain), 84 (couple), 85 (sinus : l'octet 1 la fréquence en demi-hertz, l'octet 2
   l'amplitude, joué par un fil toutes les 10 ms), FF (valeurs par défaut). Une seule émulation dans
-  `servoboard.cpp` (`driveboard.cpp` jusqu'au 27/10) pour les jeux Sega à servoboard série : Initial D 6 à 8,
+  `servoboard.cpp` (`driveboard.cpp` auparavant) pour les jeux Sega à servoboard série : Initial D 6 à 8,
   K.O. Drive, Sonic, SWDC, Initial D Zero. Les cartes moteur (« drive boards » : Sega Rally 3 par le port
   0x1020, Daytona, Ford Racing, GRID, DiRT par le port parallèle, Sega Racing Classic) gardent leur décodeur
   dans le module de leur jeu. Revérifié en course : Initial D 6 (forces comme avant), Initial D Zero
   (vibration ±0,03, couples −0,23 et +0,25), SWDC (80 00 01 avant la course, couples envoyés).
-  D'après cinq relevés de vraies bornes (mesures de linuxloader, 27/10) : la recherche d'index après FC dure
+  D'après cinq relevés de vraies bornes (mesures de linuxloader) : la recherche d'index après FC dure
   4,05 s (non plus 2 s) ; FF répond dans le mode qu'il termine (94... en mode 14) ; FA 00 00 à 0F relisent
   les valeurs des dernières commandes 80 à 8F (FA 00 00 puis 80 01 01 : 80 01 01 00). Vérifié par un banc
   d'essai qui rejoue ces exemples, puis en course sur Initial D 6 et Initial D Zero v1.31.
 - Lampes : la carte 837-15070 sur COM11 (comme celle de SWDC).
-- Ver.1.31 ✅ (27/10, copie `games/idz131` de racecab1, 12,3 Go, le jeu dans `app\package`) : le même module.
+- Ver.1.31 ✅ (copie `games/idz131` d'une borne, 12,3 Go, le jeu dans `app\package`) : le même module.
   Deux différences : son amdaemon (de mars 2018) cherche les noms d'ALL.Net en ROT13 (`anbzvarg.wc`,
   `nvzr.anbzvarg.wc`), que `allnet.cpp` décode maintenant ; ses `ICF1`/`ICF2` sont dans le `amfs` de segatools à
   côté de `app\` (le `TeknoParrot\AMFS` de la copie n'a que `emoney`), pris pour E: quand ils manquent ailleurs.
@@ -1780,13 +1779,13 @@ leurs clés et valeurs) :
   STAGE 0, course jusqu'à 170 km/h), retour de force (couples jusqu'à ±0,42). Le sélecteur la distingue de
   la Ver.2 par l'horodatage de son exécutable. Une ERROR 8304 « Failed in connect(GAME) » passagère (le jeu se
   relance seul jusqu'à l'attract) quand la SRAM d'un lancement précédent est reprise.
-- Menu Tab ✅ (27/10, Direct3D 11, vérifié en Ver.1.31) : pages, reprise du jeu.
+- Menu Tab ✅ (Direct3D 11, vérifié en Ver.1.31) : pages, reprise du jeu.
 - Reste : les cartes Aime et le jeu en ligne (le serveur UserDB du jeu, que le server box joint ; protocole
   binaire chiffré, minime en a une version) ; un vrai volant sur borne.
 
 ## Frenzy Express (Uniana PC, 2001)
 
-`xwin.exe` (copie `games\frenzyexpress`, 130 Mo depuis racecab1), x86, OpenGL, 640×480. Module `uniana.cpp`. Une
+`xwin.exe` (copie `games\frenzyexpress`, 130 Mo depuis une borne), x86, OpenGL, 640×480. Module `uniana.cpp`. Une
 trottinette : guidon, poussées du pied à gauche et à droite, frein, six boutons. La borne passe par `xio.dll` (classe
 `XIO`) : sa fonction `update`, appelée à chaque image, est celle de windowsloader et remplit les variables de la
 bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier de `xio.dll`).
@@ -1796,7 +1795,7 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   prend la position, puis à gauche, puis le ramène au milieu ; « ERROR THE STEERING WHEEL » puis « DEFAULT SETTING »
   (0x00, 0x80, 0xFF) si la position de gauche n'est pas sous celle de droite. Un guidon que le moteur ne tourne pas
   (un volant sans retour de force, vJoy, ou un retour de force trop faible ou inversé) donnait l'erreur, et un faible
-  une course trop courte. Depuis le 28/10, l'étalonnage reçoit le guidon qu'il attend : 0xFF à droite, 0x00 à
+  une course trop courte. Désormais, l'étalonnage reçoit le guidon qu'il attend : 0xFF à droite, 0x00 à
   gauche, 0x80 au milieu (la plage de windowsloader) ; il passe, le moteur joue toujours.
 - Commandes ✅ (agent, vues dans I/O CHECK du menu de test) : guidon (0x00 à gauche, 0xFF à droite), frein, poussées
   gauche et droite, Start (bit 0x01), Service (0x02), Test (0x04, ouvre le MAIN MENU), pièce (0x08 ; Service compte
@@ -1809,11 +1808,11 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   le milieu, plus raide avec la vitesse.
 - Sorties réseau : `lamp` (motif), `start_lamp`, `select_lamp`, `vibration` (3 au repos), `handlebar_motor`.
 - Affichage ✅ : le jeu dessine 640×480 dans le coin d'une fenêtre de la taille de l'écran. Son module donne la
-  taille (`wl_gl_picture`) ; depuis le 27/10, comme Initial D 6 : le jeu dessine dans le framebuffer de
+  taille (`wl_gl_picture`) ; désormais, comme Initial D 6 : le jeu dessine dans le framebuffer de
   windowsloader, ce coin est recopié là où va l'image, la fenêtre réglée selon `DISPLAY_MODE`. Le jeu limitait sa
   fenêtre à 640×480 hors tout (`WM_GETMINMAXINFO`, la zone cliente restait à 634×451) : il reçoit maintenant les
   limites de Windows.
-- Menu Tab ✅ (27/10) : comme Initial D 6 (OpenGL), sur l'image placée par windowsloader.
+- Menu Tab ✅ : comme Initial D 6 (OpenGL), sur l'image placée par windowsloader.
 - Reste : vJoy et un vrai guidon sur borne, les lampes vues sur borne.
 
 ## D1GP Arcade (Taito Type X2, 2009)
@@ -1849,43 +1848,43 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
   force.
 - Menu de service ✅ : TEST MODE (bouton Test), VIEW CHANGE descend, SHIFT DOWN remonte, START choisit ; test d'E/S.
 - Crédits ⚠️ : pièces JVS comptées ; le lecteur de cartes et le distributeur de cartes (« CARD VENDOR ») absents.
-- Link entre bornes 🔄 (31/10) : deux bornes, DirectPlay 8 (dpnet.dll de Windows, UDP 55555) : l'hôte attend, le
+- Link entre bornes 🔄 : deux bornes, DirectPlay 8 (dpnet.dll de Windows, UDP 55555) : l'hôte attend, le
   client le trouve par une diffusion puis s'y connecte. Qui héberge est le menu de test (NETWORK CONFIGURATION,
   CONNECTION METHOD, d:\config00.bin, HOST par défaut sur chaque borne). `[Game.d1gp] LINK` / `CABINET` (1 ou 2) :
   la borne 1 héberge, la 2 est le client, quoi que dise le menu (le saut vers la recherche du client, +0x84cb9).
-  Le jeu donne aussi au PC une adresse 192.168.x.y (AddIPAddress, refusé, sans effet). Essayé sur ce PC : HOST et
+  Le jeu donne aussi au PC une adresse 192.168.x.y (AddIPAddress, refusé, sans effet). Essayé sur un PC : HOST et
   CLIENT pris.
-- Essai link11 sur les bornes (31/10) ❌ : « Unable to compete. » sur les deux, pas de LINK BATTLE au choix du mode.
+- Essai sur les bornes ❌ : « Unable to compete. » sur les deux, pas de LINK BATTLE au choix du mode.
   DirectPlay écoutait sur UDP 55555 sur la carte VPN TeamViewer (7.x) et, sur la borne 2, pas sur 192.168.1.5 : sa
   recherche de l'hôte (diffusion) ne partait pas sur le réseau des bornes. Linké, dpnet.dll (chargé par le
   CoCreateInstance du jeu) ne voit plus que la carte de LINK : GetAdaptersAddresses et GetAdaptersInfo (qu'il
-  trouve par GetProcAddress), gethostbyname du nom du PC ; ses bind sont journalisés (link12).
-- Essai link12 (31/10) ❌ : l'hôte écoute désormais sur 192.168.1.4:55555 seulement (plus de VPN), le client a un
+  trouve par GetProcAddress), gethostbyname du nom du PC ; ses bind sont journalisés.
+- Essai ❌ : l'hôte écoute désormais sur 192.168.1.4:55555 seulement (plus de VPN), le client a un
   socket sur 192.168.1.5 ; toujours pas de LINK BATTLE. dpnet.dll importe WS2_32 par numéro : ses bind et
   gethostbyname n'étaient pas pris ; ils le sont désormais par l'adresse de la fonction, et ses envois (WSASendTo)
-  sont journalisés (link13), pour voir si la recherche du client part et si l'hôte répond.
-- Essai link13 (31/10) ❌ : la recherche du client part (diffusion vers 55555), l'hôte répond (vers 192.168.1.5:2302) ;
+  sont journalisés, pour voir si la recherche du client part et si l'hôte répond.
+- Essai ❌ : la recherche du client part (diffusion vers 55555), l'hôte répond (vers 192.168.1.5:2302) ;
   le client appelle ensuite Connect (synchrone, son port 55555), ouvre deux fois 192.168.1.5:55555, puis plus rien
   n'est envoyé ni d'un côté ni de l'autre ; pas de LINK BATTLE (il faut deux joueurs, +0x98768). Linké, le journal
   donne désormais les messages du jeu sur son réseau (sa fonction d'affichage, vide dans cette version, +0xa87c0),
-  le résultat et la durée de sa connexion (+0x84ac0), et les envois et bind IPv6 de DirectPlay (link14).
-- Essai link16 (31/10) ❌ : ses messages le disent : le client trouve l'hôte (« EnumHosts »), puis « error:
+  le résultat et la durée de sa connexion (+0x84ac0), et les envois et bind IPv6 de DirectPlay.
+- Essai ❌ : ses messages le disent : le client trouve l'hôte (« EnumHosts »), puis « error:
   g_pDPlayPeer->Connect() » : 0x80158080 en 47 ms, DirectPlay ayant ouvert et fermé deux fois son port 55555,
   rien envoyé à l'hôte. Linké, le port du client est laissé à DirectPlay (2302 et suivants, comme sa recherche) :
-  son ajout au périphérique sauté (+0x84b6e) (link17).
-- Essai link17 (31/10) : la connexion réussit (« I'm client! », 0x00000000 en 110 ms), le trafic continu dans les
+  son ajout au périphérique sauté (+0x84b6e).
+- Essai : la connexion réussit (« I'm client! », 0x00000000 en 110 ms), le trafic continu dans les
   deux sens, mais toujours pas de LINK BATTLE : Mode Select ne le propose que si l'autre borne annonce l'autre
   CONNECTION METHOD (+0x8e6e0 : la valeur reçue, +0x93c84, comparée au réglage +0x5e de config00.bin) ; les deux
   bornes gardaient HOST (le réglage d'usine), seul le saut était changé. Linké, le réglage lui-même est celui de
-  LINK après chaque lecture de config00.bin (+0xa4120 : HOST sur la borne 1, CLIENT sur les autres) (link18).
-- Essai link18 (31/10) ❌ : CONNECTION METHOD pris (HOST, CLIENT), la connexion réussie, toujours pas de LINK
+  LINK après chaque lecture de config00.bin (+0xa4120 : HOST sur la borne 1, CLIENT sur les autres).
+- Essai ❌ : CONNECTION METHOD pris (HOST, CLIENT), la connexion réussie, toujours pas de LINK
   BATTLE. Linké, le journal donne les conditions de Mode Select quand elles changent (le nombre de joueurs, le mot
-  et la méthode reçus de l'autre borne, les deux drapeaux) (link19).
-- Essai link19 (31/10) ❌ : Mode Select voit 2 joueurs, mais CONNECTION METHOD reste HOST (0) sur la borne 2 :
+  et la méthode reçus de l'autre borne, les deux drapeaux).
+- Essai ❌ : Mode Select voit 2 joueurs, mais CONNECTION METHOD reste HOST (0) sur la borne 2 :
   dans un dossier d'écriture neuf, config00.bin manque et le jeu remet ses réglages d'usine (+0xa3fa0) après sa
   lecture. Linké, la méthode est remise d'après LINK aussi après ces réglages d'usine et quand Mode Select vérifie
-  ses conditions (link20). Le mot reçu de l'autre borne : 1 sur la borne 1, 0 sur la 2.
-- Link sur les bornes ✅ (31/10, link20) : Mode Select des deux côtés : 2 joueurs, les méthodes différentes (HOST
+  ses conditions. Le mot reçu de l'autre borne : 1 sur la borne 1, 0 sur la 2.
+- Link sur les bornes ✅ : Mode Select des deux côtés : 2 joueurs, les méthodes différentes (HOST
   sur la borne 1, CLIENT sur la 2), le mot reçu de l'autre ; « Mode Select — Battle » (Compete for speed!, Drift
   Battle!), puis le choix du circuit (Town Race), de la voiture et de la boîte en mode Battle aux mêmes décomptes ;
   la course à deux (Order 1/2 et 2/2, la distance au rival, la voiture de l'autre visible). Sur la borne 1, un
@@ -1924,60 +1923,60 @@ bibliothèque que le jeu lit ensuite (la copie des bornes a une version clavier 
 - Crédits ✅ : pièce JVS.
 - Garde-fous ajoutés pour lui (et D1GP) : adresses IP du PC (AddIPAddress, DeleteIPAddress), suppression de clés du
   registre, HKEY_CLASSES_ROOT et HKEY_USERS en lecture seule comme HKLM.
-- Link entre bornes 🔄 (31/10) : DirectPlay 8 (dpnet.dll de Windows, UDP 13400, 4 bornes) : le NETWORK-ID 1
+- Link entre bornes 🔄 : DirectPlay 8 (dpnet.dll de Windows, UDP 13400, 4 bornes) : le NETWORK-ID 1
   héberge, les autres se connectent à 192.168.64.100 (puis les impairs à .102), adresses que le jeu donne au PC
   (AddIPAddress, refusé). `[Game.vlimitr] LINK` / `CABINET` (1 à 4) : ces deux adresses deviennent les PC 1 et 3 de
-  LINK, et le NETWORK-ID la place dans LINK, remis après chaque lecture de d:\expdat (+0xafb0). Essayé sur ce PC
+  LINK, et le NETWORK-ID la place dans LINK, remis après chaque lecture de d:\expdat (+0xafb0). Essayé sur un PC
   (copie avec un data\bin2 vide) : NETWORK-ID et adresses pris ; la copie s'arrête ensuite faute de ses données.
-- Link sur les bornes ✅ (31/10, link11) : NETWORK-ID 1 et 2 pris dans LINK ; Coin+Start sur la borne 1, la 2 affiche
+- Link sur les bornes ✅ : NETWORK-ID 1 et 2 pris dans LINK ; Coin+Start sur la borne 1, la 2 affiche
   « 2-PLAYER GAME AVAILABLE », puis Coin+Start sur la 2 (« WAIT! CHALLENGER(S) STILL SELECTING ») ; la course à deux
   (1er et 3e). Dans un dossier d'écriture neuf, le jeu demande d'abord « PLEASE CALIBRATE I/O DEVICE ».
-- Étalonnage dans le dossier d'écriture du link de racecab1 (31/10) ✅ : TEST MODE au levier (SHIFT UP descend, START
+- Étalonnage dans le dossier d'écriture du link de la borne 1 ✅ : TEST MODE au levier (SHIFT UP descend, START
   choisit), I/O CHECK, ACCEL and BRAKE CALIBRATION : chaque étape (Push Full, Release) dure environ 5 s et part
   seule après START, le frein environ 14 s après ; « Calibration succeeded » pour les deux, SAVE AND EXIT ; au
   lancement suivant, l'attract directement.
-- Link revérifié sur les bornes ✅ (31/10, vlr3, release 20261031-4), depuis que DirectPlay ne voit plus que la carte
+- Link revérifié sur les bornes ✅ (release 20261031-4), depuis que DirectPlay ne voit plus que la carte
   de LINK : « 2-PLAYER GAME AVAILABLE » sur la borne 2 ; Coin+Start sur la 1 puis sur la 2, chacune choisit sa
   passagère et sa voiture avec son propre compte à rebours, puis la même grille de départ, la voiture de la borne 1
   à côté de celle de la 2. Le dossier d'écriture du link de la borne 2 n'a pas demandé d'étalonnage.
-## Link des jeux restants (étude du 01/11/2026)
+## Link des jeux restants (étude)
 
-Les programmes seuls copiés de `\\racecab1\C\racecab\Games` dans `emulateurs\linkstudy\<jeu>` (hors du dépôt, sans les
+Les programmes seuls copiés de `C:\Arcade\Games` d'une borne dans `emulateurs\linkstudy\<jeu>` (hors du dépôt, sans les
 données ; Storm Rider et Frenzy Express sont déjà dans `games`). Première lecture : les importations réseau et les textes
 des programmes, pas encore de décompilation.
 
-- Chase H.Q. 2 : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). DirectPlay 8 (CLSID de DirectPlay8Peer dans
+- Chase H.Q. 2 : a un link (fait et vérifié sur les bornes, voir sa section). DirectPlay 8 (CLSID de DirectPlay8Peer dans
   game.exe, CoCreateInstance), comme Wacky Races et Valve Limit R ; jusqu'à 4 bornes (G1 à G4), NETWORK-ID 1 l'hôte,
   2 le client (« YOU MUST SET UP THE OTHER MACHINE(HOST) WITH NETWORK-ID=1 ») ; réglages dans `D:\chq2.ini` :
   LINKHOST, LINKPORTR, LINKPORTS, HOSTADDR (le HOSTADDR de Wacky) ; le jeu donne au PC les adresses 192.168.65.110
   à 113 (AddIPAddress, refusé), comme les 192.168.64.100 et 102 de Valve Limit R. `taito.cpp` et `link.cpp` ont déjà
   ces pièces.
-- K.O. Drive : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). La bibliothèque de link de Sega de Sega Racing Classic et de Daytona (« POWER-ON
+- K.O. Drive : a un link (fait et vérifié sur les bornes, voir sa section). La bibliothèque de link de Sega de Sega Racing Classic et de Daytona (« POWER-ON
   NETWORK TEST », « LINK ID %d », GROUP ID, TOTAL MACHINE, « nodeID:%d is timeout », « commSync », « race_owner ») sur
   192.168.99.0/24, UDP et TCP (WSAEventSelect) ; son adresse par amNetwork (amLib RingWide), à laquelle `ringedge.cpp`
   répond déjà pour Sega Racing Classic.
-- Storm Racer G : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
+- Storm Racer G : a un link (fait et vérifié sur les bornes, voir sa section). Son propre gestionnaire (`CRacingNetworkMgr`) : les bornes se trouvent en
   multicast (234.7.7.7 par défaut), une hôte, les autres la rejoignent (« Start connect to host: %s »), les joueurs par
   adresse IP, la version du jeu comparée, les photos des joueurs échangées ; jusqu'à 8 joueurs. Réglages `network` :
   `hostNum`, `host`, `mcast` ; GetAdaptersAddresses pour la carte. Nouveau pour `link.cpp` : le multicast.
-- Storm Rider : a un link (fait le 01/11 dans `wahlap.cpp`, vérifié sur les bornes). Essai link25 sur les bornes (release 20261101-3) :
+- Storm Rider : a un link (fait dans `wahlap.cpp`, vérifié sur les bornes). Essai sur les bornes (release 20261101-3) :
   « linked: cabinet N of 2 », 9000 et 5002 ouverts, chaque borne a reçu 4 annonces de l'autre ; puis le jeu quitte
   seul à 13,8 s (ExitProcess(0)) sur les deux, après deux connexions refusées vers 127.0.0.1:1947 (le
-  gestionnaire de licences Sentinel, absent des bornes). Sur ce PC aussi, avec le gestionnaire présent mais sans
+  gestionnaire de licences Sentinel, absent des bornes). Sur un PC aussi, avec le gestionnaire présent mais sans
   la licence. La clé : le jeu demande `Lock.dll` (Lock::Initialize, la clé présente par CDongle::Check de
   `Dongle.dll` ; Lock::test, ses 16 premiers octets « have bind… » puis 64 octets en 0x10 déchiffrés, l'identifiant
   du disque de `DiskID32.dll`). Les deux remplacées dans la table d'import du jeu (`wahlap.cpp`, répondent oui) : sur
-  ce PC le jeu continue, 30 images/s au-delà de 40 s. Essai link26 sur racecab1 seule : la clé passe, le jeu
+  un PC le jeu continue, 30 images/s au-delà de 40 s. Essai sur une borne seule : la clé passe, le jeu
   tourne plusieurs minutes, la pièce marche, mais Start ne faisait rien (bit 0x002 du panneau, une supposition
   reprise de Storm Racer G). Essayé ici en mode agent, chaque bouton seul : 0x010 lance la partie (avec des
   crédits) et valide dans les menus, 0x020 le circuit suivant, 0x200 un crédit de service. Le frein n'est pas
   GetADData(2) : le jeu met à sa place (bit 1 | bit 0) du panneau (+0x4337c7) ; le frein au-delà de la moitié
-  donne maintenant le bit 0. Start corrigé (0x010) : course lancée sur ce PC (circuit, moto, chargement,
+  donne maintenant le bit 0. Start corrigé (0x010) : course lancée sur un PC (circuit, moto, chargement,
   compte à rebours). En mode agent avec `PRESENT = GDI`, le chargement de la course se bloque (un fil de
   chargement dans le pilote pendant que le fil principal l'attend) ; pas avec `DIRECT`, celui des bornes.
-  Essai link27 sur les bornes : seule, pièce, Start, circuit, moto, course (12 motos, 2 tours), accélérateur
+  Essai sur les bornes : seule, pièce, Start, circuit, moto, course (12 motos, 2 tours), accélérateur
   et guidon ; le frein ralentit sans doute (pas séparé du virage), le Nitro et la vue pas concluants. Linké :
-  écran VEHICLE « 1P » sur racecab1, « 2P » sur racecab2, CHALLENGER 1P et 2P sur les deux, une seule course
+  écran VEHICLE « 1P » sur la borne 1, « 2P » sur la borne 2, CHALLENGER 1P et 2P sur les deux, une seule course
   (11e et 12e sur 12) ; UDP 5002 dans les deux sens toute la course (la borne 1 sert), TCP de la borne 1 vers la
   2 (5001). Marqué oui. Décompilé : les
   textes « 192.168.0.%d » et « 192.168.0.241 » ne sont lus par aucun code. Les motos se trouvent par une diffusion
@@ -1985,9 +1984,9 @@ des programmes, pas encore de décompilation.
   gethostbyname du nom du PC (+0x9fd0 ; 127.0.0.1 : seule), puis la première à lancer une course la sert
   (« Create Server ») et les autres la rejoignent (« JoinServer ») : TCP 5001 et UDP 5002 vers les adresses
   envoyées dans les paquets ; jusqu'à 4 motos. `link.cpp` suffit (diffusion vers chaque PC de LINK, l'adresse de
-  LINK pour le nom du PC). Essayé sur ce PC avec sa copie : 9000, 5002 et 5001 ouverts, l'annonce envoyée aux deux
+  LINK pour le nom du PC). Essayé sur un PC avec sa copie : 9000, 5002 et 5001 ouverts, l'annonce envoyée aux deux
   PC de LINK et reçue en retour.
-- Crazy Ride : a un link (fait le 01/11 et vérifié sur les bornes, voir sa section). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
+- Crazy Ride : a un link (fait et vérifié sur les bornes, voir sa section). Un module du jeu, `Plugins\McastUDP.dll` (copié) :
   multicast 234.2.2.1 et TCP (BIND_InitSocket_Recv/Send, BIND_InitTCPSocketListen, BIND_Send_TCP), appelé depuis les
   Blueprints (écran « NewPlayerJoinTile », « OnPlayerJoin », « MachineId ») : les ports et la logique sont dans le pak
   du jeu.
@@ -1999,8 +1998,8 @@ des programmes, pas encore de décompilation.
 
 Module `rawthrills.cpp`, réimplémenté d'après windowsarcadeloader (aderumier, GPL v3) ; chaque jeu est reconnu par
 le CRC32 de son `sdaemon.exe` (le même nom partout), chacune de ses adresses vérifiée sur la copie des bornes. `D:\`
-(audits, réglages, étalonnage, meilleurs temps) est le dossier du jeu, comme sur les bornes. Essais sur Racecab1
-(23/11, mode agent, banc vJoy, 1024x384 puis 1920x1080 ; détail dans NOTES.md, demandes 428 à 438).
+(audits, réglages, étalonnage, meilleurs temps) est le dossier du jeu, comme sur les bornes. Essais sur une borne
+(mode agent, banc vJoy, 1024x384 puis 1920x1080 ; détail dans NOTES.md, demandes 428 à 438).
 
 - The Fast and the Furious (2004, Direct3D 8) : carte JAMMA USB donnée au lecteur de rapports du jeu, moteur du
   volant par le port parallèle. Course ✅, toutes les commandes vues dans le menu de test ✅ (pavé compris), retour de
@@ -2020,12 +2019,12 @@ le CRC32 de son `sdaemon.exe` (le même nom partout), chacune de ses adresses v�
   gardée à la taille voulue).
 - Winter X Games SnoCross (2022, 1.58) : sans carte (SetControl), pièges de la protection retirés ; attract à
   28 images/s sur ce PC ; course ✅ (bornes, 49 images/s en 1920x1080).
-- Sur les bornes (24/11, releases 20261124-1 et -2, lancés par AttractPlus) : les 11 courent ✅, en link à deux ✅
-  (racecab1 et racecab2 ; Batman : YOU / RIVAL croisés et l'étiquette RIVAL sur l'autre Batmobile), et à quatre sur
-  ce PC pour SuperCars ✅. Affichage vérifié en course en 320x240, 512x384, 1024x384, 1280x240, 640x480, 1280x960 et
+- Sur les bornes (releases 20261124-1 et -2, lancés par AttractPlus) : les 11 courent ✅, en link à deux ✅
+  (deux bornes ; Batman : YOU / RIVAL croisés et l'étiquette RIVAL sur l'autre Batmobile), et à quatre sur
+  un PC pour SuperCars ✅. Affichage vérifié en course en 320x240, 512x384, 1024x384, 1280x240, 640x480, 1280x960 et
   1920x1080 ✅. H2O étalonné dans le menu de test, puis course ✅. Cars : intro vidéo sans blocs verts (20261124-2) ✅.
-  Images par seconde en 1920x1080 (médianes en course, racecab1) : Dirty Drivin' 59, Batman 59, SuperCars 58, F&F
-  56, H2O 56, Drift 53, Super Bikes 53, Nicktoons 53, Super Bikes 2 50, SnoCross 49 ; Cars 60 (racecab2). Super
+  Images par seconde en 1920x1080 (médianes en course, une borne) : Dirty Drivin' 59, Batman 59, SuperCars 58, F&F
+  56, H2O 56, Drift 53, Super Bikes 53, Nicktoons 53, Super Bikes 2 50, SnoCross 49 ; Cars 60 (l'autre borne). Super
   Bikes 2, Drift et SuperCars sont limités par leur propre calcul sur l'i5-4590 (comme sous TeknoParrot).
 - Reste : le test de toutes les commandes dans le menu de test ; le menu Tab ; le sens du retour de force de F&F et
   SuperCars ; celui de Cars ne vient que quand le joueur conduit.
@@ -2040,32 +2039,32 @@ cartes, kbt/kld.
 - Lancement ✅ : sans les serveurs d'e-Amusement, sa vérification de démarrage (ea3_get_boot_status) finit sur
   EA3_BOOT_CODE_SERVICES_ERROR, que le jeu montrait à chaque démarrage (« ERROR MODE 5-2002-0000 », WARNING,
   « CANNOT CONNECT ROUTER. ») en attendant SERVICE. Ce code est lu comme OK : le jeu va droit à son attract, hors
-  ligne (25/11, vérifié sur ce PC : partie complète, jgt_link_cab2.dll, link à deux instances).
+  ligne (vérifié sur un PC : partie complète, jgt_link_cab2.dll, link à deux instances).
 - Commandes ✅ : l'accélérateur valide le mode, la voiture et la boîte ; course ✅. Menu de service : ShiftUp/Down
   naviguent, View exécute.
 - Retour de force ✅ : le couple du jeu (0x708..0x8F8) ramené à toute la force, bon sens.
-- Vue : `[Game.rf3d] VIEW = 2D` par défaut (chaque objet de vue créé en 2D) ✅ (course en 2D sur racecab1, essai 16) ; le bouton
+- Vue : `[Game.rf3d] VIEW = 2D` par défaut (chaque objet de vue créé en 2D) ✅ (course en 2D sur une borne) ; le bouton
   2D/3D (View1) bascule en partie.
-- Bornes (24/11) : course et link à deux ✅ (jgt.dll et jgt_link_cab2.dll) ; 60 images/s à toutes les résolutions
+- Bornes : course et link à deux ✅ (jgt.dll et jgt_link_cab2.dll) ; 60 images/s à toutes les résolutions
   ✅ (son chronomètre d'image ne compte plus la durée de Present) ; fin de partie sans plantage ✅ ; un rfs.dat au
   calibrage abîmé (ERROR 5-1550) lu calibré ✅.
 
 ## Crazy Speed Arcade (UNIS PC, 2010)
 
 `release\Client_r.exe` (Ogre), module `unis.cpp` d'après windowsarcadeloader : carte game232 sur COM1, hors ligne,
-chiffrements de la clé. Écran virtuel 1360x768. Attract (OFFLINE), GAME CARD, choix du véhicule ✅ ; course ✅ (bornes, 24/11). Link ✅ : IN-STORE
+chiffrements de la clé. Écran virtuel 1360x768. Attract (OFFLINE), GAME CARD, choix du véhicule ✅ ; course ✅ (bornes). Link ✅ : IN-STORE
 TOURNAMENT (un seul coup de volant à droite dans GAME MODE), l'hôte choisit le circuit, départ simultané à 15 ms
-près sur racecab1 et racecab2. Retour de force ⚠️ (force constante et vibrations reçues, sens pas relevé sur borne).
+près sur deux bornes. Retour de force ⚠️ (force constante et vibrations reçues, sens pas relevé sur borne).
 En 1920x1080, 48 à 58 images/s selon la scène : son calcul (Ogre, Direct3D) prend 11 à 14 ms par image sur
-l'i5-4590, windowsloader moins de 2 % (profil du 24/11) ; menus et attract à 60.
+l'i5-4590, windowsloader moins de 2 % (profil) ; menus et attract à 60.
 Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrigé.
 
 ## Thrill Drive 4: Crazy Streets (Konami PC, 2007)
 
 `td4\td4.exe` (x86, Direct3D 9, 640x480, base fixe 0x400000), la version export F04:E:A:A:20070330. Module
-`thrilldrive4.cpp`, écrit le 26/11 d'après windowsarcadeloader (td4.rs, pjei.rs, acio.rs, icca.rs, commit 2bfe069)
+`thrilldrive4.cpp`, écrit d'après windowsarcadeloader (td4.rs, pjei.rs, acio.rs, icca.rs, commit 2bfe069)
 **sans copie du jeu** (ni sur ce PC ni sur les bornes), essayé d'abord à blanc avec un faux
-`td4.exe` et un faux `libacio.dll`, puis vérifié sur une copie (27/11, ci-dessous).
+`td4.exe` et un faux `libacio.dll`, puis vérifié sur une copie (ci-dessous).
 
 - Cartes : `libacio.dll` (importée par td4.exe) : la PJEI (START, aussi le nitro, levier UP et DOWN, VIEW, test,
   service, monnayeur ; volant, accélérateur et frein en 16 bits ; prise de sécurité GKF04EAA ; 8 lampes vers les
@@ -2082,12 +2081,12 @@ Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrig
   envoyée au volant du PC pendant ce temps.
 - `td4.ini` [IO] HANDLE lu KONAMI (KEYBOAD, le mode clavier de développement, dans la copie de
   windowsarcadeloader) ; clavier du PC caché au DirectInput du jeu ; GetLogicalDriveStringsA ne donne que C:.
-- Copie (27/11) : `games\Crazy Streets - Thrill Drive 4 (2007-03-30)[Konami PC][TP].zip`, un dump TeknoParrot (les
+- Copie : `games\Crazy Streets - Thrill Drive 4 (2007-03-30)[Konami PC][TP].zip`, un dump TeknoParrot (les
   fichiers à la racine, td4.ini en KEYBOAD, libacio.dll et libtd4io.dll de remplacement), dépaqueté dans `games\td4`.
   td4.exe : CRC-32 D363889F, horodatage 460B97C6 ; les 4 sites de correction ont les octets attendus. 5 imports de
   libacio.dll manquaient à la liste (secplug_check_softwareplug et _systemplug, req_get_control_status,
   control_reset, set_watchdog_time) : ajoutés.
-- Essai (27/11, mode agent, scripts/agent/td4_controls.py) : étalonnage du volant par le moteur 37 s, attract,
+- Essai (mode agent, scripts/agent/td4_controls.py) : étalonnage du volant par le moteur 37 s, attract,
   2 crédits, SELECT MODE, CAREER, boîte automatique, course ; accélérateur (138 à 210 km/h), volant, frein (0 km/h),
   View (vue cockpit), Start (nitro, « PRESS THE BUTTON ») ; 30 images/s, comme le jeu. Retour de force dans le bon
   sens : volant à gauche, couple +80 et force -0,63 (vers la droite) ; à droite, -80 et +0,63 ; vibrations des chocs
@@ -2100,7 +2099,7 @@ Un interblocage au chargement (le titre des fps lu par GetWindowText) est corrig
 windowsarcadeloader (gvrio.rs, netcomm.rs, profils nascar-team-racing et nascar-racing, commit 2bfe069).
 
 Copie : le disque d'installation `games\Nascar Racing 2.0.2.068.iso` (NASCAR Team Racing 2.0.2, build 068 du 01/09/2010),
-dépaqueté le 26/11 dans `games\nascar-team-racing` sans lancer son installeur, par un extracteur InstallShield 6 écrit
+dépaqueté dans `games\nascar-team-racing` sans lancer son installeur, par un extracteur InstallShield 6 écrit
 pour l'occasion (5 402 fichiers, chacun vérifié par le MD5 de l'archive ; les 128 fichiers « liés », dont le contenu
 est celui d'un autre, compris : sans eux, le modèle physique de la voiture du joueur `2005_NEXTEL_Cup_PLR.pm` manquait
 et la course plantait au chargement, nœud `fr_steering` introuvable). NASCAR_GVR.exe : CRC-32 BEBCEA21, horodatage
@@ -2124,10 +2123,10 @@ base SQL, les moniteurs de pièces Hercules) : **pas joué ici**. La course est 
 - `HKLM\SOFTWARE\GlobalVR\NASCAR` inventée (Registry\NASCAR.reg du disque ; FullScreenWidth et Height à la taille de
   l'écran) ; TsuMotion.dll (le siège mobile) refusée ; `C:\gvrtime.txt` écrit à côté de la course ; gvrNetComm.dll de
   la copie gardée (pas de link). Le lanceur ajoute `..\Shell\bin` et `..\..\WINDOWS\system32` au PATH de la course.
-- Essai sur ce PC (26/11, mode agent, sans volant) : Daytona, voiture 20, première image à 2,9 s, course chargée,
+- Essai (mode agent, sans volant) : Daytona, voiture 20, première image à 2,9 s, course chargée,
   passages de ligne, 75 à 109 images/s pendant 150 s, aucune exception ; le ressort du volant envoyé (centre ±0,39).
   `--timeout` n'arrêtait pas le jeu : les options du lanceur se mettent avant le chemin du jeu.
-- Commandes (27/11, mode agent, scripts/agent/gvr_controls.py, les deux versions) : accélérateur (77 puis 96 mph), volant
+- Commandes (mode agent, scripts/agent/gvr_controls.py, les deux versions) : accélérateur (77 puis 96 mph), volant
   (la voiture part à gauche, à droite), frein (61 à 26 mph), View (vue cockpit), LookBack (vue arrière) visibles sur les
   captures ; Nos, Music, Ebrake, Start envoyés en événements (onGvr...ButtonDown / Up), le levier à 4 positions suivi
   (Shifter1..4 demandés ; la course en boîte automatique par défaut affiche ses propres rapports).
@@ -2162,10 +2161,10 @@ C:\PLUS\SCHEMA\NFSCABINET.XML (le disque n'en a qu'une version chiffrée) ; sur 
 - Registre inventé (_Registry du disque) : HKLM\SOFTWARE\GlobalVR\Need For Speed UnderGround (1.1.0, build 027) et
   GVRShell\Operator\Games\NFSUNDERGROUND (son ini à côté de la course). `c:\audits.txt` écrit à côté de la course. Le
   lanceur met `..\WINDOWS\system32` dans le PATH de la course.
-- Essai sur ce PC (26/11, mode agent, sans volant, PC déverrouillé : verrouillé, Direct3D n'a pas de carte et refuse
+- Essai (mode agent, sans volant, PC déverrouillé : verrouillé, Direct3D n'a pas de carte et refuse
   CreateDevice) : première image à 2,1 s, GVRInputRaw répondu, la course tourne 60 s sans exception, ressort (0,4) et
   vibrations envoyés ; 60 images/s avec PRESENT = DIRECT (30 avec le PRESENT = GDI de ce PC).
-- Commandes (27/11, mode agent, scripts/agent/gvr_controls.py), mode Shadow Attack : accélérateur (0 à 70 mph), volant
+- Commandes (mode agent, scripts/agent/gvr_controls.py), mode Shadow Attack : accélérateur (0 à 70 mph), volant
   (gauche, droite), frein (jusqu'à 0), nitro (flou de vitesse, 72 mph), vue ; les bits de chaque bouton (vue 0x10000,
   regard arrière 0x200, nitro 0x400, musique 0x100, frein à main 0x20000, Start 0x10) et du levier en H.
 - Retour de force : ressort de centrage 0,40 et vibrations de 0,01 à 0,11 (route, chocs), envoyés au volant (vJoy).

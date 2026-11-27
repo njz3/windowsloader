@@ -28,9 +28,10 @@
 //   the wheel's and the pedals' potentiometers, the security plug GKF04EAA, lamps) and the ICCA
 //   card reader (no card). td4.exe's imports of it pointed at our functions; one we do not know is
 //   logged and left to the copy's libacio.dll.
-// - libtd4io.dll, the second bus (LoadLibraryA, then GetProcAddress of 27 functions, every one
+// - libtd4io.dll, the second bus (LoadLibraryA, then GetProcAddress of its functions, every one
 //   needed): the D44H board, the wheel's motor, and the D44S board, the seat (absent: the boot shows
-//   SEATBELT OK ( NO DEVICE )). The DLL is played by windowsloader (wl_system_virtual_dll).
+//   SEATBELT OK ( NO DEVICE )). The DLL is played by windowsloader (wl_system_virtual_dll, g_td4io:
+//   41 functions, the bus's 22, the D44H's 6 and the D44S's 13).
 //
 // The PJEI status (40 bytes): byte 4 START 0x04 (also the nitro in a race), the shift lever's UP
 // 0x20 and DOWN 0x40, VIEW 0x80; byte 16 test 0x20, service 0x10, coin mech 0x04; +8, +10, +12 the
@@ -70,6 +71,7 @@
 #include <string.h>
 #include <wchar.h>
 
+#include "acio.h"
 #include "ffb.h"
 #include "game.h"
 #include "hooks.h"
@@ -288,8 +290,6 @@ static unsigned short pot(int i, float t)
 }
 
 static unsigned char g_status[40];
-static volatile LONG g_coinStock; // coins in, not taken by the game yet
-static int g_coinHeld;
 static SRWLOCK g_statusLock = SRWLOCK_INIT;
 
 static int __cdecl pjei_update_control_status_buffer(void)
@@ -302,9 +302,7 @@ static int __cdecl pjei_update_control_status_buffer(void)
     int coin = held(IN_COIN);
     if (coin)
         s[16] |= 0x04;
-    if (coin && !g_coinHeld)
-        InterlockedIncrement(&g_coinStock);
-    g_coinHeld = coin;
+    wl_acio_coin_mech(coin);
     if (held(IN_START))
         s[4] |= 0x04;
     if (held(IN_SHIFT_UP))
@@ -343,27 +341,9 @@ static int __cdecl pjei_get_control_status_buffer(unsigned char *out)
     return 1;
 }
 
-static int __cdecl pjei_current_coinstock(int slot, DWORD *stock)
-{
-    if (stock)
-        *stock = (DWORD)g_coinStock;
-    return 1;
-}
-
-static int __cdecl pjei_consume_coinstock(int slot, DWORD coins)
-{
-    for (;;)
-    {
-        LONG was = g_coinStock, now = was > (LONG)coins ? was - (LONG)coins : 0;
-        if (InterlockedCompareExchange(&g_coinStock, now, was) == was)
-            return 1;
-    }
-}
-
 // The security plugs: the one the game asks for found at once (0x14), none missing (8); the
 // software id the latest plug checked, at first the game's (GKF04EAA)
 #define PLUG_FOUND 0x14
-#define PLUGS_PRESENT 8
 static char g_plug[9] = "GKF04EAA";
 
 static int __cdecl pjei_req_secplug_check(const char *id)
@@ -384,33 +364,9 @@ static int __cdecl pjei_req_secplug_check_isfinished(DWORD *status)
     return 1;
 }
 
-static int __cdecl pjei_req_secplug_missing_check_isfinished(DWORD *status)
-{
-    if (status)
-        *status = PLUGS_PRESENT;
-    return 1;
-}
-
-// A plug's id as libacio writes it: "0140" and its 8 bytes in hex
-static int plug_id(char *out, const unsigned char id[8])
-{
-    if (!out)
-        return 0;
-    strcpy(out, "0140");
-    for (int i = 0; i < 8; i++)
-        sprintf(out + 4 + i * 2, "%02X", id[i]);
-    return 1;
-}
-
 static int __cdecl pjei_get_softwareid(char *out)
 {
-    return plug_id(out, (const unsigned char *)g_plug);
-}
-
-static int __cdecl pjei_get_systemid(char *out)
-{
-    static const unsigned char id[8] = {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
-    return plug_id(out, id);
+    return wl_acio_plug_id(out, (const unsigned char *)g_plug);
 }
 
 // The lamps (8, a bit each), for the network outputs ([Outputs] OUTPUTS_NETWORK)
@@ -461,92 +417,8 @@ static int __cdecl pjei_control_parallel(ULONG_PTR a)
     return 1;
 }
 
-// The requests answered at once, done, and the board's other outputs (coin counters and blockers,
-// lamps' brightness, parallel outputs, watchdog): nothing to drive here
-static int __cdecl acio_true(void)
-{
-    return 1;
-}
-
-static int __cdecl acio_false(void)
-{
-    return 0;
-}
-
+// The requests answered 0 (AVS's boot and shutdown, the watchdog's status, the keep-alive packet)
 static DWORD __cdecl acio_zero(void)
-{
-    return 0;
-}
-
-// ------------------------------------------------------------------------------
-// The bus itself (both: libacio.dll and libtd4io.dll)
-// ------------------------------------------------------------------------------
-
-// The game's version text, as much of it as can be read
-static void read_text(const char *from, char *to, size_t size)
-{
-    size_t n = 0;
-    __try
-    {
-        for (; from && n + 1 < size && from[n]; n++)
-            to[n] = from[n];
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-    }
-    to[n] = 0;
-}
-
-// (port, version, out, flags); another game's libacio takes (port, device, version, out, flags):
-// the version is the second argument unless it is a small number
-static int __cdecl acio_begin(DWORD a, ULONG_PTR b, ULONG_PTR c, ULONG_PTR d, DWORD e)
-{
-    char version[33];
-    read_text((const char *)(b < 0x10000 ? c : b), version, sizeof version);
-    DWORD *out = (DWORD *)(b < 0x10000 ? d : c);
-    wl_log("thrill drive 4: ACIO bus started (game %s)", version);
-    if (out)
-        *out = 0;
-    return 1;
-}
-
-// A bus whose devices were all found
-static int __cdecl acio_is_active2(DWORD a, DWORD *status)
-{
-    if (status)
-        *status = 6;
-    return 1;
-}
-
-static void __cdecl acio_update(void)
-{
-}
-
-// A device's version record (0x2C bytes): firmware 2.0.0 (byte 5), the rest zeros
-static int __cdecl acio_get_version(unsigned char *out, DWORD device)
-{
-    if (out)
-    {
-        memset(out, 0, 0x2C);
-        out[5] = 2;
-    }
-    wl_log("thrill drive 4: ACIO device %lu present", device);
-    return 1;
-}
-
-static int __cdecl acio_get_firmware_update_device_index(void)
-{
-    return 0xFF; // none waits for a new firmware
-}
-
-// The serial line's statistics (0x58 bytes): nothing lost
-static void __cdecl acio_get_rs232c_status(unsigned char *out)
-{
-    if (out)
-        memset(out, 0, 0x58);
-}
-
-static DWORD __cdecl acio_get_log(void *out, DWORD size)
 {
     return 0;
 }
@@ -555,26 +427,7 @@ static DWORD __cdecl acio_get_log(void *out, DWORD size)
 // The ICCA card reader: there, never a card
 // ------------------------------------------------------------------------------
 
-enum
-{
-    WF_STEP = 0,
-    WF_SLEEP = 1,
-    WF_START = 2,
-    WF_INIT = 3,
-    WF_READY = 4,
-    WF_GET_USERID = 5,
-    WF_CLOSE_EJECT = 10,
-    WF_CLOSE_END = 12,
-};
-
 static volatile LONG g_workflow = WF_STEP;
-
-static int __cdecl icca_cardunit_init_isfinished(DWORD device, DWORD *status)
-{
-    if (status)
-        *status = 4; // ready
-    return 1;
-}
 
 static int __cdecl icca_req_uid_isfinished(DWORD device, DWORD *status)
 {
@@ -651,59 +504,59 @@ static int __cdecl icca_keep_alive_error(DWORD device, DWORD *error)
 #define FN(name, fn) {#name, 0, (void *)fn}
 
 // The bus's own, on both
-#define ACIO_BUS                                                                                                                          \
-    FN(ac_io_begin, acio_begin), FN(ac_io_begin_get_status, acio_true), FN(ac_io_end, acio_true), FN(ac_io_end_get_status, acio_true),    \
-        FN(ac_io_update, acio_update), FN(ac_io_is_active, acio_true), FN(ac_io_is_active2, acio_is_active2),                            \
-        FN(ac_io_is_active_device, acio_true), FN(ac_io_get_version, acio_get_version),                                                  \
-        FN(ac_io_get_firmware_update_device_index, acio_get_firmware_update_device_index), FN(ac_io_go_firmware_update, acio_true),      \
-        FN(ac_io_get_rs232c_status, acio_get_rs232c_status), FN(ac_io_get_send_log, acio_get_log), FN(ac_io_get_recv_log, acio_get_log), \
-        FN(ac_io_reset, acio_true), FN(ac_io_set_get_status_device, acio_true), FN(ac_io_soft_watch_dog_on, acio_true),                  \
-        FN(ac_io_soft_watch_dog_off, acio_true), FN(ac_io_set_soft_watch_dog, acio_true), FN(ac_io_enable_game_ios, acio_true),          \
-        FN(ac_io_avs_boot, acio_zero), FN(ac_io_avs_shutdown, acio_zero)
+#define ACIO_BUS                                                                                                                           \
+    FN(ac_io_begin, wl_acio_begin), FN(ac_io_begin_get_status, wl_acio_true), FN(ac_io_end, wl_acio_true),                                 \
+        FN(ac_io_end_get_status, wl_acio_true), FN(ac_io_update, wl_acio_update), FN(ac_io_is_active, wl_acio_true),                       \
+        FN(ac_io_is_active2, wl_acio_is_active2), FN(ac_io_is_active_device, wl_acio_true), FN(ac_io_get_version, wl_acio_get_version),    \
+        FN(ac_io_get_firmware_update_device_index, wl_acio_get_firmware_update_device_index), FN(ac_io_go_firmware_update, wl_acio_true),  \
+        FN(ac_io_get_rs232c_status, wl_acio_get_rs232c_status), FN(ac_io_get_send_log, wl_acio_get_log),                                   \
+        FN(ac_io_get_recv_log, wl_acio_get_log), FN(ac_io_reset, wl_acio_true), FN(ac_io_set_get_status_device, wl_acio_true),             \
+        FN(ac_io_soft_watch_dog_on, wl_acio_true), FN(ac_io_soft_watch_dog_off, wl_acio_true), FN(ac_io_set_soft_watch_dog, wl_acio_true), \
+        FN(ac_io_enable_game_ios, wl_acio_true), FN(ac_io_avs_boot, acio_zero), FN(ac_io_avs_shutdown, acio_zero)
 
 // td4.exe's imports of libacio.dll
 static const WlVirtualDllFunction g_acio[] = {
     ACIO_BUS,
     FN(ac_io_pjei_update_control_status_buffer, pjei_update_control_status_buffer),
     FN(ac_io_pjei_get_control_status_buffer, pjei_get_control_status_buffer),
-    FN(ac_io_pjei_current_coinstock, pjei_current_coinstock),
-    FN(ac_io_pjei_consume_coinstock, pjei_consume_coinstock),
+    FN(ac_io_pjei_current_coinstock, wl_acio_current_coinstock),
+    FN(ac_io_pjei_consume_coinstock, wl_acio_consume_coinstock),
     FN(ac_io_pjei_req_secplug_check, pjei_req_secplug_check),
     FN(ac_io_pjei_req_secplug_check_isfinished, pjei_req_secplug_check_isfinished),
     FN(ac_io_pjei_req_secplug_check_softwareplug, pjei_req_secplug_check),
-    FN(ac_io_pjei_req_secplug_check_systemplug, acio_true),
-    FN(ac_io_pjei_req_get_control_status, acio_true),
-    FN(ac_io_pjei_control_reset, acio_true),
-    FN(ac_io_pjei_set_watchdog_time, acio_true),
-    FN(ac_io_pjei_req_secplug_missing_check, acio_true),
-    FN(ac_io_pjei_req_secplug_missing_check_isfinished, pjei_req_secplug_missing_check_isfinished),
+    FN(ac_io_pjei_req_secplug_check_systemplug, wl_acio_true),
+    FN(ac_io_pjei_req_get_control_status, wl_acio_true),
+    FN(ac_io_pjei_control_reset, wl_acio_true),
+    FN(ac_io_pjei_set_watchdog_time, wl_acio_true),
+    FN(ac_io_pjei_req_secplug_missing_check, wl_acio_true),
+    FN(ac_io_pjei_req_secplug_missing_check_isfinished, wl_acio_secplug_missing_check_isfinished),
     FN(ac_io_pjei_get_softwareid, pjei_get_softwareid),
-    FN(ac_io_pjei_get_systemid, pjei_get_systemid),
+    FN(ac_io_pjei_get_systemid, wl_acio_get_systemid),
     FN(ac_io_pjei_get_watchdog_status, acio_zero),
-    FN(ac_io_pjei_get_coin_slot_noise_flag, acio_false),
-    FN(ac_io_pjei_reset_coin_slot_noise_flag, acio_true),
-    FN(ac_io_pjei_lock_coincounter, acio_true),
-    FN(ac_io_pjei_unlock_coincounter, acio_true),
-    FN(ac_io_pjei_control_coin_blocker_on, acio_true),
-    FN(ac_io_pjei_control_coin_blocker_off, acio_true),
+    FN(ac_io_pjei_get_coin_slot_noise_flag, wl_acio_false),
+    FN(ac_io_pjei_reset_coin_slot_noise_flag, wl_acio_true),
+    FN(ac_io_pjei_lock_coincounter, wl_acio_true),
+    FN(ac_io_pjei_unlock_coincounter, wl_acio_true),
+    FN(ac_io_pjei_control_coin_blocker_on, wl_acio_true),
+    FN(ac_io_pjei_control_coin_blocker_off, wl_acio_true),
     FN(ac_io_pjei_control_lamp_bright, pjei_control_lamp_bright),
     FN(ac_io_pjei_control_lamp_mode, pjei_control_lamp_mode),
     FN(ac_io_pjei_control_lamp_on, pjei_control_lamp_on),
     FN(ac_io_pjei_control_lamp_off, pjei_control_lamp_off),
     FN(ac_io_pjei_control_parallel_on, pjei_control_parallel),
     FN(ac_io_pjei_control_parallel_off, pjei_control_parallel),
-    FN(ac_io_icca_cardunit_init, acio_true),
-    FN(ac_io_icca_cardunit_init_isfinished, icca_cardunit_init_isfinished),
-    FN(ac_io_icca_req_uid, acio_true),
+    FN(ac_io_icca_cardunit_init, wl_acio_true),
+    FN(ac_io_icca_cardunit_init_isfinished, wl_acio_icca_cardunit_init_isfinished),
+    FN(ac_io_icca_req_uid, wl_acio_true),
     FN(ac_io_icca_req_uid_isfinished, icca_req_uid_isfinished),
     FN(ac_io_icca_get_uid, icca_get_uid),
     FN(ac_io_icca_get_uid_felica, icca_get_uid_felica),
     FN(ac_io_icca_workflow, icca_workflow),
     FN(ac_io_icca_get_status, icca_get_status),
-    FN(ac_io_icca_crypt_init, acio_true),
-    FN(ac_io_icca_device_control_iccard_power_supply_on, acio_true),
-    FN(ac_io_icca_device_control_iccard_power_supply_off, acio_true),
-    FN(ac_io_icca_device_control_isfinished, acio_true),
+    FN(ac_io_icca_crypt_init, wl_acio_true),
+    FN(ac_io_icca_device_control_iccard_power_supply_on, wl_acio_true),
+    FN(ac_io_icca_device_control_iccard_power_supply_off, wl_acio_true),
+    FN(ac_io_icca_device_control_isfinished, wl_acio_true),
     FN(ac_io_icca_get_keep_alive_error, icca_keep_alive_error),
     FN(ac_io_icca_send_keep_alive_packet, acio_zero),
 };
@@ -712,24 +565,24 @@ static const WlVirtualDllFunction g_acio[] = {
 static const WlVirtualDllFunction g_td4io[] = {
     ACIO_BUS,
     FN(ac_io_d44h_set_senddata, d44h_set_senddata),
-    FN(ac_io_d44h_update_recvdata, acio_true),
+    FN(ac_io_d44h_update_recvdata, wl_acio_true),
     FN(ac_io_d44h_get_recvdata, d44h_get_recvdata),
     FN(ac_io_d44h_directreq_sendandrecv, d44h_directreq_sendandrecv),
     FN(ac_io_d44h_directreq_set_handle_limit, d44h_set_handle_limit),
     FN(ac_io_d44h_directreq_set_handle_limit_isfinished, d44h_set_handle_limit_isfinished),
-    FN(ac_io_d44s_directreq_initialize, acio_false),
-    FN(ac_io_d44s_directreq_selfdiagnosis, acio_false),
-    FN(ac_io_d44s_directreq_gamestart, acio_false),
-    FN(ac_io_d44s_directreq_gameover, acio_false),
-    FN(ac_io_d44s_directreq_shockstrong, acio_false),
-    FN(ac_io_d44s_directreq_shockmild, acio_false),
-    FN(ac_io_d44s_directreq_isfinished, acio_false),
-    FN(ac_io_d44s_update_recvstatusdata, acio_false),
+    FN(ac_io_d44s_directreq_initialize, wl_acio_false),
+    FN(ac_io_d44s_directreq_selfdiagnosis, wl_acio_false),
+    FN(ac_io_d44s_directreq_gamestart, wl_acio_false),
+    FN(ac_io_d44s_directreq_gameover, wl_acio_false),
+    FN(ac_io_d44s_directreq_shockstrong, wl_acio_false),
+    FN(ac_io_d44s_directreq_shockmild, wl_acio_false),
+    FN(ac_io_d44s_directreq_isfinished, wl_acio_false),
+    FN(ac_io_d44s_update_recvstatusdata, wl_acio_false),
     FN(ac_io_d44s_get_statusdata, d44s_get_data),
-    FN(ac_io_d44s_directreq_getstatusdata, acio_false),
-    FN(ac_io_d44s_update_recvdiagnosisdata, acio_false),
+    FN(ac_io_d44s_directreq_getstatusdata, wl_acio_false),
+    FN(ac_io_d44s_update_recvdiagnosisdata, wl_acio_false),
     FN(ac_io_d44s_get_diagnosisdata, d44s_get_data),
-    FN(ac_io_d44s_directreq_getdiagnosisdata, acio_false),
+    FN(ac_io_d44s_directreq_getdiagnosisdata, wl_acio_false),
 };
 
 // ------------------------------------------------------------------------------
@@ -813,6 +666,7 @@ int wl_game_thrilldrive4(const wchar_t *exePath, const char **name, const char *
         return 0;
     *name = "td4";
     *title = "Thrill Drive 4: Crazy Streets";
+    wl_acio_name("thrill drive 4");
     HMODULE exe = GetModuleHandleW(NULL);
     wl_log("game: %s (Konami PC, CRC-32 %08lX)", *title, wl_game_exe_crc32());
     wl_game_set_boards("Controls on Konami ACIO board \"PJEI\" (libacio.dll: buttons, wheel, pedals)",

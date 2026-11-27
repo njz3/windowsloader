@@ -13,9 +13,9 @@ its hardware ([MinHook](https://github.com/TsudaKageyu/minhook)).
 
 The games it plays, one line per version told apart (the picker's table, `src/launcher/gamelist.cpp`;
 `windowsloader.exe --list-games` prints it with each program's CRC-32; game by game:
-[BILAN.md](BILAN.md)). Version "—": the copies do not tell it, the one played is the Racecab
-cabinets'. CRC32: that of the program the Racecab cabinets launch, the one known to play (named
-when the game has several); "—": not on the cabinets. For information, except for the Raw Thrills
+[BILAN.md](BILAN.md)). Version "—": the copies do not tell it, the one played is the known
+copies'. CRC32: that of the known copy's program, the one known to play (named
+when the game has several); "—": not known. For information, except for the Raw Thrills
 games (all of them `sdaemon.exe`), Crazy Speed Arcade and Road Fighters 3D, which windowsloader tells
 apart by their program's CRC32. Status "plays": checked in agent mode; "with reservations": something is left
 (BILAN.md); "in progress": does not play yet. Force feedback and link: "partly" when not all of it
@@ -144,7 +144,7 @@ windowsloader               (alone: the game picker)
                            file already there (default: [Paths] SEED_DIR of the settings file)
   --list-games     the games windowsloader knows, one line per program it takes: the game, its
                    short name, its version, its force feedback and its link between cabinets
-                   (yes, partly, no), the program, the program's CRC32 in the cabinets' copies
+                   (yes, partly, no), the program, the program's CRC32 in the known copies
                    ("--------" when not known)
 ```
 
@@ -161,7 +161,7 @@ The log itself gives each error's calls too (`calls:`).
 
 The short name is the game's in the settings (`[Game.<name>]`, `<name>.ini`) and in the write folder
 (`WRITE_DIR\<name>`). Daytona Championship USA's two editions are `daytona3` and `daytona3nse`, the
-cabinets' names. The CRC32 is that of the cabinets' copies, for information only: a program
+cabinets' names. The CRC32 is that of the known copies, for information only: a program
 with another CRC32 is recognized and played all the same (a game is told by its program's name, the
 files beside it and, for a few, the program's time stamp).
 
@@ -180,8 +180,8 @@ by their program's build date) is listed as "version not supported". Enter or a 
 click to play. The game runs through `windowsloader.exe` again, its log in `windowsloader.log` next
 to the launcher, and the picker comes back when it ends. The games folder is `[Launcher] GAMES_DIR` of
 `windowsloader.ini` (relative to the launcher's folder, or a full path), else a `games` folder next
-to the launcher or one or two levels up (`C:\Racecab\Games` for
-`C:\Racecab\Emulators\windowsloader`); its field at the top of the picker (typed, Enter to take it) or its "Choisir..." button picks another and saves
+to the launcher or one or two levels up (`C:\Arcade\Games` for
+`C:\Arcade\Emulators\windowsloader`); its field at the top of the picker (typed, Enter to take it) or its "Choisir..." button picks another and saves
 it there. Each of its folders is a game when a program windowsloader knows is found in it, six
 levels down at most (the table is `src/launcher/gamelist.cpp`). A picture shows when the folder has
 `snap`, `title`, `art`, `cover` or its own name as `.png` or `.jpg`. Arrows or a gamepad to choose,
@@ -209,8 +209,8 @@ keys and meanings: `ASPECT_RATIO` (`ORIGINAL`; `4:3`, `16:9`, `4:3_LETTERBOX`: t
 that frame, black bars; `4:3_STRETCH`, `16:9_STRETCH`: the frame filled, deformed; `4:3_CROP`,
 `16:9_CROP`: the frame filled, the picture cut), `CROP_POSITION` (-100 left or top to 100),
 `CROP_BARREL` (the cut parts bent onto the edges, as on a cylinder; with `PRESENT = GDI` only),
-`BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `PRESENT` (`DIRECT`, the default since
-28/10/2026: the game presents its own picture; `GDI`: windowsloader reads each frame back and draws it
+`BARREL_CENTER` and `BARREL_RADIUS` (in % of the frame), `PRESENT` (`DIRECT`, the default:
+the game presents its own picture; `GDI`: windowsloader reads each frame back and draws it
 into the window, much slower, for a PC that shows nothing of `DIRECT`, such as a laptop whose screen
 is on another graphics chip than the game's), `SHOW_FRAME` (`true`: the number of the frame
 presented in the window's title, beside the frames per second, 4 times a second; a game that stops
@@ -337,24 +337,23 @@ Showdown (`[Game.showdown]`), Sega Rally 3 (`[Game.segarally3]`, cabinets 1 to 4
 (`[Game.grid]`, cabinets 1 to 6, 1 hosts; its discovery server's territory and track pack, none, made the searches' 0), Wasteland Racers 2071 (`[Game.wasteland]`, the lowest
 address hosts, its race in DirectPlay) , Sonic & Sega All-Stars Racing (`[Game.ssasr]`: the game
 gives itself 192.168.88.<its test menu's CABINET ID>, translated to `LINK`'s PCs, so that CABINET
-ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS; raced on the cabinets), Sega Racing Classic (`[Game.src]`: `PALETTE_FIX`, true by default, its shader reading its colour RAM in the middle of a texel, without the red specks of NVIDIA boards; its 192.168.75.k
+ID must be the cabinet's place in `LINK`, set in gametest.exe's GAME ASSIGNMENTS), Sega Racing Classic (`[Game.src]`: `PALETTE_FIX`, true by default, its shader reading its colour RAM in the middle of a texel, without the red specks of NVIDIA boards; its 192.168.75.k
 are `LINK`'s PCs; its test menu's GAME ASSIGNMENTS: cabinet 1 MAIN, TOTAL NODES the count, cabinet
-k SUB with CAR NUMBER k, set twice on a blank save; raced on the cabinets), K.O. Drive
+k SUB with CAR NUMBER k, set twice on a blank save), K.O. Drive
 (`[Game.kodrive]`, 2 to 6 cabinets: its 192.168.99.k of group A are `LINK`'s PCs, its LINK ID,
 TOTAL MACHINE and GROUP ID taken from `LINK`, nothing to set in its test menu; cabinet 1 leads the
-race; UDP 11882; raced on the cabinets), Storm Rider (`[Game.stormrider]`, up to 4 bikes: a broadcast
+race; UDP 11882), Storm Rider (`[Game.stormrider]`, up to 4 bikes: a broadcast
 on UDP 9000, then TCP 5001 and UDP 5002; the first to start a race serves it; raced on the
 cabinets), Storm Racer G
-(`[Game.srg]`, up to 8: its multicast group 234.7.7.7 on UDP 5002, sent to each PC of `LINK`;
-raced on the cabinets),
+(`[Game.srg]`, up to 8: its multicast group 234.7.7.7 on UDP 5002, sent to each PC of `LINK`),
 Crazy Ride (`[Game.crazyride]`: `Plugins\McastUDP.dll`'s multicast 234.2.2.1 on UDP 8888, sent to
 each PC of `LINK`; linked, its `bEnableOnline` setting is read true, for its matching screen,
-and its ping answered; raced on the cabinets), Wangan Midnight Maximum Tune 5, 5 DX+ and 6
+and its ping answered), Wangan Midnight Maximum Tune 5, 5 DX+ and 6
 (`[Game.wmmt5]`, `[Game.wmmt5dxp]`, `[Game.wmmt6]`: cabinet k is 192.168.92.(10+k) to the game, its
 board ID k − 1 and its key serial its own, nothing to set in the test menu; its announcements to the
 group 225.0.0.1 on UDP 50765 are sent to each PC of `LINK`, its own included, as the group's loopback
 does; a player accepts VS in "Select VS acceptance", another one starting on a second cabinet is asked
-"Challenge other racers?", YES with the wheel held right; raced on the cabinets) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
+"Challenge other racers?", YES with the wheel held right) — and Battle Gear 4 and 4 Tuned (`[Game.bg4eng]`, `[Game.bg4]`: its
 MACHINE NO from `LINK`) find their cabinets on their network by a broadcast, then talk to each
 other's addresses: `LINK` lists the cabinets' PCs (up to 8, the same line on each), `CABINET` is
 found from it (or set). Their traffic goes between those PCs only, at their real addresses: a
@@ -370,8 +369,8 @@ the firewall let the game in.
 Ford Racing's `CabinetPostion` and Showdown's
 `[Network] CabinetID` are read from `LINK` and `CABINET`; GTI Club's CABINET ID is its test
 menu's (NETWORK OPTIONS), different on each cabinet. The log traces the link (each bind, connect
-and accept, the first packets with each PC on each port, the traffic every 10 s). The four raced
-two linked cabinets (racecab1 and 2); in Sega Rally 3, once a cabinet picks Quick Race, the other
+and accept, the first packets with each PC on each port, the traffic every 10 s). The four race
+two linked cabinets; in Sega Rally 3, once a cabinet picks Quick Race, the other
 presses Start within its countdown (about 15 s) to join.
 The Raw Thrills games (`[Game.<name>]`, up to 8 cabinets), Road Fighters 3D (`[Game.rf3d]`) and
 Crazy Speed Arcade (`[Game.crazyspeed]`, its LAN mode) link the same way, `LINK` and `CABINET` on
@@ -386,7 +385,7 @@ chosen on each cabinet, as Crazy Speed's IN-STORE TOURNAMENT (its GAME MODE, at 
 Raced linked on one PC (two games, 127.0.0.2 and .3): The Fast and the Furious, its Drift, Super
 Bikes 1 and 2, SuperCars, Nicktoons, Dirty Drivin', Cars, Batman, Road Fighters 3D and Crazy
 Speed, SnoCross (one cabinet starts, the other joins: "JOIN IN NOW!"); H2Overdrive's players
-find each other. On the cabinets (racecab1 and 2): all of them raced linked (Batman linked, its
+find each other. All of them race linked (Batman linked, its
 rival not seen yet). SuperCars, Super Bikes 2 and SnoCross read their machine ID (their prefs)
 from `CABINET`.
 Sega World Drivers Championship (`[Game.swdc]`) plays as a cabinet alone: the launcher starts
@@ -426,7 +425,7 @@ real screen. Crazy Ride and SWDC (Unreal Engine 4) refuse a screen under 640x480
 size: SWDC told 1280x720, its 16:9 picture; Crazy Ride told 1920x1080 (under that size it draws its 3D
 view at 4:3 in the left three quarters of its picture). Sonic & Sega All-Stars Racing looks for its
 `Settings.ini` size (1280x720) at 60 Hz among Direct3D 9's modes: the mode is added at 60 Hz and at the
-screen's rate. Tried on the cabinets at 512x384, 640x480, 1024x384, 1280x240 and 1920x1080.
+screen's rate. Tried at 512x384, 640x480, 1024x384, 1280x240 and 1920x1080.
 A size larger than the real screen is taken too (`VIRTUAL_DISPLAY = 2560x1440` on a 1920x1080 screen,
 or 1920x1080 on a CRT): a game that draws at the screen's size then draws at that one, its picture
 reduced on the real screen (a sharper picture, at the cost of the graphics card); written by hand in
@@ -449,7 +448,7 @@ folder or a full path. The Revo tracks found there (up to 24: tropical, canyon, 
 safari, arctic) are added to Quick Race, read from that folder (nothing copied); its track select then
 lists the environments first, then, the environment chosen, its tracks (Sega Rally 3's own first, then
 Revo's). A Revo track's time limits are those of the Sega Rally 3 track of its environment (Desert for
-safari, Alpine for arctic), its audio events too. For `Rally.exe` 9228B72E (the cabinets' editions)
+safari, Alpine for arctic), its audio events too. For `Rally.exe` 9228B72E (the known editions)
 only. Linked too (Quick Race): every cabinet votes on the tracks chosen, Revo's counted (the most
 chosen, on a tie Tropical, Canyon, Alpine then the Revo tracks in their list's order), and the track
 select's second page gets what is left of its 15 seconds (5 at least); the cabinets must have the same
@@ -637,8 +636,8 @@ the first time: change those, not the ones beside the launcher; when one beside 
 than its copy, its changes are not read and the launcher's console, the log and the top of the menu's
 "Jeu" page say so, as linuxloader does) and `windowsloader.log`; while it is in use, the "Jeu" page
 also says so with the folder the game's writes go to;
-`WRITE_DIR\<game>` what the game writes, under its full path (`C:\Racecab\Games\X\save.bin` is
-`WRITE_DIR\wmmt5\C\Racecab\Games\X\save.bin`), so a game writing above its program's folder or on a
+`WRITE_DIR\<game>` what the game writes, under its full path (`C:\Arcade\Games\X\save.bin` is
+`WRITE_DIR\wmmt5\C\Arcade\Games\X\save.bin`), so a game writing above its program's folder or on a
 drive redirected into it is taken too. The system's folders have their own: the user's AppData in
 `WRITE_DIR\<game>\appdata` (Roaming, Local, LocalLow), the temporary folder in `temp`, ProgramData in
 `programdata`, Windows' in `windows`, so a disk under a write filter (UWF) on everything but the write
@@ -652,7 +651,7 @@ place.
 The seed folder (`--seed-dir`, or `[Paths] SEED_DIR` of the same settings file as `WRITE_DIR`, the
 `windowsloader.ini` beside the launcher unless `-c` names another; relative to the launcher's folder
 or a full path; linuxloader's key and rule) holds, in `SEED_DIR\<game>`, the files a game's write
-folder starts with, in the write folder's own tree (`C\Racecab\Games\X\...`, `appdata\...`,
+folder starts with, in the write folder's own tree (`C\Arcade\Games\X\...`, `appdata\...`,
 `programdata\...`). At the game's start, before it reads anything, each of them absent from
 `WRITE_DIR\<game>` is copied there; a file already there is never replaced. The log says how many
 were seeded, or that `SEED_DIR\<game>` is not there. It is only used with a write folder that can

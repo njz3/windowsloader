@@ -15,9 +15,11 @@
 
 #include <windows.h>
 
-// The games windowsloader plays, for the picker: told apart the way their modules recognize them
-// (src/hook/games/*.cpp), by the program's name, files beside it and, for a few (Battle Gear 4's
-// two, Initial D Zero's versions), the program's time stamp. To keep in step with the modules.
+// The games windowsloader plays, for the picker and the launcher (--list-games, a game's folder, the
+// cabinet's arguments): told apart the way their modules recognize them (src/hook/games/*.cpp), by
+// the program's name, files beside it and, for a few, the program's time stamp (Battle Gear 4's two,
+// Initial D Zero's versions) or its CRC-32 (byCrc: Raw Thrills' sdaemon.exe). To keep in step with
+// the modules.
 
 enum
 {
@@ -41,10 +43,11 @@ struct WlKnownGame
     const char *version;       // "" when the copies do not tell it
     const wchar_t *exes[3];    // the program's names (a .dll: a Konami AVS game's, run in the launcher's wl_avsboot.exe)
     DWORD crc32[3];            // each one's CRC-32 in the known copies (zip's), 0 when not known: shown
-                               // by --list-games only, never checked (another program is played the same)
+                               // by --list-games, checked only with byCrc (otherwise another program
+                               // of that name is played the same)
     const wchar_t *markers[3]; // files that must be there, from the program's folder
     DWORD stamp;               // the program's PE time stamp, 0 for any
-    const wchar_t *args;       // the arguments the cabinet gives it, NULL for none
+    const wchar_t *args;       // the arguments the cabinet gives it, NULL for none (added by the launcher)
     const char *platform;
     const char *year;
     int state;
@@ -67,3 +70,15 @@ const WlKnownGame *wl_known_game(const wchar_t *exePath, int *otherVersion);
 // The versions of the table's entries of that game (the same name), "1.10, 1.18": unnumbered the
 // ones whose copies do not tell theirs. Returns 0 when none is numbered
 int wl_known_versions(const WlKnownGame *game, const char *unnumbered, char *buf, size_t size);
+
+// A program's PE header, read from its file: its file header's fields and its optional header's
+// subsystem (at the same place in a 32-bit and a 64-bit one)
+typedef struct
+{
+    WORD machine;         // IMAGE_FILE_MACHINE_I386, _AMD64...
+    DWORD timeDateStamp;  // the link's time stamp
+    WORD characteristics; // IMAGE_FILE_DLL, IMAGE_FILE_LARGE_ADDRESS_AWARE...
+    WORD subsystem;       // IMAGE_SUBSYSTEM_WINDOWS_GUI, _CUI...
+} WlPeHeader;
+// 1 when read, 0 when the file is not a PE file, -1 when it cannot be opened
+int wl_pe_header(const wchar_t *path, WlPeHeader *pe);

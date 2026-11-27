@@ -16,8 +16,9 @@
 // functions replace the import table's entries, the board is never opened. Read in usb_io.dll:
 //   UsbIO_InitSystem(n)        > 0 when the board answers (the game tries n = 0 and 1)
 //   UsbIO_GetInputdata(data)   12 bytes: two words of buttons, then four analog bytes, the wheel
-//                              (centre 0x80), the accelerator, the brake and the boost lever (a
-//                              button when below SetBoostThreshold's value: second word bit 2).
+//                              (centre 0x80), the accelerator, the brake and the boost lever
+//                              (pressed below SetBoostThreshold's value, which is not kept: sent
+//                              as 0 when pressed, else 0xFF, with the second word's bit 2 set).
 //                              The game packs the words in one (+0x9f790): first word's bits
 //                              1 -> 0x200, 4 -> 0x100, 8 -> 0x20, 0x10 -> 0x40; the second's as they are
 //   UsbIO_ReadSysCoins(slot)   the board's coin counter (the same for every slot);
@@ -123,7 +124,7 @@ struct SteeringStatus
     int unknown, unknown2, strength, low, high, mode;
 };
 
-static volatile LONG g_coins, g_boostThreshold = 0x80, g_motorPower = 100;
+static volatile LONG g_coins, g_motorPower = 100;
 static volatile LONG g_strength, g_low = 0x7f, g_high = 0x80;
 
 // The motor holds the wheel in its window with its strength: a spring towards the window's middle
@@ -240,9 +241,9 @@ static void __cdecl io_SetMoterVolt(int volts)
         wl_log("storm racer: motor power %d", volts);
 }
 
-static void __cdecl io_SetBoostThreshold(int threshold)
+// The lever is sent fully pressed or released (io_GetInputdata): any threshold is crossed
+static void __cdecl io_SetBoostThreshold(int)
 {
-    InterlockedExchange(&g_boostThreshold, threshold);
 }
 
 // The outputs the board drives beyond the wheel: logged the first time

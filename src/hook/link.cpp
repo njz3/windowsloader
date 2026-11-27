@@ -65,20 +65,12 @@ int wl_link_cabinet(void)
     return g_cabinet;
 }
 
-static const char *ip_text(ULONG ip, char *buf, size_t size);
-
 int wl_link_address(int k, char *buf, size_t size)
 {
     if (k < 1 || k > g_count)
         return 0;
-    ip_text(g_address[k - 1], buf, size);
+    wl_ip_text(g_address[k - 1], buf, size);
     return 1;
-}
-
-static const char *ip_text(ULONG ip, char *buf, size_t size)
-{
-    snprintf(buf, size, "%lu.%lu.%lu.%lu", ip & 0xFF, ip >> 8 & 0xFF, ip >> 16 & 0xFF, ip >> 24);
-    return buf;
 }
 
 static void link_patch(HMODULE exe);
@@ -102,22 +94,24 @@ int wl_link_settings(HMODULE exe)
     }
     if (g_count && cabinet < 1)
     {
-        WSADATA wsa;
-        WSAStartup(MAKEWORD(2, 2), &wsa);
-        wl_busy_enter();
-        for (int i = 0; i < g_count && cabinet < 1; i++)
-        {
-            SOCKET t = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-            sockaddr_in a = {};
-            a.sin_family = AF_INET;
-            a.sin_addr.s_addr = g_address[i];
-            if (t != INVALID_SOCKET && !bind(t, (const sockaddr *)&a, sizeof a))
-                cabinet = i + 1;
-            if (t != INVALID_SOCKET)
-                closesocket(t);
-        }
+        // The first of LINK's addresses this PC's cards have, read from their table: called from
+        // DllMain, where Winsock must not be started (WSAStartup loads its providers)
+        typedef DWORD(WINAPI * Table)(PMIB_IPADDRTABLE, PULONG, BOOL);
+        wl_busy_enter(); // the PC's own table, not netenv.cpp's
+        HMODULE iphlp = GetModuleHandleW(L"iphlpapi.dll");
+        if (!iphlp)
+            iphlp = LoadLibraryW(L"iphlpapi.dll");
+        Table table = iphlp ? (Table)GetProcAddress(iphlp, "GetIpAddrTable") : NULL;
+        ULONG size = 0;
+        MIB_IPADDRTABLE *t = NULL;
+        if (table && table(NULL, &size, FALSE) == ERROR_INSUFFICIENT_BUFFER && (t = (MIB_IPADDRTABLE *)malloc(size)) != NULL &&
+            table(t, &size, FALSE) == NO_ERROR)
+            for (int i = 0; i < g_count && cabinet < 1; i++)
+                for (DWORD k = 0; k < t->dwNumEntries && cabinet < 1; k++)
+                    if (t->table[k].dwAddr == g_address[i] && !(t->table[k].wType & (MIB_IPADDR_DISCONNECTED | MIB_IPADDR_DELETED)))
+                        cabinet = i + 1;
+        free(t);
         wl_busy_leave();
-        WSACleanup();
         if (cabinet < 1)
             wl_log("link: none of LINK's addresses is this PC's (CABINET not set): the cabinet stays alone");
     }
@@ -131,7 +125,7 @@ int wl_link_settings(HMODULE exe)
     char t[20];
     if (g_count)
     {
-        wl_log("link: cabinet %d of %d, its PC %s; the game talks to LINK's PCs only", g_cabinet, g_count, ip_text(g_address[g_cabinet - 1], t, sizeof t));
+        wl_log("link: cabinet %d of %d, its PC %s; the game talks to LINK's PCs only", g_cabinet, g_count, wl_ip_text(g_address[g_cabinet - 1], t, sizeof t));
         link_patch(exe);
     }
     return g_count;
@@ -283,10 +277,10 @@ static void packet(const char *what, int pc, const sockaddr_in *peer, SOCKET s, 
     while (data && text < n && text < 80 && data[text] >= 0x20 && data[text] < 0x7F)
         text++;
     if (text >= 8 && (text == n || text == 80 || !data[text]))
-        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes \"%.*s\"", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t),
+        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes \"%.*s\"", what, pc, wl_ip_text(peer->sin_addr.s_addr, t, sizeof t),
                ntohs(peer->sin_port), ntohs(me.sin_port), n, text, data);
     else
-        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes %s", what, pc, ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
+        wl_log("link: %s cabinet %d (%s:%u), local port %u: %d bytes %s", what, pc, wl_ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
                ntohs(me.sin_port), n, hex);
 }
 
@@ -301,7 +295,7 @@ static void refused(const char *what, const sockaddr_in *a)
     static volatile LONG logged;
     char t[20];
     if (InterlockedIncrement(&logged) <= 30)
-        wl_log("link: %s %s:%u refused: not a PC of LINK", what, ip_text(a->sin_addr.s_addr, t, sizeof t), ntohs(a->sin_port));
+        wl_log("link: %s %s:%u refused: not a PC of LINK", what, wl_ip_text(a->sin_addr.s_addr, t, sizeof t), ntohs(a->sin_port));
 }
 
 // TCP sockets with a PC of LINK, for the counts and the ends
@@ -403,8 +397,8 @@ static ULONG link_broadcast(void)
         free(t);
     }
     char a[20], b[20];
-    wl_log("link: this PC's card of LINK (%s): its network's broadcast %s", ip_text(g_address[g_cabinet - 1], a, sizeof a),
-           found ? ip_text(found, b, sizeof b) : "not found");
+    wl_log("link: this PC's card of LINK (%s): its network's broadcast %s", wl_ip_text(g_address[g_cabinet - 1], a, sizeof a),
+           found ? wl_ip_text(found, b, sizeof b) : "not found");
     return found;
 }
 
@@ -501,7 +495,7 @@ static int WSAAPI l_bind(SOCKET s, const sockaddr *a, int len)
         if (!r && udp)
             udp_bound(s, port);
         char t[20], from[300];
-        wl_log("link: bind %s:%u -> %d (%lu), %s socket %Iu [%s]", ip_text(((const sockaddr_in *)a)->sin_addr.s_addr, t, sizeof t), port, r, r ? err : 0,
+        wl_log("link: bind %s:%u -> %d (%lu), %s socket %Iu [%s]", wl_ip_text(((const sockaddr_in *)a)->sin_addr.s_addr, t, sizeof t), port, r, r ? err : 0,
                udp ? "UDP" : "TCP", (ULONG_PTR)s, callers(WL_CALLER, from, sizeof from));
     }
     WSASetLastError(err);
@@ -559,7 +553,7 @@ static int WSAAPI l_connect(SOCKET s, const sockaddr *a, int len)
         static volatile LONG logged[LINK_MAX];
         char t[20];
         if (r == 0 || err == WSAEWOULDBLOCK || InterlockedIncrement(&logged[pc - 1]) <= 10)
-            wl_log("link: connect cabinet %d (%s:%u) -> %d (%lu)", pc, ip_text(to->sin_addr.s_addr, t, sizeof t), ntohs(to->sin_port), r, r ? err : 0);
+            wl_log("link: connect cabinet %d (%s:%u) -> %d (%lu)", pc, wl_ip_text(to->sin_addr.s_addr, t, sizeof t), ntohs(to->sin_port), r, r ? err : 0);
     }
     WSASetLastError(err);
     return r;
@@ -578,7 +572,7 @@ static SOCKET WSAAPI l_accept(SOCKET s, sockaddr *a, int *len)
     {
         int pc = pc_of(peer->sin_addr.s_addr);
         char t[20];
-        wl_log("link: accept %s:%u (%s)", ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port), pc ? "a PC of LINK" : "not of LINK");
+        wl_log("link: accept %s:%u (%s)", wl_ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port), pc ? "a PC of LINK" : "not of LINK");
         if (pc)
             socket_pc(r, pc);
         if (a)
@@ -609,7 +603,7 @@ static void WINAPI l_GetAcceptExSockaddrs(PVOID buffer, DWORD data, DWORD localS
     static volatile LONG logged;
     char t[20];
     if (InterlockedIncrement(&logged) <= 30)
-        wl_log("link: accepted %s:%u (AcceptEx, %s)", ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
+        wl_log("link: accepted %s:%u (AcceptEx, %s)", wl_ip_text(peer->sin_addr.s_addr, t, sizeof t), ntohs(peer->sin_port),
                pc ? "a PC of LINK" : "not of LINK");
     to_game(*remote);
 }
@@ -636,7 +630,7 @@ static int WSAAPI l_sendto(SOCKET s, const char *buf, int n, int flags, const so
         static volatile LONG toldGroup;
         char g[20];
         if (group && !InterlockedExchange(&toldGroup, 1))
-            wl_log("link: the game's multicast to %s:%u goes to each PC of LINK", ip_text(ip, g, sizeof g), port);
+            wl_log("link: the game's multicast to %s:%u goes to each PC of LINK", wl_ip_text(ip, g, sizeof g), port);
         if (network)
         {
             // Several of the game's sockets on that port (its own PC's, the others' the same):
@@ -717,7 +711,7 @@ static int WSAAPI l_recvfrom(SOCKET s, char *buf, int n, int flags, sockaddr *fr
         static volatile LONG logged;
         char t[20];
         if (InterlockedIncrement(&logged) <= 20)
-            wl_log("link: a datagram from %s (not a PC of LINK) not heard", ip_text(ip, t, sizeof t));
+            wl_log("link: a datagram from %s (not a PC of LINK) not heard", wl_ip_text(ip, t, sizeof t));
     }
 }
 
@@ -814,7 +808,7 @@ static hostent *WSAAPI l_gethostbyname(const char *name)
     static volatile LONG logged;
     char t[20];
     if (InterlockedIncrement(&logged) <= 3)
-        wl_log("link: gethostbyname(\"%s\"), this PC: %s alone", name, ip_text(address, t, sizeof t));
+        wl_log("link: gethostbyname(\"%s\"), this PC: %s alone", name, wl_ip_text(address, t, sizeof t));
     return &h;
 }
 
@@ -828,7 +822,7 @@ void wl_link_name_is_address(void)
     g_nameIsAddress = 1;
     char t[20];
     if (g_count)
-        wl_log("link: the PC's name, for the game, is its address of LINK (%s)", ip_text(own(), t, sizeof t));
+        wl_log("link: the PC's name, for the game, is its address of LINK (%s)", wl_ip_text(own(), t, sizeof t));
 }
 
 static int(WSAAPI *o_gethostname)(char *, int);
@@ -837,7 +831,7 @@ static int WSAAPI l_gethostname(char *name, int size)
     if (!g_count || !g_nameIsAddress || !name)
         return o_gethostname(name, size);
     char t[20];
-    ip_text(own(), t, sizeof t);
+    wl_ip_text(own(), t, sizeof t);
     if (size <= (int)strlen(t))
     {
         WSASetLastError(WSAEFAULT);
@@ -882,7 +876,7 @@ static DWORD WINAPI l_GetAdaptersInfo(PIP_ADAPTER_INFO info, PULONG size)
     if (r != NO_ERROR || !g_count || !info)
         return r;
     char t[20];
-    ip_text(own(), t, sizeof t);
+    wl_ip_text(own(), t, sizeof t);
     PIP_ADAPTER_INFO mine = NULL;
     int n = 0;
     for (PIP_ADAPTER_INFO a = info; a; a = a->Next, n++)
@@ -945,7 +939,7 @@ static ULONG WINAPI l_GetAdaptersAddresses(ULONG family, ULONG flags, PVOID rese
     static volatile LONG logged;
     char t[20];
     if (InterlockedIncrement(&logged) <= 3)
-        wl_log("link: the PC's cards (GetAdaptersAddresses): the one of %s shown%s, of %d", ip_text(own(), t, sizeof t), list->Next ? " and the loopback" : "", n);
+        wl_log("link: the PC's cards (GetAdaptersAddresses): the one of %s shown%s, of %d", wl_ip_text(own(), t, sizeof t), list->Next ? " and the loopback" : "", n);
     return r;
 }
 
@@ -1024,7 +1018,7 @@ static int WSAAPI l_WSASendTo(SOCKET s, LPWSABUF bufs, DWORD n, LPDWORD sent, DW
         static volatile LONG logged;
         char t[20];
         if (InterlockedIncrement(&logged) <= 30)
-            wl_log("link: DirectPlay sent to %s:%u (%s): %lu bytes -> %d (%lu)", ip_text(in->sin_addr.s_addr, t, sizeof t), ntohs(in->sin_port),
+            wl_log("link: DirectPlay sent to %s:%u (%s): %lu bytes -> %d (%lu)", wl_ip_text(in->sin_addr.s_addr, t, sizeof t), ntohs(in->sin_port),
                    broadcast(in->sin_addr.s_addr) ? "a broadcast" : local(in->sin_addr.s_addr) ? "this PC" : "not a PC of LINK", bufs[0].len, r,
                    r ? err : 0);
     }

@@ -57,7 +57,7 @@ int wl_camera_devices(char names[][128], int max)
                     VARIANT v;
                     VariantInit(&v);
                     if (SUCCEEDED(bag->Read(L"FriendlyName", &v, NULL)) && v.vt == VT_BSTR && v.bstrVal)
-                        WideCharToMultiByte(CP_UTF8, 0, v.bstrVal, -1, names[n], 128, NULL, NULL);
+                        wl_u8(v.bstrVal, names[n], 128); // a longer name is cut
                     VariantClear(&v);
                     bag->Release();
                 }

@@ -11,10 +11,12 @@
 // Code taken from MAME, linuxloader, sm2-emu, Flycast or segatools stays under the license of
 // its own project; such code is marked with its origin.
 
-// The picture is placed by Present itself: the swap chain is made a COPY one (it takes a
-// destination rectangle), the window takes the mode's style and size, and the parts of the
-// client area outside the picture are painted black. A multisampled back buffer cannot be
-// presented that way: the picture then fills the window (the window still has the aspect ratio
+// The game's window takes the mode's style and size, and the parts of its client area outside the
+// picture are painted black. The picture is placed by Direct3D 9's Present itself (the swap chain
+// made a COPY one, which takes a destination rectangle), by a child window the DXGI swap chain
+// presents into (Direct3D 10 and 11), or copied by windowsloader ([Display] PRESENT = GDI, and an
+// OpenGL game drawing in windowsloader's framebuffer). A multisampled Direct3D 9 back buffer cannot
+// be presented that way: the picture then fills the window (the window still has the aspect ratio
 // in WINDOW mode).
 
 #include <windows.h>
@@ -56,8 +58,16 @@ static volatile LONG g_toggle;     // Alt+Enter: window <-> full screen
 static volatile LONG g_repaint;    // the black bars must be painted again
 
 static HWND g_wnd;
-static WNDPROC g_proc;
-static int g_unicode;
+// The windows whose procedure is display_wndproc, each with the one it replaced: a game that makes
+// its device again on another window keeps F11, KEEP_ACTIVE and the menu's keys there; a window
+// destroyed is let go (WM_NCDESTROY)
+static struct
+{
+    HWND wnd;
+    WNDPROC proc;
+    int unicode;
+} g_procs[8];
+static SRWLOCK g_procsLock = SRWLOCK_INIT;
 static int g_bbW, g_bbH;           // the game's picture
 static int g_copy;                 // the swap chain takes a destination rectangle
 static HWND g_child;               // or it shows the picture in this child window (Direct3D 11)
@@ -527,18 +537,19 @@ void wl_display_set_internal(int width, int height)
 // Placing the window and the picture
 // ------------------------------------------------------------------------------
 
-// Shape of the frame the picture is shown in
-// The picture is placed by windowsloader (else it fills the window whatever the layout)
+// A DXGI swap chain shows the picture, in windowsloader's child window
 int wl_display_dxgi_shown(void)
 {
     return g_child != NULL;
 }
 
+// The picture is placed by windowsloader (else it fills the window whatever the layout)
 static int placed(void)
 {
     return g_copy || g_child || g_gdi;
 }
 
+// Shape of the frame the picture is shown in
 static double frame_aspect(void)
 {
     int a = g_aspect;
@@ -999,6 +1010,89 @@ static void log_window_event(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     wl_log("display: window %p: %s%s, in front %s", (void *)h, what, extra, front);
 }
 
+// The procedure display_wndproc replaced in this window; NULL when windowsloader has not taken it
+static WNDPROC original_proc(HWND h, int *unicode)
+{
+    WNDPROC proc = NULL;
+    AcquireSRWLockShared(&g_procsLock);
+    for (int i = 0; i < (int)(sizeof g_procs / sizeof g_procs[0]); i++)
+        if (g_procs[i].wnd == h)
+        {
+            proc = g_procs[i].proc;
+            if (unicode)
+                *unicode = g_procs[i].unicode;
+            break;
+        }
+    ReleaseSRWLockShared(&g_procsLock);
+    return proc;
+}
+
+static void forget_proc(HWND h)
+{
+    AcquireSRWLockExclusive(&g_procsLock);
+    for (int i = 0; i < (int)(sizeof g_procs / sizeof g_procs[0]); i++)
+        if (g_procs[i].wnd == h)
+        {
+            g_procs[i].wnd = NULL;
+            g_procs[i].proc = NULL;
+        }
+    ReleaseSRWLockExclusive(&g_procsLock);
+}
+
+static LRESULT call_original(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    int unicode = 0;
+    WNDPROC proc = original_proc(h, &unicode);
+    if (!proc)
+        return IsWindowUnicode(h) ? DefWindowProcW(h, msg, wp, lp) : DefWindowProcA(h, msg, wp, lp);
+    LRESULT r = unicode ? CallWindowProcW(proc, h, msg, wp, lp) : CallWindowProcA(proc, h, msg, wp, lp);
+    if (msg == WM_NCDESTROY)
+        forget_proc(h); // its handle may be another window's later
+    return r;
+}
+
+static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp);
+
+// The window's procedure taken (display_wndproc), once per window
+static int take_proc(HWND wnd)
+{
+    if (original_proc(wnd, NULL))
+        return 1;
+    int unicode = IsWindowUnicode(wnd);
+    WNDPROC cur = (WNDPROC)(unicode ? GetWindowLongPtrW(wnd, GWLP_WNDPROC) : GetWindowLongPtrA(wnd, GWLP_WNDPROC));
+    int slot = -1;
+    AcquireSRWLockExclusive(&g_procsLock);
+    for (int i = 0; i < (int)(sizeof g_procs / sizeof g_procs[0]) && slot < 0; i++)
+        if (!g_procs[i].wnd)
+        {
+            slot = i;
+            g_procs[i].proc = cur; // kept before the window's first message to display_wndproc
+            g_procs[i].unicode = unicode;
+            g_procs[i].wnd = wnd;
+        }
+    ReleaseSRWLockExclusive(&g_procsLock);
+    if (slot < 0)
+    {
+        wl_log("display: window %p's procedure not taken (too many windows)", wnd);
+        return 0;
+    }
+    WNDPROC was = (WNDPROC)(unicode ? SetWindowLongPtrW(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc)
+                                    : SetWindowLongPtrA(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc));
+    if (!was)
+    {
+        forget_proc(wnd);
+        wl_log("display: window %p's procedure not taken (error %lu)", wnd, GetLastError());
+        return 0;
+    }
+    if (was != cur)
+    {
+        AcquireSRWLockExclusive(&g_procsLock);
+        g_procs[slot].proc = was; // changed meanwhile
+        ReleaseSRWLockExclusive(&g_procsLock);
+    }
+    return 1;
+}
+
 static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     LRESULT result;
@@ -1096,7 +1190,7 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     // its cabinet's screen) gets Windows' own limits back
     if (msg == WM_GETMINMAXINFO && lp)
     {
-        LRESULT r = g_unicode ? CallWindowProcW(g_proc, h, msg, wp, lp) : CallWindowProcA(g_proc, h, msg, wp, lp);
+        LRESULT r = call_original(h, msg, wp, lp);
         MINMAXINFO *mm = (MINMAXINFO *)lp;
         mm->ptMaxTrackSize.x = GetSystemMetrics(SM_CXMAXTRACK);
         mm->ptMaxTrackSize.y = GetSystemMetrics(SM_CYMAXTRACK);
@@ -1105,9 +1199,9 @@ static LRESULT CALLBACK display_wndproc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         return r;
     }
     // The game sees its window at its picture's size (as by GetClientRect above)
-    if (msg == WM_SIZE && wp != SIZE_MINIMIZED && g_bbW > 0 && g_bbH > 0)
+    if (msg == WM_SIZE && h == g_wnd && wp != SIZE_MINIMIZED && g_bbW > 0 && g_bbH > 0)
         lp = MAKELPARAM(g_bbW, g_bbH);
-    return g_unicode ? CallWindowProcW(g_proc, h, msg, wp, lp) : CallWindowProcA(g_proc, h, msg, wp, lp);
+    return call_original(h, msg, wp, lp);
 }
 
 // ------------------------------------------------------------------------------
@@ -1280,13 +1374,15 @@ void wl_display_window(HWND wnd, int width, int height)
         g_bbW = r.right;
         g_bbH = r.bottom;
     }
-    if (!g_proc)
+    if (!original_proc(wnd, NULL))
     {
-        g_applyMsg = RegisterWindowMessageW(L"windowsloader apply display mode");
-        g_unicode = IsWindowUnicode(wnd);
-        g_proc = (WNDPROC)(g_unicode ? SetWindowLongPtrW(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc)
-                                     : SetWindowLongPtrA(wnd, GWLP_WNDPROC, (LONG_PTR)display_wndproc));
-        focus_start();
+        static int started;
+        if (!started)
+            g_applyMsg = RegisterWindowMessageW(L"windowsloader apply display mode");
+        if (take_proc(wnd) && started)
+            wl_log("display: window %p's procedure taken too (the game's picture now in it)", wnd);
+        if (!started++)
+            focus_start();
     }
     apply_mode();
     focus_step();
@@ -1384,7 +1480,7 @@ const RECT *wl_display_dest(void)
     f11Was = f11;
     if (InterlockedExchange(&g_apply, 0))
     {
-        if (owns(g_wnd) || !g_proc)
+        if (owns(g_wnd) || !original_proc(g_wnd, NULL))
             apply_mode();
         else
             PostMessageW(g_wnd, g_applyMsg, 0, 0);

@@ -71,16 +71,34 @@ int wl_input_raw_of(const WlInput *in, double v)
     }
 }
 
+// The agent's hold and the controllers' write take the same lock: a controller that read its
+// value before the agent held the input cannot write it over the agent's
+static SRWLOCK g_holdLock = SRWLOCK_INIT;
+
 void wl_input_hold(WlInput *in, int raw)
 {
+    AcquireSRWLockExclusive(&g_holdLock);
     in->held = 1;
     InterlockedExchange(&in->raw, raw);
+    ReleaseSRWLockExclusive(&g_holdLock);
 }
 
 void wl_input_release(WlInput *in)
 {
+    AcquireSRWLockExclusive(&g_holdLock);
     in->held = 0;
     InterlockedExchange(&in->raw, in->rawRest);
+    ReleaseSRWLockExclusive(&g_holdLock);
+}
+
+int wl_input_set_unheld(WlInput *in, int raw)
+{
+    AcquireSRWLockExclusive(&g_holdLock);
+    int held = in->held;
+    if (!held)
+        InterlockedExchange(&in->raw, raw);
+    ReleaseSRWLockExclusive(&g_holdLock);
+    return !held;
 }
 
 void wl_inputs_release_all(void)

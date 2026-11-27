@@ -156,13 +156,15 @@ static BOOL(WINAPI *oEnumDisplaySettingsExA)(LPCSTR, DWORD, DEVMODEA *, DWORD);
 static BOOL(WINAPI *oEnumDisplaySettingsExW)(LPCWSTR, DWORD, DEVMODEW *, DWORD);
 static BOOL(WINAPI *oEnumDisplaySettingsA)(LPCSTR, DWORD, DEVMODEA *);
 static BOOL(WINAPI *oEnumDisplaySettingsW)(LPCWSTR, DWORD, DEVMODEW *);
+// The real answer, by the Ex function's original while the other's is not known yet (a module
+// claiming EnumDisplaySettingsA gives its original at its first call, maybe after an Ex call)
 static BOOL realA(DWORD mode, DEVMODEA *dm)
 {
-    return oEnumDisplaySettingsA(NULL, mode, dm);
+    return oEnumDisplaySettingsA ? oEnumDisplaySettingsA(NULL, mode, dm) : oEnumDisplaySettingsExA(NULL, mode, dm, 0);
 }
 static BOOL realW(DWORD mode, DEVMODEW *dm)
 {
-    return oEnumDisplaySettingsW(NULL, mode, dm);
+    return oEnumDisplaySettingsW ? oEnumDisplaySettingsW(NULL, mode, dm) : oEnumDisplaySettingsExW(NULL, mode, dm, 0);
 }
 
 // From system.cpp's SystemParametersInfo hook: SPI_GETWORKAREA, the whole virtual screen (Unreal
@@ -328,11 +330,6 @@ void wl_vscreen_settings(const char *value)
 // ------------------------------------------------------------------------------
 // Direct3D 9: the adapter's modes and its mode
 // ------------------------------------------------------------------------------
-
-static void **vtable_of(void *com)
-{
-    return *(void ***)com;
-}
 
 static UINT(STDMETHODCALLTYPE *oGetAdapterModeCount)(IDirect3D9 *, UINT, D3DFORMAT);
 static HRESULT(STDMETHODCALLTYPE *oEnumAdapterModes)(IDirect3D9 *, UINT, D3DFORMAT, UINT, D3DDISPLAYMODE *);

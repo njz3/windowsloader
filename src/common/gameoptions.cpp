@@ -423,6 +423,17 @@ const char *wl_game_options_table_of(const char *name, const char *version)
     return wl_game_options_table(name, &count) ? name : NULL;
 }
 
+int wl_parse_bool(const char *v, int def)
+{
+    if (!_stricmp(v, "true") || !_stricmp(v, "yes") || !_stricmp(v, "on"))
+        return 1;
+    if (!_stricmp(v, "false") || !_stricmp(v, "no") || !_stricmp(v, "off"))
+        return 0;
+    char *end;
+    long n = strtol(v, &end, 10);
+    return end == v ? def : n != 0;
+}
+
 void wl_game_option_normalize(const WlGameOption *o, const char *read, char *out, int size)
 {
     const char *v = read && read[0] ? read : o->def ? o->def : "";
@@ -431,17 +442,7 @@ void wl_game_option_normalize(const WlGameOption *o, const char *read, char *out
         snprintf(out, size, "%s", v);
         return;
     }
-    int on;
-    if (!_stricmp(v, "true") || !_stricmp(v, "yes") || !_stricmp(v, "on"))
-        on = 1;
-    else if (!_stricmp(v, "false") || !_stricmp(v, "no") || !_stricmp(v, "off"))
-        on = 0;
-    else
-    {
-        char *end;
-        long n = strtol(v, &end, 10);
-        on = end == v ? o->def && !_stricmp(o->def, "true") : n != 0;
-    }
+    int on = wl_parse_bool(v, o->def && !_stricmp(o->def, "true"));
     snprintf(out, size, "%s", on ? "true" : "false");
 }
 

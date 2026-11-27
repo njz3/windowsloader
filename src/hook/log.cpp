@@ -14,6 +14,7 @@
 #include <windows.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "hooks.h"
 #include "log.h"
@@ -141,5 +142,30 @@ const char *wl_u8(const wchar_t *w, char *buf, size_t size)
         int n = WideCharToMultiByte(CP_UTF8, 0, w, (int)units, buf, (int)size - 1, NULL, NULL);
         buf[n > 0 ? n : 0] = 0;
     }
+    return buf;
+}
+
+const char *wl_path_name(const char *path)
+{
+    const char *base = strrchr(path, '\\');
+    const char *slash = strrchr(path, '/');
+    if (slash && (!base || slash > base))
+        base = slash;
+    return base ? base + 1 : path;
+}
+
+const wchar_t *wl_path_name(const wchar_t *path)
+{
+    const wchar_t *base = wcsrchr(path, L'\\');
+    const wchar_t *slash = wcsrchr(path, L'/');
+    if (slash && (!base || slash > base))
+        base = slash;
+    return base ? base + 1 : path;
+}
+
+const char *wl_ip_text(unsigned long ip, char *buf, size_t size)
+{
+    const unsigned char *b = (const unsigned char *)&ip;
+    snprintf(buf, size, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
     return buf;
 }

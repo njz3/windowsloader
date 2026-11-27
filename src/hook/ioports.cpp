@@ -89,11 +89,7 @@ int wl_ioports_is_driver_dll(const char *name)
 {
     if (!name)
         return 0;
-    const char *base = strrchr(name, '\\');
-    const char *slash = strrchr(name, '/');
-    if (slash && (!base || slash > base))
-        base = slash;
-    base = base ? base + 1 : name;
+    const char *base = wl_path_name(name);
     return !_stricmp(base, "inpout32.dll") || !_stricmp(base, "inpout32") || !_stricmp(base, "inpout32_d.dll") || !_stricmp(base, "inpoutx64.dll");
 }
 

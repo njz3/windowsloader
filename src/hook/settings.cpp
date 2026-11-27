@@ -42,14 +42,6 @@ static struct
 } g_set[MAX_OVERRIDES];
 static int g_setCount;
 
-static const wchar_t *base_name(const wchar_t *path)
-{
-    const wchar_t *slash = wcsrchr(path, L'\\'), *other = wcsrchr(path, L'/');
-    if (other > slash)
-        slash = other;
-    return slash ? slash + 1 : path;
-}
-
 static int exists(const wchar_t *path)
 {
     return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
@@ -61,7 +53,7 @@ static int game_file_path(wchar_t *out)
     const char *name = wl_game_name();
     if (!g_file[0] || !name || !name[0] || !strcmp(name, "unknown"))
         return 0;
-    const wchar_t *base = base_name(g_file);
+    const wchar_t *base = wl_path_name(g_file);
     swprintf(out, MAX_PATH, L"%.*s%S.ini", (int)(base - g_file), g_file, name);
     return 1;
 }
@@ -73,8 +65,8 @@ static void parse_overrides(void)
     DWORD n = GetEnvironmentVariableW(WL_ENV_SET, all, 8192);
     if (!n || n >= 8192)
         return;
-    char text[16384];
-    WideCharToMultiByte(CP_UTF8, 0, all, -1, text, sizeof text, NULL, NULL);
+    char text[3 * 8192]; // 3 UTF-8 bytes at most per UTF-16 unit
+    wl_u8(all, text, sizeof text);
     for (char *line = strtok(text, "\n"); line; line = strtok(NULL, "\n"))
     {
         char *equals = strchr(line, '='), *dot = strchr(line, '.');
@@ -178,7 +170,7 @@ const wchar_t *wl_settings_launcher_file(void)
 
 int wl_settings_common(void)
 {
-    return g_file[0] && !_wcsicmp(base_name(g_file), L"windowsloader.ini");
+    return g_file[0] && !_wcsicmp(wl_path_name(g_file), L"windowsloader.ini");
 }
 
 void wl_settings_get(const char *section, const char *key, const char *def, char *out, size_t size)
@@ -197,7 +189,7 @@ void wl_settings_get(const char *section, const char *key, const char *def, char
     MultiByteToWideChar(CP_UTF8, 0, key, -1, k, 64);
     MultiByteToWideChar(CP_UTF8, 0, def, -1, d, 256);
     GetPrivateProfileStringW(s, k, d, v, 256, g_file);
-    WideCharToMultiByte(CP_UTF8, 0, v, -1, out, (int)size, NULL, NULL);
+    wl_u8(v, out, size); // cut to out's size, as the --set values above
 }
 
 int wl_settings_get_int(const char *section, const char *key, int def)
@@ -213,13 +205,7 @@ int wl_settings_get_bool(const char *section, const char *key, int def)
 {
     char v[64];
     wl_settings_get(section, key, "", v, sizeof v);
-    if (!_stricmp(v, "true") || !_stricmp(v, "yes") || !_stricmp(v, "on"))
-        return 1;
-    if (!_stricmp(v, "false") || !_stricmp(v, "no") || !_stricmp(v, "off"))
-        return 0;
-    char *end;
-    long n = strtol(v, &end, 10);
-    return end == v ? def : n != 0;
+    return wl_parse_bool(v, def);
 }
 
 int wl_settings_write(const wchar_t *file, const char *section, const char *key, const char *value)

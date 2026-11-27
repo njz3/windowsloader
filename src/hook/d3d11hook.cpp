@@ -112,11 +112,6 @@ static void hook_device(ID3D11Device *dev)
     wl_hook_code(vt[SLOT_DEVICE_CREATEBUFFER], (void *)hCreateBuffer, (void **)&oCreateBuffer, "ID3D11Device::CreateBuffer");
 }
 
-static void **vtable_of(void *com)
-{
-    return *(void ***)com;
-}
-
 static void log_desc(const char *what, const DXGI_SWAP_CHAIN_DESC *d)
 {
     if (!d)

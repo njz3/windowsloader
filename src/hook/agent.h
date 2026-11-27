@@ -20,9 +20,12 @@
 // on the pipe \\.\pipe\windowsloader-<pid>; the launcher relays its stdin and stdout to it.
 void wl_agent_init(void);
 
-// Frames presented so far, the size of the picture, and a picture of the next frame (Direct3D 9 games)
+// Frames presented so far and the size of the picture, whatever the renderer (Direct3D 9's own
+// Present, the others' through wl_frame_presented and wl_frame_size below)
 unsigned wl_d3d9_frames(void);
 void wl_d3d9_size(int *w, int *h);
+// A picture of the next frame, whatever the renderer (wl_shot_pending below): 1 when written in time
+int wl_d3d9_shot(const char *path, DWORD timeoutMs);
 
 // A game rendering above its own resolution whose 2D (pretransformed vertices, scissor rectangles)
 // stays placed for a w x h screen: that 2D is scaled to the back buffer
@@ -31,7 +34,6 @@ void wl_d3d9_scale_2d(int w, int h);
 // From the other renderers' Present hooks (Direct3D 11): the same frame counter and picture size
 void wl_frame_presented(void);
 void wl_frame_size(int w, int h);
-int wl_d3d9_shot(const char *path, DWORD timeoutMs);
 
 // The picture the agent asked for, taken by the other renderers: its path while one is pending,
 // then wl_shot_done with 1 when the file is written. Pixels are 32-bit, BGRX or RGBX (rgba set).

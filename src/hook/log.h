@@ -30,3 +30,10 @@ void wl_log_hex(const char *prefix, const void *data, size_t len);
 
 // UTF-16 to UTF-8 into buf ("(null)" for NULL)
 const char *wl_u8(const wchar_t *w, char *buf, size_t size);
+
+// A path's file name: what follows its last \ or /, the whole path without either
+const char *wl_path_name(const char *path);
+const wchar_t *wl_path_name(const wchar_t *path);
+
+// An IPv4 address, in network order, as text ("192.168.1.2") into buf
+const char *wl_ip_text(unsigned long ip, char *buf, size_t size);

@@ -12,7 +12,8 @@
 // its own project; such code is marked with its origin.
 
 // Observer for the cabinet hardware: serial ports (JVS, drive board), USB HID devices and their
-// enumeration through SetupAPI. Nothing is emulated yet; this shows what the game expects.
+// enumeration through SetupAPI. The calls on the emulated devices (vdev.cpp, vhid.cpp) are answered
+// here; the others reach the PC's devices. Both are logged: this shows what the game expects.
 
 #include <windows.h>
 #include <setupapi.h>
@@ -303,11 +304,66 @@ static BOOL WINAPI hSetCommMask(HANDLE h, DWORD mask)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = !nested && wl_vdev_of(h) ? TRUE : oSetCommMask(h, mask);
+    BOOL ok = !nested && wl_vdev_of(h) ? wl_vdev_set_mask(h, mask) : oSetCommMask(h, mask);
     wl_busy_leave();
     WlDevice d;
     if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
         wl_log("SetCommMask %s: 0x%lx -> %s", d.name, mask, ok ? "ok" : "failed");
+    return ok;
+}
+
+static BOOL(WINAPI *oGetCommMask)(HANDLE, LPDWORD);
+static BOOL WINAPI hGetCommMask(HANDLE h, LPDWORD mask)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    int emulated = !nested && wl_vdev_of(h);
+    if (emulated && mask)
+        *mask = wl_vdev_mask(h);
+    else if (emulated)
+        SetLastError(ERROR_INVALID_PARAMETER);
+    BOOL ok = emulated ? mask != NULL : oGetCommMask(h, mask);
+    wl_busy_leave();
+    WlDevice d;
+    if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
+        wl_log("GetCommMask %s: 0x%lx -> %s", d.name, ok ? *mask : 0, ok ? "ok" : "failed");
+    return ok;
+}
+
+// An emulated port's abilities, those of a PC's 16550 port
+static BOOL vdev_commprop(COMMPROP *p)
+{
+    if (!p)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    memset(p, 0, sizeof *p);
+    p->wPacketLength = sizeof *p;
+    p->wPacketVersion = 2;
+    p->dwServiceMask = SP_SERIALCOMM;
+    p->dwMaxBaud = BAUD_USER;
+    p->dwProvSubType = PST_RS232;
+    p->dwProvCapabilities = PCF_DTRDSR | PCF_RTSCTS | PCF_RLSD | PCF_PARITY_CHECK | PCF_XONXOFF | PCF_SETXCHAR | PCF_TOTALTIMEOUTS | PCF_INTTIMEOUTS;
+    p->dwSettableParams = SP_PARITY | SP_BAUD | SP_DATABITS | SP_STOPBITS | SP_HANDSHAKING | SP_PARITY_CHECK | SP_RLSD;
+    p->dwSettableBaud = BAUD_075 | BAUD_110 | BAUD_134_5 | BAUD_150 | BAUD_300 | BAUD_600 | BAUD_1200 | BAUD_1800 | BAUD_2400 | BAUD_4800 |
+                        BAUD_7200 | BAUD_9600 | BAUD_14400 | BAUD_19200 | BAUD_38400 | BAUD_56K | BAUD_57600 | BAUD_115200 | BAUD_USER;
+    p->wSettableData = DATABITS_5 | DATABITS_6 | DATABITS_7 | DATABITS_8;
+    p->wSettableStopParity = STOPBITS_10 | STOPBITS_15 | STOPBITS_20 | PARITY_NONE | PARITY_ODD | PARITY_EVEN | PARITY_MARK | PARITY_SPACE;
+    p->dwCurrentTxQueue = p->dwCurrentRxQueue = 4096;
+    return TRUE;
+}
+
+static BOOL(WINAPI *oGetCommProperties)(HANDLE, LPCOMMPROP);
+static BOOL WINAPI hGetCommProperties(HANDLE h, LPCOMMPROP p)
+{
+    int nested = wl_busy();
+    wl_busy_enter();
+    BOOL ok = !nested && wl_vdev_of(h) ? vdev_commprop(p) : oGetCommProperties(h, p);
+    wl_busy_leave();
+    WlDevice d;
+    if (!nested && wl_dev_count(h, WL_DEV_SETUP, &d))
+        wl_log("GetCommProperties %s: max baud 0x%lx -> %s", d.name, ok && p ? p->dwMaxBaud : 0, ok ? "ok" : "failed");
     return ok;
 }
 
@@ -361,7 +417,7 @@ static BOOL WINAPI hWaitCommEvent(HANDLE h, LPDWORD mask, LPOVERLAPPED ov)
 {
     int nested = wl_busy();
     wl_busy_enter();
-    BOOL ok = oWaitCommEvent(h, mask, ov);
+    BOOL ok = !nested && wl_vdev_of(h) ? wl_vdev_wait_event(h, mask, ov) : oWaitCommEvent(h, mask, ov);
     wl_busy_leave();
     DWORD err = GetLastError();
     WlDevice d;
@@ -841,6 +897,8 @@ static WlHook g_hooks[] = {
     WL_HOOK(L"kernel32.dll", SetupComm),
     WL_HOOK(L"kernel32.dll", PurgeComm),
     WL_HOOK(L"kernel32.dll", SetCommMask),
+    WL_HOOK(L"kernel32.dll", GetCommMask),
+    WL_HOOK(L"kernel32.dll", GetCommProperties),
     WL_HOOK(L"kernel32.dll", EscapeCommFunction),
     WL_HOOK(L"kernel32.dll", ClearCommError),
     WL_HOOK(L"kernel32.dll", GetCommModemStatus),

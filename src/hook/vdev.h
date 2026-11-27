@@ -17,9 +17,12 @@
 
 // Emulated devices other than the HID board: the drivers of an arcade platform ("\\.\mxsram" on a
 // Sega RingEdge) and serial ports (a JVS bus on "COM4"). CreateFile on the name gives the game a
-// handle of ours (a real event, so that CloseHandle and waits stay valid); ReadFile, WriteFile,
-// SetFilePointer, DeviceIoControl and the serial port calls on it go to the device's functions.
-// Overlapped calls complete at once, or by a packet to the completion port the handle is tied to.
+// handle of ours (a real event, so that CloseHandle and waits stay valid); ReadFile, WriteFile and
+// DeviceIoControl on it go to the device's functions, SetFilePointer moves its position. A serial
+// port's settings are taken as they come (devices.cpp), its event mask kept for WaitCommEvent.
+// Overlapped calls complete at once, or by a packet to the completion port the handle is tied to;
+// a read with nothing to read yet (ReadFileEx, or on a completion port) and a WaitCommEvent waiting
+// for a byte stay pending until the device has some.
 
 struct WlVirtualDevice
 {
@@ -45,6 +48,10 @@ const WlVirtualDevice *wl_vdev_of(HANDLE h); // NULL when h is not one of ours
 BOOL wl_vdev_read(HANDLE h, void *buffer, DWORD size, DWORD *read, OVERLAPPED *ov);
 BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVERLAPPED *ov);
 BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned, OVERLAPPED *ov);
+// A serial port's events: SetCommMask's mask, GetCommMask's, WaitCommEvent (EV_RXCHAR waited for)
+BOOL wl_vdev_set_mask(HANDLE h, DWORD mask);
+DWORD wl_vdev_mask(HANDLE h);
+BOOL wl_vdev_wait_event(HANDLE h, DWORD *events, OVERLAPPED *ov);
 void wl_vdev_forget(HANDLE h);
 void wl_vdev_hooks(void); // SetFilePointer(Ex), GetCommTimeouts, ReadFileEx, CreateIoCompletionPort...
 

@@ -142,10 +142,10 @@ void wl_display_picture(RECT *r);
 // window is the game's
 int wl_display_frame(RECT *r);
 
-// The picture shown by GDI ([Display] PRESENT = GDI, the default): windowsloader copies it into the
-// window (at wl_display_picture); the game's Present goes to a hidden window (Direct3D 9) or a
-// hidden child (Direct3D 11). A Direct3D blt into a window shows nothing on some PCs (this
-// laptop's Windows 11).
+// The picture shown by GDI ([Display] PRESENT = GDI; the default, DIRECT, is the game's own
+// Present): windowsloader copies it into the window (at wl_display_picture); the game's Present
+// goes to a hidden window (Direct3D 9) or a hidden child (Direct3D 11). A Direct3D blt into a
+// window shows nothing on some PCs (a laptop whose screen is on another graphics chip).
 int wl_display_gdi(void);
 // The picture (top-down rows: 32-bit BGRX, or 16-bit 565 when green6, else 555) drawn where it goes
 void wl_display_gdi_draw(const void *pixels, int pitch, int width, int height, int bits, int green6);

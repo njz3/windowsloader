@@ -191,23 +191,34 @@ int wl_known_program_name(const wchar_t *name)
     return 0;
 }
 
+int wl_pe_header(const wchar_t *path, WlPeHeader *pe)
+{
+    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    if (f == INVALID_HANDLE_VALUE)
+        return -1;
+    IMAGE_DOS_HEADER dos;
+    // the signature (4), the file header (20), then the optional header up to its subsystem (at 68)
+    unsigned char nt[4 + sizeof(IMAGE_FILE_HEADER) + 70];
+    DWORD rd;
+    int read = ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
+               SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, nt, sizeof nt, &rd, NULL) &&
+               rd == sizeof nt && *(const DWORD *)nt == IMAGE_NT_SIGNATURE;
+    CloseHandle(f);
+    if (!read)
+        return 0;
+    const IMAGE_FILE_HEADER *fh = (const IMAGE_FILE_HEADER *)(nt + 4);
+    pe->machine = fh->Machine;
+    pe->timeDateStamp = fh->TimeDateStamp;
+    pe->characteristics = fh->Characteristics;
+    pe->subsystem = *(const WORD *)(nt + 4 + sizeof(IMAGE_FILE_HEADER) + 68);
+    return 1;
+}
+
 // The PE header's time stamp, 0 when the file is not a program
 static DWORD pe_stamp(const wchar_t *path)
 {
-    DWORD stamp = 0;
-    FILE *f = _wfopen(path, L"rb");
-    if (!f)
-        return 0;
-    unsigned char dos[64];
-    if (fread(dos, 1, sizeof dos, f) == sizeof dos && dos[0] == 'M' && dos[1] == 'Z')
-    {
-        DWORD pe = *(const DWORD *)(dos + 0x3C);
-        unsigned char nt[12];
-        if (!fseek(f, (long)pe, SEEK_SET) && fread(nt, 1, sizeof nt, f) == sizeof nt && nt[0] == 'P' && nt[1] == 'E')
-            stamp = *(const DWORD *)(nt + 8);
-    }
-    fclose(f);
-    return stamp;
+    WlPeHeader pe;
+    return wl_pe_header(path, &pe) > 0 ? pe.timeDateStamp : 0;
 }
 
 const WlKnownGame *wl_known_game(const wchar_t *exePath, int *otherVersion)

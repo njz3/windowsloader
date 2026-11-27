@@ -36,6 +36,8 @@ struct Open
     LONGLONG position;
     HANDLE port; // the completion port the game tied the handle to, its key
     ULONG_PTR key;
+    DWORD mask;        // a serial port's events (SetCommMask)
+    LONG maskChanges;  // SetCommMask calls: a WaitCommEvent under way ends at the next
 };
 
 static Open g_open[32];
@@ -216,6 +218,8 @@ HANDLE wl_vdev_open(const WlVirtualDevice *device)
             g_open[i].position = 0;
             g_open[i].port = NULL;
             g_open[i].key = 0;
+            g_open[i].mask = 0;
+            g_open[i].maskChanges = 0;
             break;
         }
     ReleaseSRWLockExclusive(&g_lock);
@@ -301,6 +305,7 @@ static HANDLE port_of(HANDLE h, ULONG_PTR *key)
 // An overlapped call on a handle tied to a completion port ends in a packet posted to it, as a
 // file's does: its status in the packet (NtSetIoCompletion), so that GetQueuedCompletionStatus
 // fails on an error as it does for a file. An event whose low bit is set asks for no packet.
+// Without a port (NULL), the OVERLAPPED's status and event alone.
 typedef LONG(NTAPI *NtSetIoCompletionFn)(HANDLE, PVOID, PVOID, LONG, ULONG_PTR);
 
 static void post(HANDLE port, ULONG_PTR key, OVERLAPPED *ov, DWORD error, DWORD n)
@@ -313,7 +318,7 @@ static void post(HANDLE port, ULONG_PTR key, OVERLAPPED *ov, DWORD error, DWORD 
     HANDLE event = (HANDLE)((ULONG_PTR)ov->hEvent & ~(ULONG_PTR)1);
     if (event)
         SetEvent(event);
-    if ((ULONG_PTR)ov->hEvent & 1)
+    if (!port || ((ULONG_PTR)ov->hEvent & 1))
         return;
     if (set)
         set(port, (PVOID)key, ov, status, n);
@@ -322,12 +327,22 @@ static void post(HANDLE port, ULONG_PTR key, OVERLAPPED *ov, DWORD error, DWORD 
 }
 
 static int pend(HANDLE h, HANDLE thread, void *buf, DWORD size, OVERLAPPED *ov, LPOVERLAPPED_COMPLETION_ROUTINE fn, HANDLE port, ULONG_PTR key,
-                ULONGLONG deadline);
+                ULONGLONG deadline, DWORD *events = NULL, LONG maskChanges = 0);
+
+// A handle closed while a call on it was under way (another thread's CloseHandle): the call fails
+// as on a closed handle. The devices themselves stay (registered for the whole run)
+static BOOL closed(void)
+{
+    SetLastError(ERROR_INVALID_HANDLE);
+    return FALSE;
+}
 
 BOOL wl_vdev_read(HANDLE h, void *buffer, DWORD size, DWORD *read, OVERLAPPED *ov)
 {
     const WlVirtualDevice *d = wl_vdev_of(h);
     DWORD n = 0;
+    if (!d)
+        return closed();
     if (!d->read)
     {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -354,6 +369,8 @@ BOOL wl_vdev_write(HANDLE h, const void *buffer, DWORD size, DWORD *written, OVE
 {
     const WlVirtualDevice *d = wl_vdev_of(h);
     DWORD n = 0;
+    if (!d)
+        return closed();
     if (!d->write)
     {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -377,6 +394,8 @@ BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out
 {
     const WlVirtualDevice *d = wl_vdev_of(h);
     DWORD n = 0;
+    if (!d)
+        return closed();
     if (!d->ioctl)
     {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -386,6 +405,111 @@ BOOL wl_vdev_ioctl(HANDLE h, DWORD code, const void *in, DWORD inSize, void *out
     if (returned)
         *returned = n;
     return complete(ov, ok, n);
+}
+
+// ------------------------------------------------------------------------------
+// A serial port's events: SetCommMask's mask kept, WaitCommEvent done when a byte comes
+// ------------------------------------------------------------------------------
+
+BOOL wl_vdev_set_mask(HANDLE h, DWORD mask)
+{
+    AcquireSRWLockExclusive(&g_lock);
+    Open *o = find(h);
+    if (o)
+    {
+        o->mask = mask;
+        o->maskChanges++;
+    }
+    ReleaseSRWLockExclusive(&g_lock);
+    return o ? TRUE : closed();
+}
+
+DWORD wl_vdev_mask(HANDLE h)
+{
+    AcquireSRWLockShared(&g_lock);
+    Open *o = find(h);
+    DWORD mask = o ? o->mask : 0;
+    ReleaseSRWLockShared(&g_lock);
+    return mask;
+}
+
+// The device of a handle, its mask and its count of SetCommMask calls; NULL once it is closed
+static const WlVirtualDevice *wait_state(HANDLE h, DWORD *mask, LONG *changes)
+{
+    AcquireSRWLockShared(&g_lock);
+    Open *o = find(h);
+    const WlVirtualDevice *d = o ? o->device : NULL;
+    *mask = o ? o->mask : 0;
+    *changes = o ? o->maskChanges : 0;
+    ReleaseSRWLockShared(&g_lock);
+    return d;
+}
+
+// The events of the mask there are now: EV_RXCHAR while received bytes wait (the device's waiting)
+static DWORD events_now(const WlVirtualDevice *d, DWORD mask)
+{
+    return (mask & EV_RXCHAR) && d->waiting && d->waiting() ? EV_RXCHAR : 0;
+}
+
+// As a serial port's: with EV_RXCHAR in the mask, done once a byte waits (a SetCommMask meanwhile
+// ends it with no event, as Windows does); overlapped, pending until then, as a read on the pending
+// reads' thread below. The other events are not emulated: EV_TXEMPTY given at once (the writes are
+// sent at once), the others never, the call then done with no event
+BOOL wl_vdev_wait_event(HANDLE h, DWORD *events, OVERLAPPED *ov)
+{
+    DWORD mask;
+    LONG changes;
+    const WlVirtualDevice *d = wait_state(h, &mask, &changes);
+    if (!d)
+        return closed();
+    if (!mask || !events)
+    {
+        SetLastError(ERROR_INVALID_PARAMETER); // as serial.sys: no mask set
+        return FALSE;
+    }
+    DWORD found = (mask & EV_RXCHAR) ? events_now(d, mask) : (mask & EV_TXEMPTY);
+    ULONG_PTR key = 0;
+    HANDLE port = ov ? port_of(h, &key) : NULL;
+    if (!found && (mask & EV_RXCHAR))
+    {
+        if (ov)
+        {
+            HANDLE event = (HANDLE)((ULONG_PTR)ov->hEvent & ~(ULONG_PTR)1);
+            if (event)
+                ResetEvent(event); // as Windows does for an overlapped call
+            if (pend(h, NULL, NULL, 0, ov, NULL, port, key, ~0ULL, events, changes))
+            {
+                SetLastError(ERROR_IO_PENDING);
+                return FALSE;
+            }
+            // No room: done at once with no event
+        }
+        else
+            for (;;)
+            {
+                Sleep(1);
+                DWORD now;
+                LONG c;
+                d = wait_state(h, &now, &c);
+                if (!d)
+                {
+                    SetLastError(ERROR_OPERATION_ABORTED);
+                    return FALSE;
+                }
+                if (c != changes || (found = events_now(d, now)) != 0)
+                    break;
+            }
+    }
+    else if (!found && !ov)
+        Sleep(10); // nothing to wait for here: a game's loop on it kept slow
+    *events = found;
+    if (port)
+    {
+        post(port, key, ov, 0, sizeof(DWORD));
+        SetLastError(ERROR_IO_PENDING);
+        return FALSE;
+    }
+    return complete(ov, TRUE, sizeof(DWORD));
 }
 
 // ------------------------------------------------------------------------------
@@ -472,7 +596,9 @@ static BOOL queue_completion(LPOVERLAPPED_COMPLETION_ROUTINE fn, BOOL ok, DWORD 
 
 // A read with nothing to read yet stays pending, as on a serial port: done when the device has
 // data (its answer to the next write) or after the read timeout, by a service thread. Done by an
-// APC to the reading thread (ReadFileEx) or by a packet to the handle's completion port.
+// APC to the reading thread (ReadFileEx), by a packet to the handle's completion port, or by the
+// OVERLAPPED's event. An overlapped WaitCommEvent the same way (events set): done once a byte
+// waits or the mask changes.
 #define PENDING_READS 8
 #define PENDING_TIMEOUT_MS 600 // Mario Kart Arcade GP DX's: read interval 600, total 2*n+600
 static struct
@@ -485,6 +611,8 @@ static struct
     ULONG_PTR key;
     ULONGLONG deadline;
     int aborted;
+    DWORD *events;    // a WaitCommEvent's, NULL for a read
+    LONG maskChanges; // the handle's SetCommMask calls when it began
 } g_pending[PENDING_READS];
 static SRWLOCK g_pendingLock = SRWLOCK_INIT;
 static HANDLE g_pendingThread;
@@ -499,23 +627,38 @@ static DWORD WINAPI pending_reads(LPVOID)
         {
             if (!g_pending[i].h)
                 continue;
-            DWORD n = 0, error = 0;
-            int gone = !wl_vdev_of(g_pending[i].h);
-            if (g_pending[i].aborted || gone)
+            DWORD n = 0, error = 0, mask;
+            LONG changes;
+            const WlVirtualDevice *d = wait_state(g_pending[i].h, &mask, &changes);
+            if (g_pending[i].aborted || !d)
                 error = ERROR_OPERATION_ABORTED;
+            else if (g_pending[i].events)
+            {
+                DWORD found = changes == g_pending[i].maskChanges ? events_now(d, mask) : 0;
+                if (!found && changes == g_pending[i].maskChanges)
+                    continue;
+                *g_pending[i].events = found;
+                n = sizeof(DWORD);
+            }
             else if (!wl_vdev_read(g_pending[i].h, g_pending[i].buf, g_pending[i].size, &n, NULL))
                 error = GetLastError();
             if (!error && !n && GetTickCount64() < g_pending[i].deadline)
                 continue;
             static volatile LONG logged;
-            if (InterlockedIncrement(&logged) <= 8)
+            if (!g_pending[i].events && InterlockedIncrement(&logged) <= 8)
                 wl_log("read (emulated): done, %lu of %lu bytes, error %lu", n, g_pending[i].size, error);
             if (g_pending[i].port)
                 post(g_pending[i].port, g_pending[i].key, g_pending[i].ov, error, n);
-            else
+            else if (g_pending[i].thread)
             {
                 queue_completion_to(g_pending[i].thread, g_pending[i].fn, error, n, g_pending[i].ov);
                 CloseHandle(g_pending[i].thread);
+            }
+            else
+            {
+                post(NULL, 0, g_pending[i].ov, error, n);
+                if (!g_pending[i].ov->hEvent)
+                    SetEvent(g_pending[i].h); // the handle itself signalled, as a file's when its call ends
             }
             g_pending[i].h = NULL;
         }
@@ -523,9 +666,9 @@ static DWORD WINAPI pending_reads(LPVOID)
     }
 }
 
-// A read left pending; 0 when there is no room
+// A read (or a WaitCommEvent: events) left pending; 0 when there is no room
 static int pend(HANDLE h, HANDLE thread, void *buf, DWORD size, OVERLAPPED *ov, LPOVERLAPPED_COMPLETION_ROUTINE fn, HANDLE port, ULONG_PTR key,
-                ULONGLONG deadline)
+                ULONGLONG deadline, DWORD *events, LONG maskChanges)
 {
     AcquireSRWLockExclusive(&g_pendingLock);
     int slot = -1;
@@ -544,8 +687,12 @@ static int pend(HANDLE h, HANDLE thread, void *buf, DWORD size, OVERLAPPED *ov, 
         g_pending[slot].key = key;
         g_pending[slot].deadline = deadline;
         g_pending[slot].aborted = 0;
+        g_pending[slot].events = events;
+        g_pending[slot].maskChanges = maskChanges;
         if (ov)
             ov->Internal = (ULONG_PTR)0x103; // STATUS_PENDING
+        if (ov && !ov->hEvent && !port && !thread)
+            ResetEvent(h); // waited on by GetOverlappedResult without an event of its own, as a file's handle
         if (!g_pendingThread)
         {
             wl_busy_enter();

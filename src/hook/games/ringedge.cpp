@@ -33,6 +33,7 @@
 
 #include "servoboard.h"
 #include "ffb.h"
+#include "filecrc.h"
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
@@ -181,9 +182,9 @@ static const WlVirtualDevice g_sram = {"\\\\.\\mxsram", sram_ioctl, sram_read, s
 // The other drivers, still unknown: zeros
 // ------------------------------------------------------------------------------
 
-// The version of the driver's interface, asked by amLib of each one (K.O. Drive's amSramInit
-// +0x7bb2f3 wants 1 in the low word; the SRAM's: above)
-
+// Every request answered with zeros, but the version of the driver's interface, asked by amLib
+// of each one: the game's driverVersion in the low word (K.O. Drive's amSramInit +0x7bb2f3 wants
+// 1; the SRAM's: above)
 static BOOL zero_ioctl(DWORD code, const void *in, DWORD inSize, void *out, DWORD outSize, DWORD *returned)
 {
     if (code == MX_IOCTL_GET_ABI_VERSION && outSize >= 2)
@@ -260,18 +261,6 @@ static unsigned char pca9535_input(int port); // with the inputs, below
 // byte 0x0C is the board's region (1 Japan, 2, 4 export, 8 China), its 16 bytes at 0x0F the board's
 // serial. Sonic & Sega All-Stars Racing starts its credits (amCredit, +0x414ed0) only with a region
 // among those (+0x414950), so a blank or broken one is written with the keychip's export region.
-static unsigned crc32(const unsigned char *p, int n)
-{
-    unsigned c = 0xFFFFFFFF;
-    for (int i = 0; i < n; i++)
-    {
-        c ^= p[i];
-        for (int k = 0; k < 8; k++)
-            c = c & 1 ? c >> 1 ^ 0xEDB88320 : c >> 1;
-    }
-    return ~c;
-}
-
 #define RECORD 0x20
 
 static int record_read(HANDLE file, unsigned char *r, DWORD at)
@@ -280,12 +269,12 @@ static int record_read(HANDLE file, unsigned char *r, DWORD at)
     memset(&ov, 0, sizeof ov);
     ov.Offset = at;
     DWORD done = 0;
-    return ReadFile(file, r, RECORD, &done, &ov) && done == RECORD && *(const unsigned *)r == crc32(r + 4, RECORD - 4);
+    return ReadFile(file, r, RECORD, &done, &ov) && done == RECORD && *(const unsigned *)r == wl_crc32(r + 4, RECORD - 4);
 }
 
 static void record_write(HANDLE file, unsigned char *r, DWORD at)
 {
-    *(unsigned *)r = crc32(r + 4, RECORD - 4);
+    *(unsigned *)r = wl_crc32(r + 4, RECORD - 4);
     for (DWORD copy = at; copy <= at + 0x200; copy += 0x200)
     {
         OVERLAPPED ov;

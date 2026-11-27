@@ -47,12 +47,6 @@ void wl_netenv_fake(unsigned ip, unsigned gateway, const unsigned char mac[6])
            gateway >> 24, gateway >> 16 & 255, gateway >> 8 & 255, gateway & 255);
 }
 
-static void ip_text(ULONG ip, char *out, size_t size)
-{
-    const unsigned char *b = (const unsigned char *)&ip;
-    snprintf(out, size, "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
-}
-
 static void first_call(const char *what)
 {
     static const char *seen[16];
@@ -86,11 +80,11 @@ static ULONG WINAPI hGetAdaptersInfo(PIP_ADAPTER_INFO info, PULONG size)
         info->Index = 1;
         info->Type = MIB_IF_TYPE_ETHERNET;
         info->DhcpEnabled = 1;
-        ip_text(g_fake.ip, info->IpAddressList.IpAddress.String, sizeof info->IpAddressList.IpAddress.String);
+        wl_ip_text(g_fake.ip, info->IpAddressList.IpAddress.String, sizeof info->IpAddressList.IpAddress.String);
         strcpy_s(info->IpAddressList.IpMask.String, sizeof info->IpAddressList.IpMask.String, "255.255.255.0");
-        ip_text(g_fake.gateway, info->GatewayList.IpAddress.String, sizeof info->GatewayList.IpAddress.String);
+        wl_ip_text(g_fake.gateway, info->GatewayList.IpAddress.String, sizeof info->GatewayList.IpAddress.String);
         strcpy_s(info->GatewayList.IpMask.String, sizeof info->GatewayList.IpMask.String, "255.255.255.0");
-        ip_text(g_fake.gateway, info->DhcpServer.IpAddress.String, sizeof info->DhcpServer.IpAddress.String);
+        wl_ip_text(g_fake.gateway, info->DhcpServer.IpAddress.String, sizeof info->DhcpServer.IpAddress.String);
         time_t now = time(NULL);
         info->LeaseObtained = now - 3600;
         info->LeaseExpires = now + 86400;

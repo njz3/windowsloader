@@ -19,8 +19,9 @@
 // texts are written in French in the code: wl_tr("...") where one is shown, WL_N("...") in a table
 // shown later (wl_tr then translates the table's text). Each other language is a gettext
 // catalogue, lang\<code>.po beside the programs (lang\en.po), read as it is at the start: its msgid
-// the French text, its msgstr the translation; an entry left empty or marked fuzzy keeps the French
-// text, the header's X-Language-Name is the language's name in the lists. scripts/lang_update.py
+// the French text, its msgstr the translation; an entry left empty, marked fuzzy or whose %-formats
+// differ from the French text's keeps the French text, the header's X-Language-Name is the
+// language's name in the lists. scripts/lang_update.py
 // gathers the marked texts in lang\windowsloader.pot and brings the .po files up to date (as
 // xgettext --keyword=wl_tr --keyword=WL_N, then msgmerge, would). linuxloader's catalogues are made
 // the same way, their source language English.
@@ -43,12 +44,10 @@ const char *wl_lang_code(void);    // the language shown: "fr", "en"...
 // The French text's translation in the language shown, else the text itself
 const char *wl_tr(const char *text);
 
-// The languages that can be chosen: French, then each lang\<code>.po; their code and their name in
-// their own language ("English")
-int wl_lang_count(void);
-const char *wl_lang_code_at(int i);
-const char *wl_lang_name_at(int i);
-
-// The choice in a Dear ImGui list (the picker's and the menu's): AUTO, then the languages; 1 when
-// another one was chosen (wl_lang_set done)
+// The choice in a Dear ImGui list (the picker's and the menu's): AUTO, then the languages that can
+// be chosen (French, then each lang\<code>.po, by their name in their own language: "English"); 1
+// when another one was chosen (wl_lang_set done)
 int wl_lang_combo(const char *label);
+
+// UTF-16 to UTF-8 into out, an empty text when it does not fit
+void wl_utf8(const wchar_t *w, char *out, size_t size);

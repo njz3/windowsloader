@@ -36,7 +36,8 @@
 // 4. dll_entry_init("<model><dest><spec><rev><ext>", prop/app-config.xml's /param).
 // 5. ea3_boot(/ea3): offline, without Konami's servers, the game boots on in local mode.
 // 6. dll_entry_main(): the game, until it ends; then ea3_shutdown, avs_shutdown.
-// A game whose DLLs are in modules\ with prop\ in the folder above runs from that folder.
+// A game whose DLLs are in modules\ with prop\ in the folder above runs from that folder, its DLLs
+// still loaded from modules\.
 //
 // Its messages go to the debugger's output, which windowsloader's log takes ("debug: wl_avsboot:
 // ..."); with --avs-log, AVS's own log too.
@@ -105,12 +106,29 @@ static int exists(const char *path)
     return a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY);
 }
 
-// A DLL of the game's folder (the working folder), by its full path: the DLLs it imports are
-// looked for beside it first, as when the cabinet's launcher is in that folder
+// The folder of the game's DLLs: the working folder as started, modules\ when the game's files are
+// in the folder above (wWinMain)
+static char g_dllDir[MAX_PATH];
+
+// A file of that folder by its full path (a full path given stays as it is)
+static int in_dll_dir(const char *name, char *path)
+{
+    char rel[MAX_PATH];
+    int full = (name[0] && name[1] == ':') || name[0] == '\\' || name[0] == '/';
+    if (full)
+        snprintf(rel, MAX_PATH, "%s", name);
+    else
+        snprintf(rel, MAX_PATH, "%s\\%s", g_dllDir, name);
+    DWORD n = GetFullPathNameA(rel, MAX_PATH, path, NULL);
+    return n && n < MAX_PATH;
+}
+
+// A DLL of the game's DLLs' folder, by its full path: the DLLs it imports are looked for beside it
+// first, as when the cabinet's launcher is in that folder
 static HMODULE load(const char *name, int needed)
 {
     char path[MAX_PATH];
-    if (!GetFullPathNameA(name, MAX_PATH, path, NULL))
+    if (!in_dll_dir(name, path))
         fail("%s: no such path", name);
     if (!needed && !exists(path))
         return NULL;
@@ -142,7 +160,7 @@ static void system_components(void)
         return;
     for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
     {
-        if (!exists(names[i]))
+        if (!in_dll_dir(names[i], path) || !exists(path))
             continue;
         snprintf(path, MAX_PATH, "%s\\%s", system, names[i]);
         if (exists(path) && LoadLibraryA(path))
@@ -267,9 +285,17 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmdLine, int show)
         if (!_wcsicmp(__wargv[i], L"--avs-log"))
             g_avsLog = 1;
 
-    // The game's DLLs in modules\, its files in the folder above
-    if (!exists("prop\\avs-config.xml") && exists("..\\prop\\avs-config.xml"))
-        SetCurrentDirectoryA("..");
+    // The game's DLLs in modules\, its files in the folder above: the files read from there, the
+    // DLLs still from modules\ (by their full paths, and modules\ in the search of the DLLs the
+    // game loads by name, in place of the working folder)
+    DWORD dllDirLen = GetCurrentDirectoryA(MAX_PATH, g_dllDir);
+    if (!dllDirLen || dllDirLen >= MAX_PATH)
+        fail("the working folder cannot be read");
+    if (!exists("prop\\avs-config.xml") && exists("..\\prop\\avs-config.xml") && SetCurrentDirectoryA(".."))
+    {
+        SetDllDirectoryA(g_dllDir);
+        say("the game's DLLs from %s", g_dllDir);
+    }
     char dir[MAX_PATH];
     GetCurrentDirectoryA(MAX_PATH, dir);
     say("%s from %s%s", game, dir, g_avsLog ? ", AVS's log on" : "");

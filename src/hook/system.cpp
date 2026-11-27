@@ -78,12 +78,7 @@ static int refused_dll(const char *path, const void *caller)
 {
     if (!g_refusedDll[0] || !path)
         return 0;
-    const char *base = strrchr(path, '\\');
-    const char *slash = strrchr(path, '/');
-    if (slash && (!base || slash > base))
-        base = slash;
-    base = base ? base + 1 : path;
-    if (_stricmp(base, g_refusedDll))
+    if (_stricmp(wl_path_name(path), g_refusedDll))
         return 0;
     char where[128];
     wl_log("LoadLibrary \"%s\" refused by the game's module [%s]", path, where_of(caller, where, sizeof where));
@@ -2101,9 +2096,9 @@ static BOOL WINAPI hClearEventLogW(HANDLE log, LPCWSTR backup)
     return FALSE;
 }
 
-// The shell's moves and deletes (a folder and all it holds) reach DeleteFile from Windows' own
-// DLLs, which the file hooks let through: allowed only inside the program's folder (amdaemon
-// cleans its logs up with it)
+// The shell's moves, renames and deletes (a folder and all it holds) reach the files from Windows'
+// own DLLs, which the file hooks do not see: the game's are allowed only inside the program's
+// folder, both ends of a move or a rename (amdaemon cleans its logs up with it); copies are let through
 static int in_own_folder(LPCWSTR list)
 {
     wchar_t own[MAX_PATH], full[MAX_PATH];

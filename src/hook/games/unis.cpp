@@ -215,7 +215,7 @@ static bool BIND_CloseSteeringWheelDevice(void)
 // opened, "0 108 0 0" after its init, "3 108 0 0" from then on, and "3 108 5 0" for a moment at a
 // crash. Taken as a centring spring (a = 3) of strength b and a shake c, played at each angle read
 // (each frame); the meaning is a guess.
-static volatile LONG g_motor[4];
+static volatile LONG g_motor[3];
 
 static void motor_force(int raw)
 {
@@ -248,7 +248,6 @@ static bool BIND_SetSteeringWheelData(int a, int b, int c, int d)
     InterlockedExchange(&g_motor[0], a);
     InterlockedExchange(&g_motor[1], b);
     InterlockedExchange(&g_motor[2], c);
-    InterlockedExchange(&g_motor[3], d);
     return true;
 }
 
@@ -856,7 +855,7 @@ static void speed_undo_loader(unsigned char *exe)
         return; // the places below are the known build's
     HMODULE dic = GetModuleHandleW(L"dic32u.dll");
     if (!dic || GetProcAddress(dic, "TransmitAPDU") == NULL)
-        return; // the real dongle's library, or none
+        return; // none, or one without TransmitAPDU (the real dongle's library is told apart below)
     if (!InterlockedExchange(&hooked, 1) && wl_patch_iat(dic, "KERNEL32.dll", "WriteProcessMemory", (void *)dic_WriteProcessMemory, NULL))
         wl_log("game: Crazy Speed: release\\dic32u.dll is another loader's (XInput controls): its writes into the game made nothing");
     static const struct

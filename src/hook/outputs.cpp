@@ -595,19 +595,23 @@ void wl_outputs_lamps(unsigned bits, int count)
     }
 }
 
+// The entry is filled before it is counted: the readers go up to g_valueCount, under g_lock or not
+// (it may not be ready yet when a game's module declares its values)
 int wl_outputs_declare_value(const char *name, const char *type, const char *about)
 {
-    LONG i = InterlockedIncrement(&g_valueCount) - 1;
-    if (i >= OUT_VALUES)
+    static SRWLOCK declaring = SRWLOCK_INIT;
+    AcquireSRWLockExclusive(&declaring);
+    LONG i = g_valueCount;
+    if (i < OUT_VALUES)
     {
-        InterlockedDecrement(&g_valueCount);
-        return -1;
+        Value *v = &g_values[i];
+        snprintf(v->name, sizeof v->name, "%s", name);
+        v->type = type;
+        snprintf(v->about, sizeof v->about, "%s", about);
+        InterlockedExchange(&g_valueCount, i + 1);
     }
-    Value *v = &g_values[i];
-    snprintf(v->name, sizeof v->name, "%s", name);
-    v->type = type;
-    snprintf(v->about, sizeof v->about, "%s", about);
-    return i;
+    ReleaseSRWLockExclusive(&declaring);
+    return i < OUT_VALUES ? (int)i : -1;
 }
 
 void wl_outputs_value(int index, int value)

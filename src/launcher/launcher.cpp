@@ -26,6 +26,7 @@
 #include "gamelist.h"
 #include "picker.h"
 #include "filecrc.h"
+#include "lang.h"
 #include "wlshared.h"
 #include "writedir.h"
 
@@ -76,8 +77,7 @@ static const char *u8(const wchar_t *w)
     static char bufs[4][MAX_PATH * 4];
     static int next;
     char *b = bufs[next++ & 3];
-    if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, b, (int)sizeof bufs[0], NULL, NULL))
-        b[0] = 0;
+    wl_utf8(w, b, sizeof bufs[0]);
     return b;
 }
 
@@ -187,43 +187,18 @@ static void list_games(void)
 // 32 or 64 for an x86 / x64 PE file, 0 for anything else, -1 when it cannot be read
 static int pe_bits(const wchar_t *path)
 {
-    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE)
-        return -1;
-
-    int bits = 0;
-    IMAGE_DOS_HEADER dos;
-    IMAGE_FILE_HEADER fh;
-    DWORD sig, rd;
-    if (ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
-        SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER &&
-        ReadFile(f, &sig, sizeof sig, &rd, NULL) && rd == sizeof sig && sig == IMAGE_NT_SIGNATURE &&
-        ReadFile(f, &fh, sizeof fh, &rd, NULL) && rd == sizeof fh)
-    {
-        if (fh.Machine == IMAGE_FILE_MACHINE_I386)
-            bits = 32;
-        else if (fh.Machine == IMAGE_FILE_MACHINE_AMD64)
-            bits = 64;
-    }
-    CloseHandle(f);
-    return bits;
+    WlPeHeader pe;
+    int read = wl_pe_header(path, &pe);
+    if (read <= 0)
+        return read;
+    return pe.machine == IMAGE_FILE_MACHINE_I386 ? 32 : pe.machine == IMAGE_FILE_MACHINE_AMD64 ? 64 : 0;
 }
 
 // A DLL (IMAGE_FILE_DLL): the game of a Konami AVS cabinet, run in wl_avsboot.exe (src/avsboot)
 static int pe_dll(const wchar_t *path)
 {
-    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE)
-        return 0;
-    IMAGE_DOS_HEADER dos;
-    IMAGE_FILE_HEADER fh;
-    DWORD sig, rd;
-    int dll = ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
-              SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, &sig, sizeof sig, &rd, NULL) &&
-              rd == sizeof sig && sig == IMAGE_NT_SIGNATURE && ReadFile(f, &fh, sizeof fh, &rd, NULL) && rd == sizeof fh &&
-              (fh.Characteristics & IMAGE_FILE_DLL);
-    CloseHandle(f);
-    return dll;
+    WlPeHeader pe;
+    return wl_pe_header(path, &pe) > 0 && (pe.characteristics & IMAGE_FILE_DLL);
 }
 
 // A folder given as the game: the program of a game of the table there (gamelist.cpp), in path
@@ -247,20 +222,8 @@ static int game_in_folder(wchar_t *path)
 // A console program (the PE's subsystem 3, IMAGE_SUBSYSTEM_WINDOWS_CUI): Storm Racer G's racing.exe
 static int pe_console(const wchar_t *path)
 {
-    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE)
-        return 0;
-    IMAGE_DOS_HEADER dos;
-    // the signature (4), the file header (20), then the optional header's subsystem at 68
-    unsigned char nt[4 + sizeof(IMAGE_FILE_HEADER) + 70];
-    DWORD rd;
-    int console = 0;
-    if (ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
-        SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, nt, sizeof nt, &rd, NULL) &&
-        rd == sizeof nt)
-        console = *(WORD *)(nt + 4 + sizeof(IMAGE_FILE_HEADER) + 68) == IMAGE_SUBSYSTEM_WINDOWS_CUI;
-    CloseHandle(f);
-    return console;
+    WlPeHeader pe;
+    return wl_pe_header(path, &pe) > 0 && pe.subsystem == IMAGE_SUBSYSTEM_WINDOWS_CUI;
 }
 
 // Mario Kart DX 1.05 needs more than 2 GB here, without saying so in its program's header: with less
@@ -276,16 +239,8 @@ static const wchar_t *needs_large_address(const wchar_t *path)
         return wl_file_crc32(path) == 0x873E033B ? L"snocross" : NULL;
     if (_wcsicmp(base ? base + 1 : path, L"MK_AGP3_FINAL.exe"))
         return NULL;
-    HANDLE f = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (f == INVALID_HANDLE_VALUE)
-        return NULL;
-    IMAGE_DOS_HEADER dos;
-    IMAGE_NT_HEADERS32 nt;
-    DWORD rd;
-    int needs = ReadFile(f, &dos, sizeof dos, &rd, NULL) && rd == sizeof dos && dos.e_magic == IMAGE_DOS_SIGNATURE &&
-                SetFilePointer(f, dos.e_lfanew, NULL, FILE_BEGIN) != INVALID_SET_FILE_POINTER && ReadFile(f, &nt, sizeof nt, &rd, NULL) &&
-                rd == sizeof nt && nt.FileHeader.TimeDateStamp == 0x582179A8 && !(nt.FileHeader.Characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE);
-    CloseHandle(f);
+    WlPeHeader pe;
+    int needs = wl_pe_header(path, &pe) > 0 && pe.timeDateStamp == 0x582179A8 && !(pe.characteristics & IMAGE_FILE_LARGE_ADDRESS_AWARE);
     return needs ? L"mkdx" : NULL;
 }
 
@@ -610,7 +565,8 @@ static int inject(const PROCESS_INFORMATION *pi, const wchar_t *dll)
 // which its module writes in the temporary folder ({temp}: alls.cpp); the game's -launch= from
 // its option CABINET (g_gameOptionArgs). Initial D 6, 7 and 8's picodaemon.exe, the card
 // reader-writer's daemon, which game.bat starts just before the game. Initial D Zero's two, in the
-// table's order: amdaemon, then the shop's server box. The folders are the game's folder's parents.
+// table's order: amdaemon, then the shop's server box. The folders are the game's folder or one of
+// its parents (up).
 static const struct
 {
     const wchar_t *game; // the game's file name
@@ -629,7 +585,8 @@ static const struct
     // and the shop's server box, the cabinets' link to the game's online server (alls.cpp plays
     // that server on this PC)
     {L"InitialD0_DX11_Nu.exe", 0, L"ServerBoxD8_Nu_x64.exe", L"", 3000},
-    // Initial D 6's game.bat starts it too: without it, error 5101 (417) at "do you have a licence?"
+    // Initial D 6, 7 and 8's game.bat start it too: without it, Initial D 6 stops with error 5101 (417)
+    // at "do you have a licence?"
     {L"id6_dump_.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD6_GLW_RE_SBUU.exe", 0, L"picodaemon.exe", L"", 1000},
     {L"InitialD7_GLW_RE_SBYD_dumped_.exe", 0, L"picodaemon.exe", L"", 1000},
@@ -680,6 +637,44 @@ static void game_fixed_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wch
     }
 }
 
+// The arguments the cabinet gives the game (the game list's args: Dirty Drivin', Sega World Drivers
+// Championship), in their order, before the options' and the fixed ones (the picker's games and the
+// command line's alike); not those the command line has already, an option's value left out with it
+// (-r 1360x768). Another version of the game (wl_known_game's otherVersion) gets them too, as in the
+// picker
+static void game_cabinet_args(const wchar_t *gamePath, wchar_t *cmd, int argc, wchar_t **argv, int first)
+{
+    int other = 0;
+    const WlKnownGame *g = wl_known_game(gamePath, &other);
+    if (!g || !g->args)
+        return;
+    int keep = -1; // the last option's choice, its value's too; -1 before the first option
+    for (const wchar_t *p = g->args; *p;)
+    {
+        while (*p == L' ')
+            p++;
+        const wchar_t *end = wcschr(p, L' ');
+        size_t len = end ? (size_t)(end - p) : wcslen(p);
+        if (!len)
+            break;
+        wchar_t arg[256];
+        swprintf(arg, 256, L"%.*s", (int)len, p);
+        p += len;
+        if (arg[0] == L'-' || keep < 0)
+        {
+            const wchar_t *eq = wcschr(arg, L'=');
+            size_t named = eq ? (size_t)(eq - arg) + 1 : wcslen(arg);
+            int given = 0;
+            for (int a = first; a < argc; a++)
+                if (eq ? !_wcsnicmp(argv[a], arg, named) : !_wcsicmp(argv[a], arg))
+                    given = 1;
+            keep = !given;
+        }
+        if (keep)
+            append_arg(cmd, CMDLINE_MAX, arg);
+    }
+}
+
 static void game_dll_path(const wchar_t *gamePath, const wchar_t *gameDir)
 {
     const wchar_t *base = wcsrchr(gamePath, L'\\');
@@ -699,7 +694,8 @@ static void game_dll_path(const wchar_t *gamePath, const wchar_t *gameDir)
             size_t len = end ? (size_t)(end - d) : wcslen(d);
             wchar_t rel[MAX_PATH], full[MAX_PATH];
             swprintf(rel, MAX_PATH, L"%s\\%.*s", gameDir, (int)len, d);
-            if (GetFullPathNameW(rel, MAX_PATH, full, NULL) && GetFileAttributesW(full) != INVALID_FILE_ATTRIBUTES &&
+            DWORD fn = GetFullPathNameW(rel, MAX_PATH, full, NULL); // longer than full: not taken
+            if (fn && fn < MAX_PATH && GetFileAttributesW(full) != INVALID_FILE_ATTRIBUTES &&
                 wcslen(path) + wcslen(full) + 2 < 32768)
             {
                 if (path[0])
@@ -715,9 +711,9 @@ static void game_dll_path(const wchar_t *gamePath, const wchar_t *gameDir)
 
 // A game's option that gives it an argument, taken as the game starts: [Game.<short name>] KEY of
 // the settings file (or of <short name>.ini beside windowsloader.ini, as the DLL reads it), or
-// --set Game.KEY=VALUE; the game's module declares it for the settings menu. Each value its
-// argument, the first one the default; nothing added when the command line has an argument of
-// that name already (-launch= for -launch=Cabinet)
+// --set Game.KEY=VALUE or Game.<short name>.KEY=VALUE; the game's module declares it for the
+// settings menu. Each value its argument, the first one the default; nothing added when the command
+// line has an argument of that name already (-launch= for -launch=Cabinet)
 static const struct
 {
     const wchar_t *game;         // the game's file name
@@ -730,7 +726,8 @@ static const struct
     {L"Todoroki-Win64-Shipping.exe", L"swdc", L"CABINET", L"MINI", L"-launch=MiniCabinet"},
 };
 
-// The option's value: --set's last, else the file's, else def
+// The option's value: --set's last (Game.KEY or Game.<name>.KEY), else that of <name>.ini beside
+// windowsloader.ini when there is one, else the settings file's, else def
 static void game_option(const wchar_t *name, const wchar_t *key, const wchar_t *def, const wchar_t *iniPath, const wchar_t *sets,
                         wchar_t *out, size_t size)
 {
@@ -750,9 +747,20 @@ static void game_option(const wchar_t *name, const wchar_t *key, const wchar_t *
     {
         const wchar_t *end = wcschr(line, L'\n');
         size_t n = end ? (size_t)(end - line) : wcslen(line);
-        size_t k = wcslen(key);
-        if (n > 5 + k && !_wcsnicmp(line, L"Game.", 5) && !_wcsnicmp(line + 5, key, k) && line[5 + k] == L'=')
-            swprintf(out, size, L"%.*s", (int)(n - 6 - k), line + 6 + k);
+        size_t k = wcslen(key), m = wcslen(name);
+        if (n > 5 && !_wcsnicmp(line, L"Game.", 5))
+        {
+            // Game.KEY, or Game.<short name>.KEY (the DLL's settings.cpp reads both)
+            const wchar_t *p = line + 5;
+            size_t rest = n - 5;
+            if (rest > m + 1 && !_wcsnicmp(p, name, m) && p[m] == L'.')
+            {
+                p += m + 1;
+                rest -= m + 1;
+            }
+            if (rest > k && !_wcsnicmp(p, key, k) && p[k] == L'=')
+                swprintf(out, size, L"%.*s", (int)(rest - k - 1), p + k + 1);
+        }
         line = end ? end + 1 : NULL;
     }
 }
@@ -1098,8 +1106,11 @@ int wmain(int argc, wchar_t **argv)
     }
 
     wchar_t gamePath[MAX_PATH], gameDir[MAX_PATH], logPath[MAX_PATH], selfDir[MAX_PATH], dllPath[MAX_PATH];
-    if (!GetFullPathNameW(argv[i], MAX_PATH, gamePath, NULL) || !GetFullPathNameW(logArg, MAX_PATH, logPath, NULL))
+    DWORD gameLen = GetFullPathNameW(argv[i], MAX_PATH, gamePath, NULL), logLen = GetFullPathNameW(logArg, MAX_PATH, logPath, NULL);
+    if (!gameLen || gameLen >= MAX_PATH || !logLen || logLen >= MAX_PATH) // longer than MAX_PATH too: not copied
     {
+        if (gameLen >= MAX_PATH || logLen >= MAX_PATH)
+            SetLastError(ERROR_FILENAME_EXCED_RANGE);
         say_error("GetFullPathName");
         return 1;
     }
@@ -1168,8 +1179,11 @@ int wmain(int argc, wchar_t **argv)
     swprintf(controlsPath, MAX_PATH, L"%s\\controls.ini", selfDir);
     wchar_t iniPath[MAX_PATH];
     swprintf(iniPath, MAX_PATH, L"%s\\windowsloader.ini", selfDir);
-    if (configArg && !GetFullPathNameW(configArg, MAX_PATH, iniPath, NULL))
+    DWORD iniLen = configArg ? GetFullPathNameW(configArg, MAX_PATH, iniPath, NULL) : 1;
+    if (!iniLen || iniLen >= MAX_PATH) // longer than MAX_PATH too: not copied
     {
+        if (iniLen >= MAX_PATH)
+            SetLastError(ERROR_FILENAME_EXCED_RANGE);
         say_error("GetFullPathName");
         return 1;
     }
@@ -1272,6 +1286,7 @@ int wmain(int argc, wchar_t **argv)
     append_arg(cmd, CMDLINE_MAX, gamePath);
     for (int a = i + 1; a < argc; a++)
         append_arg(cmd, CMDLINE_MAX, argv[a]);
+    game_cabinet_args(gamePath, cmd, argc, argv, i + 1);
     game_option_args(gamePath, cmd, argc, argv, i + 1, iniPath, setsLen ? sets : NULL);
     game_fixed_args(gamePath, cmd, argc, argv, i + 1);
 
@@ -1304,7 +1319,8 @@ int wmain(int argc, wchar_t **argv)
     }
 
     int reboots = 0;
-handover: // a RingEdge game handing over to its test mode or back (WL_EXIT_TEST_MODE, _GAME_MODE): its companions too
+handover: // a RingEdge game handing over to its test mode or back (WL_EXIT_TEST_MODE, _GAME_MODE), or the game started
+          // again after it rebooted its cabinet (WL_EXIT_REBOOT): its companions too
     // The companions first (companion_of): their own logs, neither controllers nor agent (the game's)
     PROCESS_INFORMATION cpi[COMPANIONS] = {};
     wchar_t compExe[MAX_PATH], compDir[MAX_PATH], compLog[MAX_PATH];
@@ -1373,7 +1389,6 @@ handover: // a RingEdge game handing over to its test mode or back (WL_EXIT_TEST
         SetEnvironmentVariableW(WL_ENV_COMPANION_OF, NULL);
     }
 
-again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
     // The game's standard handles are NUL, the only handle it inherits: in agent mode ours are the
     // agent's protocol, and a console game reading its input would wait for a key on a console
     // nobody sees (Storm Racer G stood still before its first frame). A console game gets no
@@ -1510,6 +1525,7 @@ again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
             TerminateProcess(cpi[c].hProcess, 0);
             WaitForSingleObject(cpi[c].hProcess, 5000);
             CloseHandle(cpi[c].hProcess);
+            cpi[c].hProcess = NULL;
         }
     if (stopped)
     {
@@ -1536,7 +1552,7 @@ again: // the game started again after it rebooted its cabinet (WL_EXIT_REBOOT)
         if (!agent && ++reboots <= 3)
         {
             say("windowsloader: the game rebooted its cabinet to take its new settings: started again.\n");
-            goto again;
+            goto handover; // its companions with it, as at the cabinet's start
         }
         say("windowsloader: the game rebooted its cabinet to take its new settings: start it again.\n");
         code = 0;

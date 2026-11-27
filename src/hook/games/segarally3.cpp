@@ -374,6 +374,7 @@ static int g_champCount;
 static int g_champsOn; // the championships' page installed (revo_setup)
 static wchar_t g_champNames[CHAMP_MAX][40];
 static unsigned g_champHashes[CHAMP_MAX];
+static int g_champHashesDone;
 
 static const wchar_t *__fastcall revo_text_by_hash(void *language, void *edx, unsigned hash)
 {
@@ -387,9 +388,15 @@ static const wchar_t *__fastcall revo_text_by_hash(void *language, void *edx, un
             g_envHashes[e] = g_envTextIds[e] ? hashOf(language, NULL, g_envTextIds[e]) : 0;
         for (int i = 0; i < g_revoCount; i++)
             g_trackHashes[i] = hashOf(language, NULL, g_revo[i].text);
+        g_hashesDone = 1;
+    }
+    // The championships' hashes once they are made (revo_database, at the first listing): a lookup
+    // before then leaves them to a later one
+    if (!g_champHashesDone && g_dbDone > 0)
+    {
         for (int k = 0; k < g_champCount; k++)
             g_champHashes[k] = hashOf(language, NULL, g_champs[k].text);
-        g_hashesDone = 1;
+        g_champHashesDone = 1;
     }
     for (int e = 0; e < ENV_COUNT; e++)
         if (g_envTextIds[e] && hash == g_envHashes[e])
@@ -397,7 +404,7 @@ static const wchar_t *__fastcall revo_text_by_hash(void *language, void *edx, un
     for (int i = 0; i < g_revoCount; i++)
         if (hash == g_trackHashes[i])
             return revo_text(language, edx, g_revo[i].text);
-    for (int k = 0; k < g_champCount; k++)
+    for (int k = 0; g_champHashesDone && k < g_champCount; k++)
         if (hash == g_champHashes[k])
             return revo_text(language, edx, g_champs[k].text);
     return NULL;

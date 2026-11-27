@@ -14,11 +14,12 @@
 // The interface's languages (lang.h): the gettext catalogues lang\<code>.po read as they are, the
 // French texts' translations looked up in a table of their own.
 //
-// What is read of a .po file: msgctxt, msgid, msgstr (msgstr[0] with a plural, the others left
-// out), the continued lines, C's escapes, the "fuzzy" flag; the comments and the obsolete entries
-// (#~) are left out. An entry whose translation has other %-conversions than its French text
-// (printf's formats: "%d", "%s"...) is left out too, the French text kept: a mistaken catalogue does
-// not bring a format that would read the wrong arguments.
+// What is read of a .po file: msgctxt, msgid, msgstr (msgstr[0] with a plural, msgid_plural and the
+// others left out), the continued lines, C's escapes, the "#, fuzzy" flag (that entry left out, as an
+// empty one: its French text shown), the header's X-Language-Name; the other comments and the
+// obsolete entries (#~) are left out. An entry whose translation has other %-conversions than its
+// French text (printf's formats: "%d", "%s"...) is left out too, the French text kept: a mistaken
+// catalogue does not bring a format that would read the wrong arguments.
 
 #include <windows.h>
 #include <ctype.h>
@@ -247,6 +248,8 @@ static void header(Catalog *c, const char *text)
 static void finish(Reader *r)
 {
     close_text(r);
+    if (!r->key && !r->str) // no entry yet: the flags read (fuzzy) are the coming one's
+        return;
     if (r->key && r->str && !r->key[0])
         header(r->c, r->str);
     else if (r->key && r->str && r->key[0] && r->str[0] && !r->fuzzy)
@@ -306,7 +309,7 @@ static Catalog *parse(const char *code, const char *data, size_t size, const cha
             continue;
         if (*s == '#')
         {
-            if (r.str) // the entry before ends: the comments are the next one's
+            if (r.key || r.str) // the entry before ends: the comments are the next one's
                 finish(&r);
             if (s[1] == ',' && strstr(s, "fuzzy"))
                 r.fuzzy = 1;
@@ -595,21 +598,6 @@ const char *wl_tr(const char *text)
     return text;
 }
 
-int wl_lang_count(void)
-{
-    return g_count;
-}
-
-const char *wl_lang_code_at(int i)
-{
-    return i >= 0 && i < g_count ? g_codes[i] : "";
-}
-
-const char *wl_lang_name_at(int i)
-{
-    return i >= 0 && i < g_count ? g_names[i] : "";
-}
-
 static const char *name_of(const char *code)
 {
     for (int i = 0; i < g_count; i++)
@@ -647,4 +635,10 @@ int wl_lang_combo(const char *label)
         ImGui::EndCombo();
     }
     return changed;
+}
+
+void wl_utf8(const wchar_t *w, char *out, size_t size)
+{
+    if (!WideCharToMultiByte(CP_UTF8, 0, w, -1, out, (int)size, NULL, NULL))
+        out[0] = 0;
 }
