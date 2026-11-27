@@ -519,6 +519,7 @@ static HRESULT game_present(IDirect3DDevice9 *dev, const RECT *src, const RECT *
     wl_menu_present(dev, present_out); // Tab: the menu runs here until it is closed
     wl_d3d9_take_pending_shot(dev);
     const RECT *place = wl_display_dest(); // the picture's place for the aspect ratio and the mode
+    wnd = wl_display_present_window(wnd);
     LARGE_INTEGER began;
     QueryPerformanceCounter(&began);
     g_presentBegan = began.QuadPart;
@@ -716,7 +717,11 @@ static HRESULT game_reset(IDirect3DDevice9 *dev, D3DPRESENT_PARAMETERS *pp, int 
     }
     if (forced)
         wl_log("  kept in a window");
-    wl_display_prepare(pp);
+    {
+        D3DDEVICE_CREATION_PARAMETERS cp = {};
+        dev->GetCreationParameters(&cp);
+        wl_display_prepare(pp, cp.hFocusWindow);
+    }
     InterlockedExchange(&g_resetThread, (LONG)GetCurrentThreadId());
     HRESULT hr = ex ? oResetEx((IDirect3DDevice9Ex *)dev, pp, pp && pp->Windowed ? NULL : mode) : oReset(dev, pp); // a window takes no mode
     InterlockedExchange(&g_resetThread, 0);
@@ -1288,7 +1293,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDevice(IDirect3D9 *d3d, UINT adapter, D3
     if (forced)
         wl_log("  kept in a window");
     asked_size(pp, focus);
-    wl_display_prepare(pp);
+    wl_display_prepare(pp, focus);
     keep_tex0(NULL); // the previous device's texture let go
     HRESULT hr = oCreateDevice(d3d, adapter, type, focus, behavior, pp, out);
     if (SUCCEEDED(hr) && out)
@@ -1339,7 +1344,7 @@ static HRESULT STDMETHODCALLTYPE hCreateDeviceEx(IDirect3D9Ex *d3d, UINT adapter
         wl_log("  kept in a window");
     }
     asked_size(pp, focus);
-    wl_display_prepare(pp);
+    wl_display_prepare(pp, focus);
     keep_tex0(NULL);
     HRESULT hr = oCreateDeviceEx(d3d, adapter, type, focus, behavior, pp, mode, out);
     if (SUCCEEDED(hr) && out)

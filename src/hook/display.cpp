@@ -13,11 +13,10 @@
 
 // The game's window takes the mode's style and size, and the parts of its client area outside the
 // picture are painted black. The picture is placed by Direct3D 9's Present itself (the swap chain
-// made a COPY one, which takes a destination rectangle), by a child window the DXGI swap chain
-// presents into (Direct3D 10 and 11), or copied by windowsloader ([Display] PRESENT = GDI, and an
-// OpenGL game drawing in windowsloader's framebuffer). A multisampled Direct3D 9 back buffer cannot
-// be presented that way: the picture then fills the window (the window still has the aspect ratio
-// in WINDOW mode).
+// made a COPY one, which takes a destination rectangle), by a child window the swap chain presents
+// into (Direct3D 10 and 11, and a multisampled Direct3D 9 back buffer, whose swap chain cannot be a
+// COPY one), or copied by windowsloader ([Display] PRESENT = GDI, and an OpenGL game drawing in
+// windowsloader's framebuffer).
 
 #include <windows.h>
 #include <d3d9.h>
@@ -70,7 +69,8 @@ static struct
 static SRWLOCK g_procsLock = SRWLOCK_INIT;
 static int g_bbW, g_bbH;           // the game's picture
 static int g_copy;                 // the swap chain takes a destination rectangle
-static HWND g_child;               // or it shows the picture in this child window (Direct3D 11)
+static HWND g_child;               // or it shows the picture in this child window (Direct3D 11, a multisampled Direct3D 9 one)
+static int g_childDxgi;            // that child shows a DXGI swap chain's picture (else Direct3D 9's)
 static int g_gdiSetting;           // [Display] PRESENT: GDI (1) or DIRECT (0, the default)
 static int g_gdi;                  // windowsloader copies the picture itself, by GDI
 static RECT g_childRect;
@@ -540,7 +540,13 @@ void wl_display_set_internal(int width, int height)
 // A DXGI swap chain shows the picture, in windowsloader's child window
 int wl_display_dxgi_shown(void)
 {
-    return g_child != NULL;
+    return g_child && g_childDxgi;
+}
+
+// A Direct3D 9 swap chain shows the picture in windowsloader's child window
+static int d3d9_child(void)
+{
+    return g_child && !g_childDxgi;
 }
 
 // The picture is placed by windowsloader (else it fills the window whatever the layout)
@@ -839,7 +845,7 @@ static void apply_mode(void)
     InterlockedExchange(&g_repaint, 1);
     wl_log("display: %s %s, window %dx%d at %d,%d, picture %ldx%ld at %ld,%ld%s", g_modeNames[mode], g_aspectNames[g_aspect], w, h, x, y,
            g_dest.right - g_dest.left, g_dest.bottom - g_dest.top, g_dest.left, g_dest.top,
-           placed() || g_glPicture || g_full ? "" : " (multisampled back buffer: the picture fills the window)");
+           placed() || g_glPicture || g_full ? "" : " (the picture fills the window: it is not placed)");
 }
 
 static void paint_bars(void)
@@ -1215,7 +1221,9 @@ void wl_display_no_multisample(void)
     g_noMultisample = 1;
 }
 
-void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
+static HWND child_window(HWND parent);
+
+void wl_display_prepare(D3DPRESENT_PARAMETERS *pp, HWND focus)
 {
     if (!g_wl.windowed || !pp || !pp->Windowed)
         return;
@@ -1248,7 +1256,24 @@ void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
     wchar_t swap[16] = L"";
     GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
     g_gdi = g_gdiSetting;
-    g_copy = !g_gdi && pp->MultiSampleType == D3DMULTISAMPLE_NONE && _wcsicmp(swap, L"discard");
+    int discard = !_wcsicmp(swap, L"discard");
+    // A multisampled back buffer takes no destination rectangle (its swap chain cannot be a COPY
+    // one): it is presented into a child window placed where the picture goes, as Direct3D 11's.
+    // Once made, that child keeps the picture (a Reset to a plain back buffer too)
+    HWND parent = pp->hDeviceWindow ? pp->hDeviceWindow : focus;
+    if (!g_gdi && !discard && parent && (pp->MultiSampleType != D3DMULTISAMPLE_NONE || d3d9_child()))
+    {
+        int had = d3d9_child();
+        HWND child = child_window(parent);
+        if (child != parent)
+        {
+            pp->hDeviceWindow = child;
+            if (!had)
+                wl_log("display: the game's multisampled back buffer (%d) presented in window %p, placed where the picture goes",
+                       (int)pp->MultiSampleType, child);
+        }
+    }
+    g_copy = !g_gdi && !discard && pp->MultiSampleType == D3DMULTISAMPLE_NONE && !d3d9_child();
     if (g_copy)
     {
         pp->SwapEffect = D3DSWAPEFFECT_COPY;
@@ -1258,8 +1283,13 @@ void wl_display_prepare(D3DPRESENT_PARAMETERS *pp)
 
 void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp)
 {
-    if (pp)
-        wl_display_window(wnd, (int)pp->BackBufferWidth, (int)pp->BackBufferHeight);
+    if (pp) // the game's window, not the child its picture is presented in
+        wl_display_window(wnd && wnd == g_child ? GetParent(wnd) : wnd, (int)pp->BackBufferWidth, (int)pp->BackBufferHeight);
+}
+
+HWND wl_display_present_window(HWND wnd)
+{
+    return wnd && d3d9_child() && wnd == GetParent(g_child) ? g_child : wnd;
 }
 
 // The child window the picture is shown in: the mouse goes through it to the game's window, and
@@ -1299,12 +1329,25 @@ static LRESULT CALLBACK child_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 
 HWND wl_display_child(HWND parent)
 {
+    HWND child = child_window(parent);
+    if (child != parent)
+        g_childDxgi = 1;
+    return child;
+}
+
+static HWND child_window(HWND parent)
+{
     if (!g_wl.windowed || !parent || g_hidden)
         return parent;
     wchar_t swap[16] = L"";
     GetEnvironmentVariableW(L"WINDOWSLOADER_SWAP", swap, 16);
     if (!_wcsicmp(swap, L"discard"))
-        return parent; // the game's own swap chain, as for Direct3D 9
+        return parent; // the game's own swap chain, on its window
+    if (g_child && !IsWindow(g_child)) // destroyed with the game's window: made again in the new one
+    {
+        g_child = NULL;
+        g_childDxgi = 0;
+    }
     if (g_child)
         return GetParent(g_child) == parent ? g_child : parent;
     static ATOM cls;

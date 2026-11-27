@@ -104,13 +104,17 @@ void wl_display_set_keep_active(int on);
 int wl_display_internal_supported(void);
 
 // From the Direct3D 9 hooks
-void wl_display_prepare(D3DPRESENT_PARAMETERS *pp);          // before CreateDevice / Reset
-// The game's multisampled back buffer made a plain one (by its module): presented by the game, such
-// a buffer cannot be placed, and Dirty Drivin's never reached the screen
+// Before CreateDevice / Reset (focus: the device's focus window): a multisampled back buffer is
+// given a child window as its device window, placed where the picture goes (its swap chain cannot
+// take a destination rectangle); the others a COPY swap chain
+void wl_display_prepare(D3DPRESENT_PARAMETERS *pp, HWND focus);
+// The game's multisampled back buffer made a plain one (by its module): presented by the game,
+// Dirty Drivin's never reached the screen
 void wl_display_no_multisample(void);
 void wl_display_device(HWND wnd, const D3DPRESENT_PARAMETERS *pp); // after: the window set for the mode
 const RECT *wl_display_dest(void);                           // each Present: where the picture goes, NULL for the whole window
 const RECT *wl_display_source(void);                         // and the part of the back buffer shown (a crop), NULL for all
+HWND wl_display_present_window(HWND wnd);                    // a Present's window: the game's own made that child when it has one
 
 // From the other renderers (Direct3D 11), whose Present fills its whole window: the swap chain is
 // given wl_display_child's window instead of the game's, a child placed where the picture goes,
