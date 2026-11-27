@@ -33,6 +33,9 @@ static volatile LONG g_modeW, g_modeH;  // the mode added to the modes' lists: t
                                         // minimum on a larger screen that lacks it (0: none)
 static int g_realW, g_realH;
 static wchar_t g_primary[CCHDEVICENAME]; // the primary screen's device name (\\.\DISPLAY1)
+#define WL_D3D9_SIZES 8
+static int g_d3d9W[WL_D3D9_SIZES], g_d3d9H[WL_D3D9_SIZES]; // the sizes a game looks for in Direct3D 9's
+static int g_d3d9Count;                                     // modes (wl_vscreen_d3d9_size)
 
 static int game_caller(const void *caller)
 {
@@ -49,6 +52,15 @@ static int game_asks(const void *caller)
 static int game_lists(const void *caller)
 {
     return g_modeW && game_caller(caller);
+}
+
+void wl_vscreen_d3d9_size(int width, int height)
+{
+    if (width > 0 && height > 0 && g_d3d9Count < WL_D3D9_SIZES)
+    {
+        g_d3d9W[g_d3d9Count] = width;
+        g_d3d9H[g_d3d9Count++] = height;
+    }
 }
 
 void wl_vscreen_minimum(int width, int height)
@@ -335,61 +347,89 @@ static UINT(STDMETHODCALLTYPE *oGetAdapterModeCount)(IDirect3D9 *, UINT, D3DFORM
 static HRESULT(STDMETHODCALLTYPE *oEnumAdapterModes)(IDirect3D9 *, UINT, D3DFORMAT, UINT, D3DDISPLAYMODE *);
 static HRESULT(STDMETHODCALLTYPE *oGetAdapterDisplayMode)(IDirect3D9 *, UINT, D3DDISPLAYMODE *);
 
-// Our modes for a format: our size at the screen's rate and at 60 Hz (Sonic & Sega All-Stars
-// Racing looks for Settings.ini's SCREEN_WIDTH x SCREEN_HEIGHT at SCREEN_REFRESH, 60, among the
-// X8R8G8B8 modes, +0x2ec4: "Invalid Game Resolution"), each one the list lacks; the real count in n
-static int d3d9_ours(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT *n, UINT rates[2])
+// A mode added to Direct3D 9's list
+typedef struct
+{
+    UINT width, height, rate;
+} WlMode9;
+#define WL_MODES9 (2 * (1 + WL_D3D9_SIZES))
+
+// The game given Direct3D 9's modes with ours: the virtual screen's, or the sizes its module named
+static int game_lists9(const void *caller)
+{
+    return (g_modeW || g_d3d9Count) && game_caller(caller);
+}
+
+// Our modes for a format, each one the list lacks; the real count in n. Each size, the virtual screen's
+// then those its module named, at the screen's rate and at 60 Hz: Sonic & Sega All-Stars Racing
+// looks for Settings.ini's SCREEN_WIDTH x SCREEN_HEIGHT at SCREEN_REFRESH, 60, among the X8R8G8B8
+// modes (+0x2ec4: "Invalid Game Resolution"); Need for Speed Underground for its sizes (640x480 to
+// 1280x1024), and runs past its table when the list has none of them (a screen that lists only its own
+// size)
+static int d3d9_ours(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT *n, WlMode9 ours[WL_MODES9])
 {
     *n = oGetAdapterModeCount(d3d, adapter, format);
     if (!*n)
         return 0;
     D3DDISPLAYMODE cur;
-    UINT want[2] = {60, 0}, count = 0;
+    UINT want[2] = {60, 0};
+    int count = 0;
     if (SUCCEEDED(oGetAdapterDisplayMode(d3d, adapter, &cur)) && cur.RefreshRate && cur.RefreshRate != 60)
         want[1] = cur.RefreshRate;
-    for (int k = 0; k < 2; k++)
-    {
-        if (!want[k])
-            continue;
-        int there = 0;
-        for (UINT i = 0; i < *n && !there; i++)
+    int sizes = 0, w[1 + WL_D3D9_SIZES], h[1 + WL_D3D9_SIZES];
+    if (g_modeW)
+        w[sizes] = g_modeW, h[sizes++] = g_modeH;
+    for (int s = 0; s < g_d3d9Count; s++)
+        w[sizes] = g_d3d9W[s], h[sizes++] = g_d3d9H[s];
+    for (int s = 0; s < sizes; s++)
+        for (int k = 0; k < 2; k++)
         {
-            D3DDISPLAYMODE m;
-            there = SUCCEEDED(oEnumAdapterModes(d3d, adapter, format, i, &m)) && (int)m.Width == g_modeW && (int)m.Height == g_modeH &&
-                    m.RefreshRate == want[k];
+            if (!want[k])
+                continue;
+            int there = 0;
+            for (int o = 0; o < count && !there; o++)
+                there = (int)ours[o].width == w[s] && (int)ours[o].height == h[s] && ours[o].rate == want[k];
+            for (UINT i = 0; i < *n && !there; i++)
+            {
+                D3DDISPLAYMODE m;
+                there = SUCCEEDED(oEnumAdapterModes(d3d, adapter, format, i, &m)) && (int)m.Width == w[s] && (int)m.Height == h[s] &&
+                        m.RefreshRate == want[k];
+            }
+            if (!there)
+                ours[count].width = (UINT)w[s], ours[count].height = (UINT)h[s], ours[count++].rate = want[k];
         }
-        if (!there)
-            rates[count++] = want[k];
-    }
-    return (int)count;
+    return count;
 }
 
 static UINT STDMETHODCALLTYPE hGetAdapterModeCount(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format)
 {
-    if (adapter != D3DADAPTER_DEFAULT || !game_lists(WL_CALLER))
+    if (adapter != D3DADAPTER_DEFAULT || !game_lists9(WL_CALLER))
         return oGetAdapterModeCount(d3d, adapter, format);
-    UINT n, rates[2];
-    int ours = d3d9_ours(d3d, adapter, format, &n, rates);
-    return n + (UINT)ours;
+    UINT n;
+    WlMode9 ours[WL_MODES9];
+    int count = d3d9_ours(d3d, adapter, format, &n, ours);
+    return n + (UINT)count;
 }
 
 static HRESULT STDMETHODCALLTYPE hEnumAdapterModes(IDirect3D9 *d3d, UINT adapter, D3DFORMAT format, UINT index, D3DDISPLAYMODE *mode)
 {
-    if (adapter != D3DADAPTER_DEFAULT || !mode || !game_lists(WL_CALLER))
+    if (adapter != D3DADAPTER_DEFAULT || !mode || !game_lists9(WL_CALLER))
         return oEnumAdapterModes(d3d, adapter, format, index, mode);
-    UINT n, rates[2];
-    int ours = d3d9_ours(d3d, adapter, format, &n, rates);
-    if (index < n || index >= n + (UINT)ours)
+    UINT n;
+    WlMode9 ours[WL_MODES9];
+    int count = d3d9_ours(d3d, adapter, format, &n, ours);
+    if (index < n || index >= n + (UINT)count)
         return oEnumAdapterModes(d3d, adapter, format, index, mode);
     HRESULT hr = oEnumAdapterModes(d3d, adapter, format, 0, mode); // its format, our size and rate
     if (SUCCEEDED(hr))
     {
-        mode->Width = (UINT)g_modeW;
-        mode->Height = (UINT)g_modeH;
-        mode->RefreshRate = rates[index - n];
+        const WlMode9 *m = &ours[index - n];
+        mode->Width = m->width;
+        mode->Height = m->height;
+        mode->RefreshRate = m->rate;
         static volatile LONG logged;
-        if (InterlockedIncrement(&logged) <= 2)
-            wl_log("vscreen: Direct3D 9's modes: %dx%d at %u Hz added (format %d)", (int)g_modeW, (int)g_modeH, mode->RefreshRate, (int)format);
+        if (InterlockedIncrement(&logged) <= WL_MODES9)
+            wl_log("vscreen: Direct3D 9's modes: %ux%u at %u Hz added (format %d)", m->width, m->height, m->rate, (int)format);
     }
     return hr;
 }
@@ -408,12 +448,17 @@ static HRESULT STDMETHODCALLTYPE hGetAdapterDisplayMode(IDirect3D9 *d3d, UINT ad
 void wl_vscreen_d3d9(void *direct3d9)
 {
     static int done;
-    if (!g_modeW || !direct3d9 || done++)
+    if ((!g_modeW && !g_d3d9Count) || !direct3d9 || done++)
         return;
+    const char *why = g_modeW ? " (VIRTUAL_DISPLAY)" : " (the game's sizes)";
+    char what[96];
     void **vt = vtable_of(direct3d9);
-    wl_hook_code(vt[6], (void *)hGetAdapterModeCount, (void **)&oGetAdapterModeCount, "IDirect3D9::GetAdapterModeCount (VIRTUAL_DISPLAY)");
-    wl_hook_code(vt[7], (void *)hEnumAdapterModes, (void **)&oEnumAdapterModes, "IDirect3D9::EnumAdapterModes (VIRTUAL_DISPLAY)");
-    wl_hook_code(vt[8], (void *)hGetAdapterDisplayMode, (void **)&oGetAdapterDisplayMode, "IDirect3D9::GetAdapterDisplayMode (VIRTUAL_DISPLAY)");
+    snprintf(what, sizeof what, "IDirect3D9::GetAdapterModeCount%s", why);
+    wl_hook_code(vt[6], (void *)hGetAdapterModeCount, (void **)&oGetAdapterModeCount, what);
+    snprintf(what, sizeof what, "IDirect3D9::EnumAdapterModes%s", why);
+    wl_hook_code(vt[7], (void *)hEnumAdapterModes, (void **)&oEnumAdapterModes, what);
+    snprintf(what, sizeof what, "IDirect3D9::GetAdapterDisplayMode%s", why);
+    wl_hook_code(vt[8], (void *)hGetAdapterDisplayMode, (void **)&oGetAdapterDisplayMode, what);
 }
 
 // ------------------------------------------------------------------------------

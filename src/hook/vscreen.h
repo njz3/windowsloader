@@ -32,6 +32,10 @@
 // By the game's module, when it is found: the smallest screen its game accepts
 void wl_vscreen_minimum(int width, int height);
 
+// By the game's module, when it is found: a size the game looks for among Direct3D 9's adapter modes,
+// added to them when the screen does not list it (any VIRTUAL_DISPLAY value; up to 8 sizes)
+void wl_vscreen_d3d9_size(int width, int height);
+
 // From game.cpp once the options are read: the option's value ("" when the game has none)
 void wl_vscreen_settings(const char *value);
 

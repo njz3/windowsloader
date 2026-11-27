@@ -63,6 +63,7 @@
 #include "hooks.h"
 #include "inputs.h"
 #include "log.h"
+#include "vscreen.h"
 
 #if defined(_M_IX86)
 
@@ -844,6 +845,13 @@ static int nfsu_game(const wchar_t *exePath, const wchar_t *base, const char **n
     snprintf(to, sizeof to, "%saudits.txt", folder);
     wl_files_redirect_prefix("C:\\audits.txt", to);
     wl_dinput_quiet_keyboard();
+
+    // Its sizes (+0x3b8640: 640x480, 800x600, 1024x768, 1280x960, 1280x1024), looked for among
+    // Direct3D 9's X8R8G8B8 modes at start (+0x1ccd30); with none of them listed (a screen that lists
+    // only its own size), it searches past its table (+0x1cced0, an access violation 0.7 s in)
+    static const int sizes[][2] = {{640, 480}, {800, 600}, {1024, 768}, {1280, 960}, {1280, 1024}};
+    for (int i = 0; i < (int)(sizeof sizes / sizeof sizes[0]); i++)
+        wl_vscreen_d3d9_size(sizes[i][0], sizes[i][1]);
     return 1;
 }
 
