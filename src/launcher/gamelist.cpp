@@ -86,7 +86,8 @@ const WlKnownGame g_wlKnownGames[] = {
     // Global VR's NASCAR, the race alone (its frontend, the Anark player, not played): the disc's 2.0.2
     // (build 068) and NASCAR Racing's 1.1 (disc 050-0136-01), told by their time stamps
     {"NASCAR Team Racing", "nascar", "2.0.2", {L"NASCAR_GVR.exe"}, {0xBEBCEA21}, {NULL}, 0x4C7EC23F, NULL, "Global VR", "2009", WL_GAME_WORK,
-     WL_N("La course seule, sans le menu de la borne : son circuit et sa voiture dans les options. GvrIO.dll de Global VR (volant, "
+     WL_N("La course seule, sans le menu de la borne : un écran de windowsloader fait choisir le circuit avant chaque course, sa voiture "
+          "dans les options. GvrIO.dll de Global VR (volant, "
           "pédales, levier à 4 positions, boutons, retour de force), sa clé HASP répondue."),
      WL_FEATURE_PARTLY, WL_FEATURE_NO},
     {"NASCAR Racing", "nascar", "1.1", {L"NASCAR_GVR.exe"}, {0x999502FC}, {NULL}, 0x470BC579, NULL, "Global VR", "2007", WL_GAME_WORK,

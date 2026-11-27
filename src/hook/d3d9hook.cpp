@@ -1198,6 +1198,8 @@ static void hook_device(IDirect3DDevice9 *dev)
         return;
     done = 1;
     void **vt = vtable_of(dev);
+    if (wl_d3d9_zero_projection_on())
+        wl_d3d9_zero_projection_hooks(vt);
     if (g_psTokens)
         wl_hook_code(vt[SLOT_DEVICE_CREATEPIXELSHADER], (void *)hCreatePixelShader, (void **)&oCreatePixelShader, "IDirect3DDevice9::CreatePixelShader");
     wl_hook_code(vt[SLOT_DEVICE_PRESENT], (void *)hPresent, (void **)&oPresent, "IDirect3DDevice9::Present");

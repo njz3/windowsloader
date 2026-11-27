@@ -241,6 +241,13 @@ LONGLONG wl_d3d9_present_began(void);
 // A game's pixel shader (its instructions, comments left out, the end token included) made from
 // the assembly given instead; before the device is made. The arguments are kept
 void wl_d3d9_replace_pixel_shader(const DWORD *tokens, int count, const char *source, const char *why);
+// A shadow projection matrix of the game's vertex shaders (by its name in their constant table)
+// that, left all zeros, made today's graphics cards draw black (0 times infinite: NaN,
+// d3d9shadow.cpp): the pixel shader's flag (by its name) set to 0 while such a draw is made, the
+// colour without the shadow; before the device is made. Not with wl_d3d9_replace_pixel_shader
+void wl_d3d9_zero_projection(const char *matrix, const char *flag);
+int wl_d3d9_zero_projection_on(void);
+void wl_d3d9_zero_projection_hooks(void **vt);
 void wl_dinput_hooks(void);
 void wl_dinput_hide_controllers(void); // the PC's game controllers kept from the game's DirectInput
 void wl_dinput_quiet_keyboard(void);   // the game's DirectInput keyboard sees no key down (its boards drive it)

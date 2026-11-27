@@ -284,6 +284,12 @@ static const WlGameOption g_nascarOptions[] = {
           "dover, michigan, texas, indianapolis, infineon, watkinsglen..."),
      WL_OPTION_TEXT, NULL, 0, 0, "daytona", 1, NULL},
     {"CAR", WL_N("Voiture"), WL_N("Le numéro de la voiture (-car)."), WL_OPTION_TEXT, NULL, 0, 0, "20", 1, NULL},
+    {"PICK_TRACK", WL_N("Choix du circuit"),
+     WL_N("Avant chaque course, un écran de windowsloader fait choisir le circuit (volant ou levier, Start), comme le menu de la borne ; "
+          "Circuit est celui choisi au départ."),
+     WL_OPTION_BOOL, NULL, 0, 0, "true", 1, NULL},
+    {"PICK_TIMEOUT", WL_N("Délai du choix du circuit"),
+     WL_N("Secondes après lesquelles le circuit sélectionné est pris sans Start ; 0 attend."), WL_OPTION_INT, NULL, 0, 300, "0", 1, NULL},
 };
 
 // wahlap.cpp's

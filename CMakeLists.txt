@@ -142,6 +142,9 @@ add_library(wl_hook SHARED
     src/hook/files.cpp
     src/hook/devices.cpp
     src/hook/system.cpp
+    src/hook/dsfx.cpp
+    src/hook/picklist.cpp
+    src/hook/d3d9shadow.cpp
     src/hook/netenv.cpp
     src/hook/window.cpp
     src/hook/vscreen.cpp

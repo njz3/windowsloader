@@ -325,6 +325,17 @@ static int __cdecl pjei_update_control_status_buffer(void)
         unsigned short v = torque < -8 ? 0xFFC0 : torque > 8 ? 0x0040 : 0x8000;
         memcpy(s + 8, &v, 2);
     }
+    // The buttons as the game is given them, each change (the first 60): when a press reaches it
+    static unsigned was = 0xFFFFFFFFu;
+    static int told;
+    unsigned now = s[4] | s[16] << 8;
+    if (now != was && told < 60)
+    {
+        told++;
+        wl_log("thrill drive 4: buttons %02x (Start %d, ShiftUp %d, ShiftDown %d, View %d), test / service / coin %02x", s[4], !!(s[4] & 0x04),
+               !!(s[4] & 0x20), !!(s[4] & 0x40), !!(s[4] & 0x80), s[16]);
+    }
+    was = now;
     AcquireSRWLockExclusive(&g_statusLock);
     memcpy(g_status, s, sizeof s);
     ReleaseSRWLockExclusive(&g_statusLock);

@@ -268,9 +268,15 @@ the export build F04:E:A:A:20070330): its PJEI board (`P1_Start`, also the nitro
 `ViewChange`, the wheel and pedals, its lamps) and its D44H wheel motor are emulated; at each start
 its motor calibrates the wheel (about 40 s, no force sent meanwhile). NASCAR Team Racing and NASCAR
 Racing (`[Game.nascar]`) are their race alone, `NASCAR\Game\NASCAR_GVR.exe`, without the cabinet's
-menu (its Anark player, .NET 1.1 plug-ins and database): each start is one race, its track and car
-`TRACK` (a folder of `GameData\Tracks`, `daytona` by default) and `CAR` (`20`), unless its command
-line gives `-track` and `-car`. Keep the disc's layout: the launcher puts `NASCAR\Shell\bin`
+menu (its Anark player, .NET 1.1 plug-ins and database): each start is one race. Before it, a
+screen of windowsloader's lists the copy's tracks (`PICK_TRACK`, true by default): the wheel or the
+lever moves through them, Start chooses (the keyboard's arrows and Enter too); `PICK_TIMEOUT`
+seconds without Start take the one selected (0, the default, waits). The fantasy tracks are not
+listed: the race alone refuses them. `TRACK` (a folder of `GameData\Tracks`, `daytona` by default)
+is the one selected at first, or the race's track without the screen; `CAR` its car (`20`). A
+command line that gives `-track` shows no screen. Richmond (Team Racing's night race, the only track
+without a sun shadow map) was drawn black on today's graphics cards (its shaders divide by a shadow
+projection left all zeros: NaN); windowsloader draws it without that shadow. Keep the disc's layout: the launcher puts `NASCAR\Shell\bin`
 (`GvrIO.dll`) and `WINDOWS\system32` (`gvrNetComm.dll`, the 7.1 C runtime) on the race's PATH.
 Need for Speed Underground (`[Game.nfsu]`) is its race alone too, `Underground\UndergroundGVR.exe`,
 without the cabinet's menu and database: the launcher gives it `-nosql` and puts `WINDOWS\system32`

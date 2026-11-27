@@ -27,6 +27,7 @@ struct sockaddr; // read as bytes: winsock's headers are not needed
 #include "hooks.h"
 #include "wlshared.h"
 #include "controls.h"
+#include "dsfx.h"
 #include "ioports.h"
 #include "link.h"
 #include "log.h"
@@ -1591,6 +1592,9 @@ static HRESULT WINAPI hCoCreateInstance(REFCLSID cls, LPUNKNOWN outer, DWORD ctx
     }
     wl_busy_enter();
     HRESULT hr = oCoCreateInstance(cls, outer, ctx, iid, out);
+    // DirectSound's I3DL2 reverb, made by DirectSound itself for SetFX, gone from recent Windows
+    if (hr == REGDB_E_CLASSNOTREG && !outer && wl_dsfx_is_i3dl2(cls))
+        hr = wl_dsfx_i3dl2_create(iid, out, oCoCreateInstance);
     if (SUCCEEDED(hr) && out && *out && !outer && IsEqualCLSID(cls, g_filterGraph))
         hook_filter_graph((IUnknown *)*out);
     if (SUCCEEDED(hr) && out && *out && !outer)

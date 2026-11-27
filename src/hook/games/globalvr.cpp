@@ -54,6 +54,7 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 
@@ -62,8 +63,11 @@
 #include "game.h"
 #include "hooks.h"
 #include "inputs.h"
+#include "lang.h"
 #include "log.h"
+#include "picklist.h"
 #include "vscreen.h"
+#include "wlshared.h"
 
 #if defined(_M_IX86)
 
@@ -554,10 +558,137 @@ static void patch_build(int b)
 // ------------------------------------------------------------------------------
 
 static char g_cmdLine[2048];
+static char g_baseCmd[1536], g_car[16];
+static volatile LONG g_pickPending; // the track to be chosen on the screen at the race's first GetCommandLineA
 static LPSTR(WINAPI *oGetCommandLineA)(void);
+
+static void race_command(const char *track)
+{
+    snprintf(g_cmdLine, sizeof g_cmdLine, "%s -track %s -car %s", g_baseCmd, track, g_car);
+}
+
+// The tracks of the copy: GameData\Tracks' folders holding <folder>.WAY (not Common or HAT), with
+// the names they are shown by. The fantasy ones left out: Team Racing's race refuses them alone
+// ("Track Fantasy Redwood not valid for series 2005 NEXTEL Cup", then a crash at +0x88997), with
+// -series 2004NEXTEL or 2006NEXTEL too; what the frontend gives for them is not known
+static const struct
+{
+    const char *folder;
+    const char *name;
+} g_trackNames[] = {
+    {"atlanta", "Atlanta"},
+    {"bristol", "Bristol"},
+    {"daytona", "Daytona"},
+    {"dover", "Dover"},
+    {"indianapolis", "Indianapolis"},
+    {"infineon", "Infineon"},
+    {"lowes", "Lowe's"},
+    {"michigan", "Michigan"},
+    {"phoenix", "Phoenix"},
+    {"richmond", "Richmond"},
+    {"talladega", "Talladega"},
+    {"texas", "Texas"},
+    {"watkinsglen", "Watkins Glen"},
+};
+
+#define MAX_TRACKS 64
+
+struct Track
+{
+    char folder[64]; // in lower case, as the frontend gives it
+    char name[64];
+    int order;
+};
+
+static int track_order(const void *a, const void *b)
+{
+    const Track *x = (const Track *)a, *y = (const Track *)b;
+    return x->order != y->order ? x->order - y->order : _stricmp(x->name, y->name);
+}
+
+static int find_tracks(Track *tracks)
+{
+    wchar_t dir[MAX_PATH], pattern[MAX_PATH];
+    GetModuleFileNameW(NULL, dir, MAX_PATH);
+    wchar_t *slash = wcsrchr(dir, L'\\');
+    if (!slash)
+        return 0;
+    wcscpy_s(slash + 1, MAX_PATH - (slash + 1 - dir), L"GameData\\Tracks");
+    swprintf(pattern, MAX_PATH, L"%s\\*", dir);
+    int n = 0;
+    WIN32_FIND_DATAW f;
+    wl_busy_enter();
+    HANDLE h = FindFirstFileW(pattern, &f);
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        do
+        {
+            if (!(f.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || f.cFileName[0] == L'.' || n >= MAX_TRACKS)
+                continue;
+            wchar_t mas[MAX_PATH];
+            swprintf(mas, MAX_PATH, L"%s\\%s\\%s.WAY", dir, f.cFileName, f.cFileName);
+            if (GetFileAttributesW(mas) == INVALID_FILE_ATTRIBUTES)
+                continue;
+            Track *t = &tracks[n];
+            WideCharToMultiByte(CP_UTF8, 0, f.cFileName, -1, t->folder, sizeof t->folder, NULL, NULL);
+            _strlwr_s(t->folder, sizeof t->folder);
+            if (!strncmp(t->folder, "fantasy_", 8))
+                continue;
+            n++;
+            strcpy_s(t->name, sizeof t->name, t->folder);
+            t->order = 1;
+            for (int i = 0; i < (int)(sizeof g_trackNames / sizeof g_trackNames[0]); i++)
+                if (!strcmp(g_trackNames[i].folder, t->folder))
+                {
+                    strcpy_s(t->name, sizeof t->name, g_trackNames[i].name);
+                    t->order = 0;
+                }
+        } while (FindNextFileW(h, &f));
+        FindClose(h);
+    }
+    wl_busy_leave();
+    qsort(tracks, n, sizeof tracks[0], track_order);
+    return n;
+}
+
+// The track chosen on windowsloader's screen ([Game.nascar] PICK_TRACK), as the cabinet's frontend
+// lets the player choose it: the wheel or the lever, Start
+static void pick_track(void)
+{
+    static Track tracks[MAX_TRACKS];
+    int n = find_tracks(tracks);
+    char track[64];
+    wl_game_option("TRACK", track, sizeof track);
+    if (n < 2)
+    {
+        wl_log("nascar: %d track found in GameData\\Tracks: no choice shown", n);
+        return;
+    }
+    const char *labels[MAX_TRACKS];
+    int selected = 0;
+    for (int i = 0; i < n; i++)
+    {
+        labels[i] = tracks[i].name;
+        if (!_stricmp(tracks[i].folder, track))
+            selected = i;
+    }
+    WlPickControls c = {&g_inputs[IN_STEERING], &g_inputs[IN_SHIFT_UP], &g_inputs[IN_SHIFT_DOWN], &g_inputs[IN_START]};
+    wl_log("nascar: %d tracks, the choice shown", n);
+    int chosen = wl_pick_list(wl_tr("Choisissez le circuit"), wl_tr("Volant ou levier : choisir     Start : valider"), labels, n, selected, &c,
+                              wl_game_option_int("PICK_TIMEOUT"));
+    if (chosen < 0)
+    {
+        wl_log("nascar: no track chosen: -track %s", track[0] ? track : "daytona");
+        return;
+    }
+    race_command(tracks[chosen].folder);
+    wl_log("nascar: track chosen: %s (-track %s -car %s)", tracks[chosen].name, tracks[chosen].folder, g_car);
+}
 
 static LPSTR WINAPI nascar_GetCommandLineA(void)
 {
+    if (g_pickPending && InterlockedExchange(&g_pickPending, 0))
+        pick_track();
     return g_cmdLine[0] ? g_cmdLine : oGetCommandLineA();
 }
 
@@ -572,12 +703,18 @@ static void race_arguments(void)
         wl_log("nascar: GetCommandLineA not imported: the race starts without a track");
         return;
     }
-    char track[64], car[16];
+    char track[64];
     wl_game_option("TRACK", track, sizeof track);
-    wl_game_option("CAR", car, sizeof car);
-    snprintf(g_cmdLine, sizeof g_cmdLine, "%s -track %s -car %s", cmd, track[0] ? track : "daytona", car[0] ? car : "20");
-    wl_log("nascar: no track on its command line: -track %s -car %s ([Game.nascar] TRACK, CAR)", track[0] ? track : "daytona",
-           car[0] ? car : "20");
+    wl_game_option("CAR", g_car, sizeof g_car);
+    if (!g_car[0])
+        strcpy_s(g_car, sizeof g_car, "20");
+    strncpy_s(g_baseCmd, sizeof g_baseCmd, cmd, _TRUNCATE);
+    race_command(track[0] ? track : "daytona");
+    wl_log("nascar: no track on its command line: -track %s -car %s ([Game.nascar] TRACK, CAR)", track[0] ? track : "daytona", g_car);
+    // The choice on the screen, unless the agent drives the race (tests)
+    wchar_t agent[4];
+    if (wl_game_option_bool("PICK_TRACK") && !(GetEnvironmentVariableW(WL_ENV_AGENT, agent, 4) && agent[0] == L'1'))
+        g_pickPending = 1;
 }
 
 // HKLM\SOFTWARE\GlobalVR\NASCAR, as the disc's Registry\NASCAR.reg (the full screen's size the
@@ -901,6 +1038,9 @@ int wl_game_globalvr(const wchar_t *exePath, const char **name, const char **tit
         wl_log("nascar: its HASP dongle's reader is not where windowsarcadeloader found it (2.0.2 at 0x675B10, 1.1 at 0x672460): left as "
                "it is (without its dongle the race may stop)");
     nascar_registry(b);
+    // The night track (Richmond): no sun shadow, its shadow projection all zeros, drawn black on
+    // today's graphics cards (d3d9shadow.cpp): drawn without the shadow
+    wl_d3d9_zero_projection("shadowProjection", "shadowed");
     // its command line read by the C runtime's start: the track and car given once the settings are
     if (!wl_patch_iat(exe, "kernel32.dll", "GetCommandLineA", (void *)nascar_GetCommandLineA, (void **)&oGetCommandLineA))
         oGetCommandLineA = NULL;
